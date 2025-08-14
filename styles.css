@@ -1,4 +1,4 @@
-/* --- Space Invader Zoo EXPO --- */
+/* --- Space Invader Zoo EXPO (fix mobile dropzone & UI visible) --- */
 :root{
   --bg:#05070F; --fg:#eaf1ff; --muted:#92a5d2; --panel:rgba(12,16,36,0.58); --accent:#43d1ff;
 }
@@ -11,6 +11,8 @@ body{
   overflow:hidden;
 }
 #c{display:block;width:100vw;height:100vh}
+
+.hidden{display:none}
 
 #ui{position:fixed;inset:0 0 auto 0;pointer-events:none;padding:12px 16px}
 #ui header{display:flex;align-items:center;justify-content:space-between;pointer-events:auto}
@@ -32,12 +34,12 @@ header .right>*{
 .file input{display:none}
 .file span{cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
 
+/* Panneau options */
 #panel{
   margin-top:10px;display:inline-flex;flex-direction:column;gap:8px;
   background:var(--panel);border:1px solid rgba(130,170,255,.18);border-radius:12px;
   padding:10px 12px;pointer-events:auto;backdrop-filter:blur(8px);max-width:min(980px,95vw);
 }
-.hidden{display:none}
 #panel .line{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .sliders label{
   display:inline-flex;align-items:center;gap:10px;margin-right:12px;font-size:14px;color:var(--muted);
@@ -48,20 +50,34 @@ header .right>*{
 .sliders input[type=range]{accent-color:var(--accent)}
 .hint{margin:0;font-size:12px;color:var(--muted)}
 
+/* Toast audio */
 #toast{
   position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
   background:rgba(15,20,44,.9); border:1px solid rgba(130,170,255,.25);
   color:#eaf1ff; padding:8px 12px; border-radius:10px; pointer-events:none;
   box-shadow:0 12px 40px rgba(0,0,0,.4);
 }
+
+/* Exit EXPO */
 #exit-expo{
   position:fixed; top:10px; left:10px; z-index:12; pointer-events:auto;
   background:rgba(20,24,44,.85); border:1px solid rgba(130,170,255,.28);
   color:#eaf1ff; width:36px; height:36px; display:grid; place-items:center;
   border-radius:10px; cursor:pointer;
 }
+
+/* Dropzone (desktop uniquement) */
 #dropzone{
-  position:fixed;inset:0;display:grid;place-items:center;
-  font-family:"Press Start 2P",Inter,sans-serif;font-size:clamp(18px,6vw,50px);
-  background:rgba(20,26,50,.85);border:4px dashed rgba(120,160,255,.65);color:#c7dcff;z-index:10;
+  position:fixed;inset:0;display:grid;place-items:center;z-index:11;
+  background:rgba(20,26,50,.85);border:4px dashed rgba(120,160,255,.65);color:#c7dcff;
+  cursor:pointer;
+}
+#dropzone .dz-inner{text-align:center;font-family:"Press Start 2P",Inter,sans-serif}
+#dropzone .dz-title{font-size:clamp(18px,6vw,50px);line-height:1.2}
+#dropzone .dz-sub{margin-top:10px;font-size:clamp(12px,2.5vw,16px);opacity:.85}
+
+/* Sur mobile (pointer:coarse), on désactive totalement la zone de drop */
+@media (pointer:coarse){
+  #dropzone{display:none !important}
+  header .right>*{padding:10px 12px} /* plus cliquable */
 }
