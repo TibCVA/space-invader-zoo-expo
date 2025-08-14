@@ -1,4 +1,4 @@
-// Space Invader Zoo — EXPO (iOS: pas de dropzone, import via boutons)
+// Space Invader Zoo — EXPO (iOS fixes: panel hidden, header wrap, no capture)
 import * as THREE from 'https://unpkg.com/three@0.158.0/build/three.module.js';
 import { OrbitControls } from 'https://unpkg.com/three@0.158.0/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'https://unpkg.com/three@0.158.0/examples/jsm/environments/RoomEnvironment.js';
@@ -96,7 +96,7 @@ addEventListener('resize', () => {
   ssao.setSize(innerWidth, innerHeight);
 });
 
-// ---------------- UI
+// ---------------- UI refs
 const exitExpoBtn = document.querySelector('#exit-expo');
 const fileInput   = document.querySelector('#file');
 const btnSamples  = document.querySelector('#btn-samples');
@@ -147,7 +147,12 @@ function syncLabels(){
   .forEach(e=>e.addEventListener('input', syncLabels));
 syncLabels();
 
-btnGear.addEventListener('click', ()=> panel.classList.toggle('hidden'));
+// Panneau d’options: caché par défaut, toggle via ⚙️
+panel.classList.add('hidden');
+btnGear.addEventListener('click', ()=>{
+  panel.classList.toggle('hidden');
+  panel.setAttribute('aria-hidden', panel.classList.contains('hidden') ? 'true' : 'false');
+});
 
 // ---------------- Import (mobile‑first)
 function loadImageFromURL(url){
@@ -192,7 +197,7 @@ function toggleExpo(on){
 btnExpo.addEventListener('click', ()=> toggleExpo(true));
 exitExpoBtn.addEventListener('click', ()=> toggleExpo(false));
 addEventListener('keydown', (e)=>{ if (e.key.toLowerCase()==='e') toggleExpo(!expo); });
-toggleExpo(false); // état initial garanti
+toggleExpo(false); // garantit ✱ masqué au lancement
 
 // Son
 const audio = new AudioUI(document.body, toast);
@@ -317,7 +322,7 @@ addEventListener('pointerdown', (e)=>{
 });
 
 // ---------------- Persistance
-const LS='sizo-expo-v3'; // bump version
+const LS='sizo-expo-v4'; // bump version pour éviter l’ancien état
 function saveState(){ try{ const inv=invaders.map(i=>({dataURL:i.dataURL??null})); localStorage.setItem(LS, JSON.stringify({inv})); }catch(e){} }
 async function restoreState(){ try{ const txt=localStorage.getItem(LS); if(!txt) return; const st=JSON.parse(txt); for (const it of st.inv??[]){ if(!it.dataURL) continue; const img=await loadImageFromURL(it.dataURL); await addInvader(img, it.dataURL); } }catch(e){} }
 
