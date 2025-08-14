@@ -458,8 +458,8 @@ function updateCount(){ const n=agents.length; countLbl.textContent = n + (n>1?'
 speedSlider.addEventListener('input', ()=>{ globalSpeedFactor = Number(speedSlider.value)/100; });
 
 const openPicker = () => { try { fileInput.click(); } catch(e) {} };
-addBtn.addEventListener('click', openPicker, { passive: true });
-addBtn.addEventListener('touchend', openPicker, { passive: true });
+addBtn.addEventListener('click', openPicker);
+addBtn.addEventListener('touchend', openPicker);
 
 fileInput.addEventListener('change', async e=>{
   if(!e.target.files || e.target.files.length===0) return;
