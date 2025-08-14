@@ -6,9 +6,11 @@
   --accent: #67b8ff;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; height: 100%; background: #000; color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
+html, body { margin: 0; height: 100%; background: #000; color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
 #scene { width: 100vw; height: 100vh; display: block; touch-action: none; }
 
+/* Barre supérieure */
 #ui {
   position: fixed; inset: env(safe-area-inset-top) 0 auto 0;
   display: grid; grid-template-columns: auto 1fr auto auto; gap: .75rem; align-items: center;
@@ -18,7 +20,6 @@ html, body { margin: 0; height: 100%; background: #000; color: var(--text); font
   border-bottom: 1px solid var(--ui-border);
   z-index: 10;
 }
-
 #addBtn {
   -webkit-appearance: none; appearance: none;
   border: 1px solid var(--ui-border);
@@ -27,29 +28,29 @@ html, body { margin: 0; height: 100%; background: #000; color: var(--text); font
   padding: .52rem .8rem; border-radius: 10px; font-weight: 600;
 }
 #addBtn:active { transform: translateY(1px); }
-
 #hint { opacity: .8; font-size: .9rem; text-align: center; }
-
 #count { justify-self: end; font-variant-numeric: tabular-nums; }
 
+/* Slider vitesse */
 #speedWrap { display: inline-flex; align-items: center; gap: .45rem; }
 #speedWrap .emoji { opacity: .85; }
-#speed {
-  -webkit-appearance: none; appearance: none; width: 140px; height: 26px; background: transparent;
-}
-#speed::-webkit-slider-runnable-track {
-  height: 4px; background: rgba(255,255,255,.25); border-radius: 999px;
-}
+#speed { -webkit-appearance: none; appearance: none; width: 140px; height: 26px; background: transparent; }
+#speed::-webkit-slider-runnable-track { height: 4px; background: rgba(255,255,255,.25); border-radius: 999px; }
 #speed::-webkit-slider-thumb {
   -webkit-appearance: none; appearance: none; width: 22px; height: 22px; margin-top: -9px;
   background: #fff; border-radius: 50%; border: 1px solid rgba(0,0,0,.2);
 }
 #speed:focus { outline: none; }
 
+/* Input fichier "furtif" (click programmatique autorisé par iOS) */
+#file {
+  position: fixed; left: -9999px; top: -9999px; width: 1px; height: 1px; opacity: 0;
+  /* surtout pas display:none ni visibility:hidden */
+}
+
 @media (max-width: 430px) {
   #ui { grid-template-columns: auto 1fr auto; grid-template-areas:
-    "btn hint count"
-    "slider slider slider"; row-gap: .35rem; }
+    "btn hint count" "slider slider slider"; row-gap: .35rem; }
   #addBtn { grid-area: btn; }
   #hint { grid-area: hint; font-size: .8rem; }
   #count { grid-area: count; }
