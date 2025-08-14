@@ -1,4 +1,4 @@
-// Space Invader Zoo — EXPO (fix mobile dropzone + UI always visible)
+// Space Invader Zoo — EXPO (iOS: pas de dropzone, import via boutons)
 import * as THREE from 'https://unpkg.com/three@0.158.0/build/three.module.js';
 import { OrbitControls } from 'https://unpkg.com/three@0.158.0/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'https://unpkg.com/three@0.158.0/examples/jsm/environments/RoomEnvironment.js';
@@ -80,43 +80,32 @@ scene.add(planet.group);
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 let aaPass;
-try {
-  aaPass = new SMAAPass(innerWidth, innerHeight);
-  composer.addPass(aaPass);
-} catch(e) {
-  const fxaa = new ShaderPass(FXAAShader);
-  fxaa.material.uniforms['resolution'].value.set(1/innerWidth, 1/innerHeight);
-  composer.addPass(fxaa);
-}
+try { aaPass = new SMAAPass(innerWidth, innerHeight); composer.addPass(aaPass); }
+catch(e) { const fxaa = new ShaderPass(FXAAShader); fxaa.material.uniforms['resolution'].value.set(1/innerWidth, 1/innerHeight); composer.addPass(fxaa); }
 const ssao = new SSAOPass(scene, camera, innerWidth, innerHeight);
-ssao.kernelRadius = 8;
-ssao.minDistance = 0.0025;
-ssao.maxDistance = 0.12;
+ssao.kernelRadius = 8; ssao.minDistance = 0.0025; ssao.maxDistance = 0.12;
 composer.addPass(ssao);
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.42, 0.9, 0.8);
 composer.addPass(bloom);
 
 // Resize
 addEventListener('resize', () => {
-  camera.aspect = innerWidth/innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-  composer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
   if (aaPass && aaPass.setSize) aaPass.setSize(innerWidth, innerHeight);
   ssao.setSize(innerWidth, innerHeight);
 });
 
 // ---------------- UI
-const drop = document.querySelector('#dropzone');
 const exitExpoBtn = document.querySelector('#exit-expo');
-const fileInput = document.querySelector('#file');
-const btnSamples = document.querySelector('#btn-samples');
-const btnShot = document.querySelector('#btn-shot');
-const btnReset = document.querySelector('#btn-reset');
-const btnGear = document.querySelector('#btn-gear');
-const btnExpo = document.querySelector('#btn-expo');
-const panel = document.querySelector('#panel');
-const toast = document.querySelector('#toast');
+const fileInput   = document.querySelector('#file');
+const btnSamples  = document.querySelector('#btn-samples');
+const btnShot     = document.querySelector('#btn-shot');
+const btnReset    = document.querySelector('#btn-reset');
+const btnGear     = document.querySelector('#btn-gear');
+const btnExpo     = document.querySelector('#btn-expo');
+const panel       = document.querySelector('#panel');
+const toast       = document.querySelector('#toast');
 
 const thrRange = document.querySelector('#thr');
 const bevelRange = document.querySelector('#bevel');
@@ -154,36 +143,26 @@ function syncLabels(){
   expoZoomVal.textContent  = expoZoom.value;
   expoPauseVal.textContent = expoPause.value;
 }
-[thrRange, bevelRange, gapRange, depthRange, timeRange, terrainRange, maxNRange, expoSpeed, expoZoom, expoPause].forEach(e=>e.addEventListener('input', syncLabels));
+[thrRange, bevelRange, gapRange, depthRange, timeRange, terrainRange, maxNRange, expoSpeed, expoZoom, expoPause]
+  .forEach(e=>e.addEventListener('input', syncLabels));
 syncLabels();
 
-// Options panneau
 btnGear.addEventListener('click', ()=> panel.classList.toggle('hidden'));
 
-// ---------------- Drag & Drop (désactivé sur appareil tactile)
-const isTouch = (matchMedia && matchMedia('(pointer:coarse)').matches) || 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-if (!isTouch) {
-  ['dragenter','dragover'].forEach(ev => addEventListener(ev, (e)=>{ e.preventDefault(); drop.classList.remove('hidden'); }));
-  ['dragleave','drop'].forEach(ev => addEventListener(ev, (e)=>{ e.preventDefault(); drop.classList.add('hidden'); }));
-  // fermer le dropzone au clic/tap
-  drop.addEventListener('click', ()=> drop.classList.add('hidden'));
-} else {
-  // sécurité : s'assurer qu'il est caché sur mobile
-  drop.classList.add('hidden');
+// ---------------- Import (mobile‑first)
+function loadImageFromURL(url){
+  return new Promise((resolve, reject)=>{ const img=new Image(); img.crossOrigin='anonymous'; img.onload=()=>resolve(img); img.onerror=reject; img.src=url; });
 }
-
-// Fichiers
-addEventListener('drop', async (e) => {
-  const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
-  for (const f of files) await handleFile(f);
-});
+function fileToDataURL(file){
+  return new Promise((resolve, reject)=>{ const fr=new FileReader(); fr.onload=()=>resolve(fr.result); fr.onerror=reject; fr.readAsDataURL(file); });
+}
+async function handleFile(file){ const dataURL=await fileToDataURL(file); const img=await loadImageFromURL(dataURL); await addInvader(img, dataURL); }
 
 fileInput.addEventListener('change', async ()=>{
   for (const f of fileInput.files) await handleFile(f);
   fileInput.value = '';
 });
 
-// Exemples
 btnSamples.addEventListener('click', async ()=>{
   const samples = ['assets/samples/mars_56.jpg','assets/samples/mars_36.jpg','assets/samples/caz_32.jpg'];
   const url = samples[Math.floor(Math.random()*samples.length)];
@@ -191,25 +170,20 @@ btnSamples.addEventListener('click', async ()=>{
   await addInvader(img, url);
 });
 
-// Capture
 btnShot.addEventListener('click', ()=>{
   renderer.render(scene, camera);
   const url = renderer.domElement.toDataURL('image/png');
   const a = document.createElement('a'); a.href = url; a.download = 'space-invader-zoo-expo.png'; a.click();
 });
-
-// Reset
 btnReset.addEventListener('click', ()=>{
   for (const c of invadersGroup.children) c.removeFromParent();
-  invaders.length = 0;
-  saveState();
+  invaders.length = 0; saveState();
 });
 
-// ---------------- Mode EXPO
+// ---------------- Mode EXPO (UI visible par défaut)
 let expo = false;
 function toggleExpo(on){
   expo = on;
-  // UI toujours visible au démarrage ; masquée uniquement quand on active EXPO
   document.querySelector('#ui').classList.toggle('hidden', on);
   exitExpoBtn.classList.toggle('hidden', !on);
   controls.autoRotate = !on; // en EXPO on pilote la caméra nous-mêmes
@@ -218,8 +192,7 @@ function toggleExpo(on){
 btnExpo.addEventListener('click', ()=> toggleExpo(true));
 exitExpoBtn.addEventListener('click', ()=> toggleExpo(false));
 addEventListener('keydown', (e)=>{ if (e.key.toLowerCase()==='e') toggleExpo(!expo); });
-// garantir l'état initial (UI visible, EXPO off)
-toggleExpo(false);
+toggleExpo(false); // état initial garanti
 
 // Son
 const audio = new AudioUI(document.body, toast);
@@ -229,15 +202,6 @@ timeRange.addEventListener('input', ()=>{ planet.setTime(parseFloat(timeRange.va
 terrainRange.addEventListener('input', ()=>{ planet.setRelief(parseFloat(terrainRange.value)); });
 function updateLights(){ dirLight.position.copy(planet.sunDir().multiplyScalar(12)); dirLight.intensity = THREE.MathUtils.lerp(0.2, 1.3, planet.sunElev()); }
 updateLights();
-
-// ---------------- Helpers
-function loadImageFromURL(url){
-  return new Promise((resolve, reject)=>{ const img=new Image(); img.crossOrigin='anonymous'; img.onload=()=>resolve(img); img.onerror=reject; img.src=url; });
-}
-function fileToDataURL(file){
-  return new Promise((resolve, reject)=>{ const fr=new FileReader(); fr.onload=()=>resolve(fr.result); fr.onerror=reject; fr.readAsDataURL(file); });
-}
-async function handleFile(file){ const dataURL=await fileToDataURL(file); const img=await loadImageFromURL(dataURL); await addInvader(img, dataURL); }
 
 // ---------------- Invaders
 const invadersGroup = new THREE.Group(); scene.add(invadersGroup);
@@ -255,7 +219,6 @@ function currentParams(){
 
 async function addInvader(img, dataURL=null){
   const node = await buildInvaderFromImageEXPO(img, currentParams(), THREE);
-  // normalize scale
   const box = new THREE.Box3().setFromObject(node);
   const size = new THREE.Vector3(); box.getSize(size);
   node.scale.setScalar(1.9/Math.max(size.x, size.y, size.z));
@@ -354,7 +317,7 @@ addEventListener('pointerdown', (e)=>{
 });
 
 // ---------------- Persistance
-const LS='sizo-expo-v2'; // bump version to avoid old state side effects
+const LS='sizo-expo-v3'; // bump version
 function saveState(){ try{ const inv=invaders.map(i=>({dataURL:i.dataURL??null})); localStorage.setItem(LS, JSON.stringify({inv})); }catch(e){} }
 async function restoreState(){ try{ const txt=localStorage.getItem(LS); if(!txt) return; const st=JSON.parse(txt); for (const it of st.inv??[]){ if(!it.dataURL) continue; const img=await loadImageFromURL(it.dataURL); await addInvader(img, it.dataURL); } }catch(e){} }
 
@@ -393,5 +356,5 @@ function animate(){
 }
 requestAnimationFrame(animate);
 
-// Restore previous session (après bind des events)
+// Restore previous session
 restoreState();
