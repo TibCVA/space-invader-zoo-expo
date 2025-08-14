@@ -1,19 +1,29 @@
-// IMPORTANT: OrbitControls avec ?module, sinon Safari ne résout pas l'import 'three'.
-import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
-import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js?module';
+// Imports ESM fiables (esm.sh réécrit les imports internes -> Safari iOS ok)
+import * as THREE from 'https://esm.sh/three@0.160.0';
+import { OrbitControls } from 'https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
+/* --------- Overlay erreur minimal (s’affiche uniquement si besoin) --------- */
+const errorBox = document.createElement('div');
+errorBox.id = 'error';
+document.body.appendChild(errorBox);
+function showError(msg){
+  errorBox.textContent = String(msg);
+  errorBox.style.display = 'block';
+}
+window.addEventListener('error', (e)=> showError(e.message || e.error));
+window.addEventListener('unhandledrejection', (e)=> showError(e.reason?.message || e.reason || 'Unhandled rejection'));
 
 /* =========================
    CONFIG & CONSTANTES
    ========================= */
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
-
 const WORLD = {
   planetRadius: 3.2,
-  invaderScale: 0.02,        // taille d'un "pixel" AVANT scaling
+  invaderScale: 0.02,
   invaderDepth: 0.035,
   spacingRatio: 0.08,
-  maxVoxelsPerInvader: 900,  // ~30x30 (pour viser 500 invaders)
-  invaderMaxWorldSize: 0.10, // 10% du diamètre → invaders petits
+  maxVoxelsPerInvader: 900,       // ~30x30 (permet 500+ invaders)
+  invaderMaxWorldSize: 0.10,      // 10% du diamètre de la planète
   repelRadius: 0.35,
   repelStrength: 1.0,
   hoverMargin: 0.03
@@ -23,14 +33,17 @@ const WORLD = {
    RENDERER / SCÈNE / CAMÉRA
    ========================= */
 const canvas = document.getElementById('scene');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance' });
+const renderer = new THREE.WebGLRenderer({
+  canvas, antialias: true, alpha: false, powerPreference: 'high-performance'
+});
+const gl = renderer.getContext();
+if (!gl) { showError('WebGL non disponible. Ferme d’autres onglets/apps et recharge.'); }
 renderer.setPixelRatio(DPR);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
 const scene = new THREE.Scene();
-
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 150);
 camera.position.set(0, WORLD.planetRadius*0.75, WORLD.planetRadius*2.0);
 
@@ -50,21 +63,20 @@ function generatePlanetTexture(w=512, h=256) {
   const ctx = c.getContext('2d');
 
   const g = ctx.createLinearGradient(0,0,0,h);
-  g.addColorStop(0.00, '#2b5b6a');
-  g.addColorStop(0.55, '#3a7083');
-  g.addColorStop(1.00, '#2c5563');
+  g.addColorStop(0, '#2b5b6a'); g.addColorStop(0.55, '#3a7083'); g.addColorStop(1, '#2c5563');
   ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
 
+  // bandes + bruit
   const seed = 1337;
-  function rand(n){ return Math.sin(n*16807 + seed)*43758.5453 % 1; }
-  function noise1d(x){ const i=Math.floor(x), f=x-i; const a=rand(i), b=rand(i+1); return a*(1-f)+b*f; }
+  const rand = (n)=> (Math.sin(n*16807 + seed)*43758.5453) % 1;
+  const noise1d = (x)=>{ const i=Math.floor(x), f=x-i; const a=rand(i), b=rand(i+1); return a*(1-f)+b*f; };
 
   ctx.globalAlpha = 0.25;
   for (let y=0; y<h; y++) {
     const v = y/h;
     const band = 0.5 + 0.5*Math.sin((v*3.5 + 0.15)*Math.PI*2);
     const n = 0.5 + 0.5*noise1d(v*24.0);
-    const t = Math.min(1, Math.max(0, (band*0.6 + n*0.4)));
+    const t = Math.min(1, Math.max(0, band*0.6 + n*0.4));
     ctx.fillStyle = `rgba(255,255,255,${0.12*t})`;
     ctx.fillRect(0,y,w,1);
   }
@@ -76,9 +88,8 @@ function generatePlanetTexture(w=512, h=256) {
     const r = 10 + Math.random()*30;
     const grd = ctx.createRadialGradient(cx,cy,0,cx,cy,r);
     grd.addColorStop(0, 'rgba(255,255,255,0.12)');
-    grd.addColorStop(1, 'rgba(255,255,255,0.0)');
-    ctx.fillStyle = grd;
-    ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+    grd.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
   }
 
   const tex = new THREE.CanvasTexture(c);
@@ -97,44 +108,44 @@ const planetMat = new THREE.MeshStandardMaterial({
 const planet = new THREE.Mesh(planetGeo, planetMat);
 scene.add(planet);
 
-// relief doux
-(() => {
-  const pos = planetGeo.attributes.position, v=new THREE.Vector3();
-  for(let i=0;i<pos.count;i++){
+// léger relief
+{
+  const pos = planetGeo.attributes.position;
+  const v = new THREE.Vector3();
+  for (let i=0; i<pos.count; i++){
     v.fromBufferAttribute(pos,i).normalize();
     const p=0.05*(Math.sin(7*v.x)+Math.sin(9*v.y)+Math.sin(11*v.z));
     v.multiplyScalar(WORLD.planetRadius + p);
     pos.setXYZ(i, v.x, v.y, v.z);
   }
   planetGeo.computeVertexNormals();
-})();
+}
 
 // halo atmosphérique
-(() => {
+{
   const g = new THREE.SphereGeometry(WORLD.planetRadius*1.02, 64, 48);
-  const vshader = `
-    varying float vDot;
-    void main(){
-      vec3 n = normalize(normalMatrix * normal);
-      vec3 v = normalize((modelViewMatrix * vec4(position,1.0)).xyz);
-      vDot = 1.0 - max(dot(n, -v), 0.0);
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
-    }`;
-  const fshader = `
-    varying float vDot;
-    void main(){ float a = pow(vDot, 4.0);
-      gl_FragColor = vec4(0.3, 0.6, 1.0, a*0.25); }`;
   const m = new THREE.ShaderMaterial({
-    vertexShader: vshader, fragmentShader: fshader,
+    vertexShader: `
+      varying float vDot;
+      void main(){
+        vec3 n = normalize(normalMatrix * normal);
+        vec3 v = normalize((modelViewMatrix * vec4(position,1.0)).xyz);
+        vDot = 1.0 - max(dot(n, -v), 0.0);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+      }`,
+    fragmentShader: `
+      varying float vDot;
+      void main(){ float a = pow(vDot, 4.0);
+        gl_FragColor = vec4(0.3, 0.6, 1.0, a*0.25); }`,
     blending: THREE.AdditiveBlending, side: THREE.BackSide, transparent: true, depthWrite: false
   });
   scene.add(new THREE.Mesh(g, m));
-})();
+}
 
 /* =========================
    ÉTOILES
    ========================= */
-(() => {
+{
   const N=3200, a=new Float32Array(3*N);
   for(let i=0;i<N;i++){
     const r=70+Math.random()*70, t=Math.acos(Math.random()*2-1), p=Math.random()*Math.PI*2;
@@ -142,7 +153,7 @@ scene.add(planet);
   }
   const g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(a,3));
   scene.add(new THREE.Points(g, new THREE.PointsMaterial({ size:.6, color:0xffffff })));
-})();
+}
 
 /* =========================
    CONTRÔLES
@@ -154,11 +165,11 @@ controls.minDistance = WORLD.planetRadius*1.05;
 controls.maxDistance = WORLD.planetRadius*4.5;
 
 /* =========================
-   OUTILS IMAGE (segmentation robuste) – mêmes algos que V3.1
+   OUTILS IMAGE (segmentation robuste)
    ========================= */
-function lin(c){c/=255;return c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4);}
-function dist2(a,b){const dr=lin(a[0])-lin(b[0]);const dg=lin(a[1])-lin(b[1]);const db=lin(a[2])-lin(b[2]);return dr*dr+dg*dg+db*db;}
-async function loadImage(file){return new Promise((res,rej)=>{const url=URL.createObjectURL(file);const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=url;});}
+const lin = (c)=>{ c/=255; return c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4); };
+const dist2 = (a,b)=>{ const dr=lin(a[0])-lin(b[0]), dg=lin(a[1])-lin(b[1]), db=lin(a[2])-lin(b[2]); return dr*dr+dg*dg+db*db; };
+const loadImage = (file)=> new Promise((res,rej)=>{ const url=URL.createObjectURL(file); const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=url; });
 function getEdgeBg(data,W,H){
   const m=Math.floor(Math.min(W,H)*.04), skip=Math.floor(H*.18);
   const regs=[{x:0,y:0,w:W,h:m},{x:0,y:m,w:m,h:H-m-skip},{x:W-m,y:m,w:m,h:H-m-skip},{x:0,y:H-m-skip,w:W,h:m}];
@@ -189,56 +200,44 @@ function estimateGrid(imgData, W, H, rect, range=[14,64]){
   function clamp(n,len){ let g=Math.max(range[0], Math.min(range[1], n||Math.round(len/14))); if(g%2!==0) g++; return g; }
   return { cols:clamp(cols,w), rows:clamp(rows,h) };
 }
-function dilate(bin){
-  const r=bin.length, c=bin[0].length, out=bin.map(row=>row.slice());
-  const inside=(y,x)=> y>=0 && y<r && x>=0 && x<c;
+function dilate(bin){ const r=bin.length,c=bin[0].length,out=bin.map(row=>row.slice());
+  const inside=(y,x)=> y>=0&&y<r&&x>=0&&x<c;
   for(let y=0;y<r;y++) for(let x=0;x<c;x++) if(bin[y][x]){
     for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){const ny=y+dy,nx=x+dx;if(inside(ny,nx)) out[ny][nx]=true;}
-  }
-  return out;
-}
-function erode(bin){
-  const r=bin.length, c=bin[0].length, out=bin.map(row=>row.slice());
-  const inside=(y,x)=> y>=0 && y<r && x>=0 && x<c;
+  } return out; }
+function erode(bin){ const r=bin.length,c=bin[0].length,out=bin.map(row=>row.slice());
+  const inside=(y,x)=> y>=0&&y<r&&x>=0&&x<c;
   for(let y=0;y<r;y++) for(let x=0;x<c;x++){
     let ok=true;
-    for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
-      const ny=y+dy,nx=x+dx; if(!inside(ny,nx)||!bin[ny][nx]) { ok=false; break; }
-    }
+    for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){const ny=y+dy,nx=x+dx; if(!inside(ny,nx)||!bin[ny][nx]) { ok=false; break; }}
     out[y][x]=ok;
-  }
-  return out;
-}
+  } return out; }
 const openBinary = bin => dilate(erode(bin));
 const closeBinary = bin => erode(dilate(bin));
 function filterLargestComponents(bin){
-  const r=bin.length, c=bin[0].length;
-  const vis=Array.from({length:r},()=>Array(c).fill(false));
-  const comp=[];
+  const r=bin.length,c=bin[0].length,vis=Array.from({length:r},()=>Array(c).fill(false)),comp=[];
   const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
   for(let y=0;y<r;y++) for(let x=0;x<c;x++){
-    if(!bin[y][x] || vis[y][x]) continue;
-    const q=[[y,x]]; vis[y][x]=true; let area=0, minY=y, maxY=y, minX=x, maxX=x;
-    while(q.length){
-      const [cy,cx]=q.pop(); area++;
+    if(!bin[y][x]||vis[y][x]) continue;
+    const q=[[y,x]]; vis[y][x]=true; let area=0,minY=y,maxY=y,minX=x,maxX=x;
+    while(q.length){ const [cy,cx]=q.pop(); area++;
       if(cy<minY)minY=cy; if(cy>maxY)maxY=cy; if(cx<minX)minX=cx; if(cx>maxX)maxX=cx;
-      for(const [dy,dx] of dirs){
-        const ny=cy+dy, nx=cx+dx;
+      for(const [dy,dx] of dirs){ const ny=cy+dy,nx=cx+dx;
         if(ny>=0&&ny<r&&nx>=0&&nx<c && bin[ny][nx] && !vis[ny][nx]){ vis[ny][nx]=true; q.push([ny,nx]); }
       }
     }
-    comp.push({area, bbox:{minY,maxY,minX,maxX}});
+    comp.push({area,bbox:{minY,maxY,minX,maxX}});
   }
   if(!comp.length) return bin;
   comp.sort((a,b)=>b.area-a.area);
-  const keep = []; const largest = comp[0].area; let cum = 0;
+  const keep=[]; const largest=comp[0].area; let cum=0;
   for(const cc of comp){
-    if(cc.area >= Math.max(6, largest*0.06)){ keep.push(cc); cum += cc.area; if(cum > largest*1.35) break; }
+    if(cc.area>=Math.max(6, largest*0.06)){ keep.push(cc); cum+=cc.area; if(cum>largest*1.35) break; }
   }
-  const out = bin.map(row=>row.map(()=>false));
+  const out=bin.map(row=>row.map(()=>false));
   for(const cc of keep){
-    for(let y=cc.bbox.minY; y<=cc.bbox.maxY; y++){
-      for(let x=cc.bbox.minX; x<=cc.bbox.maxX; x++){
+    for(let y=cc.bbox.minY;y<=cc.bbox.maxY;y++){
+      for(let x=cc.bbox.minX;x<=cc.bbox.maxX;x++){
         if(bin[y][x]) out[y][x]=true;
       }
     }
@@ -247,7 +246,7 @@ function filterLargestComponents(bin){
 }
 function quantizeColors(pixels, tol=0.004){
   const rows=pixels.length, cols=pixels[0].length, palette=[];
-  function match(c){ for(const p of palette){ if(((p.r-c.r)**2+(p.g-c.g)**2+(p.b-c.b)**2) < tol) return p; } return null; }
+  const match=(c)=>{ for(const p of palette){ if(((p.r-c.r)**2+(p.g-c.g)**2+(p.b-c.b)**2) < tol) return p; } return null; };
   for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){
     const c=pixels[y][x]; if(!c) continue; const m=match(c); if(m) pixels[y][x]=m; else palette.push(c);
   }
@@ -261,10 +260,9 @@ function downsamplePixels(pixels, factor){
   for(let gy=0;gy<R;gy++){
     for(let gx=0;gx<C;gx++){
       let Rsum=0,Gsum=0,Bsum=0,N=0;
-      for(let y=gy*factor; y<Math.min(rows, (gy+1)*factor); y++){
-        for(let x=gx*factor; x<Math.min(cols, (gx+1)*factor); x++){
-          const c=pixels[y][x]; if(!c) continue;
-          Rsum+=c.r; Gsum+=c.g; Bsum+=c.b; N++;
+      for(let y=gy*factor; y<Math.min(rows,(gy+1)*factor); y++){
+        for(let x=gx*factor; x<Math.min(cols,(gx+1)*factor); x++){
+          const c=pixels[y][x]; if(!c) continue; Rsum+=c.r; Gsum+=c.g; Bsum+=c.b; N++;
         }
       }
       if(N>0) out[gy][gx]={r:Rsum/N,g:Gsum/N,b:Bsum/N};
@@ -310,14 +308,11 @@ async function imageToPixelMatrix(file){
       const x1=Math.min(W, Math.floor(rect.x+(gx+1)*cellW));
       const y1=Math.min(H, Math.floor(rect.y+(gy+1)*cellH));
       let r=0,g=0,b=0,n=0;
-      for(let y=y0;y<y1;y+=1) for(let x=x0;x<x1;x+=1){
+      for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++){
         const i=(y*W+x)*4; r+=data[i]; g+=data[i+1]; b+=data[i+2]; n++;
       }
       const c=[r/n,g/n,b/n];
-      if(dist2(c, km.centers[bgk])>keepTH){
-        bin[gy][gx]=true;
-        colsRGB[gy][gx]={r:c[0]/255,g:c[1]/255,b:c[2]/255};
-      }
+      if(dist2(c, km.centers[bgk])>keepTH){ bin[gy][gx]=true; colsRGB[gy][gx]={r:c[0]/255,g:c[1]/255,b:c[2]/255}; }
     }
   }
 
@@ -417,7 +412,7 @@ function createWanderer(invader){
   g.rotateOnAxis(new THREE.Vector3(0,0,1), Math.random()*Math.PI*2);
 
   const axis=new THREE.Vector3().randomDirection();
-  const baseSpeed = 0.08 + Math.random()*0.06; // ~3x plus lent qu'avant
+  const baseSpeed = 0.08 + Math.random()*0.06;  // ~3x plus lent qu’au début
   const rot=new THREE.Quaternion();
 
   return {
@@ -453,13 +448,12 @@ const speedSlider=document.getElementById('speed');
 
 let agents=[];
 let globalSpeedFactor = Number(speedSlider.value)/100; // 0.33 par défaut
-
 function updateCount(){ const n=agents.length; countLbl.textContent = n + (n>1?' invaders':' invader'); }
 speedSlider.addEventListener('input', ()=>{ globalSpeedFactor = Number(speedSlider.value)/100; });
 
-const openPicker = () => { try { fileInput.click(); } catch(e) {} };
-addBtn.addEventListener('click', openPicker);
-addBtn.addEventListener('touchend', openPicker);
+const openPicker = () => { try { fileInput.click(); } catch(e) { showError(e.message || e); } };
+addBtn.addEventListener('click', openPicker, { passive: true });
+addBtn.addEventListener('touchend', openPicker, { passive: true });
 
 fileInput.addEventListener('change', async e=>{
   if(!e.target.files || e.target.files.length===0) return;
@@ -471,7 +465,7 @@ fileInput.addEventListener('change', async e=>{
       const agent=createWanderer(built);
       scene.add(agent.object);
       agents.push(agent); updateCount();
-    } catch(err){ alert(err.message||String(err)); }
+    } catch(err){ showError(err.message || String(err)); }
   }
   fileInput.value='';
 });
