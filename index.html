@@ -9,20 +9,12 @@
   <meta name="theme-color" content="#000000">
   <title>Space Invader Zoo</title>
   <link rel="stylesheet" href="style.css">
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-    }
-  }
-  </script>
 </head>
 <body>
   <div id="ui">
     <button id="addBtn" aria-label="Add Invader">+ Add Invader</button>
-    <!-- IMPORTANT: pas de capture => iOS propose la Photothèque -->
-    <input id="file" type="file" accept="image/*" multiple hidden />
+    <!-- IMPORTANT iOS : pas de hidden/display:none ; input "furtif" (voir CSS) -->
+    <input id="file" type="file" accept="image/*" multiple />
     <div id="hint">Pinch pour zoomer • Glisser pour tourner</div>
 
     <label id="speedWrap" for="speed" title="Vitesse des invaders">
@@ -36,6 +28,8 @@
 
   <canvas id="scene"></canvas>
   <noscript>Active JavaScript pour jouer.</noscript>
+
+  <!-- Hotfix: import ESM via URL (pas d'import map) -->
   <script type="module" src="main.js"></script>
 </body>
 </html>
