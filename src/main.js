@@ -1,4 +1,4 @@
-// Space Invader Zoo — EXPO (iOS fixes: panel hidden, header wrap, no capture)
+// Space Invader Zoo — EXPO (iOS SAFE: UI d'abord, effets tolérants, SSAO/SMAA off sur iOS)
 import * as THREE from 'https://unpkg.com/three@0.158.0/build/three.module.js';
 import { OrbitControls } from 'https://unpkg.com/three@0.158.0/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'https://unpkg.com/three@0.158.0/examples/jsm/environments/RoomEnvironment.js';
@@ -7,6 +7,7 @@ import { RenderPass } from 'https://unpkg.com/three@0.158.0/examples/jsm/postpro
 import { ShaderPass } from 'https://unpkg.com/three@0.158.0/examples/jsm/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'https://unpkg.com/three@0.158.0/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { FXAAShader } from 'https://unpkg.com/three@0.158.0/examples/jsm/shaders/FXAAShader.js';
+// Ces deux imports restent, mais on n’instancie que si compatible :
 import { SMAAPass } from 'https://unpkg.com/three@0.158.0/examples/jsm/postprocessing/SMAAPass.js';
 import { SSAOPass } from 'https://unpkg.com/three@0.158.0/examples/jsm/postprocessing/SSAOPass.js';
 
@@ -14,89 +15,10 @@ import { createPlanetEXPO } from './planetExpo.js';
 import { buildInvaderFromImageEXPO } from './invaderExpo.js';
 import { AudioUI } from './sound.js';
 
-// ---------------- Renderer / Scene
-const canvas = document.querySelector('#c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// ——— iOS detection
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
-const scene = new THREE.Scene();
-const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
-
-// Camera / Controls
-const camera = new THREE.PerspectiveCamera(56, innerWidth/innerHeight, 0.1, 2000);
-camera.position.set(0, 7.6, 13);
-scene.add(camera);
-
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.minDistance = 6;
-controls.maxDistance = 32;
-controls.autoRotate = true;
-controls.autoRotateSpeed = 0.45;
-
-// Lights
-const hemi = new THREE.HemisphereLight(0xbfd7ff, 0x202638, 0.65);
-scene.add(hemi);
-const dirLight = new THREE.DirectionalLight(0xffffff, 1.05);
-dirLight.position.set(8,10,6);
-dirLight.castShadow = true;
-dirLight.shadow.mapSize.set(2048,2048);
-dirLight.shadow.bias = -0.00035;
-scene.add(dirLight);
-
-// Sky gradient
-const skyGeo = new THREE.SphereGeometry(600, 32, 32);
-const skyMat = new THREE.ShaderMaterial({
-  side: THREE.BackSide,
-  uniforms: { topColor:{value:new THREE.Color(0x0a1128)}, bottomColor:{value:new THREE.Color(0x01040b)} },
-  vertexShader: `varying vec3 vPos; void main(){vPos=(modelMatrix*vec4(position,1.)).xyz; gl_Position=projectionMatrix*viewMatrix*vec4(vPos,1.);} `,
-  fragmentShader:`varying vec3 vPos; uniform vec3 topColor; uniform vec3 bottomColor;
-    void main(){ float h = normalize(vPos).y*0.5+0.5; vec3 col = mix(bottomColor, topColor, pow(h,1.8)); gl_FragColor=vec4(col,1.); }`
-});
-scene.add(new THREE.Mesh(skyGeo, skyMat));
-
-// Stars
-(function addStars(){
-  const N=8000, pos=new Float32Array(N*3);
-  for (let i=0;i<N;i++){ const r=270+Math.random()*150, t=Math.acos(2*Math.random()-1), p=Math.random()*Math.PI*2;
-    pos[i*3+0]=r*Math.sin(t)*Math.cos(p); pos[i*3+1]=r*Math.cos(t); pos[i*3+2]=r*Math.sin(t)*Math.sin(p); }
-  const g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos,3));
-  const m=new THREE.PointsMaterial({ size:0.72, sizeAttenuation:true, color:0xbfd6ff, transparent:true, opacity:0.82, depthWrite:false });
-  scene.add(new THREE.Points(g,m));
-})();
-
-// Planet
-const planetRadius = 4.0;
-const planet = createPlanetEXPO(planetRadius, THREE);
-scene.add(planet.group);
-
-// ---------------- Post-processing
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera));
-let aaPass;
-try { aaPass = new SMAAPass(innerWidth, innerHeight); composer.addPass(aaPass); }
-catch(e) { const fxaa = new ShaderPass(FXAAShader); fxaa.material.uniforms['resolution'].value.set(1/innerWidth, 1/innerHeight); composer.addPass(fxaa); }
-const ssao = new SSAOPass(scene, camera, innerWidth, innerHeight);
-ssao.kernelRadius = 8; ssao.minDistance = 0.0025; ssao.maxDistance = 0.12;
-composer.addPass(ssao);
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.42, 0.9, 0.8);
-composer.addPass(bloom);
-
-// Resize
-addEventListener('resize', () => {
-  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
-  if (aaPass && aaPass.setSize) aaPass.setSize(innerWidth, innerHeight);
-  ssao.setSize(innerWidth, innerHeight);
-});
-
-// ---------------- UI refs
+// ——— UI refs (attach listeners AVANT toute init 3D pour ne jamais bloquer)
 const exitExpoBtn = document.querySelector('#exit-expo');
 const fileInput   = document.querySelector('#file');
 const btnSamples  = document.querySelector('#btn-samples');
@@ -147,14 +69,14 @@ function syncLabels(){
   .forEach(e=>e.addEventListener('input', syncLabels));
 syncLabels();
 
-// Panneau d’options: caché par défaut, toggle via ⚙️
+// Panneau options : caché au démarrage
 panel.classList.add('hidden');
 btnGear.addEventListener('click', ()=>{
   panel.classList.toggle('hidden');
   panel.setAttribute('aria-hidden', panel.classList.contains('hidden') ? 'true' : 'false');
 });
 
-// ---------------- Import (mobile‑first)
+// Import (mobile‑first)
 function loadImageFromURL(url){
   return new Promise((resolve, reject)=>{ const img=new Image(); img.crossOrigin='anonymous'; img.onload=()=>resolve(img); img.onerror=reject; img.src=url; });
 }
@@ -164,15 +86,20 @@ function fileToDataURL(file){
 async function handleFile(file){ const dataURL=await fileToDataURL(file); const img=await loadImageFromURL(dataURL); await addInvader(img, dataURL); }
 
 fileInput.addEventListener('change', async ()=>{
-  for (const f of fileInput.files) await handleFile(f);
+  try{
+    const list = [...fileInput.files];
+    for (const f of list) await handleFile(f);
+  }catch(e){ console.warn('Import error', e); }
   fileInput.value = '';
 });
 
 btnSamples.addEventListener('click', async ()=>{
-  const samples = ['assets/samples/mars_56.jpg','assets/samples/mars_36.jpg','assets/samples/caz_32.jpg'];
-  const url = samples[Math.floor(Math.random()*samples.length)];
-  const img = await loadImageFromURL(url);
-  await addInvader(img, url);
+  try{
+    const samples = ['assets/samples/mars_56.jpg','assets/samples/mars_36.jpg','assets/samples/caz_32.jpg'];
+    const url = samples[Math.floor(Math.random()*samples.length)];
+    const img = await loadImageFromURL(url);
+    await addInvader(img, url);
+  }catch(e){ console.warn('Sample error', e); }
 });
 
 btnShot.addEventListener('click', ()=>{
@@ -185,32 +112,135 @@ btnReset.addEventListener('click', ()=>{
   invaders.length = 0; saveState();
 });
 
-// ---------------- Mode EXPO (UI visible par défaut)
+// Mode EXPO (UI visible par défaut)
 let expo = false;
 function toggleExpo(on){
   expo = on;
   document.querySelector('#ui').classList.toggle('hidden', on);
   exitExpoBtn.classList.toggle('hidden', !on);
-  controls.autoRotate = !on; // en EXPO on pilote la caméra nous-mêmes
+  controls.autoRotate = !on;
   if (on) audio.note('start'); else audio.note('stop');
 }
 btnExpo.addEventListener('click', ()=> toggleExpo(true));
 exitExpoBtn.addEventListener('click', ()=> toggleExpo(false));
 addEventListener('keydown', (e)=>{ if (e.key.toLowerCase()==='e') toggleExpo(!expo); });
-toggleExpo(false); // garantit ✱ masqué au lancement
 
-// Son
+// ——— Son (toast invitant à activer)
 const audio = new AudioUI(document.body, toast);
 
-// ---------------- Planet inputs
+// ——— Maintenant seulement : initialisation 3D
+const canvasEl = document.querySelector('#c');
+const renderer = new THREE.WebGLRenderer({ canvas: canvasEl, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+
+const camera = new THREE.PerspectiveCamera(56, innerWidth/innerHeight, 0.1, 2000);
+camera.position.set(0, 7.6, 13);
+scene.add(camera);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.minDistance = 6;
+controls.maxDistance = 32;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.45;
+
+// Lumières
+const hemi = new THREE.HemisphereLight(0xbfd7ff, 0x202638, 0.65);
+scene.add(hemi);
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.05);
+dirLight.position.set(8,10,6);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(2048,2048);
+dirLight.shadow.bias = -0.00035;
+scene.add(dirLight);
+
+// Ciel
+const skyGeo = new THREE.SphereGeometry(600, 32, 32);
+const skyMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide,
+  uniforms: { topColor:{value:new THREE.Color(0x0a1128)}, bottomColor:{value:new THREE.Color(0x01040b)} },
+  vertexShader: `varying vec3 vPos; void main(){vPos=(modelMatrix*vec4(position,1.)).xyz; gl_Position=projectionMatrix*viewMatrix*vec4(vPos,1.);} `,
+  fragmentShader:`varying vec3 vPos; uniform vec3 topColor; uniform vec3 bottomColor;
+    void main(){ float h = normalize(vPos).y*0.5+0.5; vec3 col = mix(bottomColor, topColor, pow(h,1.8)); gl_FragColor=vec4(col,1.); }`
+});
+scene.add(new THREE.Mesh(skyGeo, skyMat));
+
+// Étoiles
+(function addStars(){
+  const N=8000, pos=new Float32Array(N*3);
+  for (let i=0;i<N;i++){ const r=270+Math.random()*150, t=Math.acos(2*Math.random()-1), p=Math.random()*Math.PI*2;
+    pos[i*3+0]=r*Math.sin(t)*Math.cos(p); pos[i*3+1]=r*Math.cos(t); pos[i*3+2]=r*Math.sin(t)*Math.sin(p); }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  const m=new THREE.PointsMaterial({ size:0.72, sizeAttenuation:true, color:0xbfd6ff, transparent:true, opacity:0.82, depthWrite:false });
+  scene.add(new THREE.Points(g,m));
+})();
+
+// Planète
+const planetRadius = 4.0;
+const planet = createPlanetEXPO(planetRadius, THREE);
+scene.add(planet.group);
+
+// Post‑processing TOLÉRANT
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+
+// Anti‑aliasing : sur iOS on reste en FXAA
+try{
+  if (!isIOS) {
+    const smaa = new SMAAPass(innerWidth, innerHeight);
+    composer.addPass(smaa);
+  } else {
+    const fxaa = new ShaderPass(FXAAShader);
+    fxaa.material.uniforms['resolution'].value.set(1/innerWidth, 1/innerHeight);
+    composer.addPass(fxaa);
+  }
+}catch(e){
+  const fxaa = new ShaderPass(FXAAShader);
+  fxaa.material.uniforms['resolution'].value.set(1/innerWidth, 1/innerHeight);
+  composer.addPass(fxaa);
+}
+
+// SSAO : seulement si compatible (évite crash iOS)
+try{
+  const canSSAO = !isIOS && (renderer.capabilities.isWebGL2 || renderer.getContext().getExtension('WEBGL_depth_texture'));
+  if (canSSAO){
+    const ssao = new SSAOPass(scene, camera, innerWidth, innerHeight);
+    ssao.kernelRadius = 8; ssao.minDistance = 0.0025; ssao.maxDistance = 0.12;
+    composer.addPass(ssao);
+  }
+}catch(e){ /* on ignore, rendu reste OK */ }
+
+// Bloom (léger) — safe
+try{
+  const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.42, 0.9, 0.8);
+  composer.addPass(bloom);
+}catch(e){}
+
+// Resize
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  try{ composer.setSize(innerWidth, innerHeight); }catch(e){}
+});
+
+// Paramètres planète & lumières
 timeRange.addEventListener('input', ()=>{ planet.setTime(parseFloat(timeRange.value)/24); updateLights(); });
 terrainRange.addEventListener('input', ()=>{ planet.setRelief(parseFloat(terrainRange.value)); });
 function updateLights(){ dirLight.position.copy(planet.sunDir().multiplyScalar(12)); dirLight.intensity = THREE.MathUtils.lerp(0.2, 1.3, planet.sunElev()); }
 updateLights();
 
-// ---------------- Invaders
+// Invaders
 const invadersGroup = new THREE.Group(); scene.add(invadersGroup);
-const invaders = []; // { node, dir, speed, bob, dataURL }
+const invaders = [];
 
 function currentParams(){
   return {
@@ -223,28 +253,30 @@ function currentParams(){
 }
 
 async function addInvader(img, dataURL=null){
-  const node = await buildInvaderFromImageEXPO(img, currentParams(), THREE);
-  const box = new THREE.Box3().setFromObject(node);
-  const size = new THREE.Vector3(); box.getSize(size);
-  node.scale.setScalar(1.9/Math.max(size.x, size.y, size.z));
+  try{
+    const node = await buildInvaderFromImageEXPO(img, currentParams(), THREE);
+    const box = new THREE.Box3().setFromObject(node);
+    const size = new THREE.Vector3(); box.getSize(size);
+    node.scale.setScalar(1.9/Math.max(size.x, size.y, size.z));
 
-  const holder = new THREE.Group(); holder.add(node);
-  invadersGroup.add(holder);
+    const holder = new THREE.Group(); holder.add(node);
+    invadersGroup.add(holder);
 
-  const dir = new THREE.Vector3().randomDirection();
-  const r = planet.surfaceRadius(dir) + 0.34;
-  holder.position.copy(dir.clone().multiplyScalar(r));
-  alignToTerrain(holder, dir);
+    const dir = new THREE.Vector3().randomDirection();
+    const r = planet.surfaceRadius(dir) + 0.34;
+    holder.position.copy(dir.clone().multiplyScalar(r));
+    alignToTerrain(holder, dir);
 
-  const speed = THREE.MathUtils.lerp(0.15, 0.36, Math.random());
-  const bob = Math.random()*Math.PI*2;
-  invaders.push({ node: holder, dir, speed, bob, dataURL });
+    const speed = THREE.MathUtils.lerp(0.15, 0.36, Math.random());
+    const bob = Math.random()*Math.PI*2;
+    invaders.push({ node: holder, dir, speed, bob, dataURL });
 
-  audio.note('spawn');
+    audio.note('spawn');
 
-  const maxN = parseInt(maxNRange.value, 10);
-  while (invaders.length > maxN){ const it=invaders.shift(); it.node.removeFromParent(); }
-  saveState();
+    const maxN = parseInt(maxNRange.value, 10);
+    while (invaders.length > maxN){ const it=invaders.shift(); it.node.removeFromParent(); }
+    saveState();
+  }catch(e){ console.warn('Build invader error', e); }
 }
 function alignToTerrain(object, dir){
   const n = planet.normal(dir);
@@ -321,12 +353,12 @@ addEventListener('pointerdown', (e)=>{
   if (hits.length){ const p=hits[0].object.getWorldPosition(new THREE.Vector3()); controls.target.lerp(p,0.9); audio.note('focus'); }
 });
 
-// ---------------- Persistance
-const LS='sizo-expo-v4'; // bump version pour éviter l’ancien état
+// Persistance
+const LS='sizo-expo-v5';
 function saveState(){ try{ const inv=invaders.map(i=>({dataURL:i.dataURL??null})); localStorage.setItem(LS, JSON.stringify({inv})); }catch(e){} }
 async function restoreState(){ try{ const txt=localStorage.getItem(LS); if(!txt) return; const st=JSON.parse(txt); for (const it of st.inv??[]){ if(!it.dataURL) continue; const img=await loadImageFromURL(it.dataURL); await addInvader(img, it.dataURL); } }catch(e){} }
 
-// ---------------- Expo camera autopilot
+// Expo camera autopilot
 let expoTimer = 0;
 function updateExpo(dt){
   if (!expo) return;
@@ -348,7 +380,7 @@ function updateExpo(dt){
   }
 }
 
-// ---------------- Animation
+// Animation
 let last = performance.now();
 function animate(){
   const now=performance.now(); const dt=now-last; last=now;
@@ -356,10 +388,10 @@ function animate(){
   planet.update(dt);
   updateInvaders(dt);
   updateExpo(dt);
-  composer.render();
+  try{ composer.render(); }catch(e){ renderer.render(scene, camera); }
   requestAnimationFrame(animate);
 }
 requestAnimationFrame(animate);
 
-// Restore previous session
+// Restore session (après init)
 restoreState();
