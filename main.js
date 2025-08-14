@@ -1,5 +1,6 @@
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+// Hotfix: imports ESM explicites (fiables sur Safari iOS)
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 
 /* =========================
    CONFIG & CONSTANTES
@@ -8,17 +9,15 @@ const DPR = Math.min(window.devicePixelRatio || 1, 2);
 
 const WORLD = {
   planetRadius: 3.2,
-  // taille élémentaire AVANT scaling global (on rescale chaque invader après build)
-  invaderScale: 0.02,
+  invaderScale: 0.02,        // taille d'un "pixel" AVANT scaling
   invaderDepth: 0.035,
   spacingRatio: 0.08,
-  // budget de voxels max par invader (downsample si au-dessus)
-  maxVoxelsPerInvader: 900, // ~30x30
-  maxInstancesGlobal: 300000, // sécurité GPU (instanced global)
-  invaderMaxWorldSize: 0.18,  // fraction du DIAMÈTRE de la planète (≈18%) pour la plus grande dimension
+  maxVoxelsPerInvader: 900,  // ~30x30
+  maxInstancesGlobal: 300000,
+  invaderMaxWorldSize: 0.10, // 10% du diamètre => petit (500+ invaders ok)
   repelRadius: 0.35,
   repelStrength: 1.0,
-  hoverMargin: 0.03, // marge au-dessus de la surface (en plus du demi-épaisseur)
+  hoverMargin: 0.03
 };
 
 /* =========================
@@ -27,13 +26,13 @@ const WORLD = {
 const canvas = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance' });
 renderer.setPixelRatio(DPR);
-renderer.setSize(innerWidth, innerHeight);
+renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
 const scene = new THREE.Scene();
 
-const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 150);
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 150);
 camera.position.set(0, WORLD.planetRadius*0.75, WORLD.planetRadius*2.0);
 
 /* =========================
@@ -51,21 +50,19 @@ function generatePlanetTexture(w=512, h=256) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   const ctx = c.getContext('2d');
 
-  // Gradient pastel vertical
   const g = ctx.createLinearGradient(0,0,0,h);
-  g.addColorStop(0.00, '#2b5b6a'); // teal sombre
+  g.addColorStop(0.00, '#2b5b6a');
   g.addColorStop(0.55, '#3a7083');
   g.addColorStop(1.00, '#2c5563');
   ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
 
-  // Bandes latitudinales + bruit doux (value noise simple)
   const seed = 1337;
   function rand(n){ return Math.sin(n*16807 + seed)*43758.5453 % 1; }
   function noise1d(x){ const i=Math.floor(x), f=x-i; const a=rand(i), b=rand(i+1); return a*(1-f)+b*f; }
 
   ctx.globalAlpha = 0.25;
   for (let y=0; y<h; y++) {
-    const v = y/h; // latitude
+    const v = y/h;
     const band = 0.5 + 0.5*Math.sin((v*3.5 + 0.15)*Math.PI*2);
     const n = 0.5 + 0.5*noise1d(v*24.0);
     const t = Math.min(1, Math.max(0, (band*0.6 + n*0.4)));
@@ -74,7 +71,6 @@ function generatePlanetTexture(w=512, h=256) {
   }
   ctx.globalAlpha = 1.0;
 
-  // Petites zones claires diffuses
   ctx.fillStyle = 'rgba(255,255,255,0.06)';
   for (let i=0;i<40;i++){
     const cx = Math.random()*w, cy=Math.random()*h;
@@ -159,7 +155,7 @@ controls.minDistance = WORLD.planetRadius*1.05;
 controls.maxDistance = WORLD.planetRadius*4.5;
 
 /* =========================
-   OUTILS IMAGE (segmentation robuste)
+   OUTILS IMAGE
    ========================= */
 function lin(c){c/=255;return c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4);}
 function dist2(a,b){const dr=lin(a[0])-lin(b[0]);const dg=lin(a[1])-lin(b[1]);const db=lin(a[2])-lin(b[2]);return dr*dr+dg*dg+db*db;}
@@ -198,7 +194,7 @@ function estimateGrid(imgData, W, H, rect, range=[14,64]){
   return { cols:clamp(cols,w), rows:clamp(rows,h) };
 }
 
-/* morphologie: ouverture (éroder puis dilater) & fermeture (dilater puis éroder) */
+/* Morphologie ouverture+fermeture */
 function dilate(bin){
   const r=bin.length, c=bin[0].length, out=bin.map(row=>row.slice());
   const inside=(y,x)=> y>=0 && y<r && x>=0 && x<c;
@@ -222,7 +218,7 @@ function erode(bin){
 const openBinary = bin => dilate(erode(bin));
 const closeBinary = bin => erode(dilate(bin));
 
-/* composantes connexes: garde les plus grandes (filtre les pixels isolés & bordure mur) */
+/* Composantes connexes: garder les plus significatives */
 function filterLargestComponents(bin){
   const r=bin.length, c=bin[0].length;
   const vis=Array.from({length:r},()=>Array(c).fill(false));
@@ -250,10 +246,10 @@ function filterLargestComponents(bin){
   const largest = comp[0].area;
   let cum = 0;
   for(const cc of comp){
-    if(cc.area >= Math.max(6, largest*0.06)){ // garde formes substantielles (yeux/bras…)
+    if(cc.area >= Math.max(6, largest*0.06)){
       keep.push(cc);
       cum += cc.area;
-      if(cum > largest*1.35) break; // on n’empile pas trop
+      if(cum > largest*1.35) break;
     }
   }
 
@@ -268,7 +264,7 @@ function filterLargestComponents(bin){
   return out;
 }
 
-/* quantification couleurs adaptative (réduit le “bruit” du mur) */
+/* Quantification couleurs & downsample */
 function quantizeColors(pixels, tol=0.004){
   const rows=pixels.length, cols=pixels[0].length, palette=[];
   function match(c){ for(const p of palette){ if(((p.r-c.r)**2+(p.g-c.g)**2+(p.b-c.b)**2) < tol) return p; } return null; }
@@ -277,8 +273,6 @@ function quantizeColors(pixels, tol=0.004){
   }
   return pixels;
 }
-
-/* downsample (si trop de voxels) */
 function downsamplePixels(pixels, factor){
   if(factor<=1) return pixels;
   const rows=pixels.length, cols=pixels[0].length;
@@ -299,7 +293,7 @@ function downsamplePixels(pixels, factor){
   return out;
 }
 
-/* conversion image -> grille de pixels utiles (couleurs fidèles) */
+/* conversion image -> grille */
 async function imageToPixelMatrix(file){
   const img=await loadImage(file);
   const maxSide=1000, scl=Math.min(1, maxSide/Math.max(img.naturalWidth,img.naturalHeight));
@@ -310,7 +304,6 @@ async function imageToPixelMatrix(file){
   const { data } = ctx.getImageData(0,0,W,H);
 
   const bgEdge=getEdgeBg(data,W,H);
-  // BBox rapide ≠ fond
   const TH=0.012; let minX=W,minY=H,maxX=0,maxY=0;
   const skipB=Math.floor(H*.18), m=Math.floor(Math.min(W,H)*.04);
   for(let y=m;y<H-skipB;y++) for(let x=m;x<W-m;x++){
@@ -320,20 +313,16 @@ async function imageToPixelMatrix(file){
   if(minX>=maxX||minY>=maxY) throw new Error("Invader non détecté.");
   const rect={x:minX,y:minY,w:maxX-minX+1,h:maxY-minY+1};
 
-  // échantillons pour K-means
   const cols=[];
   for(let y=0;y<rect.h;y+=2) for(let x=0;x<rect.w;x+=2){
     const i=((rect.y+y)*W+(rect.x+x))*4; cols.push([data[i],data[i+1],data[i+2]]);
   }
   const km=kmeans(cols,3,8);
-  // cluster fond = plus proche des bords
   let bgk=0,bd=1e9; for(let k=0;k<3;k++){const d=dist2(km.centers[k], bgEdge); if(d<bd){bd=d; bgk=k;}}
 
-  // grille
   const grid = estimateGrid(data, W, H, rect, [14,72]);
   const cellW=rect.w/grid.cols, cellH=rect.h/grid.rows;
 
-  // matrice binaire + couleurs moyennes
   const bin = Array.from({length:grid.rows},()=>Array(grid.cols).fill(false));
   const colsRGB = Array.from({length:grid.rows},()=>Array(grid.cols).fill(null));
   const keepTH=0.008;
@@ -354,13 +343,9 @@ async function imageToPixelMatrix(file){
     }
   }
 
-  // morphologie pour boucher & nettoyer
-  const closed = closeBinary(openBinary(bin)); // ouverture puis fermeture
-
-  // composantes connexes : garde les plus significatives
+  const closed = closeBinary(openBinary(bin));
   const filtered = filterLargestComponents(closed);
 
-  // recadrage serré
   let minY=filtered.length, minX=filtered[0].length, maxY=0, maxX=0, any=false;
   for(let y=0;y<filtered.length;y++) for(let x=0;x<filtered[0].length;x++) if(filtered[y][x]){
     any=true; if(y<minY)minY=y; if(y>maxY)maxY=y; if(x<minX)minX=x; if(x>maxX)maxX=x;
@@ -368,7 +353,6 @@ async function imageToPixelMatrix(file){
   if(!any) throw new Error("Silhouette trop faible. Essaie une photo plus frontale.");
   const croppedH=maxY-minY+1, croppedW=maxX-minX+1;
 
-  // pixels finaux (remplit trous via voisins si besoin)
   const pixels=Array.from({length:croppedH},()=>Array(croppedW).fill(null));
   for(let y=0;y<croppedH;y++) for(let x=0;x<croppedW;x++){
     const Y=y+minY, X=x+minX;
@@ -385,9 +369,9 @@ async function imageToPixelMatrix(file){
     }
   }
 
-  // quantification couleur et downsample si trop dense
   quantizeColors(pixels, 0.004);
-  const voxelCount = pixels.flat().reduce((a,c)=>a+(c?1:0),0);
+  let voxelCount = 0;
+  for(let y=0;y<pixels.length;y++) for(let x=0;x<pixels[0].length;x++){ if(pixels[y][x]) voxelCount++; }
   if(voxelCount > WORLD.maxVoxelsPerInvader){
     const factor = Math.ceil(Math.sqrt(voxelCount / WORLD.maxVoxelsPerInvader));
     return downsamplePixels(pixels, factor);
@@ -403,7 +387,6 @@ function buildInvaderMesh(pixelGrid){
   const size=WORLD.invaderScale, gap=size*WORLD.spacingRatio, depth=WORLD.invaderDepth;
 
   const geom=new THREE.BoxGeometry(size-gap, size-gap, depth);
-  // assombrissement arrière (fake AO)
   const colAttr=new Float32Array(geom.attributes.position.count*3);
   for(let i=0;i<geom.attributes.position.count;i++){
     const z=geom.attributes.position.getZ(i); const shade=z<0?0.76:1.0;
@@ -428,15 +411,13 @@ function buildInvaderMesh(pixelGrid){
   }
   mesh.count=idx; if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true;
 
-  // renvoie aussi les dimensions “monde” AVANT scaling de groupe
   return { mesh, width:w, height:h, depth };
 }
 
 /* =========================
-   AGENT (déplacement + orientation tangentielle parfaite)
+   AGENT (déplacement tangent)
    ========================= */
 function alignZAxisTo(obj, normal){
-  // aligne l'axe Z local de l'objet avec la normale "normal"
   const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1), normal.clone().normalize());
   obj.quaternion.copy(q);
 }
@@ -444,30 +425,26 @@ function alignZAxisTo(obj, normal){
 function createWanderer(invader){
   const g=new THREE.Group(); g.add(invader.mesh);
 
-  // scale global pour que la plus grande dimension = invaderMaxWorldSize * diamètre planète
+  // scale global (petit par défaut)
   const targetWorldSize = WORLD.invaderMaxWorldSize * (WORLD.planetRadius*2);
   const maxDim = Math.max(invader.width, invader.height);
   const scale = targetWorldSize / maxDim;
   g.scale.setScalar(scale);
 
-  // normale initiale aléatoire
   const normal=new THREE.Vector3().randomDirection();
   const hover = (invader.depth*scale)/2 + WORLD.hoverMargin;
   const radiusOffset = WORLD.planetRadius + hover;
   g.position.copy(normal).multiplyScalar(radiusOffset);
-  alignZAxisTo(g, normal); // plan = tangent à la sphère
-  // petite rotation autour de la normale pour varier l’orientation
+  alignZAxisTo(g, normal);
   g.rotateOnAxis(new THREE.Vector3(0,0,1), Math.random()*Math.PI*2);
 
   const axis=new THREE.Vector3().randomDirection();
-  // vitesse de base 3× plus lente qu’avant
-  const baseSpeed = 0.08 + Math.random()*0.06; // rad/s
+  const baseSpeed = 0.08 + Math.random()*0.06; // ~3x plus lent qu'avant
   const rot=new THREE.Quaternion();
 
   return {
-    object: g, normal, axis, hover, radiusOffset, baseSpeed,
+    object: g, normal, axis, radiusOffset, baseSpeed,
     update(dt, peers, speedFactor){
-      // répulsion douce
       const push=new THREE.Vector3();
       for(const p of peers){ if(p===this) continue;
         const d=this.object.position.clone().sub(p.object.position);
@@ -479,10 +456,9 @@ function createWanderer(invader){
       rot.setFromAxisAngle(this.axis, this.baseSpeed * speedFactor * dt);
       this.normal.applyQuaternion(rot).normalize();
 
-      // position & orientation tangentes parfaites
       this.object.position.copy(this.normal).multiplyScalar(this.radiusOffset);
       alignZAxisTo(this.object, this.normal);
-      // très légère respiration (dans la normale) sans collision
+
       const t=performance.now()*0.001;
       this.object.position.addScaledVector(this.normal, Math.sin(t*1.6 + this.normal.x*5.1)*0.003);
     }
@@ -490,7 +466,7 @@ function createWanderer(invader){
 }
 
 /* =========================
-   UI & IMPORT
+   UI & IMPORT (iOS-safe)
    ========================= */
 const addBtn=document.getElementById('addBtn');
 const fileInput=document.getElementById('file');
@@ -503,7 +479,10 @@ let globalSpeedFactor = Number(speedSlider.value)/100; // 0.33 par défaut
 function updateCount(){ const n=agents.length; countLbl.textContent = n + (n>1?' invaders':' invader'); }
 speedSlider.addEventListener('input', ()=>{ globalSpeedFactor = Number(speedSlider.value)/100; });
 
-addBtn.addEventListener('click',()=>fileInput.click());
+// iOS : utiliser un handler "tap" direct
+const openPicker = () => { try { fileInput.click(); } catch(e) { /* iOS 13- : accept */ } };
+addBtn.addEventListener('click', openPicker, { passive: true });
+addBtn.addEventListener('touchend', openPicker, { passive: true });
 
 fileInput.addEventListener('change', async e=>{
   if(!e.target.files || e.target.files.length===0) return;
@@ -533,8 +512,8 @@ function loop(){
 }
 loop();
 
-addEventListener('resize', ()=>{
-  renderer.setSize(innerWidth, innerHeight);
-  camera.aspect = innerWidth/innerHeight;
+window.addEventListener('resize', ()=>{
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth/window.innerHeight;
   camera.updateProjectionMatrix();
 });
