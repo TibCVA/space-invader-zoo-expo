@@ -5,10 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <title>Space Invader Zoo — EXPO</title>
   <meta name="description" content="Transformez des Space Invaders en créatures 3D sur une planète procédurale. Mode EXPO autonome inclus. Fonctionne sur GitHub Pages.">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+  <meta http-equiv="Pragma" content="no-cache"/>
+  <meta http-equiv="Expires" content="0"/>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css"/>
+  <link rel="stylesheet" href="./styles.css?v=iosfix"/>
 </head>
 <body>
   <canvas id="c"></canvas>
@@ -17,11 +20,12 @@
     <header>
       <h1>SPACE&nbsp;INVADER&nbsp;ZOO — <span>EXPO</span></h1>
       <div class="right">
+        <!-- iOS friendly file picker (caméra possible) -->
         <label class="file">
-          <input id="file" type="file" accept="image/*" multiple/>
+          <input id="file" type="file" accept="image/*" capture="environment" multiple/>
           <span>+ Ajouter</span>
         </label>
-        <button id="btn-samples">Exemples</button>
+        <button id="btn-samples" aria-label="Charger un exemple">Exemples</button>
         <button id="btn-expo" title="Mode Expo autonome">🎞 EXPO</button>
         <button id="btn-shot" title="Capture">📸</button>
         <button id="btn-reset" title="Vider">🗑</button>
@@ -86,17 +90,11 @@
     <div id="toast" class="hidden">Touchez pour activer le son 🔊</div>
   </div>
 
-  <!-- Bouton de sortie du mode EXPO -->
+  <!-- Bouton de sortie du mode EXPO (caché tant qu'EXPO n'est pas actif) -->
   <div id="exit-expo" class="hidden" title="Quitter le mode Expo">✱</div>
 
-  <!-- Dropzone : automatiquement désactivé sur mobile (voir CSS) -->
-  <div id="dropzone" class="hidden" role="button" aria-label="Déposer des images ou cliquer pour fermer">
-    <div class="dz-inner">
-      <div class="dz-title">Déposez des images ici</div>
-      <div class="dz-sub">Cliquez pour fermer</div>
-    </div>
-  </div>
+  <!-- NOTE: plus de dropzone en HTML pour éviter tout overlay sur iOS -->
 
-  <script type="module" src="./src/main.js"></script>
+  <script type="module" src="./src/main.js?v=iosfix"></script>
 </body>
 </html>
