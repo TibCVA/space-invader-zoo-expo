@@ -1,4 +1,4 @@
-/* --- Space Invader Zoo EXPO (iOS friendly, pas de dropzone) --- */
+/* --- Space Invader Zoo EXPO (iOS stable) --- */
 :root{
   --bg:#05070F; --fg:#eaf1ff; --muted:#92a5d2; --panel:rgba(12,16,36,0.58); --accent:#43d1ff;
 }
@@ -12,10 +12,25 @@ body{
   -webkit-tap-highlight-color: transparent;
 }
 #c{display:block;width:100vw;height:100vh}
-.hidden{display:none}
 
-#ui{position:fixed;inset:0 0 auto 0;pointer-events:none;padding:12px 16px}
-#ui header{display:flex;align-items:center;justify-content:space-between;pointer-events:auto}
+/* Hidden doit battre les sélecteurs par ID */
+.hidden{display:none}
+#panel.hidden{display:none !important}
+#exit-expo.hidden{display:none !important}
+
+#ui{
+  position:fixed;inset:0 0 auto 0;pointer-events:none;padding:12px 12px 0 12px
+}
+
+/* Header responsive: passe à 2 lignes si besoin */
+#ui header{
+  display:grid; grid-template-columns: 1fr auto; gap:8px; align-items:center;
+  pointer-events:auto
+}
+@media (max-width: 480px){
+  #ui header{ grid-template-columns: 1fr; }
+}
+
 #ui h1{
   font-family:"Press Start 2P",Inter,sans-serif;font-weight:400;
   font-size:clamp(14px,2vw,22px);margin:0;padding:8px 12px;
@@ -25,25 +40,28 @@ body{
 }
 #ui h1 span{color:#6bf}
 
-header .right{display:flex;gap:8px}
+header .right{
+  display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end;
+}
 header .right>*{
   pointer-events:auto;border:1px solid rgba(130,170,255,.16);
   background:rgba(30,45,90,.36);color:var(--fg);
-  border-radius:8px;text-decoration:none;padding:10px 12px;font-weight:600;backdrop-filter:blur(6px);
+  border-radius:8px;text-decoration:none;padding:10px 12px;
+  font-weight:600;backdrop-filter:blur(6px); white-space:nowrap;
 }
 .file input{display:none}
 .file span{cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
 
-/* Panneau options */
+/* Panneau options — caché par défaut; affiché via JS (toggle .hidden) */
 #panel{
-  margin-top:10px;display:inline-flex;flex-direction:column;gap:8px;
+  margin-top:10px;display:flex;flex-direction:column;gap:8px;
   background:var(--panel);border:1px solid rgba(130,170,255,.18);border-radius:12px;
-  padding:10px 12px;pointer-events:auto;backdrop-filter:blur(8px);max-width:min(980px,95vw);
+  padding:10px 12px;pointer-events:auto;backdrop-filter:blur(8px);max-width:min(980px,95vw)
 }
 #panel .line{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .sliders label{
   display:inline-flex;align-items:center;gap:10px;margin-right:12px;font-size:14px;color:var(--muted);
-  background:rgba(20,24,44,.55);padding:6px 10px;border-radius:10px;border:1px solid rgba(120,140,200,.12);
+  background:rgba(20,24,44,.55);padding:6px 10px;border-radius:10px;border:1px solid rgba(120,140,200,.12)
 }
 .toggle{display:inline-flex;gap:8px;align-items:center;padding:6px 10px;border-radius:10px;border:1px solid rgba(120,140,200,.12);background:rgba(20,24,44,.55)}
 .toggle input{accent-color:var(--accent)}
@@ -65,5 +83,3 @@ header .right>*{
   color:#eaf1ff; width:36px; height:36px; display:grid; place-items:center;
   border-radius:10px; cursor:pointer;
 }
-
-/* Important : plus de styles de dropzone (supprimé) */
