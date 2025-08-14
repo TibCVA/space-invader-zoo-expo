@@ -13,21 +13,19 @@ body{
 }
 #c{display:block;width:100vw;height:100vh}
 
-/* Hidden doit battre les sélecteurs par ID */
+/* Hidden doit gagner sur les sélecteurs par ID */
 .hidden{display:none}
 #panel.hidden{display:none !important}
 #exit-expo.hidden{display:none !important}
 
-#ui{
-  position:fixed;inset:0 0 auto 0;pointer-events:none;padding:12px 12px 0 12px
-}
+#ui{position:fixed;inset:0 0 auto 0;pointer-events:none;padding:12px 12px 0 12px}
 
 /* Header responsive: passe à 2 lignes si besoin */
 #ui header{
   display:grid; grid-template-columns: 1fr auto; gap:8px; align-items:center;
   pointer-events:auto
 }
-@media (max-width: 480px){
+@media (max-width: 520px){
   #ui header{ grid-template-columns: 1fr; }
 }
 
@@ -52,7 +50,7 @@ header .right>*{
 .file input{display:none}
 .file span{cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
 
-/* Panneau options — caché par défaut; affiché via JS (toggle .hidden) */
+/* Panneau options — caché au démarrage; toggle via JS */
 #panel{
   margin-top:10px;display:flex;flex-direction:column;gap:8px;
   background:var(--panel);border:1px solid rgba(130,170,255,.18);border-radius:12px;
