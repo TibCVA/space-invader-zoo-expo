@@ -13,7 +13,7 @@
 <body>
   <div id="ui">
     <button id="addBtn" aria-label="Add Invader">+ Add Invader</button>
-    <!-- IMPORTANT iOS : pas de hidden/display:none ; input "furtif" (voir CSS) -->
+    <!-- iOS : input non masqué par display:none pour autoriser .click() -->
     <input id="file" type="file" accept="image/*" multiple />
     <div id="hint">Pinch pour zoomer • Glisser pour tourner</div>
 
@@ -29,7 +29,7 @@
   <canvas id="scene"></canvas>
   <noscript>Active JavaScript pour jouer.</noscript>
 
-  <!-- Hotfix: import ESM via URL (pas d'import map) -->
+  <!-- Import ESM fiables sur Safari (note le ?module pour OrbitControls) -->
   <script type="module" src="main.js"></script>
 </body>
 </html>
