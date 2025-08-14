@@ -457,9 +457,19 @@ let globalSpeedFactor = Number(speedSlider.value)/100; // 0.33 par défaut
 function updateCount(){ const n=agents.length; countLbl.textContent = n + (n>1?' invaders':' invader'); }
 speedSlider.addEventListener('input', ()=>{ globalSpeedFactor = Number(speedSlider.value)/100; });
 
-const openPicker = () => { try { fileInput.click(); } catch(e) {} };
-addBtn.addEventListener('click', openPicker, { passive: true });
-addBtn.addEventListener('touchend', openPicker, { passive: true });
+const openPicker = (e) => {
+  if (e) e.preventDefault();
+  try {
+    if (typeof fileInput.showPicker === 'function') {
+      fileInput.showPicker();
+    } else {
+      fileInput.click();
+    }
+  } catch (err) {}
+};
+['click','pointerup','touchend'].forEach(evt=>
+  addBtn.addEventListener(evt, openPicker, { passive:false })
+);
 
 fileInput.addEventListener('change', async e=>{
   if(!e.target.files || e.target.files.length===0) return;
