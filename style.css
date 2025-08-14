@@ -3,7 +3,6 @@
   --ui-blur: 8px;
   --ui-border: rgba(255,255,255,0.08);
   --text: #eaf2ff;
-  --accent: #67b8ff;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; background: #000; color: var(--text);
@@ -15,7 +14,7 @@ html, body { margin: 0; height: 100%; background: #000; color: var(--text);
   position: fixed; inset: env(safe-area-inset-top) 0 auto 0;
   display: grid; grid-template-columns: auto 1fr auto auto; gap: .75rem; align-items: center;
   padding: .6rem .8rem;
-  backdrop-filter: blur(var(--ui-blur));
+  backdrop-filter: blur(8px);
   background: var(--ui-bg);
   border-bottom: 1px solid var(--ui-border);
   z-index: 10;
@@ -33,7 +32,6 @@ html, body { margin: 0; height: 100%; background: #000; color: var(--text);
 
 /* Slider vitesse */
 #speedWrap { display: inline-flex; align-items: center; gap: .45rem; }
-#speedWrap .emoji { opacity: .85; }
 #speed { -webkit-appearance: none; appearance: none; width: 140px; height: 26px; background: transparent; }
 #speed::-webkit-slider-runnable-track { height: 4px; background: rgba(255,255,255,.25); border-radius: 999px; }
 #speed::-webkit-slider-thumb {
@@ -42,7 +40,7 @@ html, body { margin: 0; height: 100%; background: #000; color: var(--text);
 }
 #speed:focus { outline: none; }
 
-/* Input fichier furtif mais cliquable par script (pattern accessibilité standard) */
+/* Input fichier furtif mais cliquable via .click() */
 #file {
   position: absolute;
   width: 0.1px; height: 0.1px;
@@ -50,7 +48,14 @@ html, body { margin: 0; height: 100%; background: #000; color: var(--text);
   opacity: 0; overflow: hidden;
   clip: rect(0 0 0 0); clip-path: inset(50%);
   white-space: nowrap;
-  /* surtout pas display:none / visibility:hidden (iOS bloquerait .click()) */
+}
+
+/* Overlay erreurs (apparait seulement s’il y en a) */
+#error {
+  position: fixed; inset: auto 0 0 0; padding: 8px 10px;
+  background: rgba(200,0,0,.85); color: #fff; font-size: 12px; z-index: 9999;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  display: none;
 }
 
 @media (max-width: 430px) {
@@ -60,12 +65,4 @@ html, body { margin: 0; height: 100%; background: #000; color: var(--text);
   #hint { grid-area: hint; font-size: .8rem; }
   #count { grid-area: count; }
   #speedWrap { grid-area: slider; justify-content: center; }
-}
-
-/* Overlay d'erreur minimal, uniquement si nécessaire */
-#error {
-  position: fixed; inset: auto 0 0 0; padding: 8px 10px;
-  background: rgba(200,0,0,.85); color: #fff; font-size: 12px; z-index: 9999;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  display: none;
 }
