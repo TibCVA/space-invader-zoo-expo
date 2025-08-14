@@ -1,6 +1,9 @@
 // Hotfix: imports ESM explicites (fiables sur Safari iOS)
-import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
-import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+// Utilise le paramètre ?module pour que les dépendances internes soient résolues.
+// Sans cela, le navigateur ne sait pas interpréter l'import "three" présent dans
+// OrbitControls.js, ce qui empêche le chargement sur Safari iOS ou Chrome Windows.
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js?module';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js?module';
 
 /* =========================
    CONFIG & CONSTANTES
