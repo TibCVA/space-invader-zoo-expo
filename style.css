@@ -14,7 +14,7 @@ html, body { margin: 0; height: 100%; background: #000; color: var(--text);
   position: fixed; inset: env(safe-area-inset-top) 0 auto 0;
   display: grid; grid-template-columns: auto 1fr auto auto; gap: .75rem; align-items: center;
   padding: .6rem .8rem;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(var(--ui-blur));
   background: var(--ui-bg);
   border-bottom: 1px solid var(--ui-border);
   z-index: 10;
@@ -40,22 +40,12 @@ html, body { margin: 0; height: 100%; background: #000; color: var(--text);
 }
 #speed:focus { outline: none; }
 
-/* Input fichier furtif mais cliquable via .click() */
-#file {
-  position: absolute;
-  width: 0.1px; height: 0.1px;
-  padding: 0; margin: 0; border: 0;
-  opacity: 0; overflow: hidden;
-  clip: rect(0 0 0 0); clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-/* Overlay erreurs (apparait seulement s’il y en a) */
+/* Overlay erreurs (s’affiche uniquement si besoin) */
 #error {
   position: fixed; inset: auto 0 0 0; padding: 8px 10px;
   background: rgba(200,0,0,.85); color: #fff; font-size: 12px; z-index: 9999;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  display: none;
+  white-space: pre-wrap;
 }
 
 @media (max-width: 430px) {
