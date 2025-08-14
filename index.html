@@ -9,7 +9,6 @@
   <meta name="theme-color" content="#000000">
   <title>Space Invader Zoo</title>
   <link rel="stylesheet" href="style.css">
-  <!-- Import map pour three.js (version épinglée) -->
   <script type="importmap">
   {
     "imports": {
@@ -22,10 +21,19 @@
 <body>
   <div id="ui">
     <button id="addBtn" aria-label="Add Invader">+ Add Invader</button>
-    <input id="file" type="file" accept="image/*" capture="environment" hidden />
+    <!-- IMPORTANT: pas de capture => iOS propose la Photothèque -->
+    <input id="file" type="file" accept="image/*" multiple hidden />
     <div id="hint">Pinch pour zoomer • Glisser pour tourner</div>
+
+    <label id="speedWrap" for="speed" title="Vitesse des invaders">
+      <span class="emoji">🐢</span>
+      <input id="speed" type="range" min="0" max="200" step="1" value="33" />
+      <span class="emoji">🐇</span>
+    </label>
+
     <div id="count">0 invader</div>
   </div>
+
   <canvas id="scene"></canvas>
   <noscript>Active JavaScript pour jouer.</noscript>
   <script type="module" src="main.js"></script>
