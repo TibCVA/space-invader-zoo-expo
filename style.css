@@ -42,10 +42,12 @@ html, body { margin: 0; height: 100%; background: #000; color: var(--text);
 }
 #speed:focus { outline: none; }
 
-/* Input fichier "furtif" (click programmatique autorisé par iOS) */
+/* Input fichier furtif : surtout pas display:none / visibility:hidden */
 #file {
-  position: fixed; left: -9999px; top: -9999px; width: 1px; height: 1px; opacity: 0;
-  /* surtout pas display:none ni visibility:hidden */
+  position: fixed;
+  left: -10000px; top: -10000px;
+  width: 1px; height: 1px;
+  opacity: 0; pointer-events: none;
 }
 
 @media (max-width: 430px) {
