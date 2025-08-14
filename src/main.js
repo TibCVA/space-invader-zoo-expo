@@ -1,5 +1,4 @@
-// Space Invader Zoo — EXPO (full rewrite)
-// Imports
+// Space Invader Zoo — EXPO (fix mobile dropzone + UI always visible)
 import * as THREE from 'https://unpkg.com/three@0.158.0/build/three.module.js';
 import { OrbitControls } from 'https://unpkg.com/three@0.158.0/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'https://unpkg.com/three@0.158.0/examples/jsm/environments/RoomEnvironment.js';
@@ -15,7 +14,7 @@ import { createPlanetEXPO } from './planetExpo.js';
 import { buildInvaderFromImageEXPO } from './invaderExpo.js';
 import { AudioUI } from './sound.js';
 
-// --- Renderer / Scene ---
+// ---------------- Renderer / Scene
 const canvas = document.querySelector('#c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -77,7 +76,7 @@ const planetRadius = 4.0;
 const planet = createPlanetEXPO(planetRadius, THREE);
 scene.add(planet.group);
 
-// Post-processing
+// ---------------- Post-processing
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 let aaPass;
@@ -93,7 +92,6 @@ const ssao = new SSAOPass(scene, camera, innerWidth, innerHeight);
 ssao.kernelRadius = 8;
 ssao.minDistance = 0.0025;
 ssao.maxDistance = 0.12;
-ssao.output = 0; // default
 composer.addPass(ssao);
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.42, 0.9, 0.8);
 composer.addPass(bloom);
@@ -108,7 +106,7 @@ addEventListener('resize', () => {
   ssao.setSize(innerWidth, innerHeight);
 });
 
-// --- UI ---
+// ---------------- UI
 const drop = document.querySelector('#dropzone');
 const exitExpoBtn = document.querySelector('#exit-expo');
 const fileInput = document.querySelector('#file');
@@ -130,7 +128,7 @@ const maxNRange = document.querySelector('#maxN');
 const autoChk = document.querySelector('#auto');
 
 const expoSpeed = document.querySelector('#expoSpeed');
-const expoZoom = document.querySelector('#expoZoom');
+const expoZoom  = document.querySelector('#expoZoom');
 const expoPause = document.querySelector('#expoPause');
 
 const thrVal = document.querySelector('#thrVal');
@@ -141,7 +139,7 @@ const timeVal = document.querySelector('#timeVal');
 const terrainVal = document.querySelector('#terrainVal');
 const maxNVal = document.querySelector('#maxNVal');
 const expoSpeedVal = document.querySelector('#expoSpeedVal');
-const expoZoomVal = document.querySelector('#expoZoomVal');
+const expoZoomVal  = document.querySelector('#expoZoomVal');
 const expoPauseVal = document.querySelector('#expoPauseVal');
 
 function syncLabels(){
@@ -153,17 +151,28 @@ function syncLabels(){
   terrainVal.textContent = terrainRange.value;
   maxNVal.textContent = maxNRange.value;
   expoSpeedVal.textContent = expoSpeed.value;
-  expoZoomVal.textContent = expoZoom.value;
+  expoZoomVal.textContent  = expoZoom.value;
   expoPauseVal.textContent = expoPause.value;
 }
 [thrRange, bevelRange, gapRange, depthRange, timeRange, terrainRange, maxNRange, expoSpeed, expoZoom, expoPause].forEach(e=>e.addEventListener('input', syncLabels));
 syncLabels();
 
+// Options panneau
 btnGear.addEventListener('click', ()=> panel.classList.toggle('hidden'));
 
-// Drag & Drop
-['dragenter','dragover'].forEach(ev => addEventListener(ev, (e)=>{e.preventDefault(); drop.classList.remove('hidden');}));
-['dragleave','drop'].forEach(ev => addEventListener(ev, (e)=>{e.preventDefault(); drop.classList.add('hidden');}));
+// ---------------- Drag & Drop (désactivé sur appareil tactile)
+const isTouch = (matchMedia && matchMedia('(pointer:coarse)').matches) || 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+if (!isTouch) {
+  ['dragenter','dragover'].forEach(ev => addEventListener(ev, (e)=>{ e.preventDefault(); drop.classList.remove('hidden'); }));
+  ['dragleave','drop'].forEach(ev => addEventListener(ev, (e)=>{ e.preventDefault(); drop.classList.add('hidden'); }));
+  // fermer le dropzone au clic/tap
+  drop.addEventListener('click', ()=> drop.classList.add('hidden'));
+} else {
+  // sécurité : s'assurer qu'il est caché sur mobile
+  drop.classList.add('hidden');
+}
+
+// Fichiers
 addEventListener('drop', async (e) => {
   const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
   for (const f of files) await handleFile(f);
@@ -174,6 +183,7 @@ fileInput.addEventListener('change', async ()=>{
   fileInput.value = '';
 });
 
+// Exemples
 btnSamples.addEventListener('click', async ()=>{
   const samples = ['assets/samples/mars_56.jpg','assets/samples/mars_36.jpg','assets/samples/caz_32.jpg'];
   const url = samples[Math.floor(Math.random()*samples.length)];
@@ -181,46 +191,46 @@ btnSamples.addEventListener('click', async ()=>{
   await addInvader(img, url);
 });
 
+// Capture
 btnShot.addEventListener('click', ()=>{
   renderer.render(scene, camera);
   const url = renderer.domElement.toDataURL('image/png');
   const a = document.createElement('a'); a.href = url; a.download = 'space-invader-zoo-expo.png'; a.click();
 });
 
+// Reset
 btnReset.addEventListener('click', ()=>{
   for (const c of invadersGroup.children) c.removeFromParent();
   invaders.length = 0;
   saveState();
 });
 
-// Expo mode
+// ---------------- Mode EXPO
 let expo = false;
+function toggleExpo(on){
+  expo = on;
+  // UI toujours visible au démarrage ; masquée uniquement quand on active EXPO
+  document.querySelector('#ui').classList.toggle('hidden', on);
+  exitExpoBtn.classList.toggle('hidden', !on);
+  controls.autoRotate = !on; // en EXPO on pilote la caméra nous-mêmes
+  if (on) audio.note('start'); else audio.note('stop');
+}
 btnExpo.addEventListener('click', ()=> toggleExpo(true));
 exitExpoBtn.addEventListener('click', ()=> toggleExpo(false));
 addEventListener('keydown', (e)=>{ if (e.key.toLowerCase()==='e') toggleExpo(!expo); });
+// garantir l'état initial (UI visible, EXPO off)
+toggleExpo(false);
 
-function toggleExpo(on){
-  expo = on;
-  document.querySelector('#ui').classList.toggle('hidden', on);
-  exitExpoBtn.classList.toggle('hidden', !on);
-  controls.autoRotate = !on; // we'll drive camera manually in expo
-  if (on) {
-    audio.note('start');
-  } else {
-    audio.note('stop');
-  }
-}
-
-// Sound UI activation
+// Son
 const audio = new AudioUI(document.body, toast);
 
-// Inputs to planet
+// ---------------- Planet inputs
 timeRange.addEventListener('input', ()=>{ planet.setTime(parseFloat(timeRange.value)/24); updateLights(); });
 terrainRange.addEventListener('input', ()=>{ planet.setRelief(parseFloat(terrainRange.value)); });
 function updateLights(){ dirLight.position.copy(planet.sunDir().multiplyScalar(12)); dirLight.intensity = THREE.MathUtils.lerp(0.2, 1.3, planet.sunElev()); }
 updateLights();
 
-// Helpers
+// ---------------- Helpers
 function loadImageFromURL(url){
   return new Promise((resolve, reject)=>{ const img=new Image(); img.crossOrigin='anonymous'; img.onload=()=>resolve(img); img.onerror=reject; img.src=url; });
 }
@@ -229,7 +239,7 @@ function fileToDataURL(file){
 }
 async function handleFile(file){ const dataURL=await fileToDataURL(file); const img=await loadImageFromURL(dataURL); await addInvader(img, dataURL); }
 
-// Invaders
+// ---------------- Invaders
 const invadersGroup = new THREE.Group(); scene.add(invadersGroup);
 const invaders = []; // { node, dir, speed, bob, dataURL }
 
@@ -239,7 +249,7 @@ function currentParams(){
     bevel: parseFloat(bevelRange.value),
     gap: parseFloat(gapRange.value),
     depth: parseFloat(depthRange.value),
-    auto: document.querySelector('#auto').checked
+    auto: autoChk.checked
   };
 }
 
@@ -262,7 +272,6 @@ async function addInvader(img, dataURL=null){
   const bob = Math.random()*Math.PI*2;
   invaders.push({ node: holder, dir, speed, bob, dataURL });
 
-  // Pop sound
   audio.note('spawn');
 
   const maxN = parseInt(maxNRange.value, 10);
@@ -286,7 +295,6 @@ function updateInvaders(dt){
     const n = pos.clone().normalize();
     const R = planet.surfaceRadius(n) + 0.34;
 
-    // neighbors
     const acc = new THREE.Vector3();
     let aliC=0, cohC=0;
     const avgN=new THREE.Vector3(), avgP=new THREE.Vector3();
@@ -313,19 +321,16 @@ function updateInvaders(dt){
       const tang = to.sub(n.clone().multiplyScalar(to.dot(n))).normalize();
       acc.addScaledVector(tang, 0.05);
     }
-    // wander
     const rand = new THREE.Vector3().randomDirection();
     const randTan = rand.sub(n.clone().multiplyScalar(rand.dot(n))).normalize();
     acc.addScaledVector(randTan, 0.04);
 
-    // slope avoidance
     const grad = planet.gradient(n);
     if (grad.lengthSq() > 0.0004){
       const downhill = grad.negate().sub(n.clone().multiplyScalar(grad.negate().dot(n))).normalize();
       acc.addScaledVector(downhill, 0.06);
     }
 
-    // integrate
     const heading = pos.clone().cross(n).normalize();
     const vel = heading.add(acc.multiplyScalar(dt*0.0015)).normalize();
     const axis = new THREE.Vector3().crossVectors(pos, vel).normalize();
@@ -333,14 +338,13 @@ function updateInvaders(dt){
     pos.applyAxisAngle(axis, ang).setLength(R);
     a.node.position.copy(pos);
 
-    // bob + align
     a.bob += dt*0.0027;
     a.node.position.add(n.multiplyScalar(Math.sin(a.bob)*0.06));
     alignToTerrain(a.node, a.node.position.clone().normalize());
   }
 }
 
-// Raycast to focus
+// Focus caméra au clic
 const ray = new THREE.Raycaster(); const mouse = new THREE.Vector2();
 addEventListener('pointerdown', (e)=>{
   mouse.x=(e.clientX/innerWidth)*2-1; mouse.y=-(e.clientY/innerHeight)*2+1;
@@ -349,12 +353,12 @@ addEventListener('pointerdown', (e)=>{
   if (hits.length){ const p=hits[0].object.getWorldPosition(new THREE.Vector3()); controls.target.lerp(p,0.9); audio.note('focus'); }
 });
 
-// Persistence
-const LS='sizo-expo-v1';
+// ---------------- Persistance
+const LS='sizo-expo-v2'; // bump version to avoid old state side effects
 function saveState(){ try{ const inv=invaders.map(i=>({dataURL:i.dataURL??null})); localStorage.setItem(LS, JSON.stringify({inv})); }catch(e){} }
 async function restoreState(){ try{ const txt=localStorage.getItem(LS); if(!txt) return; const st=JSON.parse(txt); for (const it of st.inv??[]){ if(!it.dataURL) continue; const img=await loadImageFromURL(it.dataURL); await addInvader(img, it.dataURL); } }catch(e){} }
 
-// Expo camera autopilot
+// ---------------- Expo camera autopilot
 let expoTimer = 0;
 function updateExpo(dt){
   if (!expo) return;
@@ -365,12 +369,10 @@ function updateExpo(dt){
   const R = THREE.MathUtils.lerp(9, 14, zoom);
   const x = Math.cos(angle)*R, y = THREE.MathUtils.lerp(4, 8, elev), z = Math.sin(angle*1.2)*R;
   camera.position.lerp(new THREE.Vector3(x,y,z), 0.04);
-  // Cycle time of day slowly
   const hour = (parseFloat(timeRange.value) + dt*0.005*parseFloat(expoSpeed.value)) % 24;
   timeRange.value = hour.toFixed(1); planet.setTime(hour/24); updateLights();
-  // Focus sometimes on nearest invader
   if (invaders.length){
-    const idx = Math.floor((expoTimer/parseFloat(expoPause.value)) % invaders.length);
+    const idx = Math.floor((expoTimer/Math.max(0.1, parseFloat(expoPause.value))) % invaders.length);
     const target = invaders[idx].node.position;
     controls.target.lerp(target, 0.02);
   } else {
@@ -378,7 +380,7 @@ function updateExpo(dt){
   }
 }
 
-// Animation
+// ---------------- Animation
 let last = performance.now();
 function animate(){
   const now=performance.now(); const dt=now-last; last=now;
@@ -391,16 +393,5 @@ function animate(){
 }
 requestAnimationFrame(animate);
 
-// Restore
+// Restore previous session (après bind des events)
 restoreState();
-
-// ---- Utilities ----
-function currentParamsPkg(){
-  return {
-    extraThreshold: parseInt(thrRange.value,10),
-    bevel: parseFloat(bevelRange.value),
-    gap: parseFloat(gapRange.value),
-    depth: parseFloat(depthRange.value),
-    auto: autoChk.checked
-  };
-}
