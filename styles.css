@@ -1,83 +1,71 @@
-/* --- Space Invader Zoo EXPO (iOS stable) --- */
-:root{
-  --bg:#05070F; --fg:#eaf1ff; --muted:#92a5d2; --panel:rgba(12,16,36,0.58); --accent:#43d1ff;
-}
+/* --- Space Invader Zoo — iOS UI SAFE (clics fiables) --- */
+:root{ --bg:#05070F; --fg:#eaf1ff; --muted:#92a5d2; --panel:rgba(12,16,36,.58); --accent:#43d1ff; }
 *{box-sizing:border-box}
 html,body,canvas{margin:0;padding:0;height:100%}
 body{
   font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,"Press Start 2P",sans-serif;
-  color:var(--fg);
-  background: radial-gradient(ellipse at 50% 0%, #0b1228 0%, #05070F 50%, #03050A 100%);
-  overflow:hidden;
-  -webkit-tap-highlight-color: transparent;
+  color:var(--fg); background:radial-gradient(ellipse at 50% 0%, #0b1228 0%, #05070F 50%, #03050A 100%);
+  overflow:hidden; -webkit-tap-highlight-color:transparent;
 }
 #c{display:block;width:100vw;height:100vh}
 
-/* Hidden doit gagner sur les sélecteurs par ID */
-.hidden{display:none}
-#panel.hidden{display:none !important}
-#exit-expo.hidden{display:none !important}
+/* IMPORTANT : plus aucun pointer-events:none sur #ui */
+#ui{
+  position:fixed; inset:0 0 auto 0; z-index:100; padding:12px 12px 0 12px;
+}
 
-#ui{position:fixed;inset:0 0 auto 0;pointer-events:none;padding:12px 12px 0 12px}
-
-/* Header responsive: passe à 2 lignes si besoin */
+/* Header responsive (wrap si étroit) */
 #ui header{
-  display:grid; grid-template-columns: 1fr auto; gap:8px; align-items:center;
-  pointer-events:auto
+  display:grid; grid-template-columns:1fr auto; gap:8px; align-items:center;
 }
-@media (max-width: 520px){
-  #ui header{ grid-template-columns: 1fr; }
-}
+@media (max-width:520px){ #ui header{ grid-template-columns:1fr; } }
 
 #ui h1{
-  font-family:"Press Start 2P",Inter,sans-serif;font-weight:400;
-  font-size:clamp(14px,2vw,22px);margin:0;padding:8px 12px;
-  color:#b7d8ff;text-shadow:0 0 10px rgba(78,201,245,.5);
-  background:linear-gradient(180deg, rgba(80,140,255,.12), rgba(30,60,150,.05));
-  border:1px solid rgba(130,170,255,.18);border-radius:10px;
+  font-family:"Press Start 2P",Inter,sans-serif; font-weight:400;
+  font-size:clamp(14px,2vw,22px); margin:0; padding:8px 12px;
+  color:#b7d8ff; text-shadow:0 0 10px rgba(78,201,245,.5);
+  background:linear-gradient(180deg,rgba(80,140,255,.12),rgba(30,60,150,.05));
+  border:1px solid rgba(130,170,255,.18); border-radius:10px;
 }
 #ui h1 span{color:#6bf}
 
-header .right{
-  display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end;
-}
+header .right{ display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; }
 header .right>*{
-  pointer-events:auto;border:1px solid rgba(130,170,255,.16);
-  background:rgba(30,45,90,.36);color:var(--fg);
-  border-radius:8px;text-decoration:none;padding:10px 12px;
-  font-weight:600;backdrop-filter:blur(6px); white-space:nowrap;
+  border:1px solid rgba(130,170,255,.16); background:rgba(30,45,90,.36); color:var(--fg);
+  border-radius:8px; text-decoration:none; padding:10px 12px; font-weight:600; backdrop-filter:blur(6px); white-space:nowrap;
+  cursor:pointer;
 }
 .file input{display:none}
-.file span{cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.file span{display:inline-flex; align-items:center; justify-content:center}
 
-/* Panneau options — caché au démarrage; toggle via JS */
+/* Panneau options (caché par défaut) */
+.hidden{display:none}
 #panel{
-  margin-top:10px;display:flex;flex-direction:column;gap:8px;
-  background:var(--panel);border:1px solid rgba(130,170,255,.18);border-radius:12px;
-  padding:10px 12px;pointer-events:auto;backdrop-filter:blur(8px);max-width:min(980px,95vw)
+  margin-top:10px; display:flex; flex-direction:column; gap:8px;
+  background:var(--panel); border:1px solid rgba(130,170,255,.18); border-radius:12px;
+  padding:10px 12px; backdrop-filter:blur(8px); max-width:min(980px,95vw);
 }
-#panel .line{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#panel .line{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
 .sliders label{
-  display:inline-flex;align-items:center;gap:10px;margin-right:12px;font-size:14px;color:var(--muted);
-  background:rgba(20,24,44,.55);padding:6px 10px;border-radius:10px;border:1px solid rgba(120,140,200,.12)
+  display:inline-flex; align-items:center; gap:10px; margin-right:12px; font-size:14px; color:var(--muted);
+  background:rgba(20,24,44,.55); padding:6px 10px; border-radius:10px; border:1px solid rgba(120,140,200,.12)
 }
-.toggle{display:inline-flex;gap:8px;align-items:center;padding:6px 10px;border-radius:10px;border:1px solid rgba(120,140,200,.12);background:rgba(20,24,44,.55)}
+.toggle{display:inline-flex; gap:8px; align-items:center; padding:6px 10px; border-radius:10px; border:1px solid rgba(120,140,200,.12); background:rgba(20,24,44,.55)}
 .toggle input{accent-color:var(--accent)}
 .sliders input[type=range]{accent-color:var(--accent)}
-.hint{margin:0;font-size:12px;color:var(--muted)}
+.hint{margin:0; font-size:12px; color:var(--muted)}
 
-/* Toast audio */
+/* Toast messages */
 #toast{
   position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
-  background:rgba(15,20,44,.9); border:1px solid rgba(130,170,255,.25);
-  color:#eaf1ff; padding:8px 12px; border-radius:10px; pointer-events:none;
-  box-shadow:0 12px 40px rgba(0,0,0,.4);
+  background:rgba(15,20,44,.96); border:1px solid rgba(130,170,255,.35);
+  color:#eaf1ff; padding:8px 12px; border-radius:10px; box-shadow:0 12px 40px rgba(0,0,0,.4);
 }
 
-/* Exit EXPO */
+/* Bouton sortie EXPO */
 #exit-expo{
-  position:fixed; top:10px; left:10px; z-index:12; pointer-events:auto;
+  position:fixed; top:10px; left:10px; z-index:110;
   background:rgba(20,24,44,.85); border:1px solid rgba(130,170,255,.28);
-  color:#eaf1ff; width:36px; height:36px; display:grid; place-items:center;
-  border-radius:10px; cursor:pointer;
-} 
+  color:#eaf1ff; width:36px; height:36px; display:grid; place-items:center; border-radius:10px; cursor:pointer;
+}
+#exit-expo.hidden{display:none}
