@@ -4,14 +4,14 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <title>Space Invader Zoo — EXPO</title>
-  <meta name="description" content="Transformez des Space Invaders en créatures 3D sur une planète procédurale. Mode EXPO autonome inclus. Fonctionne sur GitHub Pages.">
+  <meta name="description" content="Transformez des Space Invaders en créatures 3D sur une planète procédurale. Mode EXPO autonome inclus. 100% statique (GitHub Pages).">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
   <meta http-equiv="Pragma" content="no-cache"/>
   <meta http-equiv="Expires" content="0"/>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=iosfix2"/>
+  <link rel="stylesheet" href="./styles.css?v=stable"/>
 </head>
 <body>
   <canvas id="c"></canvas>
@@ -34,7 +34,7 @@
       </div>
     </header>
 
-    <!-- Panneau caché par défaut -->
+    <!-- Panneau caché au démarrage -->
     <div id="panel" class="hidden" aria-hidden="true">
       <div class="line sliders">
         <label>Seuil + :
@@ -95,6 +95,6 @@
   <!-- Bouton de sortie du mode EXPO (caché tant qu'EXPO n'est pas actif) -->
   <div id="exit-expo" class="hidden" title="Quitter le mode Expo">✱</div>
 
-  <script type="module" src="./src/main.js?v=iosfix2"></script>
+  <script type="module" src="./src/main.js?v=stable"></script>
 </body>
 </html>
