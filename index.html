@@ -8,12 +8,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#000000">
   <title>Space Invader Zoo</title>
-  <link rel="stylesheet" href="style.css?v=3.2">
+  <link rel="stylesheet" href="style.css?v=3.3">
 </head>
 <body>
   <div id="ui">
     <button id="addBtn" aria-label="Add Invader">+ Add Invader</button>
-    <!-- iOS : input non masqué par display:none pour autoriser .click() -->
+    <!-- iOS : surtout pas display:none / hidden pour autoriser .click() -->
     <input id="file" type="file" accept="image/*" multiple />
     <div id="hint">Pinch pour zoomer • Glisser pour tourner</div>
 
@@ -29,7 +29,11 @@
   <canvas id="scene"></canvas>
   <noscript>Active JavaScript pour jouer.</noscript>
 
-  <!-- Import ESM fiables (esm.sh) + cache-buster -->
-  <script type="module" src="main.js?v=3.2"></script>
+  <!-- >>> SCRIPTS UMD, PAS DE MODULES (robuste Safari iOS) <<< -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+
+  <!-- Notre code (non module) -->
+  <script defer src="main.js?v=3.3"></script>
 </body>
-</html> 
+</html>
