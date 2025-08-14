@@ -1,4 +1,4 @@
-/* --- Space Invader Zoo EXPO (fix mobile dropzone & UI visible) --- */
+/* --- Space Invader Zoo EXPO (iOS friendly, pas de dropzone) --- */
 :root{
   --bg:#05070F; --fg:#eaf1ff; --muted:#92a5d2; --panel:rgba(12,16,36,0.58); --accent:#43d1ff;
 }
@@ -9,9 +9,9 @@ body{
   color:var(--fg);
   background: radial-gradient(ellipse at 50% 0%, #0b1228 0%, #05070F 50%, #03050A 100%);
   overflow:hidden;
+  -webkit-tap-highlight-color: transparent;
 }
 #c{display:block;width:100vw;height:100vh}
-
 .hidden{display:none}
 
 #ui{position:fixed;inset:0 0 auto 0;pointer-events:none;padding:12px 16px}
@@ -29,7 +29,7 @@ header .right{display:flex;gap:8px}
 header .right>*{
   pointer-events:auto;border:1px solid rgba(130,170,255,.16);
   background:rgba(30,45,90,.36);color:var(--fg);
-  border-radius:8px;text-decoration:none;padding:8px 10px;font-weight:600;backdrop-filter:blur(6px);
+  border-radius:8px;text-decoration:none;padding:10px 12px;font-weight:600;backdrop-filter:blur(6px);
 }
 .file input{display:none}
 .file span{cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
@@ -66,18 +66,4 @@ header .right>*{
   border-radius:10px; cursor:pointer;
 }
 
-/* Dropzone (desktop uniquement) */
-#dropzone{
-  position:fixed;inset:0;display:grid;place-items:center;z-index:11;
-  background:rgba(20,26,50,.85);border:4px dashed rgba(120,160,255,.65);color:#c7dcff;
-  cursor:pointer;
-}
-#dropzone .dz-inner{text-align:center;font-family:"Press Start 2P",Inter,sans-serif}
-#dropzone .dz-title{font-size:clamp(18px,6vw,50px);line-height:1.2}
-#dropzone .dz-sub{margin-top:10px;font-size:clamp(12px,2.5vw,16px);opacity:.85}
-
-/* Sur mobile (pointer:coarse), on désactive totalement la zone de drop */
-@media (pointer:coarse){
-  #dropzone{display:none !important}
-  header .right>*{padding:10px 12px} /* plus cliquable */
-}
+/* Important : plus de styles de dropzone (supprimé) */
