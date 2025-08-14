@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Space Invader Zoo — EXPO</title>
+  <meta name="description" content="Transformez des Space Invaders en créatures 3D sur une planète procédurale. Mode EXPO autonome inclus. Fonctionne sur GitHub Pages.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css"/>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div id="ui">
+    <header>
+      <h1>SPACE&nbsp;INVADER&nbsp;ZOO — <span>EXPO</span></h1>
+      <div class="right">
+        <label class="file"><input id="file" type="file" accept="image/*" multiple/><span>+ Ajouter</span></label>
+        <button id="btn-samples">Exemples</button>
+        <button id="btn-expo" title="Mode Expo autonome">🎞 EXPO</button>
+        <button id="btn-shot" title="Capture">📸</button>
+        <button id="btn-reset" title="Vider">🗑</button>
+        <button id="btn-gear" title="Options">⚙️</button>
+      </div>
+    </header>
+
+    <div id="panel" class="hidden">
+      <div class="line sliders">
+        <label>Seuil + :
+          <input id="thr" type="range" min="0" max="80" value="10" step="1"/>
+          <span id="thrVal">10</span>
+        </label>
+        <label>Chanfrein :
+          <input id="bevel" type="range" min="0" max="0.35" value="0.12" step="0.01"/>
+          <span id="bevelVal">0.12</span>
+        </label>
+        <label>Espacement :
+          <input id="gap" type="range" min="0" max="0.28" value="0.10" step="0.01"/>
+          <span id="gapVal">0.10</span>
+        </label>
+        <label>Relief :
+          <input id="depth" type="range" min="0.2" max="3.0" value="1.6" step="0.1"/>
+          <span id="depthVal">1.6</span>
+        </label>
+      </div>
+      <div class="line sliders">
+        <label>Heure :
+          <input id="time" type="range" min="0" max="24" value="10" step="0.1"/>
+          <span id="timeVal">10.0h</span>
+        </label>
+        <label>Relief planète :
+          <input id="terrain" type="range" min="0" max="1" value="0.75" step="0.01"/>
+          <span id="terrainVal">0.75</span>
+        </label>
+        <label>Max invaders :
+          <input id="maxN" type="range" min="1" max="24" value="14" step="1"/>
+          <span id="maxNVal">14</span>
+        </label>
+        <label class="toggle">
+          <input id="auto" type="checkbox" checked/>
+          <span>Auto</span>
+        </label>
+      </div>
+      <div class="line sliders">
+        <label>Expo — vitesse cycle :
+          <input id="expoSpeed" type="range" min="0.02" max="0.6" value="0.16" step="0.01"/>
+          <span id="expoSpeedVal">0.16</span>
+        </label>
+        <label>Expo — zoom :
+          <input id="expoZoom" type="range" min="0.4" max="1.5" value="0.95" step="0.01"/>
+          <span id="expoZoomVal">0.95</span>
+        </label>
+        <label>Expo — pause (s) :
+          <input id="expoPause" type="range" min="0" max="8" value="2.0" step="0.1"/>
+          <span id="expoPauseVal">2.0</span>
+        </label>
+      </div>
+      <p class="hint">Options avancées repliées par défaut. La détection est automatique et la scène fonctionne hors‑ligne.</p>
+    </div>
+
+    <div id="toast" class="hidden">Cliquez pour activer le son 🔊</div>
+  </div>
+
+  <div id="exit-expo" class="hidden" title="Quitter le mode Expo">✱</div>
+  <div id="dropzone" class="hidden">Déposez des images ici</div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
