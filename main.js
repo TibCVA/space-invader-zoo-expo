@@ -1,6 +1,6 @@
 /* global THREE */
 
-// -------- Overlay d'erreur (diag si quelque chose plante) ----------
+// -------- Overlay d'erreur ----------
 (function(){
   var box = document.getElementById('error');
   function show(msg){ try{ box.textContent = String(msg); box.style.display = 'block'; }catch(_e){} }
@@ -54,19 +54,28 @@
   renderer.setSize(window.innerWidth, window.innerHeight);
   if (renderer.outputColorSpace !== undefined) renderer.outputColorSpace = THREE.SRGBColorSpace;
   if (renderer.toneMapping !== undefined) renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  if (renderer.toneMappingExposure !== undefined) renderer.toneMappingExposure = 1.35; // ++ luminosité
 
   var scene = new THREE.Scene();
   var camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 150);
 
   /* =========================
-     CONTRÔLES MAISON (drag + pinch)
+     CONTRÔLES ORBITAUX MAISON
+     - Drag 1 doigt : rotation avec inertie
+     - Pinch 2 doigts : zoom amorti
      ========================= */
   function createSimpleOrbitControls(dom, cam, target) {
     var minDist = WORLD.planetRadius*1.05;
     var maxDist = WORLD.planetRadius*4.5;
     var radius = WORLD.planetRadius*2.0;
-    var theta = Math.PI/6;   // azimut
-    var phi   = Math.PI/2.2; // inclinaison
+    var theta = Math.PI/6;
+    var phi   = Math.PI/2.2;
+
+    var tRadius = radius;                // zoom cible (amorti)
+    var vTheta = 0, vPhi = 0;            // vitesses angulaires (inertie)
+    var ROT_SENS = 3.2;                  // sensibilité rotation (↑ = plus réactif)
+    var ROT_DAMP = 8.0;                  // amortissement rotation (s^-1)
+    var ZOOM_DAMP = 9.0;                 // amortissement zoom (s^-1)
 
     function apply() {
       var sinPhi = Math.sin(phi), cosPhi = Math.cos(phi);
@@ -80,34 +89,33 @@
     }
     apply();
 
-    var st = { rotating:false, sx:0, sy:0, th0:0, ph0:0, pinching:false, d0:0, r0:radius };
+    var st = { rotating:false, sx:0, sy:0, pinching:false, d0:0, r0:radius };
 
     // Desktop
     dom.addEventListener('mousedown', function(e){
-      e.preventDefault(); st.rotating=true; st.sx=e.clientX; st.sy=e.clientY; st.th0=theta; st.ph0=phi;
+      e.preventDefault(); st.rotating=true; st.sx=e.clientX; st.sy=e.clientY;
     }, {passive:false});
     window.addEventListener('mousemove', function(e){
       if(!st.rotating) return;
       e.preventDefault();
       var dx=(e.clientX-st.sx)/dom.clientWidth;
       var dy=(e.clientY-st.sy)/dom.clientHeight;
-      theta = st.th0 - dx*Math.PI*2;
-      phi   = Math.max(0.05, Math.min(Math.PI-0.05, st.ph0 + dy*Math.PI));
-      apply();
+      vTheta += -dx * ROT_SENS * Math.PI; // inertie
+      vPhi   +=  dy * ROT_SENS * Math.PI;
+      st.sx=e.clientX; st.sy=e.clientY;
     }, {passive:false});
     window.addEventListener('mouseup', function(){ st.rotating=false; });
 
     dom.addEventListener('wheel', function(e){
       e.preventDefault();
       var s = Math.exp(e.deltaY*0.001);
-      radius = Math.max(minDist, Math.min(maxDist, radius*s));
-      apply();
+      tRadius = Math.max(minDist, Math.min(maxDist, radius*s));
     }, {passive:false});
 
     // Mobile (iOS)
     dom.addEventListener('touchstart', function(e){
       if(e.touches.length===1){
-        st.rotating=true; st.sx=e.touches[0].clientX; st.sy=e.touches[0].clientY; st.th0=theta; st.ph0=phi;
+        st.rotating=true; st.sx=e.touches[0].clientX; st.sy=e.touches[0].clientY;
       } else if(e.touches.length===2){
         st.pinching=true;
         var dx=e.touches[0].clientX - e.touches[1].clientX;
@@ -122,43 +130,77 @@
         var dy=e.touches[0].clientY - e.touches[1].clientY;
         var d=Math.hypot(dx,dy);
         var scale = st.d0 / d;
-        radius = Math.max(minDist, Math.min(maxDist, st.r0*scale));
-        apply();
+        tRadius = Math.max(minDist, Math.min(maxDist, st.r0*scale));
       } else if(st.rotating && e.touches.length===1){
         e.preventDefault();
         var dx=(e.touches[0].clientX - st.sx)/dom.clientWidth;
         var dy=(e.touches[0].clientY - st.sy)/dom.clientHeight;
-        theta = st.th0 - dx*Math.PI*2;
-        phi   = Math.max(0.05, Math.min(Math.PI-0.05, st.ph0 + dy*Math.PI));
-        apply();
+        vTheta += -dx * ROT_SENS * Math.PI;
+        vPhi   +=  dy * ROT_SENS * Math.PI;
+        st.sx=e.touches[0].clientX; st.sy=e.touches[0].clientY;
       }
     }, {passive:false});
     dom.addEventListener('touchend', function(){ st.rotating=false; st.pinching=false; }, {passive:false});
 
-    return { apply:apply, minDistance:minDist, maxDistance:maxDist };
+    function update(dt){
+      // intégration des vitesses + amortissement
+      theta += vTheta*dt;
+      phi   += vPhi*dt;
+      var rotDecay = Math.exp(-ROT_DAMP*dt);
+      vTheta *= rotDecay; vPhi *= rotDecay;
+
+      // clamp d'inclinaison
+      var EPS = 0.05;
+      if (phi < EPS) phi = EPS;
+      if (phi > Math.PI-EPS) phi = Math.PI-EPS;
+
+      // zoom amorti
+      var k = 1.0 - Math.exp(-ZOOM_DAMP*dt);
+      radius += (tRadius - radius) * k;
+
+      apply();
+    }
+
+    function setRadiusDirect(r){ radius = tRadius = Math.max(minDist, Math.min(maxDist, r)); apply(); }
+
+    return { update:update, apply:apply, setRadius:setRadiusDirect,
+             minDistance:minDist, maxDistance:maxDist };
   }
   var controls = createSimpleOrbitControls(renderer.domElement, camera, new THREE.Vector3(0,0,0));
 
   /* =========================
-     LUMIÈRES
+     LUMIÈRES — planète plus claire
      ========================= */
-  var sun = new THREE.DirectionalLight(0xffffff, 0.95);
+  // Soleil principal
+  var sun = new THREE.DirectionalLight(0xffffff, 1.15); // ++
   sun.position.set(-4, 6, 8);
   scene.add(sun);
-  scene.add(new THREE.HemisphereLight(0xbfdfff, 0x2a1e1a, 0.7));
+
+  // Ciel/sol pastel renforcé
+  var hemi = new THREE.HemisphereLight(0xcfe9ff, 0x2a1e1a, 1.05); // ++
+  scene.add(hemi);
+
+  // Lumière d’appoint douce côté ombre
+  var fill = new THREE.DirectionalLight(0x9fd7ff, 0.35);
+  fill.position.set(5, -2, -6);
+  scene.add(fill);
 
   /* =========================
-     PLANÈTE PASTEL + ATMOSPHÈRE
+     PLANÈTE PASTEL + ATMOSPHÈRE (plus lumineuse)
      ========================= */
   function generatePlanetTexture(w, h) {
     w = w || 512; h = h || 256;
     var c = document.createElement('canvas'); c.width = w; c.height = h;
     var ctx = c.getContext('2d');
 
+    // teinte un peu plus claire
     var g = ctx.createLinearGradient(0,0,0,h);
-    g.addColorStop(0, '#2b5b6a'); g.addColorStop(0.55, '#3a7083'); g.addColorStop(1, '#2c5563');
+    g.addColorStop(0, '#3f8aa0');
+    g.addColorStop(0.55, '#4d9fb7');
+    g.addColorStop(1, '#3a7f93');
     ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
 
+    // bandes + bruit subtils (inchangé)
     var seed = 1337;
     function rand(n){ return (Math.sin(n*16807 + seed)*43758.5453) % 1; }
     function noise1d(x){ var i=Math.floor(x), f=x-i; var a=rand(i), b=rand(i+1); return a*(1-f)+b*f; }
@@ -169,17 +211,17 @@
       var band = 0.5 + 0.5*Math.sin((v*3.5 + 0.15)*Math.PI*2);
       var n = 0.5 + 0.5*noise1d(v*24.0);
       var t = Math.min(1, Math.max(0, band*0.6 + n*0.4));
-      ctx.fillStyle = 'rgba(255,255,255,'+(0.12*t)+')';
+      ctx.fillStyle = 'rgba(255,255,255,'+(0.15*t)+')'; // ++ 0.12 -> 0.15
       ctx.fillRect(0,y,w,1);
     }
     ctx.globalAlpha = 1;
 
-    ctx.fillStyle = 'rgba(255,255,255,0.06)';
-    for (var i=0;i<40;i++){
+    ctx.fillStyle = 'rgba(255,255,255,0.07)'; // ++
+    for (var i=0;i<42;i++){
       var cx = Math.random()*w, cy=Math.random()*h;
-      var r = 10 + Math.random()*30;
+      var r = 12 + Math.random()*30;
       var grd = ctx.createRadialGradient(cx,cy,0,cx,cy,r);
-      grd.addColorStop(0, 'rgba(255,255,255,0.12)');
+      grd.addColorStop(0, 'rgba(255,255,255,0.13)');
       grd.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
     }
@@ -193,9 +235,9 @@
   var planetGeo = new THREE.SphereGeometry(WORLD.planetRadius, 96, 64);
   var planetMat = new THREE.MeshStandardMaterial({
     map: generatePlanetTexture(512,256),
-    color: new THREE.Color('#274b59').convertSRGBToLinear(),
-    roughness: 0.9,
-    metalness: 0.03
+    color: new THREE.Color('#5bb0c6').convertSRGBToLinear(), // ++ teinte plus claire
+    roughness: 0.78,   // un peu moins rugueux → capte plus la lumière
+    metalness: 0.08    // léger specular
   });
   var planet = new THREE.Mesh(planetGeo, planetMat);
   scene.add(planet);
@@ -221,7 +263,7 @@
         'void main(){ vec3 n=normalize(normalMatrix*normal); vec3 v=normalize((modelViewMatrix*vec4(position,1.0)).xyz);'+
         'vDot=1.0-max(dot(n,-v),0.0); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
       fragmentShader:
-        'varying float vDot; void main(){ float a=pow(vDot,4.0); gl_FragColor=vec4(0.3,0.6,1.0,a*0.25); }',
+        'varying float vDot; void main(){ float a=pow(vDot,4.0); gl_FragColor=vec4(0.5,0.8,1.0,a*0.28); }', // ++ plus lumineux
       blending: THREE.AdditiveBlending, side: THREE.BackSide, transparent: true, depthWrite: false
     });
     scene.add(new THREE.Mesh(g, m));
@@ -241,7 +283,7 @@
   })();
 
   /* =========================
-     OUTILS IMAGE & SEGMENTATION (robustes)
+     OUTILS IMAGE & SEGMENTATION (identiques à v3.5)
      ========================= */
   function lin(c){ c/=255; return c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4); }
   function dist2(a,b){ var dr=lin(a[0])-lin(b[0]); var dg=lin(a[1])-lin(b[1]); var db=lin(a[2])-lin(b[2]); return dr*dr+dg*dg+db*db; }
@@ -408,7 +450,7 @@
     var cleaned = erode(dilate(openBinary(bin)));
     cleaned = filterLargestComponents(cleaned);
 
-    var minY=cleaned.length, minX2=cleaned[0].length, maxY2=0, maxX2=0, any=false;
+    var minY=cleaned.length, minX2=cleaned[0].length, maxY2=0, maxX2=0, any=false, x, y;
     for(y=0;y<cleaned.length;y++) for(x=0;x<cleaned[0].length;x++) if(cleaned[y][x]){
       any=true; if(y<minY)minY=y; if(y>maxY2)maxY2=y; if(x<minX2)minX2=x; if(x>maxX2)maxX2=x;
     }
@@ -441,7 +483,7 @@
   }
 
   /* =========================
-     INVADER 3D (Instanced)
+     INVADER 3D (instanced) + AGENTS (inchangés)
      ========================= */
   function buildInvaderMesh(pixelGrid){
     var rows=pixelGrid.length, cols=pixelGrid[0].length;
@@ -475,16 +517,12 @@
     return { mesh:mesh, width:w, height:h, depth:depth };
   }
 
-  /* =========================
-     AGENT (déplacement tangent)
-     ========================= */
   function alignZAxisTo(obj, normal){
     var q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1), normal.clone().normalize());
     obj.quaternion.copy(q);
   }
   function createWanderer(invader){
     var g=new THREE.Group(); g.add(invader.mesh);
-
     var targetWorldSize = WORLD.invaderMaxWorldSize * (WORLD.planetRadius*2);
     var maxDim = Math.max(invader.width, invader.height);
     var scale = targetWorldSize / maxDim;
@@ -498,7 +536,7 @@
     g.rotateOnAxis(new THREE.Vector3(0,0,1), Math.random()*Math.PI*2);
 
     var axis=new THREE.Vector3().randomDirection();
-    var baseSpeed = 0.08 + Math.random()*0.06; // ~3x plus lent
+    var baseSpeed = 0.08 + Math.random()*0.06;
     var rot=new THREE.Quaternion();
 
     return {
@@ -574,8 +612,8 @@
   var clock=new THREE.Clock();
   function loop(){
     var dt=clock.getDelta();
+    controls.update(dt); // inertie & zoom amorti
     for (var i=0;i<agents.length;i++) agents[i].update(dt, agents, globalSpeedFactor);
-    // plus de controls.update(); (tout est géré par nos handlers)
     renderer.render(scene, camera);
     requestAnimationFrame(loop);
   }
