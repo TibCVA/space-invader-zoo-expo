@@ -2,25 +2,21 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#000000">
   <title>Space Invader Zoo</title>
-  <link rel="stylesheet" href="style.css?v=3.9.3">
+  <link rel="stylesheet" href="style.css?v=3.9.4">
 </head>
 <body>
   <div id="ui">
     <button id="addBtn" aria-label="Add Invader">+ Add Invader</button>
     <div id="hint">Pinch pour zoomer • Glisser pour tourner</div>
-
     <label id="speedWrap" for="speed" title="Vitesse des invaders">
       <span class="emoji">🐢</span>
       <input id="speed" type="range" min="0" max="200" step="1" value="33" />
       <span class="emoji">🐇</span>
     </label>
-
     <div id="count">0 invader</div>
   </div>
 
@@ -28,10 +24,8 @@
   <div id="error" style="display:none"></div>
   <noscript>Active JavaScript pour jouer.</noscript>
 
-  <!-- Three.js UMD (robuste iOS, pas d’ESM) -->
+  <!-- Three.js UMD (robuste iOS) -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-
-  <!-- Jeu -->
-  <script defer src="main.js?v=3.9.3"></script>
+  <script defer src="main.js?v=3.9.4"></script>
 </body>
 </html>
