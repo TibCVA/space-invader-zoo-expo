@@ -1,6 +1,6 @@
 /* global THREE */
 
-// -------- Overlay d'erreur minimal (diag si quelque chose plante) ----------
+// -------- Overlay d'erreur (diag si quelque chose plante) ----------
 (function(){
   var box = document.getElementById('error');
   function show(msg){ try{ box.textContent = String(msg); box.style.display = 'block'; }catch(_e){} }
@@ -29,7 +29,7 @@
     invaderDepth: 0.035,
     spacingRatio: 0.08,
     maxVoxelsPerInvader: 900,   // ~30x30
-    invaderMaxWorldSize: 0.10,  // 10% du diamètre planète (petits)
+    invaderMaxWorldSize: 0.10,  // 10% du diamètre planète
     repelRadius: 0.35,
     hoverMargin: 0.03
   };
@@ -40,14 +40,14 @@
   var canvas = document.getElementById('scene');
   var renderer = new THREE.WebGLRenderer({
     canvas: canvas,
-    antialias: false,            // iOS: éviter pertes de contexte
+    antialias: false,            // iOS : éviter les pertes de contexte
     alpha: false,
-    powerPreference: 'default'   // pas "high-performance" sur iOS
+    powerPreference: 'default'
   });
   var gl = renderer.getContext();
   if (!gl) {
     var el = document.getElementById('error');
-    el.textContent = 'WebGL non disponible. Ferme d’autres apps et recharge.';
+    el.textContent = 'WebGL non disponible. Ferme d’autres apps/onglets et recharge.';
     el.style.display = 'block';
   }
   renderer.setPixelRatio(DPR);
@@ -57,7 +57,87 @@
 
   var scene = new THREE.Scene();
   var camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 150);
-  camera.position.set(0, WORLD.planetRadius*0.75, WORLD.planetRadius*2.0);
+
+  /* =========================
+     CONTRÔLES MAISON (drag + pinch)
+     ========================= */
+  function createSimpleOrbitControls(dom, cam, target) {
+    var minDist = WORLD.planetRadius*1.05;
+    var maxDist = WORLD.planetRadius*4.5;
+    var radius = WORLD.planetRadius*2.0;
+    var theta = Math.PI/6;   // azimut
+    var phi   = Math.PI/2.2; // inclinaison
+
+    function apply() {
+      var sinPhi = Math.sin(phi), cosPhi = Math.cos(phi);
+      var sinTh  = Math.sin(theta), cosTh = Math.cos(theta);
+      cam.position.set(
+        radius * sinPhi * sinTh,
+        radius * cosPhi,
+        radius * sinPhi * cosTh
+      );
+      cam.lookAt(target);
+    }
+    apply();
+
+    var st = { rotating:false, sx:0, sy:0, th0:0, ph0:0, pinching:false, d0:0, r0:radius };
+
+    // Desktop
+    dom.addEventListener('mousedown', function(e){
+      e.preventDefault(); st.rotating=true; st.sx=e.clientX; st.sy=e.clientY; st.th0=theta; st.ph0=phi;
+    }, {passive:false});
+    window.addEventListener('mousemove', function(e){
+      if(!st.rotating) return;
+      e.preventDefault();
+      var dx=(e.clientX-st.sx)/dom.clientWidth;
+      var dy=(e.clientY-st.sy)/dom.clientHeight;
+      theta = st.th0 - dx*Math.PI*2;
+      phi   = Math.max(0.05, Math.min(Math.PI-0.05, st.ph0 + dy*Math.PI));
+      apply();
+    }, {passive:false});
+    window.addEventListener('mouseup', function(){ st.rotating=false; });
+
+    dom.addEventListener('wheel', function(e){
+      e.preventDefault();
+      var s = Math.exp(e.deltaY*0.001);
+      radius = Math.max(minDist, Math.min(maxDist, radius*s));
+      apply();
+    }, {passive:false});
+
+    // Mobile (iOS)
+    dom.addEventListener('touchstart', function(e){
+      if(e.touches.length===1){
+        st.rotating=true; st.sx=e.touches[0].clientX; st.sy=e.touches[0].clientY; st.th0=theta; st.ph0=phi;
+      } else if(e.touches.length===2){
+        st.pinching=true;
+        var dx=e.touches[0].clientX - e.touches[1].clientX;
+        var dy=e.touches[0].clientY - e.touches[1].clientY;
+        st.d0=Math.hypot(dx,dy); st.r0=radius;
+      }
+    }, {passive:false});
+    dom.addEventListener('touchmove', function(e){
+      if(st.pinching && e.touches.length===2){
+        e.preventDefault();
+        var dx=e.touches[0].clientX - e.touches[1].clientX;
+        var dy=e.touches[0].clientY - e.touches[1].clientY;
+        var d=Math.hypot(dx,dy);
+        var scale = st.d0 / d;
+        radius = Math.max(minDist, Math.min(maxDist, st.r0*scale));
+        apply();
+      } else if(st.rotating && e.touches.length===1){
+        e.preventDefault();
+        var dx=(e.touches[0].clientX - st.sx)/dom.clientWidth;
+        var dy=(e.touches[0].clientY - st.sy)/dom.clientHeight;
+        theta = st.th0 - dx*Math.PI*2;
+        phi   = Math.max(0.05, Math.min(Math.PI-0.05, st.ph0 + dy*Math.PI));
+        apply();
+      }
+    }, {passive:false});
+    dom.addEventListener('touchend', function(){ st.rotating=false; st.pinching=false; }, {passive:false});
+
+    return { apply:apply, minDistance:minDist, maxDistance:maxDist };
+  }
+  var controls = createSimpleOrbitControls(renderer.domElement, camera, new THREE.Vector3(0,0,0));
 
   /* =========================
      LUMIÈRES
@@ -76,12 +156,9 @@
     var ctx = c.getContext('2d');
 
     var g = ctx.createLinearGradient(0,0,0,h);
-    g.addColorStop(0, '#2b5b6a');
-    g.addColorStop(0.55, '#3a7083');
-    g.addColorStop(1, '#2c5563');
+    g.addColorStop(0, '#2b5b6a'); g.addColorStop(0.55, '#3a7083'); g.addColorStop(1, '#2c5563');
     ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
 
-    // bandes + bruit simple
     var seed = 1337;
     function rand(n){ return (Math.sin(n*16807 + seed)*43758.5453) % 1; }
     function noise1d(x){ var i=Math.floor(x), f=x-i; var a=rand(i), b=rand(i+1); return a*(1-f)+b*f; }
@@ -104,8 +181,7 @@
       var grd = ctx.createRadialGradient(cx,cy,0,cx,cy,r);
       grd.addColorStop(0, 'rgba(255,255,255,0.12)');
       grd.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = grd;
-      ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
     }
 
     var tex = new THREE.CanvasTexture(c);
@@ -124,7 +200,7 @@
   var planet = new THREE.Mesh(planetGeo, planetMat);
   scene.add(planet);
 
-  // Relief doux (léger)
+  // Relief doux
   (function(){
     var pos = planetGeo.attributes.position, v=new THREE.Vector3();
     for(var i=0;i<pos.count;i++){
@@ -142,22 +218,17 @@
     var m = new THREE.ShaderMaterial({
       vertexShader:
         'varying float vDot;'+
-        'void main(){'+
-          'vec3 n = normalize(normalMatrix * normal);'+
-          'vec3 v = normalize((modelViewMatrix * vec4(position,1.0)).xyz);'+
-          'vDot = 1.0 - max(dot(n, -v), 0.0);'+
-          'gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);'+
-        '}',
+        'void main(){ vec3 n=normalize(normalMatrix*normal); vec3 v=normalize((modelViewMatrix*vec4(position,1.0)).xyz);'+
+        'vDot=1.0-max(dot(n,-v),0.0); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
       fragmentShader:
-        'varying float vDot;'+
-        'void main(){ float a = pow(vDot, 4.0); gl_FragColor = vec4(0.3, 0.6, 1.0, a*0.25); }',
+        'varying float vDot; void main(){ float a=pow(vDot,4.0); gl_FragColor=vec4(0.3,0.6,1.0,a*0.25); }',
       blending: THREE.AdditiveBlending, side: THREE.BackSide, transparent: true, depthWrite: false
     });
     scene.add(new THREE.Mesh(g, m));
   })();
 
   /* =========================
-     ÉTOILES (screen-space pour être visibles)
+     ÉTOILES
      ========================= */
   (function(){
     var N=2400, a=new Float32Array(3*N);
@@ -170,21 +241,11 @@
   })();
 
   /* =========================
-     CONTRÔLES
-     ========================= */
-  var controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true; controls.dampingFactor=.06;
-  controls.enablePan = false;
-  controls.minDistance = WORLD.planetRadius*1.05;
-  controls.maxDistance = WORLD.planetRadius*4.5;
-
-  /* =========================
-     OUTILS IMAGE (segmentation robuste)
+     OUTILS IMAGE & SEGMENTATION (robustes)
      ========================= */
   function lin(c){ c/=255; return c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4); }
   function dist2(a,b){ var dr=lin(a[0])-lin(b[0]); var dg=lin(a[1])-lin(b[1]); var db=lin(a[2])-lin(b[2]); return dr*dr+dg*dg+db*db; }
   function loadImage(file){ return new Promise(function(res,rej){ var url=URL.createObjectURL(file); var im=new Image(); im.onload=function(){ res(im); }; im.onerror=rej; im.src=url; }); }
-
   function getEdgeBg(data,W,H){
     var m=Math.floor(Math.min(W,H)*.04), skip=Math.floor(H*.18);
     var regs=[{x:0,y:0,w:W,h:m},{x:0,y:m,w:m,h:H-m-skip},{x:W-m,y:m,w:m,h:H-m-skip},{x:0,y:H-m-skip,w:W,h:m}];
@@ -194,22 +255,18 @@
     }
     return [r/n,g/n,b/n];
   }
-
   function kmeans(colors, K, it){
     K = K||3; it = it||8;
     var cents=[], assign=new Array(colors.length), i, k;
     for(k=0;k<K;k++){ var c=colors[Math.floor(colors.length*(k+0.5)/(K+0.5))]; cents.push([c[0],c[1],c[2]]); }
     for(var t=0;t<it;t++){
-      for(i=0;i<colors.length;i++){
-        var best=0,bd=1e9; for(k=0;k<K;k++){ var d=dist2(colors[i],cents[k]); if(d<bd){bd=d; best=k;} } assign[i]=best;
-      }
+      for(i=0;i<colors.length;i++){ var best=0,bd=1e9; for(k=0;k<K;k++){ var d=dist2(colors[i],cents[k]); if(d<bd){bd=d; best=k;} } assign[i]=best; }
       var acc=[]; for(k=0;k<K;k++) acc.push([0,0,0,0]);
       for(i=0;i<colors.length;i++){ k=assign[i]; var cc=colors[i]; acc[k][0]+=cc[0]; acc[k][1]+=cc[1]; acc[k][2]+=cc[2]; acc[k][3]++; }
       for(k=0;k<K;k++){ if(acc[k][3]>0){ cents[k][0]=acc[k][0]/acc[k][3]; cents[k][1]=acc[k][1]/acc[k][3]; cents[k][2]=acc[k][2]/acc[k][3]; } }
     }
     return { centers:cents, assign:assign };
   }
-
   function estimateGrid(imgData, W, H, rect, range){
     range = range || [14,64];
     var x=rect.x,y=rect.y,w=rect.w,h=rect.h;
@@ -224,10 +281,9 @@
     function clamp(n,len){ var g=Math.max(range[0], Math.min(range[1], n||Math.round(len/14))); if(g%2!==0) g++; return g; }
     return { cols:clamp(cols,w), rows:clamp(rows,h) };
   }
-
   function dilate(bin){
     var r=bin.length, c=bin[0].length, out=bin.map(function(row){return row.slice();});
-    function inside(y,x){ return y>=0 && y<r && x>=0 && x<c; }
+    function inside(y,x){ return y>=0&&y<r&&x>=0&&x<c; }
     for(var y=0;y<r;y++) for(var x=0;x<c;x++) if(bin[y][x]){
       for(var dy=-1;dy<=1;dy++) for(var dx=-1;dx<=1;dx++){ var ny=y+dy,nx=x+dx; if(inside(ny,nx)) out[ny][nx]=true; }
     }
@@ -235,25 +291,22 @@
   }
   function erode(bin){
     var r=bin.length, c=bin[0].length, out=bin.map(function(row){return row.slice();});
-    function inside(y,x){ return y>=0 && y<r && x>=0 && x<c; }
+    function inside(y,x){ return y>=0&&y<r&&x>=0&&x<c; }
     for(var y=0;y<r;y++) for(var x=0;x<c;x++){
       var ok=true;
-      for(var dy=-1;dy<=1;dy++) for(var dx=-1;dx<=1;dx++){
-        var ny=y+dy,nx=x+dx; if(!inside(ny,nx)||!bin[ny][nx]) { ok=false; break; }
-      }
+      for(var dy=-1;dy<=1;dy++) for(var dx=-1;dx<=1;dx++){ var ny=y+dy,nx=x+dx; if(!inside(ny,nx)||!bin[ny][nx]) { ok=false; break; } }
       out[y][x]=ok;
     }
     return out;
   }
   function openBinary(bin){ return dilate(erode(bin)); }
   function closeBinary(bin){ return erode(dilate(bin)); }
-
   function filterLargestComponents(bin){
     var r=bin.length, c=bin[0].length;
     var vis=Array.from({length:r},function(){return Array(c).fill(false);});
     var comp=[], dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
-
-    for(var y=0;y<r;y++) for(var x=0;x<c;x++){
+    var y,x;
+    for(y=0;y<r;y++) for(x=0;x<c;x++){
       if(!bin[y][x] || vis[y][x]) continue;
       var q=[[y,x]]; vis[y][x]=true; var area=0, minY=y, maxY=y, minX=x, maxX=x;
       while(q.length){
@@ -266,7 +319,6 @@
       }
       comp.push({area:area, bbox:{minY:minY,maxY:maxY,minX:minX,maxX:maxX}});
     }
-
     if(!comp.length) return bin;
     comp.sort(function(a,b){return b.area-a.area;});
     var keep=[], largest=comp[0].area, cum=0;
@@ -274,7 +326,6 @@
       var cc=comp[i];
       if(cc.area >= Math.max(6, largest*0.06)){ keep.push(cc); cum += cc.area; if(cum > largest*1.35) break; }
     }
-
     var out = bin.map(function(row){ return row.map(function(){return false;}); });
     for(i=0;i<keep.length;i++){
       var bb=keep[i].bbox;
@@ -284,7 +335,6 @@
     }
     return out;
   }
-
   function quantizeColors(pixels, tol){
     tol = tol || 0.004;
     var rows=pixels.length, cols=pixels[0].length, palette=[];
@@ -294,7 +344,6 @@
     }
     return pixels;
   }
-
   function downsamplePixels(pixels, factor){
     if(factor<=1) return pixels;
     var rows=pixels.length, cols=pixels[0].length;
@@ -303,8 +352,8 @@
     for(var gy=0;gy<R;gy++){
       for(var gx=0;gx<C;gx++){
         var Rsum=0,Gsum=0,Bsum=0,N=0;
-        for(var y=gy*factor;y<Math.min(rows,(gy+1)*factor);y++){
-          for(var x=gx*factor;x<Math.min(cols,(gx+1)*factor);x++){
+        for(var y=gy*factor; y<Math.min(rows,(gy+1)*factor); y++){
+          for(var x=gx*factor; x<Math.min(cols,(gx+1)*factor); x++){
             var c=pixels[y][x]; if(!c) continue;
             Rsum+=c.r; Gsum+=c.g; Bsum+=c.b; N++;
           }
@@ -314,9 +363,8 @@
     }
     return out;
   }
-
   async function imageToPixelMatrix(file){
-    var img = await loadImage(file);
+    var img=await loadImage(file);
     var maxSide=1000, scl=Math.min(1, maxSide/Math.max(img.naturalWidth,img.naturalHeight));
     var W=Math.round(img.naturalWidth*scl), H=Math.round(img.naturalHeight*scl);
     var cnv=document.createElement('canvas'); cnv.width=W; cnv.height=H;
@@ -357,7 +405,7 @@
       }
     }
 
-    var cleaned = erode(dilate(openBinary(bin))); // ouverture légère + fermeture légère
+    var cleaned = erode(dilate(openBinary(bin)));
     cleaned = filterLargestComponents(cleaned);
 
     var minY=cleaned.length, minX2=cleaned[0].length, maxY2=0, maxX2=0, any=false;
@@ -506,7 +554,6 @@
   }
 
   function openPicker(){
-    // input créé à la volée (jamais display:none) → iOS OK
     var input = document.createElement('input');
     input.type = 'file'; input.accept = 'image/*'; input.multiple = true;
     input.style.position='fixed'; input.style.left='-10000px'; input.style.top='-10000px';
@@ -528,7 +575,7 @@
   function loop(){
     var dt=clock.getDelta();
     for (var i=0;i<agents.length;i++) agents[i].update(dt, agents, globalSpeedFactor);
-    controls.update();
+    // plus de controls.update(); (tout est géré par nos handlers)
     renderer.render(scene, camera);
     requestAnimationFrame(loop);
   }
@@ -538,5 +585,6 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
     camera.aspect = window.innerWidth/window.innerHeight;
     camera.updateProjectionMatrix();
+    controls.apply();
   });
 })();
