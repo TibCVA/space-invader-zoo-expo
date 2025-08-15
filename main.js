@@ -1,6 +1,6 @@
 /* global THREE */
 
-// -------- Overlay d'erreur ----------
+/* ---------- Overlay d'erreur iOS-friendly ---------- */
 (function(){
   var box = document.getElementById('error');
   function show(msg){ try{ box.textContent = String(msg); box.style.display = 'block'; }catch(_e){} }
@@ -25,11 +25,11 @@
   var DPR = Math.min(window.devicePixelRatio || 1, 1.5); // iOS safe
   var WORLD = {
     planetRadius: 3.2,
-    invaderScale: 0.022,         // taille "tuile"
+    invaderScale: 0.022,         // taille d’une “tuile”
     depthFactor: 0.95,           // voxels quasi cubiques
-    spacingRatio: 0.01,          // gap minuscule → rendu net
+    spacingRatio: 0.01,          // micro-jour → rendu net
     repelRadius: 0.35,
-    hoverMargin: 0.11,           // ↑ marge pour éviter tout z-fighting
+    hoverMargin: 0.11,           // ↑ marge anti z-fighting
     invaderMaxWorldSize: 0.10    // 10% du diamètre planète
   };
 
@@ -47,7 +47,7 @@
   var canvas = document.getElementById('scene');
   var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: false, alpha: false, powerPreference: 'default' });
   var gl = renderer.getContext();
-  if (!gl) { var el = document.getElementById('error'); el.textContent = 'WebGL non disponible.'; el.style.display = 'block'; }
+  if (!gl) { var el = document.getElementById('error'); el.textContent = 'WebGL non disponible. Ferme d’autres apps/onglets et recharge.'; el.style.display = 'block'; }
   renderer.setPixelRatio(DPR);
   renderer.setSize(window.innerWidth, window.innerHeight);
   if (renderer.outputColorSpace !== undefined) renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -162,6 +162,8 @@
     tex.wrapS = tex.wrapT = THREE.MirroredRepeatWrapping;
     return tex;
   }
+
+  // relief doux (même formule que celle utilisée par le “no-clip”)
   var planetGeo = new THREE.SphereGeometry(WORLD.planetRadius, 96, 64);
   var planetMat = new THREE.MeshStandardMaterial({
     map: generatePlanetTexture(512,256),
@@ -170,7 +172,6 @@
   });
   var planet = new THREE.Mesh(planetGeo, planetMat); scene.add(planet);
 
-  // relief doux (même formule que celle utilisée pour l'altitude des invaders)
   var BUMP_SCALE = 0.03;
   function planetBump(n){ return BUMP_SCALE*(Math.sin(7*n.x)+Math.sin(9*n.y)+Math.sin(11*n.z)); }
   (function(){
@@ -186,33 +187,320 @@
 
   (function(){ // étoiles statiques
     var N=2400, a=new Float32Array(3*N);
-    for(var i=0;i<N;i++){ var r=70+Math.random()*70, t=Math.acos(Math.random()*2-1), p=Math.random()*Math.PI*2;
-      a[3*i]=r*Math.sin(t)*Math.cos(p); a[3*i+1]=r*Math.cos(t); a[3*i+2]=r*Math.sin(t)*Math.sin(p); }
+    for(var i=0;i<N;i++){
+      var r=70+Math.random()*70, t=Math.acos(Math.random()*2-1), p=Math.random()*Math.PI*2;
+      a[3*i]=r*Math.sin(t)*Math.cos(p); a[3*i+1]=r*Math.cos(t); a[3*i+2]=r*Math.sin(t)*Math.sin(p);
+    }
     var g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(a,3));
     scene.add(new THREE.Points(g, new THREE.PointsMaterial({ size: 1.5, sizeAttenuation: false, color: 0xffffff })));
   })();
 
   /* =========================
-     (… LES OUTILS IMAGE & DÉTECTION d'invaders restent identiques à ta v3.9 …)
+     OUTILS IMAGE (détection Edge‑Pro)
      ========================= */
-  // ⚠️ Pour rester concis ici, garde exactement le bloc "OUTILS IMAGE" et "imageToPixelMatrix"
-  // de ta v3.9 précédente (il n'est pas modifié par ce hotfix no‑clip).
-  // Si tu veux, recolle-le tel quel en dessous.
-  // ---------------
-  // ⬇️ COLLE ICI ton bloc v3.9 (détection/segmentation/boost couleur)
-  // ---------------
+  function lin255(c){ c/=255; return c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4); }
+  function dist2(a,b){ var dr=lin255(a[0])-lin255(b[0]); var dg=lin255(a[1])-lin255(b[1]); var db=lin255(a[2])-lin255(b[2]); return dr*dr+dg*dg+db*db; }
+  function s2l(u){ return (u<=0.04045)?(u/12.92):Math.pow((u+0.055)/1.055,2.4); } // sRGB[0..1] -> lin
+  function loadImage(file){ return new Promise(function(res,rej){ var url=URL.createObjectURL(file); var im=new Image(); im.onload=function(){ res(im); }; im.onerror=rej; im.src=url; }); }
 
-  /* ==== PLACEHOLDER pour raccourcir ce message ====
-     Copie / colle ici sans changer :
-     - dist2 / loadImage / isWhitish / getEdgeBg / kmeans / estimateGrid /
-     - dilate / erode / openBinary / closeBinary / filterLargestComponents /
-     - purgeEdgeWhitish / purgeEdgeByBg / pruneLonely / hsv2rgb / rgb2hsv / boostColor /
-     - imageToPixelMatrix(file, budget)
-     (Tout ce bloc est identique à la v3.9 que tu as déjà déployée.)
-  ==== FIN PLACEHOLDER ================================= */
+  function isWhitish(c){
+    if(!c) return false;
+    var r=c.r, g=c.g, b=c.b;
+    var l = 0.2126*r + 0.7152*g + 0.0722*b;
+    var max=Math.max(r,g,b), min=Math.min(r,g,b), chroma=max-min;
+    return (l>0.75 && chroma<0.20);
+  }
+
+  function getEdgeBg(data,W,H){
+    var m=Math.floor(Math.min(W,H)*.04), skip=Math.floor(H*.18);
+    var regs=[{x:0,y:0,w:W,h:m},{x:0,y:m,w:m,h:H-m-skip},{x:W-m,y:m,w:m,h:H-m-skip},{x:0,y:H-m-skip,w:W,h:m}];
+    var r=0,g=0,b=0,n=0, t, y, x, i;
+    for(var ri=0;ri<regs.length;ri++){ t=regs[ri];
+      for(y=t.y;y<t.y+t.h;y++) for(x=t.x;x<t.x+t.w;x++){ i=(y*W+x)*4; r+=data[i]; g+=data[i+1]; b+=data[i+2]; n++; }
+    }
+    return [r/n,g/n,b/n];
+  }
+
+  function kmeans(colors, K, it){
+    K = K||4; it = it||9;
+    var cents=[], assign=new Array(colors.length), i, k;
+    for(k=0;k<K;k++){ var c=colors[Math.floor(colors.length*(k+0.5)/(K+0.5))]; cents.push([c[0],c[1],c[2]]); }
+    for(var t=0;t<it;t++){
+      for(i=0;i<colors.length;i++){ var best=0,bd=1e9; for(k=0;k<K;k++){ var d=dist2(colors[i],cents[k]); if(d<bd){bd=d; best=k;} } assign[i]=best; }
+      var acc=[]; for(k=0;k<K;k++) acc.push([0,0,0,0]);
+      for(i=0;i<colors.length;i++){ k=assign[i]; var cc=colors[i]; acc[k][0]+=cc[0]; acc[k][1]+=cc[1]; acc[k][2]+=cc[2]; acc[k][3]++; }
+      for(k=0;k<K;k++){ if(acc[k][3]>0){ cents[k][0]=acc[k][0]/acc[k][3]; cents[k][1]=acc[k][1]/acc[k][3]; cents[k][2]=acc[k][2]/acc[k][3]; } }
+    }
+    return { centers:cents, assign:assign };
+  }
+
+  function estimateGrid(imgData, W, H, rect, range){
+    range = range || [14,80];
+    var x=rect.x,y=rect.y,w=rect.w,h=rect.h;
+    function get(ix,iy){ var i=((y+iy)*W+(x+ix))*4; return [imgData[i],imgData[i+1],imgData[i+2]]; }
+    function changes(len, sample){
+      var arr=[], i, j, prev, c;
+      for(i=0;i<len;i++){ prev=sample(i,0); c=0; for(j=1;j<len;j++){ var v=sample(i,j); if(dist2(v,prev)>0.01){c++; prev=v;} } arr.push(c); }
+      arr.sort(function(a,b){return a-b;}); return arr[Math.floor(arr.length/2)];
+    }
+    var cols=changes(w, function(i,j){ return get(i, Math.floor(j*h/(w||1))%h); });
+    var rows=changes(h, function(i,j){ return get(Math.floor(j*w/(h||1))%w, i); });
+
+    function clamp(n,min,max){ n=Math.max(min,Math.min(max,n)); if(n%2!==0) n++; return n; }
+    var cW = w/cols, cH = h/rows, unit = Math.min(cW,cH);
+    return { cols:clamp(Math.round(w/unit), range[0], range[1]),
+             rows:clamp(Math.round(h/unit), range[0], range[1]) };
+  }
+
+  function dilate(bin){
+    var r=bin.length, c=bin[0].length, out=bin.map(function(row){return row.slice();});
+    function inside(y,x){ return y>=0&&y<r&&x>=0&&x<c; }
+    for(var y=0;y<r;y++) for(var x=0;x<c;x++) if(bin[y][x]){
+      for(var dy=-1;dy<=1;dy++) for(var dx=-1;dx<=1;dx++){ var ny=y+dy,nx=x+dx; if(inside(ny,nx)) out[ny][nx]=true; }
+    }
+    return out;
+  }
+  function erode(bin){
+    var r=bin.length, c=bin[0].length, out=bin.map(function(row){return row.slice();});
+    function inside(y,x){ return y>=0&&y<r&&x>=0&&x<c; }
+    for(var y=0;y<r;y++) for(var x=0;x<c;x++){
+      var ok=true;
+      for(var dy=-1;dy<=1;dy++) for(var dx=-1;dx<=1;dx++){ var ny=y+dy,nx=x+dx; if(!inside(ny,nx)||!bin[ny][nx]) { ok=false; break; } }
+      out[y][x]=ok;
+    }
+    return out;
+  }
+  function openBinary(bin){ return dilate(erode(bin)); }
+  function closeBinary(bin){ return erode(dilate(bin)); }
+
+  function filterLargestComponents(bin){
+    var r=bin.length, c=bin[0].length;
+    var vis=Array.from({length:r},function(){return Array(c).fill(false);});
+    var comp=[], dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]], y,x;
+    for(y=0;y<r;y++) for(x=0;x<c;x++){
+      if(!bin[y][x] || vis[y][x]) continue;
+      var q=[[y,x]]; vis[y][x]=true; var area=0, minY=y, maxY=y, minX=x, maxX=x;
+      while(q.length){
+        var cur=q.pop(), cy=cur[0], cx=cur[1]; area++;
+        if(cy<minY)minY=cy; if(cy>maxY)maxY=cy; if(cx<minX)minX=cx; if(cx>maxX)maxX=cx;
+        for(var d=0;d<dirs.length;d++){
+          var ny=cy+dirs[d][0], nx=cx+dirs[d][1];
+          if(ny>=0&&ny<r&&nx>=0&&nx<c && bin[ny][nx] && !vis[ny][nx]){ vis[ny][nx]=true; q.push([ny,nx]); }
+        }
+      }
+      comp.push({area:area, bbox:{minY:minY,maxY:maxY,minX:minX,maxX:maxX}});
+    }
+    if(!comp.length) return bin;
+    comp.sort(function(a,b){return b.area-a.area;});
+    var keep=[], largest=comp[0].area, cum=0;
+    for(var i=0;i<comp.length;i++){
+      var cc=comp[i];
+      if(cc.area >= Math.max(6, largest*0.06)){ keep.push(cc); cum += cc.area; if(cum > largest*1.35) break; }
+    }
+    var out = bin.map(function(row){ return row.map(function(){return false;}); });
+    for(i=0;i<keep.length;i++){
+      var bb=keep[i].bbox;
+      for(y=bb.minY;y<=bb.maxY;y++) for(x=bb.minX;x<=bb.maxX;x++){
+        if(bin[y][x]) out[y][x]=true;
+      }
+    }
+    return out;
+  }
+
+  function purgeFromEdgesByPredicate(pixels, predicate){
+    var R=pixels.length, C=pixels[0].length;
+    var seen=Array.from({length:R},function(){return Array(C).fill(false);});
+    function inB(y,x){ return y>=0&&y<R&&x>=0&&x<C; }
+    function flood(y0,x0){
+      var q=[[y0,x0]]; seen[y0][x0]=true;
+      while(q.length){
+        var t=q.pop(), yy=t[0], xx=t[1];
+        if(pixels[yy][xx] && predicate(pixels[yy][xx])) pixels[yy][xx]=null;
+        var dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+        for(var d=0;d<4;d++){
+          var ny=yy+dirs[d][0], nx=xx+dirs[d][1];
+          if(inB(ny,nx) && !seen[ny][nx] && pixels[ny][nx] && predicate(pixels[ny][nx])){ seen[ny][nx]=true; q.push([ny,nx]); }
+        }
+      }
+    }
+    var x;
+    for(x=0;x<C;x++){ if(pixels[0][x]) flood(0,x); if(pixels[R-1][x]) flood(R-1,x); }
+    var y;
+    for(y=0;y<R;y++){ if(pixels[y][0]) flood(y,0); if(pixels[y][C-1]) flood(y,C-1); }
+  }
+  function purgeEdgeWhitish(pixels){ purgeFromEdgesByPredicate(pixels, isWhitish); }
+  function purgeEdgeByBg(pixels, bgSRGB, thrLin){
+    var bg = { r:bgSRGB.r, g:bgSRGB.g, b:bgSRGB.b };
+    var t2 = thrLin*thrLin;
+    function nearBg(c){
+      var dr=s2l(c.r)-s2l(bg.r), dg=s2l(c.g)-s2l(bg.g), db=s2l(c.b)-s2l(bg.b);
+      return (dr*dr+dg*dg+db*db) < t2;
+    }
+    purgeFromEdgesByPredicate(pixels, nearBg);
+  }
+
+  function pruneLonely(pixels, minSame){
+    var rows=pixels.length, cols=pixels[0].length;
+    var out=Array.from({length:rows}, function(){ return Array(cols).fill(null); });
+    var y,x;
+    for(y=0;y<rows;y++) for(x=0;x<cols;x++){
+      var c=pixels[y][x]; if(!c) { out[y][x]=null; continue; }
+      var same=0, dy, dx;
+      for(dy=-1;dy<=1;dy++) for(dx=-1;dx<=1;dx++){
+        if(dy===0&&dx===0) continue;
+        var ny=y+dy, nx=x+dx; if(ny<0||ny>=rows||nx<0||nx>=cols) continue;
+        var n=pixels[ny][nx]; if(!n) continue;
+        var dd=(c.r-n.r)*(c.r-n.r)+(c.g-n.g)*(c.g-n.g)+(c.b-n.b)*(c.b-n.b);
+        if(dd<0.002) same++;
+      }
+      out[y][x] = (same>=minSame)? c : null;
+    }
+    return out;
+  }
+
+  function hsv2rgb(h,s,v){ var i=Math.floor(h*6), f=h*6-i, p=v*(1-s), q=v*(1-f*s), t=v*(1-(1-f)*s), m=i%6;
+    return {r:[v,q,p,p,t,v][m], g:[t,v,v,q,p,p][m], b:[p,p,t,v,v,q][m]}; }
+  function rgb2hsv(r,g,b){ var max=Math.max(r,g,b), min=Math.min(r,g,b), d=max-min, h=0;
+    if(d!==0){ if(max===r) h=((g-b)/d)%6; else if(max===g) h=(b-r)/d+2; else h=(r-g)/d+4; h/=6; if(h<0) h+=1; }
+    return {h:h,s:max===0?0:d/max,v:max}; }
+  function boostColor(c){ var hsv=rgb2hsv(c.r,c.g,c.b); var SAT=0.12, GAMMA=0.92;
+    hsv.s=Math.min(1,hsv.s*(1+SAT)); hsv.v=Math.pow(hsv.v,GAMMA); return hsv2rgb(hsv.h,hsv.s,hsv.v); }
+
+  async function imageToPixelMatrix(file, budget){
+    var img=await loadImage(file);
+    var maxSide=1200, scl=Math.min(1, maxSide/Math.max(img.naturalWidth,img.naturalHeight));
+    var W=Math.round(img.naturalWidth*scl), H=Math.round(img.naturalHeight*scl);
+    var cnv=document.createElement('canvas'); cnv.width=W; cnv.height=H;
+    var ctx=cnv.getContext('2d', { willReadFrequently:true });
+    ctx.drawImage(img,0,0,W,H);
+    var data = ctx.getImageData(0,0,W,H).data;
+
+    // Détection du rectangle d'intérêt
+    var bgEdge=getEdgeBg(data,W,H);
+    var TH=0.012; var minX=W,minY=H,maxX=0,maxY=0;
+    var skipB=Math.floor(H*.18), m=Math.floor(Math.min(W,H)*.04);
+    var y,x;
+    for(y=m;y<H-skipB;y++) for(x=m;x<W-m;x++){
+      var i=(y*W+x)*4; var px=[data[i],data[i+1],data[i+2]];
+      if(dist2(px,bgEdge)>TH){ if(x<minX)minX=x; if(y<minY)minY=y; if(x>maxX)maxX=x; if(y>maxY)maxY=y; }
+    }
+    if(minX>=maxX||minY>=maxY) throw new Error('Invader non détecté.');
+    var rect={x:minX,y:minY,w:maxX-minX+1,h:maxY-minY+1};
+
+    // Clustering couleurs (pour séparer fond)
+    var cols=[], yy, xx;
+    for(yy=0;yy<rect.h;yy+=2) for(xx=0;xx<rect.w;xx+=2){ var ii=((rect.y+yy)*W+(rect.x+xx))*4; cols.push([data[ii],data[ii+1],data[ii+2]]); }
+    var km=kmeans(cols,4,9);
+    var bgk=0,bd=1e9; for(var k=0;k<km.centers.length;k++){ var d=dist2(km.centers[k], bgEdge); if(d<bd){bd=d; bgk=k;} }
+
+    // Grille carrée
+    var grid = estimateGrid(data, W, H, rect, [14,80]);
+    var cellW=rect.w/grid.cols, cellH=rect.h/grid.rows;
+
+    // Binarisation par cellule (échantillonnage CENTRAL)
+    var bin=Array.from({length:grid.rows}, function(){return Array(grid.cols).fill(false);});
+    var colsRGB=Array.from({length:grid.rows}, function(){return Array(grid.cols).fill(null);});
+    var keepTH=0.008;  // plus strict
+    var inner=0.25;    // prélèvement au centre 25..75 %
+    var ix0,ix1,iy0,iy1,r,g,b,n,idx,c;
+    for(var gy=0;gy<grid.rows;gy++){
+      for(var gx=0;gx<grid.cols;gx++){
+        var x0=Math.floor(rect.x+gx*cellW), y0=Math.floor(rect.y+gy*cellH);
+        var x1=Math.min(W, Math.floor(rect.x+(gx+1)*cellW));
+        var y1=Math.min(H, Math.floor(rect.y+(gy+1)*cellH));
+        ix0 = Math.floor(x0 + (x1-x0)*inner); ix1 = Math.ceil(x1 - (x1-x0)*inner);
+        iy0 = Math.floor(y0 + (y1-y0)*inner); iy1 = Math.ceil(y1 - (y1-y0)*inner);
+        if(ix1<=ix0 || iy1<=iy0){ ix0=x0; ix1=x1; iy0=y0; iy1=y1; }
+
+        r=0; g=0; b=0; n=0;
+        for(y=iy0;y<iy1;y++) for(x=ix0;x<ix1;x++){ idx=(y*W+x)*4; r+=data[idx]; g+=data[idx+1]; b+=data[idx+2]; n++; }
+        c=[r/n,g/n,b/n];
+        if(dist2(c, km.centers[bgk])>keepTH){ bin[gy][gx]=true; colsRGB[gy][gx]={r:c[0]/255,g:c[1]/255,b:c[2]/255}; }
+      }
+    }
+
+    // Nettoyages morpho + composantes principales
+    var cleaned = closeBinary(openBinary(bin));
+    cleaned = filterLargestComponents(cleaned);
+
+    // Recadrage silhouette
+    var minY=cleaned.length, minX2=cleaned[0].length, maxY2=0, maxX2=0, any=false;
+    for(y=0;y<cleaned.length;y++) for(x=0;x<cleaned[0].length;x++) if(cleaned[y][x]){
+      any=true; if(y<minY)minY=y; if(y>maxY2)maxY2=y; if(x<minX2)minX2=x; if(x>maxX2)maxX2=x;
+    }
+    if(!any) throw new Error('Silhouette trop faible. Essaie une photo plus frontale.');
+    var croppedH=maxY2-minY+1, croppedW=maxX2-minX2+1;
+
+    var pixels=Array.from({length:croppedH}, function(){return Array(croppedW).fill(null);});
+    for(y=0;y<croppedH;y++) for(x=0;x<croppedW;x++){
+      var Y=y+minY, X=x+minX2;
+      if(cleaned[Y][X]){
+        if(colsRGB[Y][X]) pixels[y][x]=colsRGB[Y][X];
+        else {
+          var R=0,G=0,B=0,N=0, dy, dx, ny, nx;
+          for(dy=-1;dy<=1;dy++) for(dx=-1;dx<=1;dx++){
+            ny=Y+dy; nx=X+dx;
+            if(ny>=0&&ny<grid.rows&&nx>=0&&nx<grid.cols&&colsRGB[ny][nx]){ R+=colsRGB[ny][nx].r; G+=colsRGB[ny][nx].g; B+=colsRGB[ny][nx].b; N++; }
+          }
+          if(N>0) pixels[y][x]={r:R/N,g:G/N,b:B/N};
+        }
+      }
+    }
+
+    // Purges depuis les bords (fond & blanc) + anti-miettes + lissage léger
+    var bgSRGB = { r:bgEdge[0]/255, g:bgEdge[1]/255, b:bgEdge[2]/255 };
+    purgeEdgeByBg(pixels, bgSRGB, 0.065);
+    purgeEdgeWhitish(pixels);
+    pixels = pruneLonely(pixels, 2);
+    pixels = pruneLonely(pixels, 2);
+
+    (function smoothColors(){
+      var rows=pixels.length, cols=pixels[0].length;
+      var out=Array.from({length:rows}, function(){ return Array(cols).fill(null); });
+      var TH=0.0015, y,x;
+      for(y=0;y<rows;y++) for(x=0;x<cols;x++){
+        var c=pixels[y][x]; if(!c){ out[y][x]=null; continue; }
+        var pals=[], count=[], dy,dx;
+        for(dy=-1;dy<=1;dy++) for(dx=-1;dx<=1;dx++){
+          var ny=y+dy, nx=x+dx; if(ny<0||ny>=rows||nx<0||nx>=cols) continue;
+          var n=pixels[ny][nx]; if(!n) continue;
+          var found=-1, i, p, d;
+          for(i=0;i<pals.length;i++){
+            p=pals[i]; d=(p.r-n.r)*(p.r-n.r)+(p.g-n.g)*(p.g-n.g)+(p.b-n.b)*(p.b-n.b);
+            if(d<TH){ found=i; break; }
+          }
+          if(found===-1){ pals.push(n); count.push(1); } else count[found]++;
+        }
+        var maxI=0; for(var k=1;k<count.length;k++) if(count[k]>count[maxI]) maxI=k;
+        out[y][x] = (count[maxI] >= 4) ? pals[maxI] : c;
+      }
+      pixels = out;
+    })();
+
+    // LOD si trop dense
+    var vox=0; for(y=0;y<pixels.length;y++) for(x=0;x<pixels[0].length;x++) if(pixels[y][x]) vox++;
+    var budgetV = budget || 1600;
+    if(vox > budgetV){
+      var factor = Math.ceil(Math.sqrt(vox / budgetV));
+      var rows=pixels.length, cols=pixels[0].length;
+      var R=Math.ceil(rows/factor), C=Math.ceil(cols/factor);
+      var out=Array.from({length:R}, function(){ return Array(C).fill(null); });
+      var gy,gx,y2,x2,cl;
+      for(gy=0;gy<R;gy++) for(gx=0;gx<C;gx++){
+        var Rsum=0,Gsum=0,Bsum=0,N=0;
+        for(y2=gy*factor; y2<Math.min(rows,(gy+1)*factor); y2++)
+          for(x2=gx*factor; x2<Math.min(cols,(gx+1)*factor); x2++){
+            cl=pixels[y2][x2]; if(!cl) continue; Rsum+=cl.r; Gsum+=cl.g; Bsum+=cl.b; N++;
+          }
+        if(N>0) out[gy][gx]={r:Rsum/N,g:Gsum/N,b:Bsum/N};
+      }
+      pixels = out;
+    }
+    return pixels;
+  }
 
   /* =========================
-     INVADER 3D (instanced) — + polygonOffset pour éviter le z-fighting
+     INVADER 3D (instanced) — polygonOffset anti z‑fighting
      ========================= */
   function buildInvaderMesh(pixelGrid){
     var rows=pixelGrid.length, cols=pixelGrid[0].length;
@@ -228,7 +516,7 @@
     var mat=new THREE.MeshStandardMaterial({
       roughness:0.42, metalness:0.06, vertexColors:true, flatShading:true,
       color:0xffffff, emissive:0x151515, emissiveIntensity:0.22,
-      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 // << clé anti z-fighting
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
     });
 
     var mesh=new THREE.InstancedMesh(geom, mat, rows*cols);
@@ -237,12 +525,12 @@
     var dummy=new THREE.Object3D();
     var w=cols*size,h=rows*size;
     var x0=-w/2+size/2, y0=-h/2+size/2;
-    var idx=0;
-    for(var y=0;y<rows;y++) for(var x=0;x<cols;x++){
-      var c=pixelGrid[y][x]; if(!c) continue;
+    var idx=0, x,y,c,srgb,col;
+    for(y=0;y<rows;y++) for(x=0;x<cols;x++){
+      c=pixelGrid[y][x]; if(!c) continue;
 
-      var srgb = boostColor({r:c.r,g:c.g,b:c.b});
-      var col = new THREE.Color(srgb.r, srgb.g, srgb.b);
+      srgb = boostColor({r:c.r,g:c.g,b:c.b});
+      col = new THREE.Color(srgb.r, srgb.g, srgb.b);
       if (col.convertSRGBToLinear) col.convertSRGBToLinear();
 
       dummy.position.set(x0 + x*size, y0 + (rows-1-y)*size, 0);
@@ -268,12 +556,10 @@
   function createWanderer(invader){
     var g=new THREE.Group(); g.add(invader.mesh);
 
-    // Taille globale inchangée
     var targetWorldSize = WORLD.invaderMaxWorldSize * (WORLD.planetRadius*2);
     var maxDim = Math.max(invader.width, invader.height);
     var scale = targetWorldSize / maxDim; g.scale.setScalar(scale);
 
-    // Hover = demi‑épaisseur + marge
     var hover = (invader.depth*scale)/2 + WORLD.hoverMargin;
 
     var normal=new THREE.Vector3().randomDirection();
@@ -289,7 +575,6 @@
     return {
       object: g, normal: normal, axis: axis, hover: hover, baseSpeed: baseSpeed,
       update: function(dt, peers, speedFactor){
-        // petite répulsion tangentielle
         var push=new THREE.Vector3();
         for(var i=0;i<peers.length;i++){ var p=peers[i]; if(p===this) continue;
           var d=this.object.position.clone().sub(p.object.position); var L=d.length();
@@ -298,11 +583,9 @@
         }
         if(push.lengthSq()>0){ this.axis.add(push.normalize().multiplyScalar(0.02)).normalize(); }
 
-        // rotation tangentielle (pas de bobbing radial)
         rot.setFromAxisAngle(this.axis, this.baseSpeed * speedFactor * dt);
         this.normal.applyQuaternion(rot).normalize();
 
-        // altitude exacte = rayon planète (avec relief) + hover
         var R = planetRadiusAt(this.normal) + this.hover;
         this.object.position.copy(this.normal).multiplyScalar(R);
         alignZAxisTo(this.object, this.normal);
@@ -311,18 +594,177 @@
   }
 
   /* =========================
-     MÉTÉORITES & ÉTOILES FILANTES (identiques v3.9)
+     MÉTÉORITES & ÉTOILES FILANTES (léger GPU)
      ========================= */
-  // --- garde exactement ton bloc v3.9 de transients (spawnMeteor, spawnShootingStar, etc.) ---
-  // (rien à changer ici, je ne le recopie pas pour raccourcir le message)
+  var transients = [];
+  function streakTexture(){
+    var c=document.createElement('canvas'); c.width=128; c.height=4; var ctx=c.getContext('2d');
+    var g=ctx.createLinearGradient(0,0,128,0);
+    g.addColorStop(0,'rgba(255,255,255,0)'); g.addColorStop(0.2,'rgba(255,255,255,0.3)');
+    g.addColorStop(1,'rgba(255,255,255,0.0)'); ctx.fillStyle=g; ctx.fillRect(0,0,128,4);
+    var t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.ClampToEdgeWrapping; t.needsUpdate=true;
+    return t;
+  }
+  var TRAIL_TEX = streakTexture();
+
+  function spawnMeteor(){
+    var startDir=new THREE.Vector3().randomDirection();
+    var targetDir=new THREE.Vector3().randomDirection();
+    var startPos=startDir.clone().multiplyScalar( WORLD.planetRadius*6.0 );
+    var targetPos=targetDir.clone().multiplyScalar( WORLD.planetRadius*1.01 );
+
+    var body=new THREE.Mesh(
+      new THREE.IcosahedronGeometry(0.10,0),
+      new THREE.MeshStandardMaterial({ color:0xffcc88, roughness:0.65, metalness:0.25, emissive:0x442200, emissiveIntensity:0.35 })
+    );
+    body.position.copy(startPos);
+    var trail=new THREE.Mesh(
+      new THREE.PlaneGeometry(1.2,0.07),
+      new THREE.MeshBasicMaterial({ map:TRAIL_TEX, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false })
+    );
+    trail.position.copy(startPos);
+    trail.rotation.y = Math.PI/2;
+    scene.add(body); scene.add(trail);
+
+    var t=0, speed=0.20+Math.random()*0.08, dir=new THREE.Vector3();
+    var exploded=false;
+
+    function impactFlash(where){
+      var g=new THREE.SphereGeometry(0.18, 12, 10);
+      var m=new THREE.MeshBasicMaterial({ color:0xffffcc, transparent:true, opacity:0.8, blending:THREE.AdditiveBlending, depthWrite:false });
+      var flash=new THREE.Mesh(g,m); flash.position.copy(where); scene.add(flash);
+      transients.push({
+        done:false,
+        update:function(dt){ flash.scale.multiplyScalar(1+dt*3.0); m.opacity*=Math.exp(-4*dt); if(m.opacity<0.02){ this.done=true; scene.remove(flash); g.dispose(); m.dispose(); } },
+        dispose:function(){}
+      });
+    }
+
+    transients.push({
+      done:false,
+      update:function(dt){
+        t += speed*dt; if(t>1) t=1;
+        var prev=body.position.clone();
+        body.position.lerpVectors(startPos, targetPos, t);
+        dir.copy(body.position).sub(prev).normalize();
+        body.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), dir);
+
+        trail.position.copy(body.position).addScaledVector(dir, -0.6);
+        trail.lookAt(trail.position.clone().add(dir));
+        var dist=body.position.length();
+        if(!exploded && dist <= WORLD.planetRadius*1.01){
+          exploded=true; impactFlash(body.position.clone());
+          this.done=true;
+          scene.remove(body); scene.remove(trail);
+          body.geometry.dispose(); body.material.dispose(); trail.geometry.dispose(); trail.material.dispose();
+        }
+      },
+      dispose:function(){}
+    });
+  }
+
+  function spawnShootingStar(){
+    var radius=120, p0=new THREE.Vector3().randomDirection().multiplyScalar(radius);
+    var p1=new THREE.Vector3().randomDirection().multiplyScalar(radius);
+    var streak=new THREE.Mesh(
+      new THREE.PlaneGeometry(1.8,0.08),
+      new THREE.MeshBasicMaterial({ map:TRAIL_TEX, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false })
+    );
+    streak.position.copy(p0); scene.add(streak);
+    var t=0, speed=0.25+Math.random()*0.12;
+    transients.push({
+      done:false,
+      update:function(dt){
+        t+=speed*dt; if(t>1){ this.done=true; scene.remove(streak); streak.geometry.dispose(); streak.material.dispose(); return; }
+        streak.position.lerpVectors(p0,p1,t);
+        streak.lookAt(camera.position);
+        streak.material.opacity = Math.max(0, 1.0 - Math.abs(t-0.5)*2.0);
+      },
+      dispose:function(){}
+    });
+  }
+
+  var nextMeteor = performance.now() + 9000 + Math.random()*10000; // 9–19 s
+  var nextStar   = performance.now() + 4000 + Math.random()*9000;  // 4–13 s
 
   /* =========================
-     UI & IMPORT (identiques v3.9)
+     UI & IMPORT (iOS-safe)
      ========================= */
-  // ... garde ton code v3.9 existant pour addBtn / handleFiles / openPicker / speed slider ...
+  var addBtn=document.getElementById('addBtn');
+  var countLbl=document.getElementById('count');
+  var speedSlider=document.getElementById('speed');
+
+  var agents=[];
+  var globalSpeedFactor = Number(speedSlider.value)/100; // 0.33 par défaut
+  function updateCount(){ var n=agents.length; countLbl.textContent = n + (n>1?' invaders':' invader'); }
+  speedSlider.addEventListener('input', function(){ globalSpeedFactor = Number(speedSlider.value)/100; });
+
+  function handleFiles(files){
+    var arr = Array.prototype.slice.call(files);
+    (async function(){
+      var i;
+      for (i=0;i<arr.length;i++){
+        try {
+          var px=await imageToPixelMatrix(arr[i], voxelsBudget(agents.length));
+          var built=buildInvaderMesh(px);
+          var agent=createWanderer(built);
+          scene.add(agent.object);
+          agents.push(agent); updateCount();
+        } catch(err){
+          var el=document.getElementById('error'); el.textContent=err.message||String(err); el.style.display='block';
+        }
+      }
+    })();
+  }
+
+  function openPicker(){
+    var input = document.createElement('input');
+    input.type = 'file'; input.accept = 'image/*'; input.multiple = true;
+    input.style.position='fixed'; input.style.left='-10000px'; input.style.top='-10000px';
+    document.body.appendChild(input);
+    input.addEventListener('change', function(e){
+      try { handleFiles(e.target.files); } finally { document.body.removeChild(input); }
+    }, { once:true });
+    input.click();
+  }
+
+  addBtn.addEventListener('click', function(e){ e.preventDefault(); openPicker(); }, { passive:false });
+  addBtn.addEventListener('touchstart', function(e){ e.preventDefault(); }, { passive:false });
+  addBtn.addEventListener('touchend', function(e){ e.preventDefault(); openPicker(); }, { passive:false });
 
   /* =========================
      BOUCLE
      ========================= */
-  // ... garde la boucle v3.9 ; elle continue d’appeler agent.update(dt, agents, globalSpeedFactor) ...
+  var clock=new THREE.Clock();
+  function loop(){
+    var dt=clock.getDelta();
+    controls.update(dt);
+    var i;
+    for (i=0;i<agents.length;i++) agents[i].update(dt, agents, globalSpeedFactor);
+
+    var now=performance.now();
+    if(now>nextMeteor){
+      var alive=0; for(i=0;i<transients.length;i++) if(!transients[i].done) alive++;
+      if(alive<3) spawnMeteor();
+      nextMeteor = now + 9000 + Math.random()*14000;
+    }
+    if(now>nextStar){
+      var aliveS=0; for(i=0;i<transients.length;i++) if(!transients[i].done) aliveS++;
+      if(aliveS<6) spawnShootingStar();
+      nextStar   = now + 5000 + Math.random()*12000;
+    }
+    for (i=0;i<transients.length;i++){ var T=transients[i]; if(!T.done) T.update(dt); }
+    transients = transients.filter(function(t){ return !t.done; });
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(loop);
+  }
+  loop();
+
+  window.addEventListener('resize', function(){
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    controls.apply();
+  });
 })();
