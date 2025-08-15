@@ -25,20 +25,21 @@
   var DPR = Math.min(window.devicePixelRatio || 1, 1.5); // iOS safe
   var WORLD = {
     planetRadius: 3.2,
-    invaderScale: 0.022,         // légèrement plus grand (puis LOD)
-    depthFactor: 0.90,           // voxels plus "cubes" (épaisseur ~ largeur)
-    spacingRatio: 0.02,          // moins d'espace → meilleur rendu
+    invaderScale: 0.022,         // taille "tuile"
+    depthFactor: 0.95,           // voxels quasi cubiques
+    spacingRatio: 0.01,          // gap minuscule → rendu net
     repelRadius: 0.35,
-    hoverMargin: 0.065,          // ↑ pour éviter d’être “mangé”
+    hoverMargin: 0.07,           // marge ↑ (évite les "morsures")
     invaderMaxWorldSize: 0.10    // 10% du diamètre planète
   };
 
   function voxelsBudget(count){
-    // LOD adaptatif : qualité haute quand peu d’invaders, raisonnable quand il y en a beaucoup
-    if (count < 30)  return 1600;   // ~40x40
-    if (count < 100) return 900;    // ~30x30
-    if (count < 300) return 450;    // ~21x21
-    return 240;                     // ~15x16
+    // LOD plus généreux en basse population pour la netteté
+    if (count < 20)  return 2500;  // ~50x50
+    if (count < 50)  return 1600;  // ~40x40
+    if (count < 120) return 900;   // ~30x30
+    if (count < 300) return 450;   // ~21x21
+    return 240;                    // ~15x16
   }
 
   /* =========================
@@ -47,7 +48,7 @@
   var canvas = document.getElementById('scene');
   var renderer = new THREE.WebGLRenderer({
     canvas: canvas,
-    antialias: false,            // iOS : éviter les pertes de contexte
+    antialias: false,
     alpha: false,
     powerPreference: 'default'
   });
@@ -61,13 +62,13 @@
   renderer.setSize(window.innerWidth, window.innerHeight);
   if (renderer.outputColorSpace !== undefined) renderer.outputColorSpace = THREE.SRGBColorSpace;
   if (renderer.toneMapping !== undefined) renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  if (renderer.toneMappingExposure !== undefined) renderer.toneMappingExposure = 1.55; // ++ planète plus claire
+  if (renderer.toneMappingExposure !== undefined) renderer.toneMappingExposure = 1.6; // planète + claire
 
   var scene = new THREE.Scene();
   var camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 150);
 
   /* =========================
-     CONTRÔLES ORBITAUX MAISON (inversion verticale + inertie)
+     CONTRÔLES ORBITAUX (inversion verticale + inertie)
      ========================= */
   function createSimpleOrbitControls(dom, cam, target) {
     var minDist = WORLD.planetRadius*1.05;
@@ -106,7 +107,7 @@
       var dx=(e.clientX-st.sx)/dom.clientWidth;
       var dy=(e.clientY-st.sy)/dom.clientHeight;
       vTheta += -dx * ROT_SENS * Math.PI;
-      vPhi   += -dy * ROT_SENS * Math.PI; // <<< inversion demandée
+      vPhi   += -dy * ROT_SENS * Math.PI; // inversion demandée
       st.sx=e.clientX; st.sy=e.clientY;
     }, {passive:false});
     window.addEventListener('mouseup', function(){ st.rotating=false; });
@@ -117,7 +118,7 @@
       tRadius = Math.max(minDist, Math.min(maxDist, radius*s));
     }, {passive:false});
 
-    // Mobile (iOS)
+    // Mobile
     dom.addEventListener('touchstart', function(e){
       if(e.touches.length===1){
         st.rotating=true; st.sx=e.touches[0].clientX; st.sy=e.touches[0].clientY;
@@ -141,7 +142,7 @@
         var dx=(e.touches[0].clientX - st.sx)/dom.clientWidth;
         var dy=(e.touches[0].clientY - st.sy)/dom.clientHeight;
         vTheta += -dx * ROT_SENS * Math.PI;
-        vPhi   += -dy * ROT_SENS * Math.PI; // <<< inversion demandée
+        vPhi   += -dy * ROT_SENS * Math.PI; // inversion demandée
         st.sx=e.touches[0].clientX; st.sy=e.touches[0].clientY;
       }
     }, {passive:false});
@@ -162,107 +163,71 @@
 
       apply();
     }
-    function setRadiusDirect(r){ radius = tRadius = Math.max(minDist, Math.min(maxDist, r)); apply(); }
-    return { update:update, apply:apply, setRadius:setRadiusDirect,
+
+    return { update:update, apply:apply,
              minDistance:minDist, maxDistance:maxDist };
   }
   var controls = createSimpleOrbitControls(renderer.domElement, camera, new THREE.Vector3(0,0,0));
 
   /* =========================
-     LUMIÈRES — planète plus claire
+     LUMIÈRES — planète claire
      ========================= */
   var sun = new THREE.DirectionalLight(0xffffff, 1.18);
   sun.position.set(-4, 6, 8);
   scene.add(sun);
-
-  var hemi = new THREE.HemisphereLight(0xd7f0ff, 0x2a1e1a, 1.1);
-  scene.add(hemi);
-
+  scene.add(new THREE.HemisphereLight(0xd7f0ff, 0x2a1e1a, 1.1));
   var fill = new THREE.DirectionalLight(0x9fd7ff, 0.38);
-  fill.position.set(5, -2, -6);
-  scene.add(fill);
+  fill.position.set(5, -2, -6); scene.add(fill);
 
   /* =========================
-     PLANÈTE PASTEL + ATMOSPHÈRE (relief adouci)
+     PLANÈTE (relief doux)
      ========================= */
   function generatePlanetTexture(w, h) {
     w = w || 512; h = h || 256;
     var c = document.createElement('canvas'); c.width = w; c.height = h;
     var ctx = c.getContext('2d');
-
-    // teinte claire
     var g = ctx.createLinearGradient(0,0,0,h);
-    g.addColorStop(0, '#56b3c9');
-    g.addColorStop(0.55, '#67c0d5');
-    g.addColorStop(1, '#4aa3ba');
+    g.addColorStop(0, '#56b3c9'); g.addColorStop(0.55, '#67c0d5'); g.addColorStop(1, '#4aa3ba');
     ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
 
     var seed = 1337;
     function rand(n){ return (Math.sin(n*16807 + seed)*43758.5453) % 1; }
     function noise1d(x){ var i=Math.floor(x), f=x-i; var a=rand(i), b=rand(i+1); return a*(1-f)+b*f; }
-
     ctx.globalAlpha = 0.26;
     for (var y=0; y<h; y++) {
-      var v = y/h;
-      var band = 0.5 + 0.5*Math.sin((v*3.5 + 0.15)*Math.PI*2);
-      var n = 0.5 + 0.5*noise1d(v*24.0);
-      var t = Math.min(1, Math.max(0, band*0.6 + n*0.4));
-      ctx.fillStyle = 'rgba(255,255,255,'+(0.16*t)+')';
-      ctx.fillRect(0,y,w,1);
+      var v=y/h, band=0.5+0.5*Math.sin((v*3.5+0.15)*Math.PI*2), n=0.5+0.5*noise1d(v*24.0);
+      var t=Math.min(1,Math.max(0,band*0.6+n*0.4));
+      ctx.fillStyle='rgba(255,255,255,'+(0.16*t)+')'; ctx.fillRect(0,y,w,1);
     }
     ctx.globalAlpha = 1;
-
     ctx.fillStyle = 'rgba(255,255,255,0.07)';
     for (var i=0;i<44;i++){
-      var cx = Math.random()*w, cy=Math.random()*h;
-      var r = 12 + Math.random()*30;
-      var grd = ctx.createRadialGradient(cx,cy,0,cx,cy,r);
-      grd.addColorStop(0, 'rgba(255,255,255,0.14)');
-      grd.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+      var cx=Math.random()*w, cy=Math.random()*h, r=12+Math.random()*30;
+      var grd=ctx.createRadialGradient(cx,cy,0,cx,cy,r);
+      grd.addColorStop(0,'rgba(255,255,255,0.14)'); grd.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.fillStyle=grd; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
     }
-
-    var tex = new THREE.CanvasTexture(c);
+    var tex=new THREE.CanvasTexture(c);
     if (tex.colorSpace !== undefined) tex.colorSpace = THREE.SRGBColorSpace;
     tex.wrapS = tex.wrapT = THREE.MirroredRepeatWrapping;
     return tex;
   }
-
   var planetGeo = new THREE.SphereGeometry(WORLD.planetRadius, 96, 64);
   var planetMat = new THREE.MeshStandardMaterial({
     map: generatePlanetTexture(512,256),
-    color: new THREE.Color('#7ad1e2').convertSRGBToLinear(), // plus clair
-    roughness: 0.74,
-    metalness: 0.1
+    color: new THREE.Color('#7ad1e2').convertSRGBToLinear(),
+    roughness: 0.74, metalness: 0.1
   });
-  var planet = new THREE.Mesh(planetGeo, planetMat);
-  scene.add(planet);
-
-  // Relief plus doux (amplitude ↓) pour ne plus "manger" les invaders
+  var planet = new THREE.Mesh(planetGeo, planetMat); scene.add(planet);
   (function(){
-    var pos = planetGeo.attributes.position, v=new THREE.Vector3();
+    var pos=planetGeo.attributes.position, v=new THREE.Vector3();
     for(var i=0;i<pos.count;i++){
       v.fromBufferAttribute(pos,i).normalize();
-      var p=0.03*(Math.sin(7*v.x)+Math.sin(9*v.y)+Math.sin(11*v.z)); // 0.05 -> 0.03
+      var p=0.03*(Math.sin(7*v.x)+Math.sin(9*v.y)+Math.sin(11*v.z));
       v.multiplyScalar(WORLD.planetRadius + p);
       pos.setXYZ(i, v.x, v.y, v.z);
     }
     planetGeo.computeVertexNormals();
-  })();
-
-  // Halo atmosphérique plus clair
-  (function(){
-    var g = new THREE.SphereGeometry(WORLD.planetRadius*1.02, 48, 36);
-    var m = new THREE.ShaderMaterial({
-      vertexShader:
-        'varying float vDot;'+
-        'void main(){ vec3 n=normalize(normalMatrix*normal); vec3 v=normalize((modelViewMatrix*vec4(position,1.0)).xyz);'+
-        'vDot=1.0-max(dot(n,-v),0.0); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
-      fragmentShader:
-        'varying float vDot; void main(){ float a=pow(vDot,4.0); gl_FragColor=vec4(0.55,0.85,1.0,a*0.30); }',
-      blending: THREE.AdditiveBlending, side: THREE.BackSide, transparent: true, depthWrite: false
-    });
-    scene.add(new THREE.Mesh(g, m));
   })();
 
   /* =========================
@@ -285,6 +250,16 @@
   function dist2(a,b){ var dr=lin(a[0])-lin(b[0]); var dg=lin(a[1])-lin(b[1]); var db=lin(a[2])-lin(b[2]); return dr*dr+dg*dg+db*db; }
   function loadImage(file){ return new Promise(function(res,rej){ var url=URL.createObjectURL(file); var im=new Image(); im.onload=function(){ res(im); }; im.onerror=rej; im.src=url; }); }
 
+  // Détection couleur "blanc-ish"
+  function isWhitish(c){
+    if(!c) return false;
+    var r=c.r, g=c.g, b=c.b;
+    var l = 0.2126*r + 0.7152*g + 0.0722*b;
+    var max=Math.max(r,g,b), min=Math.min(r,g,b);
+    var chroma=max-min;
+    return (l>0.82 && chroma<0.12); // lumineux & peu saturé
+  }
+
   function getEdgeBg(data,W,H){
     var m=Math.floor(Math.min(W,H)*.04), skip=Math.floor(H*.18);
     var regs=[{x:0,y:0,w:W,h:m},{x:0,y:m,w:m,h:H-m-skip},{x:W-m,y:m,w:m,h:H-m-skip},{x:0,y:H-m-skip,w:W,h:m}];
@@ -295,7 +270,7 @@
     return [r/n,g/n,b/n];
   }
   function kmeans(colors, K, it){
-    K = K||4; it = it||9; // +1 cluster ⇒ meilleurs séparateurs
+    K = K||4; it = it||9;
     var cents=[], assign=new Array(colors.length), i, k;
     for(k=0;k<K;k++){ var c=colors[Math.floor(colors.length*(k+0.5)/(K+0.5))]; cents.push([c[0],c[1],c[2]]); }
     for(var t=0;t<it;t++){
@@ -307,7 +282,7 @@
     return { centers:cents, assign:assign };
   }
   function estimateGrid(imgData, W, H, rect, range){
-    range = range || [14,72];
+    range = range || [14,76];
     var x=rect.x,y=rect.y,w=rect.w,h=rect.h;
     function get(ix,iy){ var i=((y+iy)*W+(x+ix))*4; return [imgData[i],imgData[i+1],imgData[i+2]]; }
     function changes(len, sample){
@@ -318,16 +293,14 @@
     var cols=changes(w, function(i,j){ return get(i, Math.floor(j*h/(w||1))%h); });
     var rows=changes(h, function(i,j){ return get(Math.floor(j*w/(h||1))%w, i); });
 
-    // --- Forcer des cellules carrées (fidélité ++)
+    // Forcer des cellules carrées
     function clamp(n,min,max){ n=Math.max(min,Math.min(max,n)); if(n%2!==0) n++; return n; }
     var cW = w/cols, cH = h/rows;
-    var unit = Math.min(cW, cH);          // taille carrée cible
+    var unit = Math.min(cW, cH);
     var colsS = clamp(Math.round(w/unit), range[0], range[1]);
     var rowsS = clamp(Math.round(h/unit), range[0], range[1]);
-
     return { cols:colsS, rows:rowsS };
   }
-
   function dilate(bin){
     var r=bin.length, c=bin[0].length, out=bin.map(function(row){return row.slice();});
     function inside(y,x){ return y>=0&&y<r&&x>=0&&x<c; }
@@ -349,52 +322,7 @@
   function openBinary(bin){ return dilate(erode(bin)); }
   function closeBinary(bin){ return erode(dilate(bin)); }
 
-  function filterLargestComponents(bin){
-    var r=bin.length, c=bin[0].length;
-    var vis=Array.from({length:r},function(){return Array(c).fill(false);});
-    var comp=[], dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
-    var y,x;
-    for(y=0;y<r;y++) for(x=0;x<c;x++){
-      if(!bin[y][x] || vis[y][x]) continue;
-      var q=[[y,x]]; vis[y][x]=true; var area=0, minY=y, maxY=y, minX=x, maxX=x;
-      while(q.length){
-        var cur=q.pop(); var cy=cur[0], cx=cur[1]; area++;
-        if(cy<minY)minY=cy; if(cy>maxY)maxY=cy; if(cx<minX)minX=cx; if(cx>maxX)maxX=cx;
-        for(var d=0;d<dirs.length;d++){
-          var ny=cy+dirs[d][0], nx=cx+dirs[d][1];
-          if(ny>=0&&ny<r&&nx>=0&&nx<c && bin[ny][nx] && !vis[ny][nx]){ vis[ny][nx]=true; q.push([ny,nx]); }
-        }
-      }
-      comp.push({area:area, bbox:{minY:minY,maxY:maxY,minX:minX,maxX:maxX}});
-    }
-    if(!comp.length) return bin;
-    comp.sort(function(a,b){return b.area-a.area;});
-    var keep=[], largest=comp[0].area, cum=0;
-    for(var i=0;i<comp.length;i++){
-      var cc=comp[i];
-      if(cc.area >= Math.max(6, largest*0.06)){ keep.push(cc); cum += cc.area; if(cum > largest*1.35) break; }
-    }
-    var out = bin.map(function(row){ return row.map(function(){return false;}); });
-    for(i=0;i<keep.length;i++){
-      var bb=keep[i].bbox;
-      for(y=bb.minY;y<=bb.maxY;y++) for(x=bb.minX;x<=bb.maxX;x++){
-        if(bin[y][x]) out[y][x]=true;
-      }
-    }
-    return out;
-  }
-
-  function quantizeColors(pixels, tol){
-    tol = tol || 0.003; // plus strict ⇒ fidélité ++
-    var rows=pixels.length, cols=pixels[0].length, palette=[];
-    function match(c){ for(var i=0;i<palette.length;i++){ var p=palette[i]; var d=(p.r-c.r)*(p.r-c.r)+(p.g-c.g)*(p.g-c.g)+(p.b-c.b)*(p.b-c.b); if(d<tol) return p; } return null; }
-    for(var y=0;y<rows;y++) for(var x=0;x<cols;x++){
-      var c=pixels[y][x]; if(!c) continue; var m=match(c); if(m) pixels[y][x]=m; else palette.push(c);
-    }
-    return pixels;
-  }
-
-  // Lissage colorimétrique (majorité 3×3) pour éviter les pixels parasites
+  // Lissage colorimétrique (majorité 3×3)
   function smoothColors(pixels){
     var rows=pixels.length, cols=pixels[0].length;
     var out=Array.from({length:rows}, function(){ return Array(cols).fill(null); });
@@ -413,7 +341,7 @@
         if(found===-1){ pals.push(n); count.push(1); } else count[found]++;
       }
       var maxI=0; for(var i=1;i<count.length;i++) if(count[i]>count[maxI]) maxI=i;
-      out[y][x] = (count[maxI] >= 4) ? pals[maxI] : c; // majorité suffisante
+      out[y][x] = (count[maxI] >= 4) ? pals[maxI] : c;
     }
     return out;
   }
@@ -438,9 +366,29 @@
     return out;
   }
 
+  // Boost couleur (léger) avant conversion sRGB -> linéaire
+  function hsv2rgb(h,s,v){
+    var i=Math.floor(h*6), f=h*6-i;
+    var p=v*(1-s), q=v*(1-f*s), t=v*(1-(1-f)*s), mod=i%6;
+    var r=[v,q,p,p,t,v][mod], g=[t,v,v,q,p,p][mod], b=[p,p,t,v,v,q][mod];
+    return {r:r,g:g,b:b};
+  }
+  function rgb2hsv(r,g,b){
+    var max=Math.max(r,g,b), min=Math.min(r,g,b), d=max-min;
+    var h=0; if(d!==0){ if(max===r) h=((g-b)/d)%6; else if(max===g) h=(b-r)/d+2; else h=(r-g)/d+4; h/=6; if(h<0) h+=1; }
+    var s=max===0?0:d/max; return {h:h,s:s,v:max};
+  }
+  function boostColor(c){
+    var hsv=rgb2hsv(c.r,c.g,c.b);
+    var SAT=0.12, GAMMA=0.92; // +12% sat, gamma <1 => plus lumineux
+    hsv.s=Math.min(1,hsv.s*(1+SAT));
+    hsv.v=Math.pow(hsv.v, GAMMA);
+    return hsv2rgb(hsv.h,hsv.s,hsv.v);
+  }
+
   async function imageToPixelMatrix(file, budget){
     var img=await loadImage(file);
-    var maxSide=1100, scl=Math.min(1, maxSide/Math.max(img.naturalWidth,img.naturalHeight));
+    var maxSide=1200, scl=Math.min(1, maxSide/Math.max(img.naturalWidth,img.naturalHeight));
     var W=Math.round(img.naturalWidth*scl), H=Math.round(img.naturalHeight*scl);
     var cnv=document.createElement('canvas'); cnv.width=W; cnv.height=H;
     var ctx=cnv.getContext('2d', { willReadFrequently:true });
@@ -462,28 +410,38 @@
     var km=kmeans(cols,4,9);
     var bgk=0,bd=1e9; for(var k=0;k<km.centers.length;k++){ var d=dist2(km.centers[k], bgEdge); if(d<bd){bd=d; bgk=k;} }
 
-    var grid = estimateGrid(data, W, H, rect, [14,76]);
+    var grid = estimateGrid(data, W, H, rect, [14,80]);
     var cellW=rect.w/grid.cols, cellH=rect.h/grid.rows;
 
     var bin=Array.from({length:grid.rows}, function(){return Array(grid.cols).fill(false);});
     var colsRGB=Array.from({length:grid.rows}, function(){return Array(grid.cols).fill(null);});
     var keepTH=0.008;
+
+    // --- Échantillonnage CENTRAL (évite joints) -------------------------
+    var inner=0.20; // on prélève au centre [20% .. 80%] de la cellule
     for(var gy=0;gy<grid.rows;gy++){
       for(var gx=0;gx<grid.cols;gx++){
         var x0=Math.floor(rect.x+gx*cellW), y0=Math.floor(rect.y+gy*cellH);
         var x1=Math.min(W, Math.floor(rect.x+(gx+1)*cellW));
         var y1=Math.min(H, Math.floor(rect.y+(gy+1)*cellH));
+        var ix0 = Math.floor(x0 + (x1-x0)*inner), ix1 = Math.ceil(x1 - (x1-x0)*inner);
+        var iy0 = Math.floor(y0 + (y1-y0)*inner), iy1 = Math.ceil(y1 - (y1-y0)*inner);
+        if(ix1<=ix0 || iy1<=iy0){ ix0=x0; ix1=x1; iy0=y0; iy1=y1; } // fallback si très petit
+
         var r=0,g=0,b=0,n=0;
-        for(y=y0;y<y1;y++) for(x=x0;x<x1;x++){ var idx=(y*W+x)*4; r+=data[idx]; g+=data[idx+1]; b+=data[idx+2]; n++; }
+        for(y=iy0;y<iy1;y++) for(x=ix0;x<ix1;x++){ var idx=(y*W+x)*4; r+=data[idx]; g+=data[idx+1]; b+=data[idx+2]; n++; }
         var c=[r/n,g/n,b/n];
-        if(dist2(c, km.centers[bgk])>keepTH){ bin[gy][gx]=true; colsRGB[gy][gx]={r:c[0]/255,g:c[1]/255,b:c[2]/255}; }
+        if(dist2(c, km.centers[bgk])>keepTH){
+          bin[gy][gx]=true;
+          colsRGB[gy][gx]={r:c[0]/255,g:c[1]/255,b:c[2]/255};
+        }
       }
     }
 
-    var cleaned = closeBinary(openBinary(bin));   // ouverture + fermeture
+    var cleaned = closeBinary(openBinary(bin));
     cleaned = filterLargestComponents(cleaned);
 
-    // Recadrage
+    // Recadrage sur la silhouette
     var minY=cleaned.length, minX2=cleaned[0].length, maxY2=0, maxX2=0, any=false, x, y;
     for(y=0;y<cleaned.length;y++) for(x=0;x<cleaned[0].length;x++) if(cleaned[y][x]){
       any=true; if(y<minY)minY=y; if(y>maxY2)maxY2=y; if(x<minX2)minX2=x; if(x>maxX2)maxX2=x;
@@ -507,12 +465,31 @@
       }
     }
 
-    quantizeColors(pixels, 0.003);
-    pixels = smoothColors(pixels); // lissage des teintes
+    // --- Suppression des cadres blancs collés au bord (flood-fill) ------
+    var R=croppedH, C=croppedW, seen=Array.from({length:R},function(){return Array(C).fill(false);});
+    function inB(y,x){ return y>=0&&y<R&&x>=0&&x<C; }
+    function flood(y0,x0){
+      var q=[[y0,x0]]; seen[y0][x0]=true;
+      while(q.length){
+        var t=q.pop(), yy=t[0], xx=t[1];
+        if(pixels[yy][xx] && isWhitish(pixels[yy][xx])) pixels[yy][xx]=null;
+        var dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+        for(var d=0;d<4;d++){
+          var ny=yy+dirs[d][0], nx=xx+dirs[d][1];
+          if(inB(ny,nx) && !seen[ny][nx] && pixels[ny][nx] && isWhitish(pixels[ny][nx])){ seen[ny][nx]=true; q.push([ny,nx]); }
+        }
+      }
+    }
+    // Lance à partir des bords
+    for(x=0;x<C;x++){ if(pixels[0][x]&&isWhitish(pixels[0][x])) flood(0,x); if(pixels[R-1][x]&&isWhitish(pixels[R-1][x])) flood(R-1,x); }
+    for(y=0;y<R;y++){ if(pixels[y][0]&&isWhitish(pixels[y][0])) flood(y,0); if(pixels[y][C-1]&&isWhitish(pixels[y][C-1])) flood(y,C-1); }
 
-    // LOD : si trop de voxels, on réduit proprement
+    // Lissage & quantif douce (réduction du bruit)
+    pixels = smoothColors(pixels);
+
+    // LOD si trop dense
     var vox=0; for(y=0;y<pixels.length;y++) for(x=0;x<pixels[0].length;x++) if(pixels[y][x]) vox++;
-    var budgetV = budget || 900;
+    var budgetV = budget || 1600;
     if(vox > budgetV){
       var factor = Math.ceil(Math.sqrt(vox / budgetV));
       pixels = downsamplePixels(pixels, factor);
@@ -521,22 +498,22 @@
   }
 
   /* =========================
-     INVADER 3D (Instanced) — voxels cubiques & gap réduit
+     INVADER 3D (instanced) — voxels cubiques, couleurs sRGB→linéaire
      ========================= */
   function buildInvaderMesh(pixelGrid){
     var rows=pixelGrid.length, cols=pixelGrid[0].length;
     var size=WORLD.invaderScale, gap=size*WORLD.spacingRatio, depth=size*WORLD.depthFactor;
 
     var geom=new THREE.BoxGeometry(size-gap, size-gap, depth);
-    // petit shading arrière pour lisser
     var colAttr=new Float32Array(geom.attributes.position.count*3);
     for(var i=0;i<geom.attributes.position.count;i++){
-      var z=geom.attributes.position.getZ(i); var shade=z<0?0.8:1.0;
+      var z=geom.attributes.position.getZ(i); var shade=z<0?0.82:1.0;
       colAttr[3*i]=shade; colAttr[3*i+1]=shade; colAttr[3*i+2]=shade;
     }
     geom.setAttribute('color', new THREE.BufferAttribute(colAttr,3));
     var mat=new THREE.MeshStandardMaterial({
-      roughness:0.46, metalness:0.06, vertexColors:true, color:0xffffff
+      roughness:0.46, metalness:0.06, vertexColors:true, flatShading:true,
+      color:0xffffff, emissive:0x151515, emissiveIntensity:0.18
     });
 
     var mesh=new THREE.InstancedMesh(geom, mat, rows*cols);
@@ -548,10 +525,17 @@
     var idx=0;
     for(var y=0;y<rows;y++) for(var x=0;x<cols;x++){
       var c=pixelGrid[y][x]; if(!c) continue;
+
+      // Boost couleur (léger), puis conversion sRGB -> linéaire
+      var srgb = boostColor({r:c.r,g:c.g,b:c.b});
+      var col = new THREE.Color(srgb.r, srgb.g, srgb.b);
+      if (col.convertSRGBToLinear) col.convertSRGBToLinear();
+
       dummy.position.set(x0 + x*size, y0 + (rows-1-y)*size, 0);
       dummy.rotation.set(0,0,0); dummy.updateMatrix();
       mesh.setMatrixAt(idx, dummy.matrix);
-      mesh.setColorAt(idx, new THREE.Color(c.r,c.g,c.b)); idx++;
+      mesh.setColorAt(idx, col);
+      idx++;
     }
     mesh.count=idx; if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true;
 
@@ -567,7 +551,6 @@
   }
   function createWanderer(invader){
     var g=new THREE.Group(); g.add(invader.mesh);
-
     var targetWorldSize = WORLD.invaderMaxWorldSize * (WORLD.planetRadius*2);
     var maxDim = Math.max(invader.width, invader.height);
     var scale = targetWorldSize / maxDim;
@@ -581,7 +564,7 @@
     g.rotateOnAxis(new THREE.Vector3(0,0,1), Math.random()*Math.PI*2);
 
     var axis=new THREE.Vector3().randomDirection();
-    var baseSpeed = 0.08 + Math.random()*0.06; // ~3x plus lent que tout début
+    var baseSpeed = 0.08 + Math.random()*0.06;
     var rot=new THREE.Quaternion();
 
     return {
@@ -658,7 +641,7 @@
   var clock=new THREE.Clock();
   function loop(){
     var dt=clock.getDelta();
-    controls.update(dt); // inertie & zoom amorti
+    controls.update(dt);
     for (var i=0;i<agents.length;i++) agents[i].update(dt, agents, globalSpeedFactor);
     renderer.render(scene, camera);
     requestAnimationFrame(loop);
