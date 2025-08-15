@@ -55,4 +55,4 @@ html, body { margin: 0; height: 100%; background: #000; color: var(--text);
   #hint { grid-area: hint; font-size: .8rem; }
   #count { grid-area: count; }
   #speedWrap { grid-area: slider; justify-content: center; }
-}
+} 
