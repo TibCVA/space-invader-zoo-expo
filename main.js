@@ -25,14 +25,21 @@
   var DPR = Math.min(window.devicePixelRatio || 1, 1.5); // iOS safe
   var WORLD = {
     planetRadius: 3.2,
-    invaderScale: 0.02,
-    invaderDepth: 0.035,
-    spacingRatio: 0.08,
-    maxVoxelsPerInvader: 900,   // ~30x30
-    invaderMaxWorldSize: 0.10,  // 10% du diamètre planète
+    invaderScale: 0.022,         // légèrement plus grand (puis LOD)
+    depthFactor: 0.90,           // voxels plus "cubes" (épaisseur ~ largeur)
+    spacingRatio: 0.02,          // moins d'espace → meilleur rendu
     repelRadius: 0.35,
-    hoverMargin: 0.03
+    hoverMargin: 0.065,          // ↑ pour éviter d’être “mangé”
+    invaderMaxWorldSize: 0.10    // 10% du diamètre planète
   };
+
+  function voxelsBudget(count){
+    // LOD adaptatif : qualité haute quand peu d’invaders, raisonnable quand il y en a beaucoup
+    if (count < 30)  return 1600;   // ~40x40
+    if (count < 100) return 900;    // ~30x30
+    if (count < 300) return 450;    // ~21x21
+    return 240;                     // ~15x16
+  }
 
   /* =========================
      RENDERER / SCÈNE / CAMÉRA
@@ -54,15 +61,13 @@
   renderer.setSize(window.innerWidth, window.innerHeight);
   if (renderer.outputColorSpace !== undefined) renderer.outputColorSpace = THREE.SRGBColorSpace;
   if (renderer.toneMapping !== undefined) renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  if (renderer.toneMappingExposure !== undefined) renderer.toneMappingExposure = 1.35; // ++ luminosité
+  if (renderer.toneMappingExposure !== undefined) renderer.toneMappingExposure = 1.55; // ++ planète plus claire
 
   var scene = new THREE.Scene();
   var camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 150);
 
   /* =========================
-     CONTRÔLES ORBITAUX MAISON
-     - Drag 1 doigt : rotation avec inertie
-     - Pinch 2 doigts : zoom amorti
+     CONTRÔLES ORBITAUX MAISON (inversion verticale + inertie)
      ========================= */
   function createSimpleOrbitControls(dom, cam, target) {
     var minDist = WORLD.planetRadius*1.05;
@@ -71,9 +76,9 @@
     var theta = Math.PI/6;
     var phi   = Math.PI/2.2;
 
-    var tRadius = radius;                // zoom cible (amorti)
-    var vTheta = 0, vPhi = 0;            // vitesses angulaires (inertie)
-    var ROT_SENS = 3.2;                  // sensibilité rotation (↑ = plus réactif)
+    var tRadius = radius;                // zoom cible amorti
+    var vTheta = 0, vPhi = 0;            // vitesses angulaires
+    var ROT_SENS = 3.2;                  // sensibilité rotation
     var ROT_DAMP = 8.0;                  // amortissement rotation (s^-1)
     var ZOOM_DAMP = 9.0;                 // amortissement zoom (s^-1)
 
@@ -100,8 +105,8 @@
       e.preventDefault();
       var dx=(e.clientX-st.sx)/dom.clientWidth;
       var dy=(e.clientY-st.sy)/dom.clientHeight;
-      vTheta += -dx * ROT_SENS * Math.PI; // inertie
-      vPhi   +=  dy * ROT_SENS * Math.PI;
+      vTheta += -dx * ROT_SENS * Math.PI;
+      vPhi   += -dy * ROT_SENS * Math.PI; // <<< inversion demandée
       st.sx=e.clientX; st.sy=e.clientY;
     }, {passive:false});
     window.addEventListener('mouseup', function(){ st.rotating=false; });
@@ -136,33 +141,28 @@
         var dx=(e.touches[0].clientX - st.sx)/dom.clientWidth;
         var dy=(e.touches[0].clientY - st.sy)/dom.clientHeight;
         vTheta += -dx * ROT_SENS * Math.PI;
-        vPhi   +=  dy * ROT_SENS * Math.PI;
+        vPhi   += -dy * ROT_SENS * Math.PI; // <<< inversion demandée
         st.sx=e.touches[0].clientX; st.sy=e.touches[0].clientY;
       }
     }, {passive:false});
     dom.addEventListener('touchend', function(){ st.rotating=false; st.pinching=false; }, {passive:false});
 
     function update(dt){
-      // intégration des vitesses + amortissement
       theta += vTheta*dt;
       phi   += vPhi*dt;
       var rotDecay = Math.exp(-ROT_DAMP*dt);
       vTheta *= rotDecay; vPhi *= rotDecay;
 
-      // clamp d'inclinaison
       var EPS = 0.05;
       if (phi < EPS) phi = EPS;
       if (phi > Math.PI-EPS) phi = Math.PI-EPS;
 
-      // zoom amorti
       var k = 1.0 - Math.exp(-ZOOM_DAMP*dt);
       radius += (tRadius - radius) * k;
 
       apply();
     }
-
     function setRadiusDirect(r){ radius = tRadius = Math.max(minDist, Math.min(maxDist, r)); apply(); }
-
     return { update:update, apply:apply, setRadius:setRadiusDirect,
              minDistance:minDist, maxDistance:maxDist };
   }
@@ -171,57 +171,53 @@
   /* =========================
      LUMIÈRES — planète plus claire
      ========================= */
-  // Soleil principal
-  var sun = new THREE.DirectionalLight(0xffffff, 1.15); // ++
+  var sun = new THREE.DirectionalLight(0xffffff, 1.18);
   sun.position.set(-4, 6, 8);
   scene.add(sun);
 
-  // Ciel/sol pastel renforcé
-  var hemi = new THREE.HemisphereLight(0xcfe9ff, 0x2a1e1a, 1.05); // ++
+  var hemi = new THREE.HemisphereLight(0xd7f0ff, 0x2a1e1a, 1.1);
   scene.add(hemi);
 
-  // Lumière d’appoint douce côté ombre
-  var fill = new THREE.DirectionalLight(0x9fd7ff, 0.35);
+  var fill = new THREE.DirectionalLight(0x9fd7ff, 0.38);
   fill.position.set(5, -2, -6);
   scene.add(fill);
 
   /* =========================
-     PLANÈTE PASTEL + ATMOSPHÈRE (plus lumineuse)
+     PLANÈTE PASTEL + ATMOSPHÈRE (relief adouci)
      ========================= */
   function generatePlanetTexture(w, h) {
     w = w || 512; h = h || 256;
     var c = document.createElement('canvas'); c.width = w; c.height = h;
     var ctx = c.getContext('2d');
 
-    // teinte un peu plus claire
+    // teinte claire
     var g = ctx.createLinearGradient(0,0,0,h);
-    g.addColorStop(0, '#3f8aa0');
-    g.addColorStop(0.55, '#4d9fb7');
-    g.addColorStop(1, '#3a7f93');
+    g.addColorStop(0, '#56b3c9');
+    g.addColorStop(0.55, '#67c0d5');
+    g.addColorStop(1, '#4aa3ba');
     ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
 
-    // bandes + bruit subtils (inchangé)
     var seed = 1337;
     function rand(n){ return (Math.sin(n*16807 + seed)*43758.5453) % 1; }
     function noise1d(x){ var i=Math.floor(x), f=x-i; var a=rand(i), b=rand(i+1); return a*(1-f)+b*f; }
 
-    ctx.globalAlpha = 0.25;
+    ctx.globalAlpha = 0.26;
     for (var y=0; y<h; y++) {
       var v = y/h;
       var band = 0.5 + 0.5*Math.sin((v*3.5 + 0.15)*Math.PI*2);
       var n = 0.5 + 0.5*noise1d(v*24.0);
       var t = Math.min(1, Math.max(0, band*0.6 + n*0.4));
-      ctx.fillStyle = 'rgba(255,255,255,'+(0.15*t)+')'; // ++ 0.12 -> 0.15
+      ctx.fillStyle = 'rgba(255,255,255,'+(0.16*t)+')';
       ctx.fillRect(0,y,w,1);
     }
     ctx.globalAlpha = 1;
 
-    ctx.fillStyle = 'rgba(255,255,255,0.07)'; // ++
-    for (var i=0;i<42;i++){
+    ctx.fillStyle = 'rgba(255,255,255,0.07)';
+    for (var i=0;i<44;i++){
       var cx = Math.random()*w, cy=Math.random()*h;
       var r = 12 + Math.random()*30;
       var grd = ctx.createRadialGradient(cx,cy,0,cx,cy,r);
-      grd.addColorStop(0, 'rgba(255,255,255,0.13)');
+      grd.addColorStop(0, 'rgba(255,255,255,0.14)');
       grd.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
     }
@@ -235,26 +231,26 @@
   var planetGeo = new THREE.SphereGeometry(WORLD.planetRadius, 96, 64);
   var planetMat = new THREE.MeshStandardMaterial({
     map: generatePlanetTexture(512,256),
-    color: new THREE.Color('#5bb0c6').convertSRGBToLinear(), // ++ teinte plus claire
-    roughness: 0.78,   // un peu moins rugueux → capte plus la lumière
-    metalness: 0.08    // léger specular
+    color: new THREE.Color('#7ad1e2').convertSRGBToLinear(), // plus clair
+    roughness: 0.74,
+    metalness: 0.1
   });
   var planet = new THREE.Mesh(planetGeo, planetMat);
   scene.add(planet);
 
-  // Relief doux
+  // Relief plus doux (amplitude ↓) pour ne plus "manger" les invaders
   (function(){
     var pos = planetGeo.attributes.position, v=new THREE.Vector3();
     for(var i=0;i<pos.count;i++){
       v.fromBufferAttribute(pos,i).normalize();
-      var p=0.05*(Math.sin(7*v.x)+Math.sin(9*v.y)+Math.sin(11*v.z));
+      var p=0.03*(Math.sin(7*v.x)+Math.sin(9*v.y)+Math.sin(11*v.z)); // 0.05 -> 0.03
       v.multiplyScalar(WORLD.planetRadius + p);
       pos.setXYZ(i, v.x, v.y, v.z);
     }
     planetGeo.computeVertexNormals();
   })();
 
-  // Halo atmosphérique
+  // Halo atmosphérique plus clair
   (function(){
     var g = new THREE.SphereGeometry(WORLD.planetRadius*1.02, 48, 36);
     var m = new THREE.ShaderMaterial({
@@ -263,7 +259,7 @@
         'void main(){ vec3 n=normalize(normalMatrix*normal); vec3 v=normalize((modelViewMatrix*vec4(position,1.0)).xyz);'+
         'vDot=1.0-max(dot(n,-v),0.0); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
       fragmentShader:
-        'varying float vDot; void main(){ float a=pow(vDot,4.0); gl_FragColor=vec4(0.5,0.8,1.0,a*0.28); }', // ++ plus lumineux
+        'varying float vDot; void main(){ float a=pow(vDot,4.0); gl_FragColor=vec4(0.55,0.85,1.0,a*0.30); }',
       blending: THREE.AdditiveBlending, side: THREE.BackSide, transparent: true, depthWrite: false
     });
     scene.add(new THREE.Mesh(g, m));
@@ -283,11 +279,12 @@
   })();
 
   /* =========================
-     OUTILS IMAGE & SEGMENTATION (identiques à v3.5)
+     OUTILS IMAGE & SEGMENTATION (précision ++)
      ========================= */
   function lin(c){ c/=255; return c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4); }
   function dist2(a,b){ var dr=lin(a[0])-lin(b[0]); var dg=lin(a[1])-lin(b[1]); var db=lin(a[2])-lin(b[2]); return dr*dr+dg*dg+db*db; }
   function loadImage(file){ return new Promise(function(res,rej){ var url=URL.createObjectURL(file); var im=new Image(); im.onload=function(){ res(im); }; im.onerror=rej; im.src=url; }); }
+
   function getEdgeBg(data,W,H){
     var m=Math.floor(Math.min(W,H)*.04), skip=Math.floor(H*.18);
     var regs=[{x:0,y:0,w:W,h:m},{x:0,y:m,w:m,h:H-m-skip},{x:W-m,y:m,w:m,h:H-m-skip},{x:0,y:H-m-skip,w:W,h:m}];
@@ -298,7 +295,7 @@
     return [r/n,g/n,b/n];
   }
   function kmeans(colors, K, it){
-    K = K||3; it = it||8;
+    K = K||4; it = it||9; // +1 cluster ⇒ meilleurs séparateurs
     var cents=[], assign=new Array(colors.length), i, k;
     for(k=0;k<K;k++){ var c=colors[Math.floor(colors.length*(k+0.5)/(K+0.5))]; cents.push([c[0],c[1],c[2]]); }
     for(var t=0;t<it;t++){
@@ -310,7 +307,7 @@
     return { centers:cents, assign:assign };
   }
   function estimateGrid(imgData, W, H, rect, range){
-    range = range || [14,64];
+    range = range || [14,72];
     var x=rect.x,y=rect.y,w=rect.w,h=rect.h;
     function get(ix,iy){ var i=((y+iy)*W+(x+ix))*4; return [imgData[i],imgData[i+1],imgData[i+2]]; }
     function changes(len, sample){
@@ -320,9 +317,17 @@
     }
     var cols=changes(w, function(i,j){ return get(i, Math.floor(j*h/(w||1))%h); });
     var rows=changes(h, function(i,j){ return get(Math.floor(j*w/(h||1))%w, i); });
-    function clamp(n,len){ var g=Math.max(range[0], Math.min(range[1], n||Math.round(len/14))); if(g%2!==0) g++; return g; }
-    return { cols:clamp(cols,w), rows:clamp(rows,h) };
+
+    // --- Forcer des cellules carrées (fidélité ++)
+    function clamp(n,min,max){ n=Math.max(min,Math.min(max,n)); if(n%2!==0) n++; return n; }
+    var cW = w/cols, cH = h/rows;
+    var unit = Math.min(cW, cH);          // taille carrée cible
+    var colsS = clamp(Math.round(w/unit), range[0], range[1]);
+    var rowsS = clamp(Math.round(h/unit), range[0], range[1]);
+
+    return { cols:colsS, rows:rowsS };
   }
+
   function dilate(bin){
     var r=bin.length, c=bin[0].length, out=bin.map(function(row){return row.slice();});
     function inside(y,x){ return y>=0&&y<r&&x>=0&&x<c; }
@@ -343,6 +348,7 @@
   }
   function openBinary(bin){ return dilate(erode(bin)); }
   function closeBinary(bin){ return erode(dilate(bin)); }
+
   function filterLargestComponents(bin){
     var r=bin.length, c=bin[0].length;
     var vis=Array.from({length:r},function(){return Array(c).fill(false);});
@@ -377,8 +383,9 @@
     }
     return out;
   }
+
   function quantizeColors(pixels, tol){
-    tol = tol || 0.004;
+    tol = tol || 0.003; // plus strict ⇒ fidélité ++
     var rows=pixels.length, cols=pixels[0].length, palette=[];
     function match(c){ for(var i=0;i<palette.length;i++){ var p=palette[i]; var d=(p.r-c.r)*(p.r-c.r)+(p.g-c.g)*(p.g-c.g)+(p.b-c.b)*(p.b-c.b); if(d<tol) return p; } return null; }
     for(var y=0;y<rows;y++) for(var x=0;x<cols;x++){
@@ -386,6 +393,31 @@
     }
     return pixels;
   }
+
+  // Lissage colorimétrique (majorité 3×3) pour éviter les pixels parasites
+  function smoothColors(pixels){
+    var rows=pixels.length, cols=pixels[0].length;
+    var out=Array.from({length:rows}, function(){ return Array(cols).fill(null); });
+    var TH=0.0015;
+    for(var y=0;y<rows;y++) for(var x=0;x<cols;x++){
+      var c=pixels[y][x]; if(!c){ out[y][x]=null; continue; }
+      var pals=[], count=[];
+      for(var dy=-1;dy<=1;dy++) for(var dx=-1;dx<=1;dx++){
+        var ny=y+dy, nx=x+dx; if(ny<0||ny>=rows||nx<0||nx>=cols) continue;
+        var n=pixels[ny][nx]; if(!n) continue;
+        var found=-1;
+        for(var i=0;i<pals.length;i++){
+          var p=pals[i]; var d=(p.r-n.r)*(p.r-n.r)+(p.g-n.g)*(p.g-n.g)+(p.b-n.b)*(p.b-n.b);
+          if(d<TH){ found=i; break; }
+        }
+        if(found===-1){ pals.push(n); count.push(1); } else count[found]++;
+      }
+      var maxI=0; for(var i=1;i<count.length;i++) if(count[i]>count[maxI]) maxI=i;
+      out[y][x] = (count[maxI] >= 4) ? pals[maxI] : c; // majorité suffisante
+    }
+    return out;
+  }
+
   function downsamplePixels(pixels, factor){
     if(factor<=1) return pixels;
     var rows=pixels.length, cols=pixels[0].length;
@@ -396,8 +428,8 @@
         var Rsum=0,Gsum=0,Bsum=0,N=0;
         for(var y=gy*factor; y<Math.min(rows,(gy+1)*factor); y++){
           for(var x=gx*factor; x<Math.min(cols,(gx+1)*factor); x++){
-            var c=pixels[y][x]; if(!c) continue;
-            Rsum+=c.r; Gsum+=c.g; Bsum+=c.b; N++;
+            var cl=pixels[y][x]; if(!cl) continue;
+            Rsum+=cl.r; Gsum+=cl.g; Bsum+=cl.b; N++;
           }
         }
         if(N>0) out[gy][gx]={r:Rsum/N,g:Gsum/N,b:Bsum/N};
@@ -405,9 +437,10 @@
     }
     return out;
   }
-  async function imageToPixelMatrix(file){
+
+  async function imageToPixelMatrix(file, budget){
     var img=await loadImage(file);
-    var maxSide=1000, scl=Math.min(1, maxSide/Math.max(img.naturalWidth,img.naturalHeight));
+    var maxSide=1100, scl=Math.min(1, maxSide/Math.max(img.naturalWidth,img.naturalHeight));
     var W=Math.round(img.naturalWidth*scl), H=Math.round(img.naturalHeight*scl);
     var cnv=document.createElement('canvas'); cnv.width=W; cnv.height=H;
     var ctx=cnv.getContext('2d', { willReadFrequently:true });
@@ -426,10 +459,10 @@
 
     var cols=[], yy, xx;
     for(yy=0;yy<rect.h;yy+=2) for(xx=0;xx<rect.w;xx+=2){ var ii=((rect.y+yy)*W+(rect.x+xx))*4; cols.push([data[ii],data[ii+1],data[ii+2]]); }
-    var km=kmeans(cols,3,8);
-    var bgk=0,bd=1e9; for(var k=0;k<3;k++){ var d=dist2(km.centers[k], bgEdge); if(d<bd){bd=d; bgk=k;} }
+    var km=kmeans(cols,4,9);
+    var bgk=0,bd=1e9; for(var k=0;k<km.centers.length;k++){ var d=dist2(km.centers[k], bgEdge); if(d<bd){bd=d; bgk=k;} }
 
-    var grid = estimateGrid(data, W, H, rect, [14,72]);
+    var grid = estimateGrid(data, W, H, rect, [14,76]);
     var cellW=rect.w/grid.cols, cellH=rect.h/grid.rows;
 
     var bin=Array.from({length:grid.rows}, function(){return Array(grid.cols).fill(false);});
@@ -447,9 +480,10 @@
       }
     }
 
-    var cleaned = erode(dilate(openBinary(bin)));
+    var cleaned = closeBinary(openBinary(bin));   // ouverture + fermeture
     cleaned = filterLargestComponents(cleaned);
 
+    // Recadrage
     var minY=cleaned.length, minX2=cleaned[0].length, maxY2=0, maxX2=0, any=false, x, y;
     for(y=0;y<cleaned.length;y++) for(x=0;x<cleaned[0].length;x++) if(cleaned[y][x]){
       any=true; if(y<minY)minY=y; if(y>maxY2)maxY2=y; if(x<minX2)minX2=x; if(x>maxX2)maxX2=x;
@@ -472,31 +506,38 @@
         }
       }
     }
-    quantizeColors(pixels, 0.004);
 
+    quantizeColors(pixels, 0.003);
+    pixels = smoothColors(pixels); // lissage des teintes
+
+    // LOD : si trop de voxels, on réduit proprement
     var vox=0; for(y=0;y<pixels.length;y++) for(x=0;x<pixels[0].length;x++) if(pixels[y][x]) vox++;
-    if(vox > WORLD.maxVoxelsPerInvader){
-      var factor = Math.ceil(Math.sqrt(vox / WORLD.maxVoxelsPerInvader));
-      return downsamplePixels(pixels, factor);
+    var budgetV = budget || 900;
+    if(vox > budgetV){
+      var factor = Math.ceil(Math.sqrt(vox / budgetV));
+      pixels = downsamplePixels(pixels, factor);
     }
     return pixels;
   }
 
   /* =========================
-     INVADER 3D (instanced) + AGENTS (inchangés)
+     INVADER 3D (Instanced) — voxels cubiques & gap réduit
      ========================= */
   function buildInvaderMesh(pixelGrid){
     var rows=pixelGrid.length, cols=pixelGrid[0].length;
-    var size=WORLD.invaderScale, gap=size*WORLD.spacingRatio, depth=WORLD.invaderDepth;
+    var size=WORLD.invaderScale, gap=size*WORLD.spacingRatio, depth=size*WORLD.depthFactor;
 
     var geom=new THREE.BoxGeometry(size-gap, size-gap, depth);
+    // petit shading arrière pour lisser
     var colAttr=new Float32Array(geom.attributes.position.count*3);
     for(var i=0;i<geom.attributes.position.count;i++){
-      var z=geom.attributes.position.getZ(i); var shade=z<0?0.76:1.0;
+      var z=geom.attributes.position.getZ(i); var shade=z<0?0.8:1.0;
       colAttr[3*i]=shade; colAttr[3*i+1]=shade; colAttr[3*i+2]=shade;
     }
     geom.setAttribute('color', new THREE.BufferAttribute(colAttr,3));
-    var mat=new THREE.MeshStandardMaterial({ roughness:0.5, metalness:0.04, vertexColors:true, color:0xffffff });
+    var mat=new THREE.MeshStandardMaterial({
+      roughness:0.46, metalness:0.06, vertexColors:true, color:0xffffff
+    });
 
     var mesh=new THREE.InstancedMesh(geom, mat, rows*cols);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -517,12 +558,16 @@
     return { mesh:mesh, width:w, height:h, depth:depth };
   }
 
+  /* =========================
+     AGENT (déplacement tangent)
+     ========================= */
   function alignZAxisTo(obj, normal){
     var q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1), normal.clone().normalize());
     obj.quaternion.copy(q);
   }
   function createWanderer(invader){
     var g=new THREE.Group(); g.add(invader.mesh);
+
     var targetWorldSize = WORLD.invaderMaxWorldSize * (WORLD.planetRadius*2);
     var maxDim = Math.max(invader.width, invader.height);
     var scale = targetWorldSize / maxDim;
@@ -536,7 +581,7 @@
     g.rotateOnAxis(new THREE.Vector3(0,0,1), Math.random()*Math.PI*2);
 
     var axis=new THREE.Vector3().randomDirection();
-    var baseSpeed = 0.08 + Math.random()*0.06;
+    var baseSpeed = 0.08 + Math.random()*0.06; // ~3x plus lent que tout début
     var rot=new THREE.Quaternion();
 
     return {
@@ -546,6 +591,7 @@
         for(var i=0;i<peers.length;i++){ var p=peers[i]; if(p===this) continue;
           var d=this.object.position.clone().sub(p.object.position);
           var L=d.length();
+          if(L<0.001) continue;
           if(L<WORLD.repelRadius) push.add(d.multiplyScalar((WORLD.repelRadius-L)/WORLD.repelRadius));
         }
         if(push.lengthSq()>0){ this.axis.add(push.normalize().multiplyScalar(0.02)).normalize(); }
@@ -579,7 +625,7 @@
     (async function(){
       for (var i=0;i<arr.length;i++){
         try {
-          var px=await imageToPixelMatrix(arr[i]);
+          var px=await imageToPixelMatrix(arr[i], voxelsBudget(agents.length));
           var built=buildInvaderMesh(px);
           var agent=createWanderer(built);
           scene.add(agent.object);
