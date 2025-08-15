@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#000000">
   <title>Space Invader Zoo</title>
-  <link rel="stylesheet" href="style.css?v=3.4">
+  <link rel="stylesheet" href="style.css?v=3.5">
 </head>
 <body>
   <div id="ui">
@@ -26,11 +26,10 @@
   <div id="error" style="display:none"></div>
   <noscript>Active JavaScript pour jouer.</noscript>
 
-  <!-- Three.js en UMD (robuste iOS Safari) -->
+  <!-- Three.js UMD uniquement (aucun module fragile) -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
 
-  <!-- Notre code (non-module) -->
-  <script defer src="main.js?v=3.4"></script>
+  <!-- Notre code -->
+  <script defer src="main.js?v=3.5"></script>
 </body>
 </html>
