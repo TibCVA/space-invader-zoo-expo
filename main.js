@@ -1,6 +1,6 @@
 /* global THREE */
 
-/* ---------- Overlay d'erreur (pratique sur iOS) ---------- */
+/* ---------- Overlay d'erreur ---------- */
 (function(){
   const box = document.getElementById('error');
   function show(msg){ try{ box.textContent = String(msg); box.style.display = 'block'; }catch{} }
@@ -11,14 +11,11 @@
 (function(){
   'use strict';
   if(!window.THREE || !THREE.WebGLRenderer){
-    const el=document.getElementById('error');
-    el.textContent='Three.js n’a pas chargé.'; el.style.display='block'; return;
+    const el=document.getElementById('error'); el.textContent='Three.js n’a pas chargé.'; el.style.display='block'; return;
   }
 
-  /* =========================
-     CONFIG GÉNÉRALE
-     ========================= */
-  const DPR = Math.min(window.devicePixelRatio||1, 1.5); // sûr pour iOS
+  /* ====== CONFIG ====== */
+  const DPR = Math.min(window.devicePixelRatio||1, 1.5);
   const WORLD = {
     planetRadius: 3.2,
     invaderScale: 0.022,
@@ -29,44 +26,33 @@
     invaderMaxWorldSize: 0.10
   };
   function voxelsBudget(n){
-    if (n < 10)  return 4900;  // ~70×70
-    if (n < 20)  return 3600;  // ~60×60
-    if (n < 50)  return 2600;  // ~51×51
-    if (n < 120) return 1600;  // ~40×40
-    if (n < 300) return 900;   // ~30×30
-    return 256;                // ~16×16 (500+ invaders)
+    if (n < 10)  return 4900;
+    if (n < 20)  return 3600;
+    if (n < 50)  return 2600;
+    if (n < 120) return 1600;
+    if (n < 300) return 900;
+    return 256;
   }
 
-  /* =========================
-     RENDERER / SCÈNE / CAMÉRA
-     ========================= */
+  /* ====== RENDERER/SCÈNE/CAMÉRA ====== */
   const canvas=document.getElementById('scene');
   const renderer=new THREE.WebGLRenderer({canvas, antialias:false, alpha:false, powerPreference:'default'});
-  renderer.setClearColor(0x000010, 1);               // fond noir bleuté
+  renderer.setClearColor(0x000010, 1);
   renderer.setPixelRatio(DPR); renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace=THREE.SRGBColorSpace;
   renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.75;
 
   const scene=new THREE.Scene();
   const camera=new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.2, 200);
-
-  // Position de départ GARANTIE visible
-  const startPos = new THREE.Vector3(0, WORLD.planetRadius*0.4, WORLD.planetRadius*3.8);
-  camera.position.copy(startPos);
+  camera.position.set(0, 0, WORLD.planetRadius*4.0); // valeur sûre avant cadrage
   camera.lookAt(0,0,0);
 
-  /* =========================
-     CONTRÔLES (inversion verticale + inertie)
-     ========================= */
+  /* ====== Contrôles simples (inversion verticale + inertie) ====== */
   function createSimpleOrbitControls(dom, cam, target) {
     const minDist=WORLD.planetRadius*1.05, maxDist=WORLD.planetRadius*4.5;
-
-    // Départ calé sur la position courante de la caméra
     const sph = new THREE.Spherical().setFromVector3(cam.position.clone());
     let radius = Math.max(minDist, Math.min(maxDist, sph.radius));
-    let theta  = sph.theta;             // azimut
-    let phi    = Math.min(Math.PI-0.05, Math.max(0.05, sph.phi)); // inclinaison
-
+    let theta  = sph.theta, phi = Math.min(Math.PI-0.05, Math.max(0.05, sph.phi));
     let tRadius=radius, vTheta=0, vPhi=0;
     const ROT_SENS=3.2, ROT_DAMP=8.0, ZOOM_DAMP=9.0;
 
@@ -83,7 +69,7 @@
     window.addEventListener('mousemove', e=>{
       if(!st.rotating) return; e.preventDefault();
       const dx=(e.clientX-st.sx)/dom.clientWidth, dy=(e.clientY-st.sy)/dom.clientHeight;
-      vTheta += -dx*ROT_SENS*Math.PI; vPhi += -dy*ROT_SENS*Math.PI; // inversion verticale souhaitée
+      vTheta += -dx*ROT_SENS*Math.PI; vPhi += -dy*ROT_SENS*Math.PI; // inversion verticale voulue
       st.sx=e.clientX; st.sy=e.clientY;
     }, {passive:false});
     window.addEventListener('mouseup', ()=>{ st.rotating=false; });
@@ -116,13 +102,11 @@
       const EPS=0.05; if(phi<EPS)phi=EPS; if(phi>Math.PI-EPS)phi=Math.PI-EPS;
       const k=1.0-Math.exp(-ZOOM_DAMP*dt); radius += (tRadius-radius)*k; apply();
     }
-    return {update, apply, setRadius(r){ tRadius = Math.max(minDist, Math.min(maxDist, r)); }};
+    return {update, apply, setRadius(r){ tRadius=Math.max(minDist,Math.min(maxDist,r)); }};
   }
   const controls=createSimpleOrbitControls(renderer.domElement,camera,new THREE.Vector3(0,0,0));
 
-  /* =========================
-     LUMIÈRES / PLANÈTE / ÉTOILES
-     ========================= */
+  /* ====== Lumières / Planète / Étoiles ====== */
   const sun=new THREE.DirectionalLight(0xffffff,1.25); sun.position.set(-4,6,8); scene.add(sun);
   scene.add(new THREE.HemisphereLight(0xe5f4ff,0x2a1e1a,1.2));
   const fill=new THREE.DirectionalLight(0xa6e0ff,0.45); fill.position.set(5,-2,-6); scene.add(fill);
@@ -150,27 +134,30 @@
       grd.addColorStop(0,'rgba(255,255,255,0.15)'); grd.addColorStop(1,'rgba(255,255,255,0)');
       ctx.fillStyle=grd; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
     }
-    const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace; tex.wrapS=tex.wrapT=THREE.MirroredRepeatWrapping; return tex;
+    const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace; tex.needsUpdate=true;
+    tex.wrapS=tex.wrapT=THREE.MirroredRepeatWrapping; return tex;
   }
 
   const planetGeo=new THREE.SphereGeometry(WORLD.planetRadius,96,64);
   const planetMat=new THREE.MeshStandardMaterial({
     map:generatePlanetTexture(512,256),
-    color:new THREE.Color('#8fd7e6').convertSRGBToLinear(),  // plus clair
-    roughness:.66, metalness:.08
+    color:new THREE.Color('#8fd7e6').convertSRGBToLinear(),
+    roughness:.62, metalness:.08,
+    emissive: 0x224455, emissiveIntensity: .12     // <— toujours un peu visible
   });
   const planet=new THREE.Mesh(planetGeo,planetMat); scene.add(planet);
 
-  const BUMP_SCALE=0.028; // léger relief
+  const BUMP_SCALE=0.028;
   function planetBump(n){ return BUMP_SCALE*(Math.sin(7*n.x)+Math.sin(9*n.y)+Math.sin(11*n.z)); }
   (function(){
     const pos=planetGeo.attributes.position, v=new THREE.Vector3();
     for(let i=0;i<pos.count;i++){ v.fromBufferAttribute(pos,i).normalize();
       const p=planetBump(v); v.multiplyScalar(WORLD.planetRadius+p); pos.setXYZ(i,v.x,v.y,v.z); }
-    planetGeo.computeVertexNormals();
+    planetGeo.computeVertexNormals(); planetGeo.computeBoundingSphere();
   })();
 
-  (function(){ // étoiles statiques
+  // Étoiles
+  (function(){
     const N=2400, a=new Float32Array(3*N);
     for(let i=0;i<N;i++){ const r=70+Math.random()*70,t=Math.acos(Math.random()*2-1),p=Math.random()*Math.PI*2;
       a[3*i]=r*Math.sin(t)*Math.cos(p); a[3*i+1]=r*Math.cos(t); a[3*i+2]=r*Math.sin(t)*Math.sin(p); }
@@ -178,9 +165,20 @@
     scene.add(new THREE.Points(g,new THREE.PointsMaterial({size:1.5,sizeAttenuation:false,color:0xffffff})));
   })();
 
-  /* =========================
-     OUTILS IMAGE – UltraSharp-Flood
-     ========================= */
+  // --------- NOUVEAU : cadrage “fail‑safe” ----------
+  function framePlanet() {
+    const R = WORLD.planetRadius + BUMP_SCALE*3;                  // marge relief
+    const fov = THREE.MathUtils.degToRad(camera.fov);
+    const dist = Math.max(R*1.35, R/Math.tan(fov*0.5)*1.25);      // planète entière + marge
+    camera.position.set(0, R*0.25, dist);                         // légère élévation
+    camera.lookAt(0,0,0);
+    controls.setRadius(dist);                                     // synchronise l’orbite
+    controls.apply();
+    renderer.render(scene, camera);                                // 1er rendu immédiat
+  }
+  framePlanet();
+
+  /* ====== Outils image / extraction (UltraSharp‑Flood) ====== */
   function loadImage(file){ return new Promise((res,rej)=>{ const url=URL.createObjectURL(file); const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=url; }); }
   function lin255(c){ c/=255; return (c<=0.04045)?(c/12.92):Math.pow((c+0.055)/1.055,2.4); }
   function dist2(a,b){ const dr=lin255(a[0])-lin255(b[0]), dg=lin255(a[1])-lin255(b[1]), db=lin255(a[2])-lin255(b[2]); return dr*dr+dg*dg+db*db; }
@@ -261,7 +259,6 @@
     } return out; }
   const closeBinary = bin => erode(dilate(bin));
 
-  // Flood‑fill des cases de fond (depuis les bords)
   function floodBackground(cells, centers, bgIdxSet, thrLin){
     const rows=cells.length, cols=cells[0].length;
     const bg=new Array(rows); for(let y=0;y<rows;y++) bg[y]=new Array(cols).fill(false);
@@ -296,7 +293,6 @@
     return bg;
   }
 
-  // Extraction UltraSharp‑Flood : grille + vote + flood + palette + LOD
   async function imageToPixelMatrix(file, budget){
     const img=await loadImage(file);
     const maxSide=1400, scl=Math.min(1, maxSide/Math.max(img.naturalWidth,img.naturalHeight));
@@ -305,7 +301,6 @@
     const ctx=cnv.getContext('2d',{willReadFrequently:true}); ctx.drawImage(img,0,0,W,H);
     const data=ctx.getImageData(0,0,W,H).data;
 
-    // ROI
     const bgEdge=getEdgeBg(data,W,H), TH=0.012;
     let minX=W,minY=H,maxX=0,maxY=0;
     const skipB=Math.floor(H*.18), m=Math.floor(Math.min(W,H)*.04);
@@ -316,7 +311,6 @@
     if(minX>=maxX||minY>=maxY) throw new Error('Invader non détecté.');
     const rect={x:minX,y:minY,w:maxX-minX+1,h:maxY-minY+1};
 
-    // Grille de carrelage
     const proj=gradProjections(data,W,H,rect);
     const minPitch=Math.max(4, Math.round(Math.min(rect.w,rect.h)/80));
     const maxPitch=Math.max(minPitch+3, Math.round(Math.min(rect.w,rect.h)/10));
@@ -324,7 +318,6 @@
     const tY=Math.max(4, Math.min(96, autocorrBestPeriod(proj.gy,minPitch,maxPitch)));
     const offX=bestOffset(proj.gx,tX), offY=bestOffset(proj.gy,tY);
 
-    // Échantillonnage 3×3 par carreau
     let cols=Math.floor((rect.w-offX)/tX), rows=Math.floor((rect.h-offY)/tY);
     cols=Math.max(8,Math.min(180,cols)); rows=Math.max(8,Math.min(180,rows));
     const S=3, voteNeeded=4;
@@ -350,7 +343,6 @@
       }
     }
 
-    // Clusters de couleur (cases)
     const km=kmeans(colors,5,10);
     const counts=new Array(km.centers.length).fill(0);
     function idxOf(gx,gy){ return gy*cols+gx; }
@@ -360,7 +352,6 @@
     const bg2=counts.indexOf(Math.max.apply(null,counts));
     const BG=new Set([bg1,bg2]);
 
-    // Votes non‑fond vs fond (rapide sur centres)
     function nearestCenterIndex(rgb){ let best=0,bd=1e9; for(let k=0;k<km.centers.length;k++){ const d=dist2(rgb,km.centers[k]); if(d<bd){bd=d; best=k;} } return {k:best,d:bd}; }
     const bgThr=0.006;
     for(let gy=0;gy<rows;gy++){
@@ -381,16 +372,13 @@
       }
     }
 
-    // Flood‑fill du fond (depuis les bords)
     const bgGrid=floodBackground(cells, km.centers, BG, bgThr);
 
-    // Masque avant‑plan
     let fg=Array.from({length:rows},()=>Array(cols).fill(false));
     for(let gy=0;gy<rows;gy++) for(let gx=0;gx<cols;gx++){
-      fg[gy][gx] = (!bgGrid[gy][gx]) && (votes[gy][gx] >= 4);
+      fg[gy][gx] = (!bgGrid[gy][gx]) && (votes[gy][gx] >= voteNeeded);
     }
 
-    // Nettoyage
     fg = closeBinary(fg);
     (function keepLargest(){
       const r=fg.length,c=fg[0].length,vis=Array.from({length:r},()=>Array(c).fill(false)),dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
@@ -414,19 +402,16 @@
       fg=out;
     })();
 
-    // Recadrage
     let minY=rows,minX2=cols,maxY2=0,maxX2=0, any=false;
     for(let y=0;y<rows;y++) for(let x=0;x<cols;x++) if(fg[y][x]){ any=true; if(y<minY)minY=y; if(y>maxY2)maxY2=y; if(x<minX2)minX2=x; if(x>maxX2)maxX2=x; }
     if(!any) throw new Error('Rien à garder.');
     const outH=maxY2-minY+1, outW=maxX2-minX2+1;
 
-    // Palette sur l’avant‑plan
     const fgColors=[]; for(let y=minY;y<=maxY2;y++) for(let x=minX2;x<=maxX2;x++) if(fg[y][x]){ const c=cells[y][x]; if(c) fgColors.push([c.r*255,c.g*255,c.b*255]); }
     let palette=null;
     if(fgColors.length){ const K=Math.min(8, Math.max(2, Math.round(Math.sqrt(fgColors.length/150)))); const km2=kmeans(fgColors, K, 8);
       palette=km2.centers.map(c=>({r:c[0]/255,g:c[1]/255,b:c[2]/255})); }
 
-    // Sortie “pixels”
     let pixels=Array.from({length:outH},()=>Array(outW).fill(null));
     for(let y=0;y<outH;y++) for(let x=0;x<outW;x++){
       const Y=y+minY, X=x+minX2; if(!fg[Y][X]) continue;
@@ -442,7 +427,6 @@
       pixels[y][x]=col;
     }
 
-    // LOD si nécessaire
     let vox=0; for(let y=0;y<pixels.length;y++) for(let x=0;x<pixels[0].length;x++) if(pixels[y][x]) vox++;
     const budgetV=budget||2000;
     if(vox>budgetV){
@@ -462,9 +446,7 @@
     return pixels;
   }
 
-  /* =========================
-     MESH INVADER (instanced) – net et sans z‑fighting
-     ========================= */
+  /* ====== Mesh invader (instanced) ====== */
   function buildInvaderMesh(pixelGrid){
     const rows=pixelGrid.length, cols=pixelGrid[0].length;
     const size=WORLD.invaderScale, gap=size*WORLD.spacingRatio, depth=size*WORLD.depthFactor;
@@ -500,9 +482,7 @@
     return {mesh,width:w,height:h,depth};
   }
 
-  /* =========================
-     AGENTS – déplacement tangent + altitude “no‑clip”
-     ========================= */
+  /* ====== Déplacement agents & no‑clip ====== */
   function alignZAxisTo(obj, normal){
     const q=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1), normal.clone().normalize());
     obj.quaternion.copy(q);
@@ -541,9 +521,7 @@
     };
   }
 
-  /* =========================
-     MÉTÉORITES & ÉTOILES FILANTES
-     ========================= */
+  /* ====== Météorites & étoiles filantes ====== */
   const transients=[];
   function streakTexture(){ const c=document.createElement('canvas'); c.width=128; c.height=4; const ctx=c.getContext('2d');
     const g=ctx.createLinearGradient(0,0,128,0); g.addColorStop(0,'rgba(255,255,255,0)');
@@ -589,16 +567,10 @@
   let nextMeteor=performance.now()+9000+Math.random()*10000;
   let nextStar  =performance.now()+4000+Math.random()*9000;
 
-  /* =========================
-     UI / Import iOS
-     ========================= */
-  const addBtn=document.getElementById('addBtn');
-  const countLbl=document.getElementById('count');
-  const speedSlider=document.getElementById('speed');
-  const agents=[];
-  let globalSpeedFactor = Number(speedSlider.value)/100; // 0.33 par défaut
-
-  function updateCount(){ const n=agents.length; countLbl.textContent = n + (n>1?' invaders':' invader'); }
+  /* ====== UI / Import photos iOS ====== */
+  const addBtn=document.getElementById('addBtn'), countLbl=document.getElementById('count'), speedSlider=document.getElementById('speed');
+  const agents=[]; let globalSpeedFactor=Number(speedSlider.value)/100;
+  function updateCount(){ const n=agents.length; countLbl.textContent=n+(n>1?' invaders':' invader'); }
   speedSlider.addEventListener('input', ()=>{ globalSpeedFactor=Number(speedSlider.value)/100; });
 
   function handleFiles(files){
@@ -607,53 +579,47 @@
       for(const f of arr){
         try{
           const px=await imageToPixelMatrix(f, voxelsBudget(agents.length));
-          const built=buildInvaderMesh(px);
-          const agent=createWanderer(built);
-          scene.add(agent.object);
-          agents.push(agent); updateCount();
+          const built=buildInvaderMesh(px); const agent=createWanderer(built);
+          scene.add(agent.object); agents.push(agent); updateCount();
         }catch(err){
           const el=document.getElementById('error'); el.textContent=err.message||String(err); el.style.display='block';
         }
       }
     })();
   }
-
   function openPicker(){
-    const input=document.createElement('input');
-    input.type='file'; input.accept='image/*'; input.multiple=true;
+    const input=document.createElement('input'); input.type='file'; input.accept='image/*'; input.multiple=true;
     input.style.position='fixed'; input.style.left='-10000px'; input.style.top='-10000px';
     document.body.appendChild(input);
-    input.addEventListener('change', e=>{ try{ handleFiles(e.target.files); } finally{ document.body.removeChild(input); } }, {once:true});
+    input.addEventListener('change', e=>{ try{ handleFiles(e.target.files); } finally{ document.body.removeChild(input);} }, {once:true});
     input.click();
   }
   addBtn.addEventListener('click', e=>{ e.preventDefault(); openPicker(); }, {passive:false});
   addBtn.addEventListener('touchstart', e=>{ e.preventDefault(); }, {passive:false});
   addBtn.addEventListener('touchend', e=>{ e.preventDefault(); openPicker(); }, {passive:false});
 
-  /* =========================
-     BOUCLE
-     ========================= */
+  /* ====== Boucle ====== */
   const clock=new THREE.Clock();
   function loop(){
-    const dt=clock.getDelta();
-    controls.update(dt);
-    for(const a of agents) a.update(dt, agents, globalSpeedFactor);
+    const dt=clock.getDelta(); controls.update(dt);
+    for(const a of agents) a.update(dt,agents,globalSpeedFactor);
 
     const now=performance.now();
-    if(now>nextMeteor){ let alive=0; for(const t of transients) if(!t.done) alive++; if(alive<3) spawnMeteor();
-      nextMeteor = now + 9000 + Math.random()*14000; }
-    if(now>nextStar){ let alive=0; for(const t of transients) if(!t.done) alive++; if(alive<6) spawnShootingStar();
-      nextStar   = now + 5000 + Math.random()*12000; }
+    if(now>nextMeteor){ let m=0; for(const t of transients) if(!t.done) m++; if(m<3) spawnMeteor(); nextMeteor=now+9000+Math.random()*14000; }
+    if(now>nextStar){ let s=0; for(const t of transients) if(!t.done) s++; if(s<6) spawnShootingStar(); nextStar=now+5000+Math.random()*12000; }
     for(const T of transients){ if(!T.done) T.update(dt); }
     for(let i=transients.length-1;i>=0;i--) if(transients[i].done) transients.splice(i,1);
 
     renderer.render(scene,camera);
     requestAnimationFrame(loop);
   }
-  loop();
+  renderer.render(scene,camera);  // rendu immédiat avant la première frame
+  requestAnimationFrame(loop);
 
+  // Re‑cadre automatiquement si iOS change la taille au chargement
   window.addEventListener('resize', function(){
     renderer.setSize(window.innerWidth, window.innerHeight);
-    camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); controls.apply();
+    camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix();
+    framePlanet();
   });
 })();
