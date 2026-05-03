@@ -3,62 +3,267 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Invader Hunt Paris</title>
+  <title>Invader Hunt: Paris Neon Ops</title>
   <style>
-    html, body { margin:0; height:100%; background:#070b14; overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
-    #game { width:100vw; height:100vh; display:block; touch-action:none; }
-    .hud { position:fixed; left:0; right:0; top:0; padding:calc(env(safe-area-inset-top,0px) + 10px) 12px 8px; display:flex; justify-content:space-between; pointer-events:none; color:#f5f7ff; text-shadow:0 2px 5px rgba(0,0,0,.8); font-weight:700; }
-    .capture { position:fixed; bottom:calc(env(safe-area-inset-bottom,0px) + 18px); left:50%; transform:translateX(-50%); width:88px; height:88px; border-radius:999px; border:5px solid #fff; box-shadow:0 0 0 8px rgba(255,255,255,.2); background:rgba(255,255,255,.08); }
-    .capture:active{ transform:translateX(-50%) scale(.96); }
-    .overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; text-align:center; background:linear-gradient(#0008,#000c); }
-    .panel{ background:#111a2be6; border:1px solid #62a4ff66; padding:22px; border-radius:14px; max-width:90vw; }
-    button{ padding:12px 20px; font-weight:700; border:none; border-radius:10px; background:#2f9cff; color:#fff; }
+    :root {
+      --bg-0: #04070f;
+      --bg-1: #081225;
+      --hud: #d6ecff;
+      --accent: #36b7ff;
+      --accent-2: #9a64ff;
+      --danger: #ff4b7f;
+    }
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background:
+        radial-gradient(circle at 20% 10%, #153259 0%, transparent 35%),
+        radial-gradient(circle at 80% 20%, #301755 0%, transparent 38%),
+        linear-gradient(180deg, var(--bg-1), var(--bg-0));
+      color: white;
+    }
+    #game { width: 100vw; height: 100vh; display: block; touch-action: none; }
+
+    .vignette {
+      position: fixed; inset: 0; pointer-events: none;
+      background: radial-gradient(circle, transparent 45%, rgba(0,0,0,.35) 100%);
+      mix-blend-mode: multiply;
+      z-index: 5;
+    }
+
+    .hud {
+      position: fixed; left: 0; right: 0; top: 0;
+      padding: calc(env(safe-area-inset-top,0px) + 10px) 14px 10px;
+      display: flex; justify-content: space-between; align-items: center;
+      color: var(--hud);
+      text-shadow: 0 2px 8px rgba(0,0,0,.85);
+      pointer-events: none;
+      z-index: 8;
+      font-weight: 700;
+      letter-spacing: .03em;
+    }
+    .hud .left, .hud .right { display: flex; gap: 10px; align-items: center; }
+    .pill {
+      border: 1px solid rgba(127,186,255,.4);
+      background: linear-gradient(180deg, rgba(13,31,56,.8), rgba(7,16,30,.7));
+      box-shadow: 0 8px 20px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);
+      padding: 8px 12px;
+      border-radius: 999px;
+      min-width: 92px;
+      text-align: center;
+    }
+
+    .capture {
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom,0px) + 18px);
+      left: 50%;
+      transform: translateX(-50%);
+      width: 98px; height: 98px;
+      border-radius: 999px;
+      border: 5px solid #f0f7ff;
+      box-shadow: 0 0 0 10px rgba(224,244,255,.14), 0 0 35px rgba(54,183,255,.35);
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.5), rgba(255,255,255,.08) 45%, rgba(54,183,255,.2));
+      z-index: 9;
+      transition: transform .08s ease, box-shadow .15s ease;
+    }
+    .capture:active { transform: translateX(-50%) scale(.95); box-shadow: 0 0 0 7px rgba(255,255,255,.16), 0 0 45px rgba(54,183,255,.7); }
+
+    .overlay {
+      position: fixed; inset: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; text-align: center;
+      background: radial-gradient(circle at 50% 20%, rgba(34,76,144,.25), rgba(3,5,11,.92));
+      backdrop-filter: blur(5px);
+      padding: 20px;
+    }
+    .panel {
+      width: min(720px, 92vw);
+      padding: 28px;
+      border-radius: 20px;
+      border: 1px solid rgba(117,169,255,.45);
+      background: linear-gradient(160deg, rgba(11,23,44,.92), rgba(7,16,32,.93));
+      box-shadow: 0 30px 90px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.08);
+    }
+    h1 { margin: 0 0 8px; font-size: clamp(28px, 5vw, 52px); }
+    h2 { margin: 0 0 8px; font-size: clamp(24px, 4vw, 44px); }
+    .subtitle { opacity: .86; margin-bottom: 14px; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0 22px; }
+    .stat { padding: 10px; border-radius: 12px; background: rgba(17,39,71,.55); border: 1px solid rgba(129,183,255,.3); font-size: 13px; }
+    .stat b { display: block; font-size: 16px; margin-top: 4px; }
+
+    button {
+      padding: 14px 24px;
+      font-size: 28px;
+      font-weight: 800;
+      border: 0;
+      border-radius: 12px;
+      color: white;
+      background: linear-gradient(180deg, #4cb8ff, #1f8fff);
+      box-shadow: 0 12px 26px rgba(28,145,255,.35);
+      cursor: pointer;
+      min-width: 230px;
+    }
   </style>
 </head>
 <body>
 <canvas id="game"></canvas>
-<div class="hud"><div id="score">Score: 0</div><div id="timer">02:00</div></div>
+<div class="vignette"></div>
+<div class="hud">
+  <div class="left">
+    <div id="score" class="pill">Score: 0</div>
+    <div id="combo" class="pill">Combo x1</div>
+  </div>
+  <div class="right">
+    <div id="timer" class="pill">02:00</div>
+  </div>
+</div>
 <button id="capture" class="capture" aria-label="Capture"></button>
-<div id="overlay" class="overlay"><div class="panel"><h1>Invader Hunt: Paris</h1><p>Find and photograph wall mosaics in 2 minutes.<br/>Move: left thumb drag<br/>Look: right thumb drag</p><button id="start">Start Game</button></div></div>
+<div id="overlay" class="overlay">
+  <div class="panel" id="panel"></div>
+</div>
 <script>
 const c = document.getElementById('game'), ctx = c.getContext('2d');
-const scoreEl = document.getElementById('score'), timerEl = document.getElementById('timer');
-const overlay = document.getElementById('overlay'), startBtn = document.getElementById('start'), captureBtn = document.getElementById('capture');
-let w,h, score=0, timeLeft=120, running=false, flash=0;
-const player = {x:0,y:0,z:0, yaw:0, pitch:0};
+const scoreEl = document.getElementById('score'), timerEl = document.getElementById('timer'), comboEl = document.getElementById('combo');
+const overlay = document.getElementById('overlay'), panel = document.getElementById('panel'), captureBtn = document.getElementById('capture');
+let w,h, score=0, timeLeft=120, running=false, flash=0, combo=1, comboT=0;
+const player = {x:0,y:2.2,z:0, yaw:0, pitch:0};
 const move={x:0,y:0}, look={x:0,y:0};
 const invaders=[];
 function resize(){w=c.width=innerWidth*devicePixelRatio; h=c.height=innerHeight*devicePixelRatio; ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);} resize(); addEventListener('resize',resize);
 function seeded(i){ return (Math.sin(i*999.13)*43758.5453)%1; }
-function makeInvader(seed, size){ const s=size; const arr=[]; for(let y=0;y<s;y++){ arr[y]=[]; for(let x=0;x<Math.ceil(s/2);x++){ const on=seeded(seed+x*17+y*29)>0.45; arr[y][x]=on; arr[y][s-1-x]=on; } } return arr; }
-const sizes=[8,10,12,14,18], pts={8:10,10:20,12:30,14:50,18:100};
-for(let i=0;i<70;i++){
-  const street=Math.floor(i/10), side=i%2? -1:1, z=(i%10)*26-120 + street*2;
+function makeInvader(seed, size){ const arr=[]; for(let y=0;y<size;y++){ arr[y]=[]; for(let x=0;x<Math.ceil(size/2);x++){ const on=seeded(seed+x*17+y*29)>0.45; arr[y][x]=on; arr[y][size-1-x]=on; } } return arr; }
+const sizes=[8,10,12,14,18], pts={8:10,10:20,12:35,14:55,18:110};
+for(let i=0;i<95;i++){
+  const street=Math.floor(i/12), side=i%2? -1:1, z=(i%12)*22-125 + street*2;
   const size=sizes[Math.floor(Math.random()*sizes.length)], pattern=makeInvader(i+3,size);
-  invaders.push({x:side*10.2, y:2+Math.random()*3.8, z, size, pattern, value:pts[size], taken:false, color:`hsl(${Math.random()*360},85%,55%)`});
+  invaders.push({x:side*10.2, y:1.4+Math.random()*4.6, z, size, pattern, value:pts[size], taken:false, glow:`hsl(${Math.random()*360},90%,62%)`});
 }
 function toCam(p){ const dx=p.x-player.x, dy=p.y-player.y, dz=p.z-player.z; const cy=Math.cos(-player.yaw), sy=Math.sin(-player.yaw); const x=dx*cy-dz*sy, z=dx*sy+dz*cy; const cp=Math.cos(-player.pitch), sp=Math.sin(-player.pitch); const y=dy*cp-z*sp; const z2=dy*sp+z*cp; return {x,y,z:z2}; }
-function project(v){ if(v.z<0.2) return null; const f=700; return {x:w/devicePixelRatio/2 + v.x*f/v.z, y:h/devicePixelRatio/2 - v.y*f/v.z, s:f/v.z}; }
+function project(v){ if(v.z<0.2) return null; const f=760; return {x:w/devicePixelRatio/2 + v.x*f/v.z, y:h/devicePixelRatio/2 - v.y*f/v.z, s:f/v.z}; }
 function drawCity(){
-  const grd=ctx.createLinearGradient(0,0,0,h/devicePixelRatio); grd.addColorStop(0,'#27426b'); grd.addColorStop(0.6,'#355c8b'); grd.addColorStop(1,'#2a2f3a'); ctx.fillStyle=grd; ctx.fillRect(0,0,w,h);
-  ctx.fillStyle='#4e4a42'; ctx.fillRect(0,h/devicePixelRatio*0.65,w,h*0.35/devicePixelRatio);
-  for(let n=-12;n<24;n++){
-    const z=n*16; for(const side of [-1,1]){ const base=toCam({x:side*12,y:0,z}); const top=toCam({x:side*12,y:12,z}); const base2=toCam({x:side*12,y:0,z+14}); const top2=toCam({x:side*12,y:12,z+14});
+  const vh=h/devicePixelRatio, vw=w/devicePixelRatio;
+  const sky=ctx.createLinearGradient(0,0,0,vh); sky.addColorStop(0,'#10284a'); sky.addColorStop(0.45,'#163965'); sky.addColorStop(1,'#101723');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,vw,vh);
+  for(let i=0;i<80;i++){ const x=(i*157)%vw; const y=(i*83)%Math.max(90,vh*0.45); ctx.fillStyle=`rgba(255,255,255,${0.03 + (i%4)*0.02})`; ctx.fillRect(x,y,2,2); }
+  ctx.fillStyle='#2e2b32'; ctx.fillRect(0,vh*0.66,vw,vh*0.34);
+  for(let n=-13;n<24;n++){
+    const z=n*15;
+    for(const side of [-1,1]){
+      const base=toCam({x:side*12,y:0,z}), top=toCam({x:side*12,y:12,z}), base2=toCam({x:side*12,y:0,z+13}), top2=toCam({x:side*12,y:12,z+13});
       const p1=project(base), p2=project(top), p3=project(top2), p4=project(base2); if(!p1||!p2||!p3||!p4) continue;
-      ctx.fillStyle=side<0?'#c8bea6':'#b8ae96'; ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.lineTo(p3.x,p3.y); ctx.lineTo(p4.x,p4.y); ctx.closePath(); ctx.fill();
+      const grad=ctx.createLinearGradient(p1.x,p1.y,p2.x,p2.y); grad.addColorStop(0,side<0?'#ccbda5':'#b8a891'); grad.addColorStop(1,side<0?'#8f806a':'#86765f');
+      ctx.fillStyle=grad; ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.lineTo(p3.x,p3.y); ctx.lineTo(p4.x,p4.y); ctx.closePath(); ctx.fill();
     }
   }
 }
-function drawInvader(inv){ if(inv.taken) return; const cam=toCam(inv); const p=project(cam); if(!p) return; const tile=Math.max(2,p.s*0.09); const size=inv.size*tile; const ox=p.x-size/2, oy=p.y-size/2; ctx.fillStyle='#1d1d24'; ctx.fillRect(ox-4,oy-4,size+8,size+8); ctx.fillStyle=inv.color; for(let y=0;y<inv.size;y++) for(let x=0;x<inv.size;x++) if(inv.pattern[y][x]) ctx.fillRect(ox+x*tile,oy+y*tile,tile-0.3,tile-0.3); inv._screen={x:ox,y:oy,w:size,h:size,centerX:p.x,centerY:p.y,depth:cam.z}; }
-function update(dt){ player.yaw+=look.x*dt*0.002; player.pitch=Math.max(-0.8,Math.min(0.8,player.pitch+look.y*dt*0.002)); const sp=dt*0.013; player.x+=(Math.cos(player.yaw)*move.x+Math.sin(player.yaw)*move.y)*sp; player.z+=(-Math.sin(player.yaw)*move.x+Math.cos(player.yaw)*move.y)*sp; player.x=Math.max(-5,Math.min(5,player.x)); player.z=Math.max(-140,Math.min(145,player.z)); }
-function attemptCapture(){ if(!running) return; let best=null; for(const inv of invaders){ if(inv.taken||!inv._screen) continue; const cx=w/devicePixelRatio/2, cy=h/devicePixelRatio/2; const d=Math.hypot(inv._screen.centerX-cx, inv._screen.centerY-cy); if(d<70 && inv._screen.depth<38 && (!best||d<best.d)) best={inv,d}; } if(best){ best.inv.taken=true; score+=best.inv.value; scoreEl.textContent=`Score: ${score}`; flash=180; }}
+function drawInvader(inv){ if(inv.taken) return; const cam=toCam(inv), p=project(cam); if(!p) return; const tile=Math.max(2,p.s*0.1), size=inv.size*tile, ox=p.x-size/2, oy=p.y-size/2;
+  ctx.fillStyle='rgba(16,20,30,.96)'; ctx.fillRect(ox-5,oy-5,size+10,size+10);
+  ctx.shadowColor=inv.glow; ctx.shadowBlur=Math.min(25, p.s*0.7); ctx.fillStyle=inv.glow;
+  for(let y=0;y<inv.size;y++) for(let x=0;x<inv.size;x++) if(inv.pattern[y][x]) ctx.fillRect(ox+x*tile,oy+y*tile,tile-0.2,tile-0.2);
+  ctx.shadowBlur=0;
+  inv._screen={x:ox,y:oy,w:size,h:size,centerX:p.x,centerY:p.y,depth:cam.z};
+}
+function update(dt){
+  player.yaw += look.x*dt*0.0016;
+  player.pitch = Math.max(-0.8,Math.min(0.8,player.pitch + look.y*dt*0.0016));
+  const sp=dt*0.0105;
+  player.x += (Math.cos(player.yaw)*move.x + Math.sin(player.yaw)*move.y)*sp;
+  player.z += (-Math.sin(player.yaw)*move.x + Math.cos(player.yaw)*move.y)*sp;
+  player.x = Math.max(-5.5,Math.min(5.5,player.x));
+  player.z = Math.max(-142,Math.min(146,player.z));
+  comboT=Math.max(0, comboT-dt/1000);
+  if(comboT===0) combo=1;
+}
+function attemptCapture(){
+  if(!running) return;
+  let best=null;
+  const cx=w/devicePixelRatio/2, cy=h/devicePixelRatio/2;
+  for(const inv of invaders){
+    if(inv.taken||!inv._screen) continue;
+    const d=Math.hypot(inv._screen.centerX-cx, inv._screen.centerY-cy);
+    if(d<74 && inv._screen.depth<40 && (!best||d<best.d)) best={inv,d};
+  }
+  if(best){
+    best.inv.taken=true;
+    score += Math.round(best.inv.value * combo);
+    combo = Math.min(5, combo + 0.4);
+    comboT = 3;
+    scoreEl.textContent=`Score: ${score}`;
+    comboEl.textContent=`Combo x${combo.toFixed(1)}`;
+    flash=190;
+  }
+}
 let prev=performance.now();
-function loop(t){ const dt=t-prev; prev=t; if(running){ timeLeft=Math.max(0,timeLeft-dt/1000); if(timeLeft===0){ running=false; overlay.style.display='flex'; overlay.querySelector('.panel').innerHTML=`<h2>Time's up!</h2><p>Final score: <b>${score}</b></p><button id='restart'>Play Again</button>`; document.getElementById('restart').onclick=start; } const m=Math.floor(timeLeft/60), s=Math.floor(timeLeft%60); timerEl.textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; update(dt);} drawCity(); invaders.sort((a,b)=>(b._screen?.depth||0)-(a._screen?.depth||0)); invaders.forEach(drawInvader); ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=2; const cx=w/devicePixelRatio/2, cy=h/devicePixelRatio/2; ctx.beginPath(); ctx.moveTo(cx-14,cy); ctx.lineTo(cx+14,cy); ctx.moveTo(cx,cy-14); ctx.lineTo(cx,cy+14); ctx.stroke(); if(flash>0){ctx.fillStyle=`rgba(255,255,255,${flash/220})`; ctx.fillRect(0,0,w,h); flash-=dt;} requestAnimationFrame(loop);} requestAnimationFrame(loop);
-function start(){ score=0; timeLeft=120; running=true; overlay.style.display='none'; invaders.forEach(v=>v.taken=false); player.x=0; player.y=0; player.z=0; player.yaw=0; player.pitch=0; scoreEl.textContent='Score: 0'; }
-startBtn.onclick=start; captureBtn.onclick=attemptCapture;
-function bindTouch(e, isStart){ const t=[...e.touches]; if(t[0]){ if(t[0].clientX<innerWidth*0.45){move.x=(t[0].clientY-innerHeight*0.8)/30; move.y=(t[0].clientX-innerWidth*0.2)/30;} else {look.x=(t[0].clientX-innerWidth*0.8)/26; look.y=(t[0].clientY-innerHeight*0.4)/26;}} if(t[1]){ const a=t[0],b=t[1]; const L=a.clientX<b.clientX?a:b, R=a.clientX<b.clientX?b:a; move.x=(L.clientY-innerHeight*0.8)/30; move.y=(L.clientX-innerWidth*0.2)/30; look.x=(R.clientX-innerWidth*0.8)/26; look.y=(R.clientY-innerHeight*0.4)/26; } if(!t.length){move.x=move.y=look.x=look.y=0;} e.preventDefault(); }
-addEventListener('touchstart',e=>bindTouch(e,true),{passive:false}); addEventListener('touchmove',e=>bindTouch(e,false),{passive:false}); addEventListener('touchend',e=>bindTouch(e,false),{passive:false});
-let mouseDown=false; addEventListener('mousedown',e=>{mouseDown=true;}); addEventListener('mouseup',()=>{mouseDown=false;move.x=move.y=look.x=look.y=0;}); addEventListener('mousemove',e=>{ if(!mouseDown) return; look.x=e.movementX*0.6; look.y=e.movementY*0.6; move.x=-1; });
+function loop(t){
+  const dt=t-prev; prev=t;
+  if(running){
+    timeLeft=Math.max(0,timeLeft-dt/1000);
+    if(timeLeft===0){ endGame(); }
+    const m=Math.floor(timeLeft/60), s=Math.floor(timeLeft%60);
+    timerEl.textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    update(dt);
+  }
+  drawCity();
+  invaders.sort((a,b)=>(b._screen?.depth||0)-(a._screen?.depth||0)); invaders.forEach(drawInvader);
+  const cx=w/devicePixelRatio/2, cy=h/devicePixelRatio/2;
+  ctx.strokeStyle='rgba(255,255,255,.95)'; ctx.lineWidth=2.2;
+  ctx.beginPath(); ctx.moveTo(cx-15,cy); ctx.lineTo(cx+15,cy); ctx.moveTo(cx,cy-15); ctx.lineTo(cx,cy+15); ctx.stroke();
+  if(flash>0){ctx.fillStyle=`rgba(255,255,255,${flash/220})`; ctx.fillRect(0,0,w,h); flash-=dt;}
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+function renderIntro(){
+  panel.innerHTML = `<h1>Invader Hunt: Paris</h1>
+    <div class="subtitle">Neon Ops Edition</div>
+    <p>Photographie les mosaïques les plus rares en 2 minutes. Vise au centre, déclenche rapidement pour monter ton combo.</p>
+    <div class="stats">
+      <div class="stat">Règle #1<b>Reste mobile</b></div>
+      <div class="stat">Règle #2<b>Vise précis</b></div>
+      <div class="stat">Règle #3<b>Maintiens combo</b></div>
+    </div>
+    <button id="start">Start Mission</button>`;
+  document.getElementById('start').onclick=start;
+}
+function endGame(){
+  running=false;
+  overlay.style.display='flex';
+  panel.innerHTML = `<h2>Mission terminée</h2><p>Score final: <b>${score}</b></p><p>Combo max: <b>x${combo.toFixed(1)}</b></p><button id='restart'>Rejouer</button>`;
+  document.getElementById('restart').onclick=start;
+}
+function start(){
+  score=0; timeLeft=120; running=true; combo=1; comboT=0;
+  overlay.style.display='none';
+  invaders.forEach(v=>v.taken=false);
+  player.x=0; player.y=2.2; player.z=0; player.yaw=0; player.pitch=0;
+  scoreEl.textContent='Score: 0'; comboEl.textContent='Combo x1';
+}
+renderIntro();
+captureBtn.onclick=attemptCapture;
+
+function bindTouch(e){
+  if (e.target.closest('button') || e.target.closest('.overlay')) return;
+  const t=[...e.touches];
+  if(t[0]){
+    if(t[0].clientX<innerWidth*0.45){move.x=(t[0].clientY-innerHeight*0.8)/30; move.y=(t[0].clientX-innerWidth*0.2)/30;}
+    else {look.x=(t[0].clientX-innerWidth*0.8)/26; look.y=(t[0].clientY-innerHeight*0.4)/26;}
+  }
+  if(t[1]){
+    const a=t[0],b=t[1]; const L=a.clientX<b.clientX?a:b, R=a.clientX<b.clientX?b:a;
+    move.x=(L.clientY-innerHeight*0.8)/30; move.y=(L.clientX-innerWidth*0.2)/30;
+    look.x=(R.clientX-innerWidth*0.8)/26; look.y=(R.clientY-innerHeight*0.4)/26;
+  }
+  if(!t.length){move.x=move.y=look.x=look.y=0;}
+  e.preventDefault();
+}
+addEventListener('touchstart',bindTouch,{passive:false});
+addEventListener('touchmove',bindTouch,{passive:false});
+addEventListener('touchend',bindTouch,{passive:false});
+let mouseDown=false;
+addEventListener('mousedown',e=>{ if(e.target.closest('button')) return; mouseDown=true; });
+addEventListener('mouseup',()=>{mouseDown=false;move.x=move.y=look.x=look.y=0;});
+addEventListener('mousemove',e=>{ if(!mouseDown) return; look.x=e.movementX*0.6; look.y=e.movementY*0.6; move.x=-1; });
 </script>
 </body>
 </html>
