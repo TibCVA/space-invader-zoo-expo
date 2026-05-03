@@ -3,81 +3,476 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Invader Hunt: Neon Safari</title>
+  <title>Invader Hunt: Aurora Protocol</title>
   <style>
     :root {
-      --bg-0: #02040b;
-      --bg-1: #081832;
-      --hud: #e9f4ff;
-      --accent: #4ec3ff;
-      --accent-2: #a568ff;
-      --danger: #ff5b8c;
+      --bg0: #02030a;
+      --bg1: #07132c;
+      --bg2: #121037;
+      --text: #e8f1ff;
+      --muted: #a9c3ee;
+      --cyan: #55d9ff;
+      --violet: #a168ff;
+      --rose: #ff5fa2;
+      --panel: rgba(10, 18, 40, 0.86);
+      --glass: rgba(32, 58, 108, 0.35);
     }
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body { margin: 0; height: 100%; overflow: hidden; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    body { background: radial-gradient(circle at 20% 10%, #173b67 0%, transparent 35%), radial-gradient(circle at 80% 20%, #31195b 0%, transparent 38%), linear-gradient(180deg, var(--bg-1), var(--bg-0)); color: white; }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at 20% 12%, #19487a 0%, transparent 33%),
+                  radial-gradient(circle at 80% 16%, #381a79 0%, transparent 40%),
+                  linear-gradient(180deg, var(--bg1), var(--bg0));
+    }
+
     #game { width: 100vw; height: 100vh; display: block; touch-action: none; }
-    .vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(circle, transparent 35%, rgba(0,0,0,.5)); z-index: 5; }
-    .hud { position: fixed; left: 0; right: 0; top: 0; padding: calc(env(safe-area-inset-top,0px) + 10px) 12px 10px; display: flex; justify-content: space-between; align-items: center; z-index: 8; pointer-events: none; }
-    .hud .left, .hud .right { display: flex; gap: 8px; }
-    .pill { border: 1px solid rgba(122,193,255,.45); color: var(--hud); background: linear-gradient(180deg, rgba(9,26,50,.85), rgba(6,16,31,.78)); box-shadow: 0 8px 18px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.1); padding: 8px 10px; border-radius: 999px; min-width: 80px; text-align: center; font-weight: 700; font-size: 13px; text-shadow: 0 2px 10px rgba(0,0,0,.8); }
-    .capture { position: fixed; bottom: calc(env(safe-area-inset-bottom,0px) + 20px); left: 50%; transform: translateX(-50%); width: 88px; height: 88px; border-radius: 999px; border: 4px solid #f4f9ff; background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.8), rgba(255,255,255,.1) 42%, rgba(78,195,255,.2)); box-shadow: 0 0 0 10px rgba(224,244,255,.12), 0 0 30px rgba(54,183,255,.45); z-index: 9; }
+    .vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 40%, transparent 26%, rgba(0, 0, 0, .6)); z-index: 4; }
+
+    .hud {
+      position: fixed;
+      inset: 0 0 auto 0;
+      z-index: 8;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: calc(env(safe-area-inset-top, 0px) + 10px) 12px 8px;
+      pointer-events: none;
+    }
+    .hud-group { display: flex; gap: 8px; }
+    .pill {
+      min-width: 88px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 800;
+      padding: 9px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(134, 195, 255, .46);
+      background: linear-gradient(180deg, rgba(19, 34, 69, .85), rgba(8, 14, 30, .85));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 10px 24px rgba(0, 0, 0, .42);
+      text-shadow: 0 2px 8px rgba(0,0,0,.85);
+    }
+
+    .center-reticle {
+      position: fixed; inset: 0; z-index: 7; pointer-events: none;
+      display: grid; place-items: center;
+    }
+
+    .help {
+      position: fixed;
+      left: 50%; transform: translateX(-50%);
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 116px);
+      z-index: 8;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+      text-shadow: 0 2px 10px rgba(0, 0, 0, .9);
+      pointer-events: none;
+      line-height: 1.35;
+    }
+
+    .capture {
+      position: fixed;
+      left: 50%; transform: translateX(-50%);
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+      z-index: 10;
+      width: 92px; height: 92px;
+      border-radius: 999px;
+      border: 3px solid rgba(234, 246, 255, .95);
+      background: radial-gradient(circle at 28% 24%, rgba(255,255,255,.85), rgba(124,214,255,.24) 42%, rgba(31,115,255,.1));
+      box-shadow: 0 0 0 10px rgba(174, 220, 255, .13), 0 0 34px rgba(71, 197, 255, .46);
+      cursor: pointer;
+    }
     .capture:active { transform: translateX(-50%) scale(.95); }
-    .controls-help { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom,0px) + 118px); z-index: 8; font-size: 12px; color: rgba(229,244,255,.8); text-shadow: 0 2px 8px rgba(0,0,0,.9); pointer-events: none; }
-    .overlay { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; text-align: center; background: radial-gradient(circle at 50% 10%, rgba(42,88,160,.24), rgba(2,4,12,.94)); padding: max(16px, env(safe-area-inset-top,0px)) 16px max(16px, env(safe-area-inset-bottom,0px)); }
-    .panel { width: min(760px, 94vw); padding: 22px; border-radius: 22px; border: 1px solid rgba(119,178,255,.5); background: linear-gradient(160deg, rgba(11,24,48,.95), rgba(7,15,30,.95)); box-shadow: 0 30px 90px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.09); }
-    h1 { margin: 0 0 8px; font-size: clamp(28px, 7vw, 56px); }
-    h2 { margin: 0 0 10px; font-size: clamp(24px, 6vw, 46px); }
-    .subtitle { opacity: .9; margin-bottom: 10px; }
-    .stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin: 14px 0 20px; }
-    .stat { padding: 10px; border-radius: 10px; background: rgba(15,38,72,.56); border: 1px solid rgba(129,183,255,.35); font-size: 12px; }
-    .stat b { display: block; font-size: 15px; margin-top: 4px; }
-    button.primary { padding: 14px 22px; font-size: clamp(20px,5vw,28px); font-weight: 800; border: 0; border-radius: 14px; color: white; background: linear-gradient(180deg, #59c9ff, #208df8); box-shadow: 0 12px 26px rgba(28,145,255,.45); cursor: pointer; min-width: 220px; }
-    @media (max-width: 540px) { .stats { grid-template-columns: 1fr; } .panel { padding: 18px; } }
+
+    .overlay {
+      position: fixed; inset: 0; z-index: 24;
+      display: grid; place-items: center;
+      padding: max(14px, env(safe-area-inset-top,0px)) 14px max(14px, env(safe-area-inset-bottom,0px));
+      background: radial-gradient(circle at 50% 0%, rgba(80, 155, 255, .18), rgba(3, 5, 16, .94));
+    }
+    .panel {
+      width: min(940px, 96vw);
+      background: linear-gradient(160deg, rgba(13, 24, 52, .96), rgba(6, 12, 30, .98));
+      border: 1px solid rgba(126, 182, 255, .5);
+      border-radius: 24px;
+      box-shadow: 0 35px 100px rgba(0, 0, 0, .6), inset 0 1px 0 rgba(255, 255, 255, .13);
+      padding: clamp(16px, 3vw, 28px);
+      text-align: center;
+    }
+    .eyebrow { letter-spacing: .16em; text-transform: uppercase; font-weight: 700; color: #80c8ff; font-size: 12px; }
+    h1, h2 { margin: 8px 0; line-height: 1.03; }
+    h1 { font-size: clamp(30px, 8vw, 70px); }
+    h2 { font-size: clamp(26px, 7vw, 52px); }
+    p { color: #d4e8ff; margin: 8px auto; max-width: 72ch; }
+
+    .features {
+      margin: 16px 0 20px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .feature {
+      border-radius: 14px;
+      padding: 12px;
+      border: 1px solid rgba(114, 176, 255, .35);
+      background: linear-gradient(160deg, rgba(22, 44, 84, .58), rgba(9, 19, 41, .7));
+      text-align: left;
+      min-height: 94px;
+    }
+    .feature b { display: block; margin-bottom: 5px; color: #9fdbff; }
+
+    .actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+    button {
+      border: 0; border-radius: 14px; cursor: pointer;
+      font-weight: 900; color: white;
+      padding: 13px 20px;
+      min-width: 210px;
+    }
+    .primary {
+      font-size: clamp(20px, 4.4vw, 30px);
+      background: linear-gradient(180deg, #67dcff, #2692ff);
+      box-shadow: 0 14px 30px rgba(24, 140, 255, .43);
+    }
+    .secondary {
+      background: linear-gradient(180deg, #6d7ac2, #394787);
+      font-size: 15px;
+    }
+
+    @media (max-width: 680px) {
+      .features { grid-template-columns: 1fr; }
+      .help { bottom: calc(env(safe-area-inset-bottom, 0px) + 114px); }
+    }
   </style>
 </head>
 <body>
-<canvas id="game"></canvas>
-<div class="vignette"></div>
-<div class="hud">
-  <div class="left"><div id="score" class="pill">Score: 0</div><div id="combo" class="pill">Combo x1</div></div>
-  <div class="right"><div id="timer" class="pill">02:00</div></div>
-</div>
-<div class="controls-help">Gauche: déplacer · Droite: viser · Centre: capturer</div>
-<button id="capture" class="capture" aria-label="Capturer"></button>
-<div id="overlay" class="overlay"><div class="panel" id="panel"></div></div>
+  <canvas id="game"></canvas>
+  <div class="vignette"></div>
+
+  <div class="hud">
+    <div class="hud-group">
+      <div id="score" class="pill">Score: 0</div>
+      <div id="combo" class="pill">Combo x1.0</div>
+    </div>
+    <div class="hud-group"><div id="timer" class="pill">02:00</div></div>
+  </div>
+
+  <div class="center-reticle" aria-hidden="true"></div>
+  <div class="help">Joystick gauche = mouvement · zone droite = visée · bouton central = capture</div>
+  <button id="capture" class="capture" aria-label="Capturer"></button>
+
+  <div id="overlay" class="overlay"><div id="panel" class="panel"></div></div>
+
 <script>
-const c = document.getElementById('game'), ctx = c.getContext('2d');
-const scoreEl = document.getElementById('score'), timerEl = document.getElementById('timer'), comboEl = document.getElementById('combo');
-const overlay = document.getElementById('overlay'), panel = document.getElementById('panel'), captureBtn = document.getElementById('capture');
-let w, h, score = 0, timeLeft = 120, running = false, flash = 0, combo = 1, comboT = 0, bestCombo = 1;
-const player = { x: 0, y: 2.2, z: 0, yaw: 0, pitch: 0 };
+const c = document.getElementById('game');
+const ctx = c.getContext('2d');
+const overlay = document.getElementById('overlay');
+const panel = document.getElementById('panel');
+const scoreEl = document.getElementById('score');
+const timerEl = document.getElementById('timer');
+const comboEl = document.getElementById('combo');
+const captureBtn = document.getElementById('capture');
+
+let w = 0, h = 0, score = 0, timeLeft = 120, running = false, flash = 0;
+let combo = 1, comboTimer = 0, bestCombo = 1;
+const player = { x: 0, y: 2, z: 0, yaw: 0, pitch: 0 };
 const move = { x: 0, y: 0 }, look = { x: 0, y: 0 };
+
 let stars = [];
 const invaders = [];
-function resize() { w = c.width = innerWidth * devicePixelRatio; h = c.height = innerHeight * devicePixelRatio; ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0); stars = Array.from({length: Math.min(180, Math.floor(innerWidth*0.35))}, (_,i)=>({x:(i*97)%innerWidth, y:(i*61)%Math.max(100,innerHeight*0.55), a:0.2+((i%7)/10)})); }
-resize(); addEventListener('resize', resize);
-function seeded(i){ return (Math.sin(i*999.13)*43758.5453)%1; }
-function makeInvader(seed, size){ const arr=[]; for(let y=0;y<size;y++){ arr[y]=[]; for(let x=0;x<Math.ceil(size/2);x++){ const on=seeded(seed+x*17+y*29)>0.45; arr[y][x]=on; arr[y][size-1-x]=on; } } return arr; }
-const sizes=[8,10,12,14,18], pts={8:10,10:20,12:35,14:55,18:110};
-for(let i=0;i<120;i++){ const street=Math.floor(i/14), side=i%2? -1:1, z=(i%14)*20-145 + street*2; const size=sizes[Math.floor(Math.random()*sizes.length)], pattern=makeInvader(i+3,size); invaders.push({x:side*(9+Math.random()*3), y:1.2+Math.random()*5.2, z, size, pattern, value:pts[size], taken:false, glow:`hsl(${Math.random()*360},88%,62%)`}); }
-function toCam(p){ const dx=p.x-player.x, dy=p.y-player.y, dz=p.z-player.z; const cy=Math.cos(-player.yaw), sy=Math.sin(-player.yaw); const x=dx*cy-dz*sy, z=dx*sy+dz*cy; const cp=Math.cos(-player.pitch), sp=Math.sin(-player.pitch); const y=dy*cp-z*sp; const z2=dy*sp+z*cp; return {x,y,z:z2}; }
-function project(v){ if(v.z<0.2) return null; const f=780; return {x:w/devicePixelRatio/2 + v.x*f/v.z, y:h/devicePixelRatio/2 - v.y*f/v.z, s:f/v.z}; }
-function drawCity(){ const vh=h/devicePixelRatio, vw=w/devicePixelRatio; const sky=ctx.createLinearGradient(0,0,0,vh); sky.addColorStop(0,'#102b51'); sky.addColorStop(0.5,'#163a64'); sky.addColorStop(1,'#0f1622'); ctx.fillStyle=sky; ctx.fillRect(0,0,vw,vh); for(const s of stars){ ctx.fillStyle=`rgba(255,255,255,${s.a})`; ctx.fillRect(s.x,s.y,2,2);} ctx.fillStyle='#23252f'; ctx.fillRect(0,vh*0.66,vw,vh*0.34); for(let n=-14;n<26;n++){ const z=n*14; for(const side of [-1,1]){ const base=toCam({x:side*12,y:0,z}), top=toCam({x:side*12,y:12,z}), base2=toCam({x:side*12,y:0,z+13}), top2=toCam({x:side*12,y:12,z+13}); const p1=project(base), p2=project(top), p3=project(top2), p4=project(base2); if(!p1||!p2||!p3||!p4) continue; const grad=ctx.createLinearGradient(p1.x,p1.y,p2.x,p2.y); grad.addColorStop(0,side<0?'#dac9ad':'#d4c4ab'); grad.addColorStop(1,side<0?'#8d7d66':'#81735e'); ctx.fillStyle=grad; ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.lineTo(p3.x,p3.y); ctx.lineTo(p4.x,p4.y); ctx.closePath(); ctx.fill(); } } }
-function drawInvader(inv){ if(inv.taken) return; const cam=toCam(inv), p=project(cam); if(!p) return; const tile=Math.max(2,p.s*0.1), size=inv.size*tile, ox=p.x-size/2, oy=p.y-size/2; ctx.fillStyle='rgba(8,13,24,.96)'; ctx.fillRect(ox-6,oy-6,size+12,size+12); ctx.shadowColor=inv.glow; ctx.shadowBlur=Math.min(38,p.s*0.7); ctx.fillStyle=inv.glow; for(let y=0;y<inv.size;y++) for(let x=0;x<inv.size;x++) if(inv.pattern[y][x]) ctx.fillRect(ox+x*tile,oy+y*tile,tile-0.2,tile-0.2); ctx.shadowBlur=0; inv._screen={centerX:p.x,centerY:p.y,depth:cam.z}; }
-function update(dt){ player.yaw += look.x*dt*0.0016; player.pitch = Math.max(-0.82,Math.min(0.82,player.pitch + look.y*dt*0.0016)); const sp=dt*0.0105; player.x += (Math.cos(player.yaw)*move.x + Math.sin(player.yaw)*move.y)*sp; player.z += (-Math.sin(player.yaw)*move.x + Math.cos(player.yaw)*move.y)*sp; player.x = Math.max(-5.8,Math.min(5.8,player.x)); player.z = Math.max(-148,Math.min(156,player.z)); comboT=Math.max(0, comboT-dt/1000); if(comboT===0) combo=1; }
-function attemptCapture(){ if(!running) return; let best=null; const cx=w/devicePixelRatio/2, cy=h/devicePixelRatio/2; for(const inv of invaders){ if(inv.taken||!inv._screen) continue; const d=Math.hypot(inv._screen.centerX-cx, inv._screen.centerY-cy); if(d<78 && inv._screen.depth<42 && (!best||d<best.d)) best={inv,d}; } if(best){ best.inv.taken=true; score += Math.round(best.inv.value * combo); combo = Math.min(8, combo + 0.5); bestCombo = Math.max(bestCombo, combo); comboT = 3.5; scoreEl.textContent=`Score: ${score}`; comboEl.textContent=`Combo x${combo.toFixed(1)}`; flash=190; } }
-let prev=performance.now();
-function loop(t){ const dt=t-prev; prev=t; if(running){ timeLeft=Math.max(0,timeLeft-dt/1000); if(timeLeft===0){ endGame(); } const m=Math.floor(timeLeft/60), s=Math.floor(timeLeft%60); timerEl.textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; update(dt);} drawCity(); invaders.sort((a,b)=>(b._screen?.depth||0)-(a._screen?.depth||0)); invaders.forEach(drawInvader); const cx=w/devicePixelRatio/2, cy=h/devicePixelRatio/2; ctx.strokeStyle='rgba(255,255,255,.98)'; ctx.lineWidth=2.2; ctx.beginPath(); ctx.arc(cx,cy,18,0,Math.PI*2); ctx.moveTo(cx-26,cy); ctx.lineTo(cx+26,cy); ctx.moveTo(cx,cy-26); ctx.lineTo(cx,cy+26); ctx.stroke(); if(flash>0){ctx.fillStyle=`rgba(255,255,255,${flash/220})`; ctx.fillRect(0,0,w,h); flash-=dt;} requestAnimationFrame(loop); }
+const sizes = [8, 10, 12, 14, 18];
+const points = {8: 15, 10: 25, 12: 40, 14: 65, 18: 120};
+
+function resize() {
+  w = innerWidth; h = innerHeight;
+  c.width = Math.floor(w * devicePixelRatio);
+  c.height = Math.floor(h * devicePixelRatio);
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  stars = Array.from({ length: Math.max(80, Math.floor(w * 0.35)) }, (_, i) => ({
+    x: (i * 97) % w,
+    y: (i * 61) % Math.max(180, h * 0.7),
+    a: 0.2 + ((i % 7) / 8)
+  }));
+}
+
+function seeded(i) { return ((Math.sin(i * 999.13) * 43758.5453) % 1 + 1) % 1; }
+function makeInvader(seed, size) {
+  const arr = [];
+  for (let y = 0; y < size; y++) {
+    arr[y] = [];
+    for (let x = 0; x < Math.ceil(size / 2); x++) {
+      const on = seeded(seed + x * 17 + y * 29) > 0.46;
+      arr[y][x] = on;
+      arr[y][size - 1 - x] = on;
+    }
+  }
+  return arr;
+}
+
+function seedWorld() {
+  invaders.length = 0;
+  for (let i = 0; i < 150; i++) {
+    const lane = i % 2 ? -1 : 1;
+    const z = (i % 25) * 12 - 155 + Math.floor(i / 25) * 52;
+    const size = sizes[Math.floor(Math.random() * sizes.length)];
+    invaders.push({
+      x: lane * (7.4 + Math.random() * 4.6),
+      y: 1 + Math.random() * 6,
+      z,
+      size,
+      pattern: makeInvader(i + 17, size),
+      value: points[size],
+      glow: `hsl(${Math.random() * 360}, 92%, 64%)`,
+      taken: false,
+      phase: Math.random() * Math.PI * 2
+    });
+  }
+}
+
+function toCam(p) {
+  const dx = p.x - player.x, dy = p.y - player.y, dz = p.z - player.z;
+  const cy = Math.cos(-player.yaw), sy = Math.sin(-player.yaw);
+  const x = dx * cy - dz * sy;
+  const z = dx * sy + dz * cy;
+  const cp = Math.cos(-player.pitch), sp = Math.sin(-player.pitch);
+  return { x, y: dy * cp - z * sp, z: dy * sp + z * cp };
+}
+
+function project(v) {
+  if (v.z < 0.2) return null;
+  const f = 760;
+  return { x: w / 2 + (v.x * f / v.z), y: h / 2 - (v.y * f / v.z), s: f / v.z };
+}
+
+function drawBackground() {
+  const sky = ctx.createLinearGradient(0, 0, 0, h);
+  sky.addColorStop(0, '#122a55');
+  sky.addColorStop(0.52, '#112145');
+  sky.addColorStop(1, '#070b14');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, w, h);
+
+  for (const s of stars) {
+    ctx.fillStyle = `rgba(240,248,255,${s.a * 0.85})`;
+    ctx.fillRect(s.x, s.y, 2, 2);
+  }
+
+  ctx.fillStyle = '#1f212b';
+  ctx.fillRect(0, h * 0.65, w, h * 0.35);
+}
+
+function drawInvader(inv, t) {
+  if (inv.taken) return;
+  const bob = Math.sin(t * 0.003 + inv.phase) * 0.2;
+  const cam = toCam({ x: inv.x, y: inv.y + bob, z: inv.z });
+  const p = project(cam);
+  if (!p) return;
+
+  const px = Math.max(2, p.s * 0.09);
+  const size = inv.size * px;
+  const ox = p.x - size / 2;
+  const oy = p.y - size / 2;
+
+  ctx.fillStyle = 'rgba(6,10,20,.96)';
+  ctx.fillRect(ox - 7, oy - 7, size + 14, size + 14);
+
+  ctx.shadowColor = inv.glow;
+  ctx.shadowBlur = Math.min(45, p.s * 0.7);
+  ctx.fillStyle = inv.glow;
+  for (let y = 0; y < inv.size; y++) {
+    for (let x = 0; x < inv.size; x++) {
+      if (inv.pattern[y][x]) ctx.fillRect(ox + x * px, oy + y * px, px - 0.15, px - 0.15);
+    }
+  }
+  ctx.shadowBlur = 0;
+  inv._screen = { x: p.x, y: p.y, depth: cam.z };
+}
+
+function drawReticle() {
+  const cx = w / 2, cy = h / 2;
+  ctx.strokeStyle = 'rgba(229,244,255,.95)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 19, 0, Math.PI * 2);
+  ctx.moveTo(cx - 29, cy); ctx.lineTo(cx + 29, cy);
+  ctx.moveTo(cx, cy - 29); ctx.lineTo(cx, cy + 29);
+  ctx.stroke();
+}
+
+function update(dt) {
+  player.yaw += look.x * dt * 0.00135;
+  player.pitch = Math.max(-0.78, Math.min(0.78, player.pitch + look.y * dt * 0.00135));
+
+  const sp = dt * 0.01;
+  player.x += (Math.cos(player.yaw) * move.x + Math.sin(player.yaw) * move.y) * sp;
+  player.z += (-Math.sin(player.yaw) * move.x + Math.cos(player.yaw) * move.y) * sp;
+
+  player.x = Math.max(-6.2, Math.min(6.2, player.x));
+  player.z = Math.max(-165, Math.min(240, player.z));
+
+  comboTimer = Math.max(0, comboTimer - dt / 1000);
+  if (comboTimer === 0) combo = 1;
+}
+
+function attemptCapture() {
+  if (!running) return;
+  let best = null;
+  const cx = w / 2, cy = h / 2;
+  for (const inv of invaders) {
+    if (inv.taken || !inv._screen) continue;
+    const d = Math.hypot(inv._screen.x - cx, inv._screen.y - cy);
+    if (d < 82 && inv._screen.depth < 45 && (!best || d < best.d)) best = { inv, d };
+  }
+  if (!best) return;
+
+  best.inv.taken = true;
+  score += Math.round(best.inv.value * combo);
+  combo = Math.min(9, combo + 0.55);
+  bestCombo = Math.max(bestCombo, combo);
+  comboTimer = 3.6;
+  flash = 180;
+
+  scoreEl.textContent = `Score: ${score}`;
+  comboEl.textContent = `Combo x${combo.toFixed(1)}`;
+}
+
+function formatTime(v) {
+  const m = Math.floor(v / 60), s = Math.floor(v % 60);
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function startGame() {
+  score = 0; timeLeft = 120; running = true; combo = 1; comboTimer = 0; bestCombo = 1;
+  overlay.style.display = 'none';
+  scoreEl.textContent = 'Score: 0';
+  comboEl.textContent = 'Combo x1.0';
+  timerEl.textContent = '02:00';
+  player.x = 0; player.y = 2; player.z = 0; player.yaw = 0; player.pitch = 0;
+  move.x = move.y = look.x = look.y = 0;
+  seedWorld();
+}
+
+function showIntro() {
+  overlay.style.display = 'grid';
+  panel.innerHTML = `
+    <div class="eyebrow">Mode concours — iPhone optimisé</div>
+    <h1>Invader Hunt:<br/>Aurora Protocol</h1>
+    <p>Nouvelle version: bouton de démarrage fiabilisé, interface lisible sur mobile et gameplay beaucoup plus nerveux.</p>
+    <div class="features">
+      <div class="feature"><b>Direction AAA</b>Fond cinématique néon, HUD premium, effets de capture renforcés.</div>
+      <div class="feature"><b>Gameplay solide</b>Déplacement + visée séparés, combo progressif, patterns variés.</div>
+      <div class="feature"><b>Mobile first</b>Safe areas iOS, gros CTA, interactions tactiles non bloquées.</div>
+    </div>
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button">Démarrer la mission</button>
+    </div>`;
+  document.getElementById('startBtn').addEventListener('pointerup', (e) => { e.preventDefault(); startGame(); }, { once: true });
+}
+
+function showEnd() {
+  running = false;
+  overlay.style.display = 'grid';
+  panel.innerHTML = `
+    <div class="eyebrow">Mission terminée</div>
+    <h2>Score ${score}</h2>
+    <p>Combo maximum: <b>x${bestCombo.toFixed(1)}</b></p>
+    <p>Astuce: visez le centre exact pour garder le multiplicateur actif.</p>
+    <div class="actions">
+      <button id="restartBtn" class="primary" type="button">Rejouer</button>
+    </div>`;
+  document.getElementById('restartBtn').addEventListener('pointerup', (e) => { e.preventDefault(); startGame(); }, { once: true });
+}
+
+let prev = performance.now();
+function loop(now) {
+  const dt = now - prev;
+  prev = now;
+
+  if (running) {
+    update(dt);
+    timeLeft = Math.max(0, timeLeft - dt / 1000);
+    timerEl.textContent = formatTime(timeLeft);
+    if (timeLeft === 0) showEnd();
+  }
+
+  drawBackground();
+  invaders.sort((a, b) => (b._screen?.depth || 0) - (a._screen?.depth || 0));
+  for (const inv of invaders) drawInvader(inv, now);
+  drawReticle();
+
+  if (flash > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${flash / 260})`;
+    ctx.fillRect(0, 0, w, h);
+    flash -= dt;
+  }
+
+  requestAnimationFrame(loop);
+}
+
+const touches = new Map();
+function resetControls() { move.x = move.y = look.x = look.y = 0; }
+function updateTouchControls() {
+  resetControls();
+  for (const t of touches.values()) {
+    if (t.side === 'left') {
+      move.x += (t.y - h * 0.78) / 26;
+      move.y += (t.x - w * 0.24) / 34;
+    } else {
+      look.x += (t.x - w * 0.78) / 22;
+      look.y += (t.y - h * 0.42) / 22;
+    }
+  }
+}
+
+addEventListener('touchstart', (e) => {
+  if (overlay.style.display !== 'none') return;
+  for (const t of e.changedTouches) touches.set(t.identifier, { x: t.clientX, y: t.clientY, side: t.clientX < w * 0.5 ? 'left' : 'right' });
+  updateTouchControls();
+  e.preventDefault();
+}, { passive: false });
+
+addEventListener('touchmove', (e) => {
+  for (const t of e.changedTouches) {
+    if (touches.has(t.identifier)) touches.set(t.identifier, { x: t.clientX, y: t.clientY, side: touches.get(t.identifier).side });
+  }
+  updateTouchControls();
+  e.preventDefault();
+}, { passive: false });
+
+addEventListener('touchend', (e) => {
+  for (const t of e.changedTouches) touches.delete(t.identifier);
+  updateTouchControls();
+}, { passive: false });
+
+let mouseDown = false;
+addEventListener('mousedown', (e) => {
+  if (overlay.style.display !== 'none') return;
+  if (e.target.closest('button')) return;
+  mouseDown = true;
+});
+addEventListener('mouseup', () => { mouseDown = false; resetControls(); });
+addEventListener('mousemove', (e) => {
+  if (!mouseDown || overlay.style.display !== 'none') return;
+  look.x = e.movementX * 0.6;
+  look.y = e.movementY * 0.6;
+  move.x = -1;
+});
+
+captureBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  attemptCapture();
+});
+
+resize();
+addEventListener('resize', resize);
+seedWorld();
+showIntro();
 requestAnimationFrame(loop);
-function renderIntro(){ panel.innerHTML = `<h1>Invader Hunt</h1><div class='subtitle'>Neon Safari • Édition concours</div><p>Chasse les mosaïques extraterrestres dans les ruelles néon. Plus tu captures vite et précis, plus ton combo explose.</p><div class='stats'><div class='stat'>Précision<b>Réticule central</b></div><div class='stat'>Vitesse<b>Combo 3.5 sec</b></div><div class='stat'>Contrôle<b>2 zones tactiles</b></div></div><button class='primary' id='start'>Lancer la mission</button>`; document.getElementById('start').addEventListener('click', start, {once:false}); }
-function endGame(){ running=false; overlay.style.display='flex'; panel.innerHTML = `<h2>Mission terminée</h2><p>Score final: <b>${score}</b></p><p>Combo max: <b>x${bestCombo.toFixed(1)}</b></p><button class='primary' id='restart'>Rejouer</button>`; document.getElementById('restart').addEventListener('click', start); }
-function start(){ score=0; timeLeft=120; running=true; combo=1; comboT=0; bestCombo=1; overlay.style.display='none'; invaders.forEach(v=>v.taken=false); player.x=0; player.y=2.2; player.z=0; player.yaw=0; player.pitch=0; scoreEl.textContent='Score: 0'; comboEl.textContent='Combo x1'; }
-renderIntro();
-captureBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); attemptCapture(); });
-function bindTouch(e){ if (e.target.closest('.overlay') || e.target.closest('#capture')) return; const t=[...e.touches]; if(t[0]){ if(t[0].clientX<innerWidth*0.5){ move.x=(t[0].clientY-innerHeight*0.78)/28; move.y=(t[0].clientX-innerWidth*0.2)/36; } else { look.x=(t[0].clientX-innerWidth*0.8)/24; look.y=(t[0].clientY-innerHeight*0.4)/24; } } if(t[1]){ const a=t[0],b=t[1]; const L=a.clientX<b.clientX?a:b, R=a.clientX<b.clientX?b:a; move.x=(L.clientY-innerHeight*0.78)/28; move.y=(L.clientX-innerWidth*0.2)/36; look.x=(R.clientX-innerWidth*0.8)/24; look.y=(R.clientY-innerHeight*0.4)/24; } if(!t.length){ move.x=move.y=look.x=look.y=0; } e.preventDefault(); }
-addEventListener('touchstart',bindTouch,{passive:false}); addEventListener('touchmove',bindTouch,{passive:false}); addEventListener('touchend',bindTouch,{passive:false});
-let mouseDown=false; addEventListener('mousedown',e=>{ if(e.target.closest('button')||e.target.closest('.overlay')) return; mouseDown=true; }); addEventListener('mouseup',()=>{mouseDown=false;move.x=move.y=look.x=look.y=0;}); addEventListener('mousemove',e=>{ if(!mouseDown) return; look.x=e.movementX*0.62; look.y=e.movementY*0.62; move.x=-1; });
 </script>
 </body>
 </html>
