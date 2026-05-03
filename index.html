@@ -402,8 +402,12 @@ function loop(now) {
 
   drawBackground();
   invaders.sort((a, b) => (b._screen?.depth || 0) - (a._screen?.depth || 0));
-  for (const inv of invaders) drawInvader(inv, now);
+  if (running) {
+    for (const inv of invaders) drawInvader(inv, now);
+  }
   drawReticle();
+
+  if (running && invaders.every((inv) => inv.taken)) seedWorld();
 
   if (flash > 0) {
     ctx.fillStyle = `rgba(255,255,255,${flash / 260})`;
@@ -416,29 +420,43 @@ function loop(now) {
 
 const touches = new Map();
 function resetControls() { move.x = move.y = look.x = look.y = 0; }
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 function updateTouchControls() {
   resetControls();
   for (const t of touches.values()) {
+    const dx = t.x - t.startX;
+    const dy = t.y - t.startY;
     if (t.side === 'left') {
-      move.x += (t.y - h * 0.78) / 26;
-      move.y += (t.x - w * 0.24) / 34;
+      move.x += clamp(dy / 34, -1.6, 1.6);
+      move.y += clamp(dx / 34, -1.6, 1.6);
     } else {
-      look.x += (t.x - w * 0.78) / 22;
-      look.y += (t.y - h * 0.42) / 22;
+      look.x += clamp(dx / 6.5, -18, 18);
+      look.y += clamp(dy / 6.5, -18, 18);
     }
   }
 }
 
 addEventListener('touchstart', (e) => {
   if (overlay.style.display !== 'none') return;
-  for (const t of e.changedTouches) touches.set(t.identifier, { x: t.clientX, y: t.clientY, side: t.clientX < w * 0.5 ? 'left' : 'right' });
+  for (const t of e.changedTouches) {
+    touches.set(t.identifier, {
+      x: t.clientX,
+      y: t.clientY,
+      startX: t.clientX,
+      startY: t.clientY,
+      side: t.clientX < w * 0.5 ? 'left' : 'right'
+    });
+  }
   updateTouchControls();
   e.preventDefault();
 }, { passive: false });
 
 addEventListener('touchmove', (e) => {
   for (const t of e.changedTouches) {
-    if (touches.has(t.identifier)) touches.set(t.identifier, { x: t.clientX, y: t.clientY, side: touches.get(t.identifier).side });
+    if (touches.has(t.identifier)) {
+      const prev = touches.get(t.identifier);
+      touches.set(t.identifier, { ...prev, x: t.clientX, y: t.clientY });
+    }
   }
   updateTouchControls();
   e.preventDefault();
