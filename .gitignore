@@ -1,0 +1,23 @@
+node_modules/
+dist/
+build/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+.railway/
+
+# Local artefacts
+.data/
+playwright-report/
+test-results/
+shots/
+.DS_Store
+*.log

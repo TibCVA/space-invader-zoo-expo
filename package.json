@@ -1,0 +1,38 @@
+{
+  "name": "hmm-auvergne",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Heroes of Might and Magic — Auvergne Edition",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n client,server -c cyan,magenta \"pnpm --filter @auvergne/client dev\" \"pnpm --filter @auvergne/server dev\"",
+    "dev:client": "pnpm --filter @auvergne/client dev",
+    "dev:server": "pnpm --filter @auvergne/server dev",
+    "build": "pnpm --filter @auvergne/client build && pnpm --filter @auvergne/server build",
+    "start": "node apps/server/dist/server.js",
+    "typecheck": "pnpm -r --parallel typecheck",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "sim": "pnpm --filter @auvergne/worker sim",
+    "e2e": "playwright test",
+    "shots": "node tools/screenshot.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^22.10.5",
+    "concurrently": "^9.1.2",
+    "esbuild": "^0.28.2",
+    "eslint": "^9.37.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.67.0",
+    "vitest": "^4.1.10"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  }
+}
