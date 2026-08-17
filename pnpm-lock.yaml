@@ -44,6 +44,9 @@ importers:
       '@auvergne/engine':
         specifier: workspace:*
         version: link:../../packages/engine
+      '@auvergne/game':
+        specifier: workspace:*
+        version: link:../../packages/game
       '@auvergne/map':
         specifier: workspace:*
         version: link:../../packages/map
@@ -99,6 +102,9 @@ importers:
       '@auvergne/engine':
         specifier: workspace:*
         version: link:../../packages/engine
+      '@auvergne/game':
+        specifier: workspace:*
+        version: link:../../packages/game
       '@auvergne/map':
         specifier: workspace:*
         version: link:../../packages/map
@@ -145,6 +151,9 @@ importers:
       '@auvergne/engine':
         specifier: workspace:*
         version: link:../../packages/engine
+      '@auvergne/game':
+        specifier: workspace:*
+        version: link:../../packages/game
       '@auvergne/map':
         specifier: workspace:*
         version: link:../../packages/map
@@ -161,6 +170,9 @@ importers:
       '@auvergne/engine':
         specifier: workspace:*
         version: link:../engine
+      '@auvergne/game':
+        specifier: workspace:*
+        version: link:../game
       '@auvergne/map':
         specifier: workspace:*
         version: link:../map
@@ -172,6 +184,18 @@ importers:
         version: link:../engine
 
   packages/engine: {}
+
+  packages/game:
+    dependencies:
+      '@auvergne/content':
+        specifier: workspace:*
+        version: link:../content
+      '@auvergne/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@auvergne/map':
+        specifier: workspace:*
+        version: link:../map
 
   packages/map:
     dependencies:

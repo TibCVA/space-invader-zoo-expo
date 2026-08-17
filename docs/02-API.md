@@ -267,3 +267,38 @@ export class AudioEngine {
 }
 export type SfxKey = 'clic'|'clic_lourd'|'page'|'piece'|'construction'|'recrutement'|'pas_terre'|'pas_pierre'|'epee'|'arc'|'impact'|'mort'|'sort'|'victoire'|'defaite'|'alerte'|'borne'|'niveau';
 ```
+
+---
+
+## Racine de composition — `@auvergne/game`
+
+`packages/engine` est **pur** : il ne peut pas importer `@auvergne/content` ni
+`@auvergne/map` (ce sont eux qui dépendent du moteur). Le moteur déclare donc des
+contrats et les reçoit par **injection** :
+
+- `linkEngineModules({ content, map, world, combat })` — `packages/engine/src/core/registry.ts`
+- `setCombatContent({ creature, spell, skill, artifact })` — `packages/engine/src/combat/content.ts`
+
+Tant que rien n'est branché, le moteur utilise des implémentations de repli
+(`core/fallback-*.ts`, `combat/creatures.ts`) : il reste jouable et testable seul.
+**Ces replis ne sont pas le contenu du jeu.**
+
+`packages/game` est le SEUL endroit où le branchement a lieu :
+
+```ts
+import { bootstrapEngine } from '@auvergne/game';
+bootstrapEngine();            // idempotent, à appeler une fois au démarrage
+```
+
+Tout consommateur (client, serveur, worker, bots, tests d'intégration) appelle
+`bootstrapEngine()` avant le premier `createGame`, puis importe normalement depuis
+`@auvergne/engine` (ou depuis `@auvergne/game`, qui le réexporte).
+
+Un agent qui écrit du code consommant le moteur **doit** appeler `bootstrapEngine()`
+et ne doit jamais importer `core/fallback-*.ts`.
+
+### Baril du moteur
+
+`@auvergne/engine` réexporte à plat `types`, `rng`, `hash`, `core/`, `combat/` et
+`world/`. En cas de collision de noms entre sous-modules, la version de `core/`
+fait autorité (levée d'ambiguïté explicite dans `packages/engine/src/index.ts`).

@@ -13,6 +13,7 @@
     "@auvergne/bots": "workspace:*",
     "@auvergne/content": "workspace:*",
     "@auvergne/engine": "workspace:*",
+    "@auvergne/game": "workspace:*",
     "@auvergne/map": "workspace:*",
     "@auvergne/protocol": "workspace:*",
     "@auvergne/ui": "workspace:*",

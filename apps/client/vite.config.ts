@@ -9,6 +9,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@auvergne/engine': r('../../packages/engine/src/index.ts'),
+      '@auvergne/game': r('../../packages/game/src/index.ts'),
       '@auvergne/content': r('../../packages/content/src/index.ts'),
       '@auvergne/map': r('../../packages/map/src/index.ts'),
       '@auvergne/bots': r('../../packages/bots/src/index.ts'),

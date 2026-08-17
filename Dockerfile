@@ -11,6 +11,7 @@ COPY apps/client/package.json ./apps/client/
 COPY apps/server/package.json ./apps/server/
 COPY apps/worker/package.json ./apps/worker/
 COPY packages/engine/package.json ./packages/engine/
+COPY packages/game/package.json ./packages/game/
 COPY packages/content/package.json ./packages/content/
 COPY packages/map/package.json ./packages/map/
 COPY packages/bots/package.json ./packages/bots/
