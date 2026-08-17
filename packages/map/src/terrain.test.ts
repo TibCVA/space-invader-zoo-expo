@@ -1,0 +1,253 @@
+import { describe, expect, it } from 'vitest';
+import {
+  CELL_BRIDGE,
+  CELL_BUILDABLE,
+  CELL_CACHE,
+  CELL_EDGE,
+  CELL_PASSABLE,
+  CELL_ROAD,
+  TERRAINS,
+  TERRAIN_COST,
+  type Terrain,
+} from '@auvergne/engine';
+import { buildTerrain } from './build.js';
+import { CELLS, COLS, ROWS, idx } from './grid.js';
+import { buildHydrography } from './hydrography.js';
+import { FOREST_LABELS, distanceToWater, forestKindAt } from './terrain.js';
+
+const field = buildTerrain();
+const hydro = buildHydrography();
+const name = (i: number): Terrain => TERRAINS[field.terrain[i]];
+
+function census(): Record<Terrain, number> {
+  const out = {} as Record<Terrain, number>;
+  for (const t of TERRAINS) out[t] = 0;
+  for (let i = 0; i < CELLS; i++) out[name(i)]++;
+  return out;
+}
+
+describe('biomes — répartition', () => {
+  const counts = census();
+
+  it('emploie les huit terrains du contrat', () => {
+    for (const t of TERRAINS) {
+      expect(counts[t], `terrain absent : ${t}`).toBeGreaterThan(0);
+    }
+  });
+
+  it('dessine un massif boisé, pas une lande ni une futaie continue', () => {
+    expect(counts.foret * 100).toBeGreaterThan(CELLS * 25);
+    expect(counts.foret * 100).toBeLessThan(CELLS * 60);
+    expect(counts.prairie * 100).toBeGreaterThan(CELLS * 20);
+    expect(counts.prairie * 100).toBeLessThan(CELLS * 60);
+  });
+
+  it('garde les terrains coûteux minoritaires', () => {
+    expect(counts.rocher * 100).toBeLessThan(CELLS * 6);
+    expect(counts.pente * 100).toBeLessThan(CELLS * 16);
+    expect(counts.humide * 100).toBeLessThan(CELLS * 10);
+    expect(counts.eau * 100).toBeLessThan(CELLS * 3);
+  });
+
+  it('ne pave pas la carte de routes', () => {
+    expect((counts.route + counts.chemin) * 100).toBeLessThan(CELLS * 5);
+    expect(counts.route).toBeGreaterThan(300);
+    expect(counts.chemin).toBeGreaterThan(700);
+  });
+});
+
+describe('biomes — logique altitudinale', () => {
+  it('met le rocher sur les crêtes, pas dans les vallées', () => {
+    let rockAlt = 0;
+    let rock = 0;
+    let meadowAlt = 0;
+    let meadow = 0;
+    for (let i = 0; i < CELLS; i++) {
+      if (name(i) === 'rocher') {
+        rockAlt += field.elevation[i];
+        rock++;
+      } else if (name(i) === 'prairie') {
+        meadowAlt += field.elevation[i];
+        meadow++;
+      }
+    }
+    expect(rock).toBeGreaterThan(200);
+    expect(Math.trunc(rockAlt / rock)).toBeGreaterThan(Math.trunc(meadowAlt / meadow) + 80);
+  });
+
+  it('met la forte pente sur les versants raides', () => {
+    let sum = 0;
+    let n = 0;
+    for (let i = 0; i < CELLS; i++) {
+      if (name(i) !== 'pente') continue;
+      sum += field.slope[i];
+      n++;
+    }
+    expect(n).toBeGreaterThan(500);
+    expect(Math.trunc(sum / n)).toBeGreaterThanOrEqual(13);
+  });
+
+  it('met la prairie dans les fonds : plus plate que la moyenne', () => {
+    let meadow = 0;
+    let meadowSlope = 0;
+    let all = 0;
+    for (let i = 0; i < CELLS; i++) {
+      all += field.slope[i];
+      if (name(i) !== 'prairie') continue;
+      meadowSlope += field.slope[i];
+      meadow++;
+    }
+    expect(meadowSlope / meadow).toBeLessThan(all / CELLS);
+  });
+
+  it('distingue sapinière, hêtraie-sapinière et hêtraie', () => {
+    expect(forestKindAt(field.elevation, 154, 151)).toBe('sapiniere');
+    expect(forestKindAt(field.elevation, 117, 25)).toBe('hetraie');
+    const kinds = new Set<string>();
+    for (let i = 0; i < CELLS; i += 37) {
+      if (name(i) !== 'foret') continue;
+      kinds.add(forestKindAt(field.elevation, i % COLS, (i / COLS) | 0));
+    }
+    expect(kinds.size).toBe(3);
+    for (const k of Object.values(FOREST_LABELS)) expect(k.length).toBeGreaterThan(4);
+  });
+
+  it('classe les tourbières en zone humide', () => {
+    let bog = 0;
+    let wet = 0;
+    for (let i = 0; i < CELLS; i++) {
+      if (hydro.bog[i] !== 1) continue;
+      if (hydro.water[i] === 1) continue;
+      if ((field.flags[i] & CELL_ROAD) !== 0) continue;
+      bog++;
+      if (name(i) === 'humide' || name(i) === 'prairie') wet++;
+    }
+    expect(bog).toBeGreaterThan(100);
+    expect(wet * 100).toBeGreaterThan(bog * 85);
+  });
+});
+
+describe('drapeaux — cohérence avec le terrain', () => {
+  it('n’ouvre CELL_PASSABLE que là où l’on peut réellement passer', () => {
+    const faults: string[] = [];
+    for (let i = 0; i < CELLS; i++) {
+      const isWater = name(i) === 'eau';
+      const passable = (field.flags[i] & CELL_PASSABLE) !== 0;
+      const bridged = (field.flags[i] & CELL_BRIDGE) !== 0;
+      const ok = isWater ? passable === bridged : passable;
+      if (!ok && faults.length < 12) faults.push(`${i % COLS},${(i / COLS) | 0} (${name(i)})`);
+    }
+    expect(faults).toEqual([]);
+  });
+
+  it('ne pose jamais de pont hors de l’eau', () => {
+    for (let i = 0; i < CELLS; i++) {
+      if ((field.flags[i] & CELL_BRIDGE) === 0) continue;
+      expect(name(i)).toBe('eau');
+    }
+  });
+
+  it('donne un coût fini à toute case franchissable', () => {
+    let infinite = 0;
+    for (let i = 0; i < CELLS; i++) {
+      if ((field.flags[i] & CELL_PASSABLE) === 0) continue;
+      const cost = name(i) === 'eau' ? TERRAIN_COST.chemin : TERRAIN_COST[name(i)];
+      if (cost >= Number.MAX_SAFE_INTEGER) infinite++;
+    }
+    expect(infinite).toBe(0);
+  });
+
+  it('lève CELL_ROAD exactement sur les voies', () => {
+    for (let i = 0; i < CELLS; i++) {
+      const road = (field.flags[i] & CELL_ROAD) !== 0;
+      const isRoadTerrain = name(i) === 'route' || name(i) === 'chemin';
+      if (isRoadTerrain) expect(road).toBe(true);
+      // Un pont porte CELL_ROAD sans être un terrain de route : c'est légitime.
+      if (road && !isRoadTerrain) expect(name(i)).toBe('eau');
+    }
+  });
+
+  it('n’autorise les caches que sur les couverts qui les justifient', () => {
+    const wrong = new Set<string>();
+    for (let i = 0; i < CELLS; i++) {
+      if ((field.flags[i] & CELL_CACHE) === 0) continue;
+      const t = name(i);
+      if (t !== 'foret' && t !== 'rocher' && t !== 'humide') wrong.add(t);
+    }
+    expect([...wrong]).toEqual([]);
+  });
+
+  it('ne rend constructible que du terrain plat, sec et hors voie', () => {
+    let buildable = 0;
+    let wet = 0;
+    let steep = 0;
+    let paved = 0;
+    for (let i = 0; i < CELLS; i++) {
+      if ((field.flags[i] & CELL_BUILDABLE) === 0) continue;
+      buildable++;
+      if (name(i) === 'eau') wet++;
+      if (field.slope[i] > 16) steep++;
+      if (name(i) === 'route' || name(i) === 'chemin') paved++;
+    }
+    expect(buildable).toBeGreaterThan(5000);
+    expect(wet).toBe(0);
+    expect(steep).toBe(0);
+    expect(paved).toBe(0);
+  });
+
+  it('marque les lisières et rien qu’elles', () => {
+    let edges = 0;
+    let wrongEdges = 0;
+    for (let row = 1; row < ROWS - 1; row++) {
+      for (let col = 1; col < COLS - 1; col++) {
+        const i = idx(col, row);
+        const t = field.terrain[i];
+        const differs =
+          field.terrain[i - 1] !== t ||
+          field.terrain[i + 1] !== t ||
+          field.terrain[i - COLS] !== t ||
+          field.terrain[i + COLS] !== t;
+        if (((field.flags[i] & CELL_EDGE) !== 0) !== differs) wrongEdges++;
+        if (differs) edges++;
+      }
+    }
+    expect(wrongEdges).toBe(0);
+    expect(edges).toBeGreaterThan(5000);
+  });
+});
+
+describe('humidité et proximité de l’eau', () => {
+  it('mesure une distance à l’eau croissante et bornée', () => {
+    const dist = distanceToWater();
+    expect(dist.length).toBe(CELLS);
+    let bad = 0;
+    let over = 0;
+    for (let i = 0; i < CELLS; i++) {
+      if (hydro.water[i] === 1 && dist[i] !== 0) bad++;
+      if (dist[i] > 63) over++;
+    }
+    expect(bad).toBe(0);
+    expect(over).toBe(0);
+    // Le voisinage immédiat d'une rivière est à 1.
+    const source = hydro.courses[0][10];
+    expect(dist[idx(source.col + 1, source.row)]).toBeLessThanOrEqual(1);
+  });
+
+  it('installe les prairies plus près de l’eau que les sapinières', () => {
+    const dist = distanceToWater();
+    let meadow = 0;
+    let meadowD = 0;
+    let forest = 0;
+    let forestD = 0;
+    for (let i = 0; i < CELLS; i++) {
+      if (name(i) === 'prairie') {
+        meadowD += dist[i];
+        meadow++;
+      } else if (name(i) === 'foret') {
+        forestD += dist[i];
+        forest++;
+      }
+    }
+    expect(meadowD / meadow).toBeLessThan(forestD / forest);
+  });
+});

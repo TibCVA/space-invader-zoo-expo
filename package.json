@@ -23,6 +23,7 @@
     "shots": "node tools/screenshot.mjs"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.62.1",
     "@types/node": "^22.10.5",
     "concurrently": "^9.1.2",
@@ -33,6 +34,8 @@
     "vitest": "^4.1.10"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

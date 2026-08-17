@@ -14,6 +14,14 @@ export * from './combat/index.js';
 export * from './world/index.js';
 
 /**
+ * Implémentations réelles des sous-modules, exposées en espaces de noms pour
+ * que @auvergne/game puisse les injecter dans le registre du noyau. Le noyau
+ * ne les importe jamais statiquement : sans injection il utiliserait ses replis.
+ */
+export * as worldImpl from './world/index.js';
+export * as combatImpl from './combat/index.js';
+
+/**
  * Levée d'ambiguïté : ces symboles utilitaires existent dans core/ et dans
  * combat/. La version du noyau fait autorité.
  */

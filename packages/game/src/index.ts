@@ -18,8 +18,8 @@ import * as mapPkg from '@auvergne/map';
 import {
   linkEngineModules,
   setCombatContent,
-  combatModule,
-  worldModule,
+  worldImpl,
+  combatImpl,
 } from '@auvergne/engine';
 
 let linked = false;
@@ -34,8 +34,8 @@ export function bootstrapEngine(force = false): void {
   linkEngineModules({
     content: content as unknown as Parameters<typeof linkEngineModules>[0]['content'],
     map: mapPkg as unknown as Parameters<typeof linkEngineModules>[0]['map'],
-    world: worldModule(),
-    combat: combatModule(),
+    world: worldImpl as unknown as Parameters<typeof linkEngineModules>[0]['world'],
+    combat: combatImpl as unknown as Parameters<typeof linkEngineModules>[0]['combat'],
   });
 
   setCombatContent({

@@ -56,7 +56,7 @@ export function recomputeMoraleAndFortune(state: GameState, combat: CombatState)
     const units = livingUnits(combat, side);
     for (const unit of units) {
       let morale = bonuses.morale;
-      let fortune = bonuses.fortune;
+      const fortune = bonuses.fortune;
       for (const ally of alliesOf(combat, unit)) {
         const aura = abilityOf(unitDef(ally), 'morale_aura');
         if (aura) morale += aura.value;
