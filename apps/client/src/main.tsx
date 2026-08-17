@@ -1,2 +1,5 @@
 import { createRoot } from 'react-dom/client';
-createRoot(document.getElementById('root')!).render(<div>Auvergne</div>);
+import { LandingPage } from './landing/index.js';
+createRoot(document.getElementById('root')!).render(
+  <LandingPage hasSave={false} onNewGame={() => {}} onContinue={() => {}} onLoad={() => {}} onCodex={() => {}} onOptions={() => {}} />,
+);

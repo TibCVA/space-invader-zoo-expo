@@ -1,0 +1,847 @@
+/* =========================================================================
+   Heroes of Might and Magic — Auvergne Edition
+   Feuille de style de la COQUILLE : amorçage, écrans, barre de pouce.
+
+   Tout le vocabulaire visuel vient de `packages/ui/src/styles.css` : couleurs,
+   espacements, ombres bleutées, matières procédurales. Rien ici ne redéfinit
+   une couleur hors palette, n'utilise `#fff` ou `#000`, ni un coin très
+   arrondi. Les surfaces portent toujours au moins trois strates (matière,
+   dégradé de valeur, filet) — loi n°1 de la bible artistique.
+   ========================================================================= */
+
+/* ============================ 1. LE DOCUMENT ============================= */
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  /* Fond de granit : jamais d'écran blanc, même avant le premier rendu. */
+  background-color: var(--hmm-surface-nuit);
+  background-image: radial-gradient(
+      120% 90% at 22% 8%,
+      rgba(201, 162, 39, 0.1) 0%,
+      rgba(26, 31, 38, 0) 62%
+    ),
+    linear-gradient(168deg, #232830 0%, #1a1f26 52%, #14181e 100%);
+  color: var(--hmm-texte-clair);
+  font-family: var(--hmm-font-donnee);
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+#root {
+  min-height: 100%;
+  isolation: isolate;
+}
+
+/* Le canevas PixiJS partagé, tant qu'aucun écran ne l'a adopté. */
+.hmm-canevas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+/* ============================ 2. LA COQUILLE ============================= */
+
+.jeu-racine {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  position: relative;
+}
+
+/* Écran occupant toute la hauteur, avec ses propres marges de sécurité. */
+.jeu-ecran {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-left: var(--hmm-safe-gauche);
+  padding-right: var(--hmm-safe-droite);
+}
+
+.jeu-ecran--defile {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Colonne de lecture des écrans de données. */
+.jeu-page {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: clamp(var(--hmm-space-4), 3vw, var(--hmm-space-10));
+  padding-top: calc(clamp(var(--hmm-space-4), 3vw, var(--hmm-space-10)) + var(--hmm-safe-haut));
+  padding-bottom: calc(var(--hmm-space-20) + var(--hmm-safe-bas));
+  display: flex;
+  flex-direction: column;
+  gap: var(--hmm-space-6);
+}
+
+/* ── Bandeau supérieur ─────────────────────────────────────────────────── */
+
+.jeu-bandeau {
+  position: sticky;
+  top: 0;
+  z-index: var(--hmm-z-bandeau);
+  display: flex;
+  align-items: center;
+  gap: var(--hmm-space-3);
+  padding: var(--hmm-space-2) clamp(var(--hmm-space-3), 2vw, var(--hmm-space-6));
+  padding-top: calc(var(--hmm-space-2) + var(--hmm-safe-haut));
+  background-image: var(--hmm-tex-granit-image),
+    linear-gradient(180deg, rgba(255, 233, 194, 0.08) 0%, rgba(26, 31, 38, 0.86) 100%);
+  background-size: var(--hmm-tex-granit-size), 100% 100%;
+  background-repeat: var(--hmm-tex-granit-repeat), no-repeat;
+  border-bottom: var(--hmm-filet) solid var(--hmm-or-attenue);
+  box-shadow: var(--hmm-ombre-panneau);
+  min-height: var(--hmm-touch-min);
+}
+
+.jeu-bandeau__titre {
+  font-family: var(--hmm-font-titre);
+  font-size: var(--hmm-fs-moyen);
+  letter-spacing: var(--hmm-ls-titre);
+  text-transform: uppercase;
+  color: var(--hmm-texte-clair);
+  text-shadow: 0 1px 0 rgba(36, 28, 20, 0.55), var(--hmm-halo-or);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jeu-bandeau__espace {
+  flex: 1 1 auto;
+}
+
+.jeu-bandeau__note {
+  font-size: var(--hmm-fs-micro);
+  color: var(--hmm-texte-clair-doux);
+  letter-spacing: 0.04em;
+}
+
+/* ============================ 3. CHARGEMENT ============================== */
+
+.jeu-chargement {
+  position: relative;
+  flex: 1 1 auto;
+  display: grid;
+  place-items: center;
+  padding: var(--hmm-space-8) var(--hmm-space-4);
+  min-height: 100dvh;
+}
+
+.jeu-chargement__voile {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+      70% 55% at 32% 24%,
+      rgba(201, 162, 39, 0.14) 0%,
+      rgba(26, 31, 38, 0) 70%
+    ),
+    radial-gradient(90% 80% at 78% 96%, rgba(110, 31, 42, 0.18) 0%, rgba(26, 31, 38, 0) 72%);
+  pointer-events: none;
+}
+
+.jeu-chargement__carte {
+  position: relative;
+  width: min(560px, 100%);
+  padding: clamp(var(--hmm-space-6), 4vw, var(--hmm-space-12));
+  text-align: center;
+  color: var(--hmm-texte);
+  background-color: var(--hmm-parchemin);
+  background-image: var(--hmm-tex-parchemin-image),
+    radial-gradient(120% 100% at 18% 6%, rgba(255, 233, 194, 0.5) 0%, rgba(201, 185, 150, 0) 58%);
+  background-size: var(--hmm-tex-parchemin-size), 100% 100%;
+  background-repeat: var(--hmm-tex-parchemin-repeat), no-repeat;
+  border: var(--hmm-filet) solid var(--hmm-or-attenue);
+  border-radius: var(--hmm-radius-sm);
+  box-shadow: var(--hmm-ombre-haute);
+}
+
+.jeu-chargement__carte::before {
+  /* Filet d'or intérieur : le double filet de l'enluminure. */
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border: var(--hmm-filet-fin) solid rgba(201, 162, 39, 0.55);
+  border-radius: var(--hmm-radius-xs);
+  pointer-events: none;
+}
+
+.jeu-chargement__enseigne {
+  font-family: var(--hmm-font-titre);
+  font-weight: 700;
+  font-size: var(--hmm-fs-grand);
+  letter-spacing: var(--hmm-ls-titre);
+  text-transform: uppercase;
+  color: var(--hmm-encre);
+  margin: 0 0 var(--hmm-space-2);
+  text-shadow: 0 1px 0 rgba(255, 233, 194, 0.6);
+}
+
+.jeu-chargement__sous {
+  font-family: var(--hmm-font-donnee);
+  font-size: var(--hmm-fs-petit);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hmm-texte-doux);
+  margin: 0 0 var(--hmm-space-6);
+}
+
+.jeu-chargement__jauge {
+  position: relative;
+  height: 14px;
+  border: var(--hmm-filet-fin) solid rgba(36, 28, 20, 0.4);
+  border-radius: var(--hmm-radius-xs);
+  background-image: linear-gradient(180deg, #cbbb98 0%, #ded1b2 60%, #cbbb98 100%);
+  box-shadow: var(--hmm-ombre-enfonce);
+  overflow: hidden;
+}
+
+.jeu-chargement__jauge-remplie {
+  height: 100%;
+  background-image: linear-gradient(180deg, #e6c65c 0%, #c9a227 46%, #9e7c1b 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 233, 194, 0.55), 0 0 10px rgba(201, 162, 39, 0.4);
+  transition: width var(--hmm-duree-lente) var(--hmm-courbe);
+}
+
+.jeu-chargement__etat {
+  margin: var(--hmm-space-3) 0 0;
+  font-size: var(--hmm-fs-petit);
+  color: var(--hmm-texte-doux);
+  letter-spacing: 0.03em;
+  min-height: 1.4em;
+}
+
+.jeu-chargement__citation {
+  margin: var(--hmm-space-8) 0 0;
+  font-family: var(--hmm-font-recit);
+  font-style: italic;
+  font-size: var(--hmm-fs-lecture);
+  line-height: var(--hmm-lh-recit);
+  color: var(--hmm-texte-doux);
+}
+
+.jeu-chargement__source {
+  display: block;
+  margin-top: var(--hmm-space-2);
+  font-family: var(--hmm-font-titre);
+  font-style: normal;
+  font-size: var(--hmm-fs-micro);
+  letter-spacing: var(--hmm-ls-cartouche);
+  text-transform: uppercase;
+  color: rgba(36, 28, 20, 0.62);
+}
+
+.jeu-chargement__filet {
+  width: 76px;
+  height: 10px;
+  margin: var(--hmm-space-6) auto 0;
+  background-image: linear-gradient(90deg, rgba(201, 162, 39, 0) 0%, var(--hmm-or) 50%, rgba(201, 162, 39, 0) 100%);
+  clip-path: polygon(0 45%, 34% 45%, 50% 0, 66% 45%, 100% 45%, 100% 55%, 66% 55%, 50% 100%, 34% 55%, 0 55%);
+}
+
+/* ============================== 4. PANNE ================================= */
+
+.jeu-panne {
+  flex: 1 1 auto;
+  display: grid;
+  place-items: center;
+  padding: var(--hmm-space-8) var(--hmm-space-4);
+  min-height: 60dvh;
+}
+
+.jeu-panne__carte {
+  width: min(620px, 100%);
+  padding: clamp(var(--hmm-space-5), 3vw, var(--hmm-space-10));
+  background-color: var(--hmm-parchemin);
+  background-image: var(--hmm-tex-parchemin-image);
+  background-size: var(--hmm-tex-parchemin-size);
+  background-repeat: var(--hmm-tex-parchemin-repeat);
+  border: var(--hmm-filet) solid var(--hmm-danger);
+  border-radius: var(--hmm-radius-sm);
+  box-shadow: var(--hmm-ombre-haute);
+  color: var(--hmm-texte);
+}
+
+.jeu-panne__titre {
+  font-family: var(--hmm-font-titre);
+  font-size: var(--hmm-fs-grand);
+  letter-spacing: var(--hmm-ls-titre);
+  text-transform: uppercase;
+  margin: 0 0 var(--hmm-space-3);
+  color: var(--hmm-grenat);
+}
+
+.jeu-panne__texte {
+  font-family: var(--hmm-font-recit);
+  font-size: var(--hmm-fs-lecture);
+  line-height: var(--hmm-lh-recit);
+  margin: 0 0 var(--hmm-space-3);
+}
+
+.jeu-panne__conseil {
+  font-size: var(--hmm-fs-petit);
+  color: var(--hmm-texte-doux);
+  margin: 0 0 var(--hmm-space-5);
+}
+
+.jeu-panne__technique {
+  font-family: var(--hmm-font-donnee);
+  font-size: var(--hmm-fs-micro);
+  color: rgba(36, 28, 20, 0.6);
+  word-break: break-word;
+  margin: var(--hmm-space-4) 0 0;
+  padding-top: var(--hmm-space-3);
+  border-top: var(--hmm-filet-fin) solid var(--hmm-separateur);
+}
+
+/* ========================= 5. SCÈNE ACCÉLÉRÉE ============================ */
+
+.jeu-scene {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+  background-image: linear-gradient(178deg, #232830 0%, #1a1f26 100%);
+}
+
+.jeu-scene__toile {
+  position: absolute;
+  inset: 0;
+}
+
+.jeu-scene__toile > canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Bandeau d'information posé sur la scène, en bas à gauche. */
+.jeu-scene__legende {
+  position: absolute;
+  left: calc(var(--hmm-space-4) + var(--hmm-safe-gauche));
+  bottom: calc(var(--hmm-space-4) + var(--hmm-safe-bas));
+  max-width: min(420px, calc(100% - var(--hmm-space-8)));
+  padding: var(--hmm-space-3) var(--hmm-space-4);
+  background-image: linear-gradient(170deg, rgba(42, 44, 47, 0.92) 0%, rgba(26, 31, 38, 0.94) 100%);
+  border: var(--hmm-filet-fin) solid var(--hmm-or-attenue);
+  border-radius: var(--hmm-radius-sm);
+  box-shadow: var(--hmm-ombre-panneau);
+  color: var(--hmm-texte-clair);
+  font-size: var(--hmm-fs-petit);
+  line-height: var(--hmm-lh-normal);
+}
+
+/* ==================== 6. PANNEAU « EN CONSTRUCTION » ===================== */
+
+.jeu-chantier {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--hmm-space-6);
+  pointer-events: none;
+}
+
+.jeu-chantier__carte {
+  pointer-events: auto;
+  width: min(520px, 100%);
+  text-align: center;
+  padding: clamp(var(--hmm-space-5), 3vw, var(--hmm-space-8));
+  background-color: var(--hmm-parchemin);
+  background-image: var(--hmm-tex-parchemin-image);
+  background-size: var(--hmm-tex-parchemin-size);
+  background-repeat: var(--hmm-tex-parchemin-repeat);
+  border: var(--hmm-filet) solid var(--hmm-or-attenue);
+  border-radius: var(--hmm-radius-sm);
+  box-shadow: var(--hmm-ombre-haute);
+  color: var(--hmm-texte);
+}
+
+/* ============================ 7. AVIS ET ÉTAT ============================ */
+
+.jeu-avis {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--hmm-space-16) + var(--hmm-safe-bas));
+  z-index: var(--hmm-z-toast);
+  max-width: min(520px, calc(100vw - var(--hmm-space-8)));
+  padding: var(--hmm-space-3) var(--hmm-space-5);
+  background-image: linear-gradient(172deg, #3a2a1c 0%, #241c14 100%);
+  border: var(--hmm-filet-fin) solid var(--hmm-avertissement);
+  border-radius: var(--hmm-radius-sm);
+  box-shadow: var(--hmm-ombre-haute);
+  color: var(--hmm-texte-clair);
+  font-size: var(--hmm-fs-petit);
+  line-height: var(--hmm-lh-normal);
+  animation: jeu-avis-entree var(--hmm-duree-lente) var(--hmm-courbe);
+}
+
+@keyframes jeu-avis-entree {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* Indicateur discret « enregistré ». */
+.jeu-enregistre {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hmm-space-2);
+  font-size: var(--hmm-fs-micro);
+  letter-spacing: 0.05em;
+  color: var(--hmm-texte-clair-doux);
+  white-space: nowrap;
+}
+
+.jeu-enregistre__pastille {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--hmm-radius-round);
+  background-image: radial-gradient(circle at 32% 30%, #e6c65c 0%, #9e7c1b 100%);
+  box-shadow: 0 0 6px rgba(201, 162, 39, 0.5);
+}
+
+.jeu-enregistre--envoi .jeu-enregistre__pastille {
+  animation: jeu-pouls 1400ms var(--hmm-courbe) infinite;
+}
+
+.jeu-enregistre--erreur .jeu-enregistre__pastille {
+  background-image: radial-gradient(circle at 32% 30%, #c1546a 0%, #6e1f2a 100%);
+  box-shadow: 0 0 6px rgba(140, 34, 48, 0.55);
+}
+
+@keyframes jeu-pouls {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ========================= 8. BARRE DE POUCE ============================= */
+
+/* Cinq commandes, à portée de pouce, jamais dépendantes du survol. */
+.jeu-pouce {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--hmm-z-colle);
+  display: none;
+  gap: var(--hmm-space-1);
+  padding: var(--hmm-space-1) calc(var(--hmm-space-2) + var(--hmm-safe-droite))
+    calc(var(--hmm-space-1) + var(--hmm-safe-bas)) calc(var(--hmm-space-2) + var(--hmm-safe-gauche));
+  background-image: var(--hmm-tex-granit-image),
+    linear-gradient(0deg, rgba(20, 24, 30, 0.97) 0%, rgba(42, 44, 47, 0.9) 100%);
+  background-size: var(--hmm-tex-granit-size), 100% 100%;
+  background-repeat: var(--hmm-tex-granit-repeat), no-repeat;
+  border-top: var(--hmm-filet) solid var(--hmm-or-attenue);
+  box-shadow: 0 -6px 18px rgba(42, 50, 66, 0.42);
+}
+
+.jeu-pouce__bouton {
+  flex: 1 1 0;
+  min-height: var(--hmm-touch-min);
+  min-width: var(--hmm-touch-min);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: var(--hmm-space-1) 2px;
+  border: var(--hmm-filet-fin) solid transparent;
+  border-radius: var(--hmm-radius-sm);
+  background: transparent;
+  color: var(--hmm-texte-clair-doux);
+  font-family: var(--hmm-font-donnee);
+  font-size: var(--hmm-fs-micro);
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: color var(--hmm-duree) var(--hmm-courbe),
+    background-color var(--hmm-duree) var(--hmm-courbe),
+    border-color var(--hmm-duree) var(--hmm-courbe);
+}
+
+.jeu-pouce__bouton[aria-current='page'],
+.jeu-pouce__bouton:hover {
+  color: var(--hmm-texte-clair);
+  border-color: var(--hmm-or-attenue);
+  background-image: linear-gradient(180deg, rgba(201, 162, 39, 0.18) 0%, rgba(201, 162, 39, 0.05) 100%);
+}
+
+.jeu-pouce__bouton:active {
+  transform: translateY(1px);
+}
+
+.jeu-pouce__icone {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+}
+
+@media (max-width: 899px) {
+  .jeu-pouce {
+    display: flex;
+  }
+  .jeu-racine--avec-pouce .jeu-page {
+    padding-bottom: calc(var(--hmm-touch-ample) + var(--hmm-space-10) + var(--hmm-safe-bas));
+  }
+  .jeu-racine--avec-pouce .jeu-scene__legende {
+    bottom: calc(var(--hmm-touch-ample) + var(--hmm-space-4) + var(--hmm-safe-bas));
+  }
+}
+
+/* ========================= 9. FICHE DE HÉROS ============================= */
+
+.fiche {
+  display: grid;
+  gap: var(--hmm-space-6);
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  align-items: start;
+}
+
+.fiche__colonne {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hmm-space-4);
+  min-width: 0;
+}
+
+.fiche__identite {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--hmm-space-3);
+  text-align: center;
+}
+
+.fiche__classe {
+  font-family: var(--hmm-font-titre);
+  font-size: var(--hmm-fs-petit);
+  letter-spacing: var(--hmm-ls-cartouche);
+  text-transform: uppercase;
+  color: var(--hmm-texte-doux);
+  margin: 0;
+}
+
+.fiche__bio {
+  font-family: var(--hmm-font-recit);
+  font-size: var(--hmm-fs-base);
+  line-height: var(--hmm-lh-recit);
+  color: var(--hmm-texte-doux);
+  margin: 0;
+  text-align: left;
+}
+
+.fiche__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--hmm-space-3);
+}
+
+.fiche__grille {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(228px, 1fr));
+  gap: var(--hmm-space-3);
+}
+
+/* Emplacements d'artefacts : dix cases, disposition en poupée. */
+.fiche__artefacts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--hmm-space-2);
+}
+
+.fiche__artefact {
+  display: flex;
+  align-items: center;
+  gap: var(--hmm-space-3);
+  padding: var(--hmm-space-2) var(--hmm-space-3);
+  min-height: var(--hmm-touch-min);
+  background-image: linear-gradient(172deg, rgba(255, 233, 194, 0.34) 0%, rgba(201, 185, 150, 0.28) 100%);
+  border: var(--hmm-filet-fin) solid rgba(36, 28, 20, 0.22);
+  border-left: var(--hmm-filet-epais) solid var(--teinte, var(--hmm-rarete-commun));
+  border-radius: var(--hmm-radius-xs);
+  box-shadow: var(--hmm-ombre-assise);
+}
+
+.fiche__artefact--vide {
+  opacity: 0.62;
+  border-left-color: rgba(36, 28, 20, 0.24);
+  background-image: linear-gradient(172deg, rgba(201, 185, 150, 0.3) 0%, rgba(201, 185, 150, 0.16) 100%);
+}
+
+.fiche__artefact-corps {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.fiche__emplacement {
+  font-size: var(--hmm-fs-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hmm-texte-doux);
+}
+
+.fiche__nom-artefact {
+  font-size: var(--hmm-fs-petit);
+  color: var(--hmm-texte);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Compétences, sorts, armée. */
+.fiche__ligne {
+  display: flex;
+  align-items: center;
+  gap: var(--hmm-space-3);
+  padding: var(--hmm-space-2) var(--hmm-space-3);
+  min-height: var(--hmm-touch-min);
+  border-bottom: var(--hmm-filet-fin) solid var(--hmm-separateur);
+}
+
+.fiche__ligne:last-child {
+  border-bottom: none;
+}
+
+.fiche__ligne-corps {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.fiche__ligne-titre {
+  font-size: var(--hmm-fs-base);
+  color: var(--hmm-texte);
+}
+
+.fiche__ligne-detail {
+  font-family: var(--hmm-font-recit);
+  font-size: var(--hmm-fs-petit);
+  line-height: var(--hmm-lh-normal);
+  color: var(--hmm-texte-doux);
+}
+
+.fiche__icone {
+  flex: 0 0 auto;
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+}
+
+@media (max-width: 899px) {
+  .fiche {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* =========================== 10. LE ROYAUME ============================== */
+
+.royaume {
+  display: grid;
+  gap: var(--hmm-space-6);
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  align-items: start;
+}
+
+.royaume--large {
+  grid-column: 1 / -1;
+}
+
+.royaume__cartes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--hmm-space-3);
+}
+
+.royaume__vignette {
+  display: flex;
+  gap: var(--hmm-space-3);
+  align-items: center;
+  padding: var(--hmm-space-3);
+  min-height: var(--hmm-touch-ample);
+  background-image: linear-gradient(172deg, rgba(255, 233, 194, 0.32) 0%, rgba(201, 185, 150, 0.24) 100%);
+  border: var(--hmm-filet-fin) solid rgba(36, 28, 20, 0.2);
+  border-radius: var(--hmm-radius-xs);
+  box-shadow: var(--hmm-ombre-assise);
+}
+
+.royaume__vignette-corps {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+  flex: 1 1 auto;
+}
+
+.royaume__objectif {
+  display: flex;
+  align-items: center;
+  gap: var(--hmm-space-3);
+  padding: var(--hmm-space-3) 0;
+  border-bottom: var(--hmm-filet-fin) solid var(--hmm-separateur);
+}
+
+.royaume__objectif:last-child {
+  border-bottom: none;
+}
+
+.royaume__sceau {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--hmm-radius-round);
+  border: var(--hmm-filet) solid var(--hmm-or-attenue);
+  background-image: radial-gradient(circle at 34% 28%, rgba(255, 233, 194, 0.5) 0%, rgba(110, 31, 42, 0.35) 100%);
+  font-family: var(--hmm-font-titre);
+  font-size: var(--hmm-fs-micro);
+  color: var(--hmm-texte);
+}
+
+.royaume__sceau--pris {
+  background-image: radial-gradient(circle at 34% 28%, #e6c65c 0%, #9e7c1b 100%);
+  color: var(--hmm-encre);
+}
+
+/* ==================== 11. EMPLACEMENTS DE SAUVEGARDE ===================== */
+
+.emplacements {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--hmm-space-4);
+}
+
+.emplacement {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hmm-space-3);
+}
+
+.emplacement__entete {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--hmm-space-3);
+}
+
+.emplacement__nom {
+  font-family: var(--hmm-font-titre);
+  font-size: var(--hmm-fs-lecture);
+  letter-spacing: 0.04em;
+  color: var(--hmm-texte);
+  margin: 0;
+}
+
+.emplacement__date {
+  font-size: var(--hmm-fs-micro);
+  color: var(--hmm-texte-doux);
+  white-space: nowrap;
+}
+
+.emplacement__bannieres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hmm-space-2);
+}
+
+.emplacement__banniere {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hmm-space-2);
+  padding: 2px var(--hmm-space-2);
+  font-size: var(--hmm-fs-micro);
+  color: var(--hmm-texte);
+  border: var(--hmm-filet-fin) solid rgba(36, 28, 20, 0.24);
+  border-radius: var(--hmm-radius-xs);
+  background-image: linear-gradient(170deg, rgba(255, 233, 194, 0.3) 0%, rgba(201, 185, 150, 0.2) 100%);
+}
+
+.emplacement__pastille {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--hmm-radius-xs);
+  border: var(--hmm-filet-fin) solid rgba(36, 28, 20, 0.42);
+  box-shadow: inset 0 1px 0 rgba(255, 233, 194, 0.4);
+}
+
+.emplacement__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hmm-space-2);
+  margin-top: auto;
+}
+
+.emplacement__vide {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  text-align: center;
+  color: var(--hmm-texte-doux);
+  font-family: var(--hmm-font-recit);
+  font-size: var(--hmm-fs-lecture);
+  border: var(--hmm-filet) dashed rgba(36, 28, 20, 0.28);
+  border-radius: var(--hmm-radius-sm);
+  padding: var(--hmm-space-6);
+}
+
+/* ============================ 12. UTILITAIRES ============================ */
+
+.jeu-tabulaire {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+.jeu-colonnes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hmm-space-3);
+  align-items: center;
+}
+
+.jeu-liste-nue {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* ======================== 13. MOUVEMENT RÉDUIT =========================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .jeu-avis,
+  .jeu-enregistre--envoi .jeu-enregistre__pastille,
+  .jeu-chargement__jauge-remplie {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+:root[data-animations='reduites'] .jeu-avis,
+:root[data-animations='reduites'] .jeu-enregistre--envoi .jeu-enregistre__pastille,
+:root[data-animations='reduites'] .jeu-chargement__jauge-remplie {
+  animation: none !important;
+  transition: none !important;
+}

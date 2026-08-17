@@ -44,7 +44,10 @@ import '@fontsource/eb-garamond/400-italic.css';
 import '@fontsource/alegreya-sans/400.css';
 import '@fontsource/alegreya-sans/500.css';
 import '@fontsource/alegreya-sans/700.css';
-import '@auvergne/ui/styles.css';
+/* L'alias Vite `@auvergne/ui` pointe sur `packages/ui/src/index.ts` : il est
+   appliqué par préfixe, si bien que `@auvergne/ui/styles.css` se résolvait en
+   `…/src/index.ts/styles.css` et cassait la construction. Chemin relatif. */
+import '../../../../packages/ui/src/styles.css';
 import './landing.css';
 
 import { LandingTitle } from './title.js';
