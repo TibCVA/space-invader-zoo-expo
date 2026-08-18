@@ -303,22 +303,88 @@ export interface Stop {
 }
 
 /**
+ * Taille de la texture de rampe fabriquée par `FillGradient` : c'est aussi le
+ * facteur parasite qu'il faut compenser ci-dessous. On la lit chez PixiJS pour
+ * que les deux ne puissent pas diverger.
+ */
+const TAILLE_RAMPE = FillGradient.defaultLinearOptions.textureSize ?? 256;
+
+/**
  * Dégradé linéaire multi-arrêt orienté par un angle en degrés (0° = vers l'est,
  * sens horaire écran). Coordonnées locales à la forme.
+ *
+ * ── Pourquoi ce calcul n'est pas le calcul évident ──
+ *
+ * L'écriture naturelle — axe centré, `start = (0,5 - dx/2 ; 0,5 - dy/2)`,
+ * `end` symétrique — ne marche qu'aux angles 0, 90, 180 et 270°. À tout autre
+ * angle elle pose un APLAT d'une seule couleur. Mesuré, pas supposé : balayage
+ * de 23 angles sur le même rectangle, écart-type de luminance 53,1 à 0° et
+ * 52,6 à 90°, mais 0,00 à 1, 5, 15, 30, 45, 60, 89, 118, 135, 225, 315 et 359°.
+ * Les trois couches qui portent le modèle de valeur du sol du champ de bataille
+ * (field.ts, biome / nappe froide / glacis, toutes à 45°) étaient donc mortes :
+ * le dégradé de biome devait courir de 0x85885c (luminance 132,2) à 0x1f2a2b
+ * (39,7), amplitude 92,5, et posait 0x85885c partout.
+ *
+ * Le défaut est dans pixi.js 8.19.0, pas ici : `FillGradient.buildLinearGradient`
+ * compose `scale(dist/256, 1) ; rotate(angle) ; translate(x0, y0)` puis, pour
+ * `textureSpace: 'local'`, un `scale(256, 256)` final qui multiplie AUSSI le
+ * terme de translation — alors que `generateTextureMatrix()` normalise ensuite
+ * la boîte de la forme sur 0..1. Un axe aligné a `x0·dx + y0·dy = 0`, le terme
+ * parasite ne fuit pas ; dès que l'axe est oblique il fuit, la coordonnée u
+ * part à -53 au lieu de 0..1, et le `clamp-to-edge` renvoie le bord de la
+ * rampe : aplat.
+ *
+ * On corrige donc en deux temps, sans toucher aux appelants :
+ *
+ *  1. `wrapMode: 'mirror-repeat'` désactive l'échange de coordonnées que
+ *     PixiJS ne fait que pour `clamp-to-edge`. Cet échange est lui aussi
+ *     fautif : il ramène tout axe dans le premier quadrant et compte sur le
+ *     drapeau `flip` pour rétablir le sens, ce qui marche pour une diagonale
+ *     nord-ouest → sud-est mais renvoie la diagonale opposée à 118, 135 et
+ *     315°. Un simple ancrage de l'axe sur un coin, sans ce changement de
+ *     mode, redonne bien un dégradé (écart-type 38,6) mais dans le MAUVAIS
+ *     SENS à ces trois angles — mesuré, et c'est pourquoi cette piste plus
+ *     courte a été écartée. Le miroir, lui, ne se voit pas : la plage utile
+ *     reste [0 ; 1] et la couture maximale relevée sur les bords est de 4,3
+ *     niveaux, soit le liseré antialiasé.
+ *  2. On pré-divise par `TAILLE_RAMPE` la seule quantité que PixiJS va
+ *     multiplier de trop, à savoir la projection du coin d'origine sur l'axe.
+ *     `portee` (= |dx| + |dy|) est la largeur du balayage sur le carré unité,
+ *     ce qui remet u exactement sur [0 ; 1].
+ *
+ * Vérifié à l'écran sous la CSP réelle, moteur WebGL, 0 erreur console :
+ * 29 cas (23 angles sur rectangle, 4 sur polygone perturbé à 24 sommets,
+ * 2 rampes à alpha variable), 0 aplat et 0 sens inversé.
  */
 export function degradeLineaire(stops: Stop[], angleDeg: number): FillGradient {
   const a = (angleDeg * Math.PI) / 180;
   const dx = Math.cos(a);
   const dy = Math.sin(a);
+  /* Largeur du balayage de l'axe sur la boîte normalisée 0..1. */
+  const portee = Math.abs(dx) + Math.abs(dy);
+  /* Projection, sur l'axe, du coin où le dégradé doit valoir 0. */
+  const projection = (dx < 0 ? dx : 0) + (dy < 0 ? dy : 0);
+  const start = {
+    x: (dx * projection) / TAILLE_RAMPE,
+    y: (dy * projection) / TAILLE_RAMPE,
+  };
+  const end = { x: start.x + dx * portee, y: start.y + dy * portee };
+  /* PixiJS retourne la rampe dès qu'une composante de l'axe est négative ;
+     on retourne alors les arrêts pour annuler l'inversion. */
+  const retourne = end.x - start.x < 0 || end.y - start.y < 0;
+  const arrets = stops.map((s) => ({
+    offset: s.offset,
+    color: cssAlpha(s.color, s.alpha ?? 1) as ColorSource,
+  }));
   return new FillGradient({
     type: 'linear',
-    start: { x: 0.5 - dx * 0.5, y: 0.5 - dy * 0.5 },
-    end: { x: 0.5 + dx * 0.5, y: 0.5 + dy * 0.5 },
+    start,
+    end,
     textureSpace: 'local',
-    colorStops: stops.map((s) => ({
-      offset: s.offset,
-      color: cssAlpha(s.color, s.alpha ?? 1) as ColorSource,
-    })),
+    wrapMode: 'mirror-repeat',
+    colorStops: retourne
+      ? arrets.map((s) => ({ offset: 1 - s.offset, color: s.color })).reverse()
+      : arrets,
   });
 }
 

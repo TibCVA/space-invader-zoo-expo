@@ -37,13 +37,23 @@ const SCENES = {
   codex: { hash: '#/codex', wait: 1400, label: 'Codex' },
   options: { hash: '#/options', wait: 1000, label: 'Options' },
   diagnostic: { hash: '#/diagnostic', wait: 6000, label: 'Diagnostic de la machine' },
-  carte: { hash: '#/demo/carte', wait: 5200, label: "Carte d'aventure" },
+  /* 5200 ms suffisaient tant que la machine était au repos ; sous charge, la
+     carte a été photographiée sur son écran de chargement — carton de
+     parchemin, barre de progression, « on peint les vingt-huit créatures ».
+     Une telle capture ne montre pas une régression, elle ne montre rien. */
+  carte: { hash: '#/demo/carte', wait: 20000, label: "Carte d'aventure" },
   cite_granit: { hash: '#/demo/cite/granit', wait: 11000, label: 'Cité — Châtellenie de Granit' },
   cite_ermitage: { hash: '#/demo/cite/ermitage', wait: 11000, label: 'Cité — Ermitage des Bois Noirs' },
   combat: { hash: '#/demo/combat', wait: 22000, label: 'Combat tactique' },
   heros: { hash: '#/demo/heros', wait: 4000, label: 'Fiche de héros' },
   royaume: { hash: '#/demo/royaume', wait: 1600, label: 'Vue du royaume' },
-  planche_art: { hash: '#/demo/planche-art', wait: 6000, label: 'Planche de contact — créatures' },
+  /*
+   * 6 s ne suffisaient pas : la planche a été photographiée sur sa carte de
+   * chargement, barre à « on peint les vingt-huit créatures ». C'est la scène
+   * qui construit l'atlas entier sans rien d'autre à l'écran, donc la plus
+   * lente de toutes — même ordre de grandeur que le combat.
+   */
+  planche_art: { hash: '#/demo/planche-art', wait: 45000, label: 'Planche de contact — créatures' },
   galerie_ui: { hash: '#/demo/galerie', wait: 1800, label: 'Galerie du design system' },
   sauvegardes: { hash: '#/demo/sauvegardes', wait: 1400, label: 'Emplacements de sauvegarde' },
 };
