@@ -52,17 +52,20 @@ Règles de style détaillées : `docs/01-ART-BIBLE.md` §0.
 | Carte du Forez (relief réel 474–1263 m, hydrographie, routes, 12 régions) | **fait** | ancrages à < 1 case |
 | Serveur + sauvegardes PostgreSQL (repli fichier et mémoire) | **fait** | en ligne, `base: postgres` |
 | Art procédural (atlas, 28 créatures gréées, props, icônes, effets) | **fait** | 929 modules |
-| Design system + 21 portraits SVG | **fait, qualité insuffisante** | portraits à refaire (§0 rang 1) |
+| Design system + 21 portraits | **fait** | 21 portraits peints d'ImageGen raccordés aux écrans DOM |
 | Audio génératif WebAudio | **fait** | |
-| Page d'accueil | **bureau correct, mobile cassé** | 4 défauts constatés sur capture |
+| Page d'accueil | **fait** | fond peint natif en paysage et en portrait ; les 8 défauts procéduraux tombent avec la scène qu'ils affectaient |
 | Coquille client (routage, état, sauvegarde auto, écrans) | **fait** | 21 routes, 0 erreur console |
-| Déploiement Railway | **fait** | empreinte des assets identique au build local |
-| **Rendu de la carte d'aventure** | **en cours** | lot 4 |
-| **Rendu du combat** | **en cours** | lot 4 |
-| **IA + parties complètes** | **en cours** | lot 4 |
+| Déploiement Railway | **fait** | 43 images servies, PostgreSQL connecté, CSP stricte conservée |
+| Images générées (43, 4,19 Mo) | **fait** | 43 clefs sur 43 valides ; portraits et accueil raccordés |
+| Blocage Chrome / Edge (`unsafe-eval`) | **corrigé** | vérifié sous la vraie CSP du serveur |
+| Raccordement cités, matières | à faire | 6 panoramas + 8 matières livrés, sans consommateur |
+| Rendu de la carte d'aventure | **fait, à polir** | trop sombre, forêts répétitives, panneau sur la minicarte en portrait |
+| Rendu du combat | **fait, à corriger** | vide de 35 % en portrait ; prévisualisation d'attaque conforme |
+| IA + parties complètes | **inachevé** | 4 760 lignes écrites, baril et simulations manquants |
 | Écrans de cité (2 tableaux en parallaxe) | à faire | |
 | Multijoueur asynchrone | spécifié, à faire | `docs/04-MULTIJOUEUR.md` |
-| Boucles de critique visuelle | à faire | |
+| Boucles de critique visuelle | **impossible** | outils des sous-agents hors service (voir §3) |
 | Équilibrage par simulation de masse | à faire | |
 
 ## 1 bis. Anomalie de performance mesurée (non résolue)
@@ -124,6 +127,13 @@ que de bénéfice.
   aux limites de session.
 - **Portes de qualité** : `pnpm typecheck`, `pnpm lint`, `pnpm test`, build client et
   serveur, captures sans erreur console.
+- **Attendre le décodage avant de juger une capture.** Une attente de 2 600 ms a
+  photographié la page avant que le fond peint de 207 ko ne soit décodé, et a fait
+  conclure à tort à une régression. Les attentes du harnais sont désormais calées
+  sur le poids réel des images.
+- **Les sous-agents sont hors service** depuis le 18/08 : le gestionnaire de
+  permissions du harnais vide les paramètres de tous leurs outils (sonde minimale
+  à l'appui). Le travail se fait donc en direct, sans fan-out ni critique croisée.
 
 ## 4. Documents de référence
 
