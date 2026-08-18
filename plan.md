@@ -100,4 +100,5 @@ Règles de style détaillées : `docs/01-ART-BIBLE.md` §0.
 | `docs/03-ROUTES.md` | routes du client et scènes de revue visuelle |
 | `docs/04-MULTIJOUEUR.md` | parties en ligne asynchrones |
 | `docs/05-ASSETS.md` | **contrat des images générées** : chemins, clefs, tailles, style |
+| `docs/06-BRIEF-CODEX.md` | **brief autonome à coller dans Codex** — se suffit à lui-même, aucun accès au dépôt requis |
 | `docs/90-DOCUMENT-MAITRE.md` | document de conception d'origine |
