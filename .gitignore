@@ -16,6 +16,12 @@ secrets.json
 
 # Local artefacts
 .data/
+# Épreuves jetables : un module qu'on écrit pour trancher une question, qu'on
+# mesure, et qu'on supprime. Elles vivent près du code qu'elles interrogent —
+# sinon les imports relatifs ne valent rien — mais n'ont pas à entrer dans
+# l'historique. Rien de durable ne doit s'y trouver.
+**/__epreuve/
+
 # Sorties de simulation : elles se régénèrent par `pnpm sim --sortie`,
 # et un JSON de rapport n'a pas sa place dans l'historique.
 apps/worker/out/
