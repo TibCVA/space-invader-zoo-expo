@@ -24,6 +24,12 @@
  */
 
 import type { ReactElement, ReactNode } from 'react';
+import { useSyncExternalStore } from 'react';
+import {
+  portraitSource,
+  portraitSourcesVersion,
+  subscribePortraitSources,
+} from './source.js';
 import {
   BlurFilter,
   Drawing,
@@ -1095,6 +1101,9 @@ export function PortraitPainter(props: PortraitPainterProps): ReactElement {
   const ctx: PaintCtx = { id, g, skin, hair, spec };
   const shoulderY = g.chinY + 34;
   const detail = size >= 120;
+  /* Portrait peint enregistré par l'application, s'il en existe un. */
+  useSyncExternalStore(subscribePortraitSources, portraitSourcesVersion, portraitSourcesVersion);
+  const peint = portraitSource(spec.id);
   const or = spec.faction === 'ermitage' ? 'cuivre' : 'or';
 
   return (
@@ -1149,6 +1158,25 @@ export function PortraitPainter(props: PortraitPainterProps): ReactElement {
         </radialGradient>
       </defs>
 
+      {peint ? (
+        /*
+         * Portrait peint disponible : l'image remplace les quatorze couches
+         * vectorielles, mais garde le même cadrage 280 × 340, le même grain et
+         * le même cadre d'enluminure — la page reste homogène quel que soit le
+         * héros, y compris si seuls quelques portraits peints existent.
+         */
+        <g clipPath={`url(#${id}-tableau)`}>
+          <image
+            href={peint}
+            x="0"
+            y="0"
+            width="280"
+            height="340"
+            preserveAspectRatio="xMidYMid slice"
+          />
+          {detail ? <GrainVeil id={id} width={280} height={340} opacity={0.12} blend="soft-light" /> : null}
+        </g>
+      ) : (
       <g clipPath={`url(#${id}-tableau)`}>
         {/* 1–2. fond de faction, occlusion, vignettage */}
         <Background id={id} faction={spec.faction} />
@@ -1229,6 +1257,7 @@ export function PortraitPainter(props: PortraitPainterProps): ReactElement {
         {/* 13. grain général */}
         {detail ? <GrainVeil id={id} width={280} height={340} opacity={0.2} blend="soft-light" /> : null}
       </g>
+      )}
 
       {/* 14. cadre */}
       {frame === 'simple' ? (

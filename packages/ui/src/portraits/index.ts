@@ -22,3 +22,4 @@ export { HERO_PORTRAITS, HERO_PORTRAIT_LIST, HERO_PORTRAIT_KEYS } from './heroes
 
 export { HeroPortrait, HeroAvatar } from './hero-portrait.js';
 export type { HeroPortraitProps, PortraitFrame } from './hero-portrait.js';
+export * from './source.js';

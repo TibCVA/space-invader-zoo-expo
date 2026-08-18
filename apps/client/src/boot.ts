@@ -45,6 +45,8 @@ import { buildArtAtlas } from './art/index.js';
 import type { ArtAtlas } from './art/index.js';
 import { fournirMoteurAudio } from './landing/audio-bridge.js';
 import type { MoteurAudio } from './landing/audio-bridge.js';
+import { lireManifeste, RACINE_IMAGES } from './art/assets.js';
+import { setPortraitSources } from '@auvergne/ui';
 
 /* ─────────────────────────────── Erreurs ────────────────────────────────── */
 
@@ -310,7 +312,35 @@ export function brancherAudio(): void {
  * Amorçage minimal, appelé par `main.tsx` avant le premier rendu React :
  * le moteur et le son. Le rendu accéléré et l'atlas viennent à la demande.
  */
+/**
+ * Enregistre les portraits peints auprès du design system.
+ *
+ * Volontairement indépendant de l'atlas PixiJS : la fiche de héros, le codex,
+ * la taverne et la vue du royaume sont des écrans **DOM**, consultables même
+ * quand le navigateur refuse WebGPU et WebGL. Ils doivent donc bénéficier des
+ * portraits peints sans attendre — ni dépendre — du moteur de rendu.
+ *
+ * Sans manifeste, sans réseau, ou en cas de manifeste invalide : rien ne se
+ * passe, et les portraits vectoriels du design system restent affichés.
+ */
+function brancherPortraitsPeints(): void {
+  void lireManifeste()
+    .then((manifeste) => {
+      if (!manifeste) return;
+      const sources: Record<string, string> = {};
+      for (const e of manifeste.entrees) {
+        if (e.categorie !== 'portrait') continue;
+        sources[e.clef] = `${RACINE_IMAGES}/${e.fichier}`;
+      }
+      if (Object.keys(sources).length > 0) setPortraitSources(sources);
+    })
+    .catch(() => {
+      /* Le repli vectoriel suffit : aucune raison d'alerter le joueur. */
+    });
+}
+
 export function amorcer(): void {
   amorcerMoteur();
   brancherAudio();
+  brancherPortraitsPeints();
 }
