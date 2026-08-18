@@ -34,6 +34,19 @@ FIN
   exit 1
 fi
 
+# `railway up` téléverse le répertoire de travail tel qu'il est, et non le
+# dernier commit. Un fichier a demi écrit — une expérience en cours, une
+# ablation qu'on n'a pas encore annulée — partirait donc en production sans que
+# rien ne le signale. On exige un arbre propre, et l'on dit ce qui traîne.
+if [ -n "$(git status --porcelain)" ]; then
+  echo "L'arbre de travail n'est pas propre. Ce qui suit partirait en production :" >&2
+  git status --short >&2
+  echo >&2
+  echo "Committez, annulez, ou relancez avec DEPLOYER_ARBRE_SALE=1 en connaissance de cause." >&2
+  [ "${DEPLOYER_ARBRE_SALE:-}" = "1" ] || exit 1
+  echo "▸ arbre sale accepté explicitement" >&2
+fi
+
 echo "▸ portes de qualité"
 pnpm -r --parallel typecheck
 npx eslint .
