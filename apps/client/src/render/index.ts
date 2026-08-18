@@ -473,10 +473,12 @@ class CarteAventure implements MapView {
   private peindreFond(): void {
     const g = this.fondHorsCarte;
     g.clear();
-    const bandes = 22;
+    const bandes = 44;
     for (let i = 0; i < bandes; i += 1) {
       const t = i / (bandes - 1);
-      g.rect(0, (this.hauteur * i) / bandes, this.largeur, this.hauteur / bandes + 1).fill({
+      const y0 = Math.round((this.hauteur * i) / bandes);
+      const y1 = Math.round((this.hauteur * (i + 1)) / bandes);
+      g.rect(0, y0, this.largeur, y1 - y0).fill({
         color: melanger(melanger(PALETTE.bleuProfond, PALETTE.bleuBrume, 0.25), PALETTE.granitAnthracite, t * 0.7),
       });
     }

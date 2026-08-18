@@ -186,9 +186,12 @@ export class Minicarte {
       color: melanger(PALETTE.granitAnthracite, PALETTE.brunFougere, 0.2),
     });
     /* Trois strates sur la plaque : teinte, dégradé de valeur, grain doré. */
-    for (let i = 0; i < 10; i += 1) {
-      const t = i / 9;
-      g.rect(b.x - m, b.y - m + t * (b.hauteur + m * 2), b.largeur + m * 2, (b.hauteur + m * 2) / 10 + 1).fill({
+    const total = b.hauteur + m * 2;
+    for (let i = 0; i < 12; i += 1) {
+      const t = i / 11;
+      const y0 = Math.round((total * i) / 12);
+      const y1 = Math.round((total * (i + 1)) / 12);
+      g.rect(b.x - m, b.y - m + y0, b.largeur + m * 2, y1 - y0).fill({
         color: melanger(PALETTE.granitClair, PALETTE.granitAnthracite, t),
         alpha: 0.28,
       });

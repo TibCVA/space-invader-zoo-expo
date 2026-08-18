@@ -20,7 +20,7 @@ const BLOC = 32;
 
 /** Taille de chaque famille d'objet, en cases. */
 const TAILLE: Readonly<Record<MapObjectKind, number>> = {
-  ville: 3.8,
+  ville: 3.3,
   village: 2.9,
   mine: 2.4,
   ressource: 1.35,

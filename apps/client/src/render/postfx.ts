@@ -122,7 +122,10 @@ void main(void)
     col += vec3(-0.004, 0.006, 0.034) * (1.0 - smoothstep(0.0, 0.5, l));
     col += vec3(0.072, 0.042, -0.022) * smoothstep(0.34, 1.0, l);
     col = clamp(col, 0.0, 1.0);
-    col = mix(col, col * col * (3.0 - 2.0 * col), 0.22);
+    col = mix(col, col * col * (3.0 - 2.0 * col), 0.15);
+    /* Exposition : un massif de sapins reste sombre par nature, mais une carte
+       de jeu doit vivre dans les demi-teintes, pas dans les noirs. */
+    col = pow(col, vec3(0.84));
 
     /* Grain animé. */
     float g = bruit(pos * 1.7 + vec2(uTemps.x * 61.0, uTemps.x * 37.0)) - 0.5;
@@ -247,7 +250,8 @@ fn mainFragment(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
   col = col + vec3<f32>(-0.004, 0.006, 0.034) * (1.0 - smoothstep(0.0, 0.5, l));
   col = col + vec3<f32>(0.072, 0.042, -0.022) * smoothstep(0.34, 1.0, l);
   col = clamp(col, vec3<f32>(0.0), vec3<f32>(1.0));
-  col = mix(col, col * col * (vec3<f32>(3.0) - 2.0 * col), 0.22);
+  col = mix(col, col * col * (vec3<f32>(3.0) - 2.0 * col), 0.15);
+  col = pow(col, vec3<f32>(0.84));
 
   let g = bruit(pos * 1.7 + vec2<f32>(reglages.uTemps.x * 61.0, reglages.uTemps.x * 37.0)) - 0.5;
   col = col + vec3<f32>(g * reglages.uReglages.z);

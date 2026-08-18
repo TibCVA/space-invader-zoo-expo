@@ -34,7 +34,7 @@ const CLIMATS: Readonly<Record<WeatherKind, Reglage>> = {
     alpha: 0.11,
   },
   brume: {
-    effets: [{ kind: 'brume', intensite: 0.34 }],
+    effets: [{ kind: 'brume', intensite: 0.22 }],
     voile: PALETTE.bleuBrume,
     alpha: 0.055,
   },
@@ -111,10 +111,14 @@ export class Meteo {
     const r = CLIMATS[this.climat];
     /* Jamais un aplat : le voile est plus dense en bas, comme l'air chargé
        d'une vallée, et respecte l'éclairage venu du nord-ouest. */
-    const bandes = 16;
+    const bandes = 40;
     for (let i = 0; i < bandes; i += 1) {
       const t = i / (bandes - 1);
-      g.rect(0, (this.hauteur * i) / bandes, this.largeur, this.hauteur / bandes + 1).fill({
+      /* Bandes strictement jointives : un recouvrement d'un pixel doublerait
+         l'alpha et tracerait une ligne claire en travers de la carte. */
+      const y0 = Math.round((this.hauteur * i) / bandes);
+      const y1 = Math.round((this.hauteur * (i + 1)) / bandes);
+      g.rect(0, y0, this.largeur, y1 - y0).fill({
         color: r.voile,
         alpha: r.alpha * (0.55 + t * 0.9),
       });

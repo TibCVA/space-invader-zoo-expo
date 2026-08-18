@@ -199,13 +199,23 @@ export class JetonsHeros {
     const g = j.cadre;
     g.clear();
 
-    /* Socle : un galet de granit qui pose le jeton sur le sol. */
-    g.ellipse(0, 0, taille * 0.36, taille * 0.16).fill({
-      color: melanger(PALETTE.granitAnthracite, PALETTE.brunFougere, 0.3),
-      alpha: 0.92,
+    /* Socle : une dalle de granit posée au sol, trois strates et rien d'opaque.
+       Un disque sombre plein ferait un trou dans la carte. */
+    g.ellipse(taille * 0.05, taille * 0.02, taille * 0.33, taille * 0.14).fill({
+      color: LIGHT.ombrePortee,
+      alpha: 0.34,
     });
-    g.ellipse(0, -taille * 0.02, taille * 0.33, taille * 0.13).fill({
-      color: melanger(PALETTE.granitClair, LIGHT.chaude, 0.16),
+    g.ellipse(0, -taille * 0.01, taille * 0.3, taille * 0.125).fill({
+      color: melanger(PALETTE.granitClair, PALETTE.brunFougere, 0.34),
+      alpha: 0.85,
+    });
+    g.ellipse(-taille * 0.02, -taille * 0.035, taille * 0.25, taille * 0.09).fill({
+      color: melanger(PALETTE.granitClair, LIGHT.chaude, 0.34),
+      alpha: 0.6,
+    });
+    g.ellipse(0, -taille * 0.01, taille * 0.3, taille * 0.125).stroke({
+      color: melanger(PALETTE.granitAnthracite, PALETTE.bleuProfond, 0.4),
+      width: Math.max(1, taille * 0.022),
       alpha: 0.7,
     });
 

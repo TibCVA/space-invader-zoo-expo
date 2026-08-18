@@ -36,6 +36,7 @@ import {
   faceEclairee,
   melanger,
   ombreBleutee,
+  saturer,
 } from '../art/palette.js';
 import { blob, degradeLineaire, degradeRadial, flat, fuseau, perturber, densifier } from '../art/shading.js';
 import type { Poly } from '../art/shading.js';
@@ -110,7 +111,7 @@ const PALETTES: Readonly<Record<Ambiance, PaletteSol>> = {
     detail: melanger(PALETTE.brunFougere, PALETTE.vertSapin, 0.4),
     detail2: melanger(PALETTE.vertHetre, LIGHT.chaude, 0.28),
     pinceau: 'foret',
-    matiereAlpha: 0.44,
+    matiereAlpha: 0.26,
   },
   prairie: {
     fond: 0x4a6138,
@@ -119,7 +120,7 @@ const PALETTES: Readonly<Record<Ambiance, PaletteSol>> = {
     detail: melanger(PALETTE.ocre, PALETTE.vertHetre, 0.4),
     detail2: melanger(PALETTE.parchemin, PALETTE.vertHetre, 0.55),
     pinceau: 'prairie',
-    matiereAlpha: 0.42,
+    matiereAlpha: 0.26,
   },
   rocher: {
     fond: 0x4a4e52,
@@ -128,7 +129,7 @@ const PALETTES: Readonly<Record<Ambiance, PaletteSol>> = {
     detail: melanger(PALETTE.granitClair, PALETTE.bleuBrume, 0.3),
     detail2: melanger(PALETTE.mousseSombre, PALETTE.granitClair, 0.4),
     pinceau: 'rocher',
-    matiereAlpha: 0.46,
+    matiereAlpha: 0.3,
   },
   humide: {
     fond: melanger(PALETTE.mousseSombre, PALETTE.bleuProfond, 0.42),
@@ -137,7 +138,7 @@ const PALETTES: Readonly<Record<Ambiance, PaletteSol>> = {
     detail: melanger(PALETTE.bleuProfond, PALETTE.bleuBrume, 0.4),
     detail2: melanger(PALETTE.brunFougere, PALETTE.mousseSombre, 0.5),
     pinceau: 'humide',
-    matiereAlpha: 0.44,
+    matiereAlpha: 0.3,
   },
   cour: {
     fond: melanger(PALETTE.granitClair, PALETTE.brunFougere, 0.3),
@@ -146,7 +147,7 @@ const PALETTES: Readonly<Record<Ambiance, PaletteSol>> = {
     detail: melanger(PALETTE.parcheminOmbre, PALETTE.granitClair, 0.5),
     detail2: melanger(PALETTE.brunFougere, PALETTE.granitAnthracite, 0.4),
     pinceau: 'gravier',
-    matiereAlpha: 0.46,
+    matiereAlpha: 0.3,
   },
 };
 
@@ -166,19 +167,23 @@ function densite(quality: 'basse' | 'moyenne' | 'haute'): number {
 
 /** Nappes de valeur : le sol n'a jamais deux fois la même teinte. */
 function nappes(g: Graphics, cadre: Cadre, pal: PaletteSol, graine: number, force: number): void {
-  const n = Math.round(34 * force);
+  const n = Math.round(58 * force);
   const rand = prng(graine);
   for (let i = 0; i < n; i += 1) {
     const x = cadre.x + rand() * cadre.w;
     const y = cadre.y + rand() * cadre.h;
-    const r = cadre.w * (0.04 + rand() * 0.13);
+    const r = cadre.w * (0.035 + rand() * 0.15);
     const k = fbm(x / 180, y / 180, 6, graine + 3, 3);
     const clair = k > 0.5;
-    g.poly(
-      flat(blob(x, y, r, r * (0.42 + rand() * 0.4), { seed: i * 13 + 5, points: 18, wobble: 0.3 })),
-    ).fill({
-      color: clair ? faceEclairee(pal.clair, 0.4) : ombreBleutee(pal.sombre, 0.35),
-      alpha: 0.05 + Math.abs(k - 0.5) * 0.18,
+    const poly = blob(x, y, r, r * (0.4 + rand() * 0.42), { seed: i * 13 + 5, points: 20, wobble: 0.32 });
+    g.poly(flat(poly)).fill({
+      color: clair ? faceEclairee(pal.clair, 0.55) : ombreBleutee(pal.sombre, 0.55),
+      alpha: 0.1 + Math.abs(k - 0.5) * 0.34,
+    });
+    /* lisière douce : un second contour légèrement décalé, jamais de bord dur */
+    g.poly(flat(poly.map((q) => ({ x: q.x + 2.4, y: q.y + 2.8 })))).fill({
+      color: clair ? faceEclairee(pal.clair, 0.75) : ombreBleutee(pal.sombre, 0.8),
+      alpha: 0.05 + Math.abs(k - 0.5) * 0.14,
     });
   }
 }
@@ -224,12 +229,12 @@ function detailSapiniere(g: Graphics, cadre: Cadre, pal: PaletteSol, force: numb
     const y = cadre.y + rand() * cadre.h;
     const r = 7 + rand() * 20;
     g.poly(flat(blob(x, y, r, r * 0.5, { seed: i * 7 + 1, points: 14, wobble: 0.34 }))).fill({
-      color: melanger(PALETTE.mousseSombre, PALETTE.vertHetre, 0.45),
-      alpha: 0.26,
+      color: melanger(PALETTE.mousseSombre, PALETTE.vertHetre, 0.5),
+      alpha: 0.42,
     });
     g.poly(flat(blob(x - r * 0.22, y - r * 0.18, r * 0.58, r * 0.26, { seed: i * 3, points: 11, wobble: 0.3 }))).fill({
-      color: faceEclairee(pal.detail2, 0.55),
-      alpha: 0.22,
+      color: faceEclairee(pal.detail2, 0.6),
+      alpha: 0.34,
     });
   }
 
@@ -546,9 +551,9 @@ function graverTrame(g: Graphics, geo: Geometrie, pal: PaletteSol): void {
   }
 
   for (const [x1, y1, x2, y2] of ombre) g.moveTo(x1, y1).lineTo(x2, y2);
-  g.stroke({ color: ombreBleutee(pal.sombre, 0.95), width: 1.5, alpha: 0.34 });
+  g.stroke({ color: ombreBleutee(pal.sombre, 0.95), width: 1.6, alpha: 0.42 });
   for (const [x1, y1, x2, y2] of lumiere) g.moveTo(x1, y1).lineTo(x2, y2);
-  g.stroke({ color: LIGHT.chaude, width: 1.1, alpha: 0.17 });
+  g.stroke({ color: LIGHT.chaude, width: 1.2, alpha: 0.24 });
 }
 
 /* ═════════════════════════ Le champ de bataille ══════════════════════════ */
@@ -636,8 +641,8 @@ export class ChampDeBataille {
     g.rect(cadre.x, cadre.y, cadre.w, cadre.h).fill({
       fill: degradeRadial(
         [
-          { offset: 0, color: LIGHT.chaude, alpha: 0.1 },
-          { offset: 0.5, color: LIGHT.chaude, alpha: 0.035 },
+          { offset: 0, color: LIGHT.chaude, alpha: 0.17 },
+          { offset: 0.5, color: LIGHT.chaude, alpha: 0.06 },
           { offset: 1, color: LIGHT.chaude, alpha: 0 },
         ],
         { x: 0.3, y: 0.24 },
@@ -647,8 +652,8 @@ export class ChampDeBataille {
       fill: degradeLineaire(
         [
           { offset: 0, color: LIGHT.froide, alpha: 0 },
-          { offset: 0.62, color: LIGHT.froide, alpha: 0.07 },
-          { offset: 1, color: LIGHT.froide, alpha: 0.2 },
+          { offset: 0.62, color: LIGHT.froide, alpha: 0.06 },
+          { offset: 1, color: LIGHT.froide, alpha: 0.16 },
         ],
         45,
       ),
@@ -665,13 +670,47 @@ export class ChampDeBataille {
     graverTrame(trame, this.geo, pal);
     racine.addChild(trame);
 
+    /* 5 bis — étalonnage colorimétrique. Deux passes de fusion : un
+       multiplicatif qui creuse et sature les ombres vers le bleu-violet, un
+       additif qui pose le soleil du nord-ouest. Sans lui, un sol correctement
+       texturé reste laiteux — c'est la différence entre « colorié » et
+       « peint » (bible artistique §1 et §3). */
+    const etalon = new Graphics();
+    /* glacis de teinte locale : il resature ce que la matière répétée a
+       délavé, et creuse la valeur vers le sud-est */
+    etalon.rect(cadre.x, cadre.y, cadre.w, cadre.h).fill({
+      fill: degradeLineaire(
+        [
+          { offset: 0, color: saturer(pal.clair, 0.5), alpha: 0.1 },
+          { offset: 0.45, color: saturer(pal.fond, 0.55), alpha: 0.26 },
+          { offset: 1, color: ombreBleutee(saturer(pal.sombre, 0.5), 0.55), alpha: 0.46 },
+        ],
+        45,
+      ),
+    });
+    racine.addChild(etalon);
+
+    const lueur = new Graphics();
+    lueur.blendMode = 'add';
+    lueur.rect(cadre.x, cadre.y, cadre.w, cadre.h).fill({
+      fill: degradeRadial(
+        [
+          { offset: 0, color: LIGHT.chaude, alpha: 0.16 },
+          { offset: 0.55, color: LIGHT.chaude, alpha: 0.05 },
+          { offset: 1, color: LIGHT.chaude, alpha: 0 },
+        ],
+        { x: 0.3, y: 0.22 },
+      ),
+    });
+    racine.addChild(lueur);
+
     /* 6 — perspective atmosphérique : le fond du champ part vers le bleu */
     const voile = new Graphics();
     voile.rect(cadre.x, cadre.y, cadre.w, cadre.h * 0.5).fill({
       fill: degradeLineaire(
         [
-          { offset: 0, color: LIGHT.brume, alpha: 0.19 },
-          { offset: 0.5, color: LIGHT.brume, alpha: 0.07 },
+          { offset: 0, color: LIGHT.brume, alpha: 0.15 },
+          { offset: 0.5, color: LIGHT.brume, alpha: 0.055 },
           { offset: 1, color: LIGHT.brume, alpha: 0 },
         ],
         90,
@@ -682,7 +721,7 @@ export class ChampDeBataille {
       fill: degradeRadial([
         { offset: 0, color: LIGHT.ombrePortee, alpha: 0 },
         { offset: 0.66, color: LIGHT.ombrePortee, alpha: 0.04 },
-        { offset: 1, color: LIGHT.ombrePortee, alpha: 0.2 },
+        { offset: 1, color: LIGHT.ombrePortee, alpha: 0.17 },
       ]),
     });
     const parch = new FillPattern({ texture: this.atlas.materials.parchemin, repetition: 'repeat' });

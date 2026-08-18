@@ -25,7 +25,7 @@ import { Container, Sprite, Texture } from 'pixi.js';
 import { CELL_ROAD } from '@auvergne/engine';
 import type { WorldMap } from '@auvergne/engine';
 import type { ViewQuality } from '../view-contract.js';
-import { LIGHT, PALETTE, assombrir, melanger, saturer } from '../art/palette.js';
+import { LIGHT, PALETTE, assombrir, eclaircir, melanger, saturer } from '../art/palette.js';
 import {
   BRUME,
   CHAUDE,
@@ -170,8 +170,9 @@ function couleurBiome(terrain: number, alt: number, pente: number): number {
     c = melanger(c, PALETTE.granitClair, Math.min(0.34, (pente - 11) / 46));
   }
   /* Une carte peinte n'est pas une photographie : on rend aux teintes un peu
-     de la saturation que l'ombrage et la brume vont leur reprendre. */
-  return saturer(c, 0.14);
+     de la saturation et de la clarté que l'ombrage, le voile et l'étalonnage
+     vont leur reprendre. Sans cette avance, le Forez tombe dans la nuit. */
+  return eclaircir(saturer(c, 0.16), 0.12);
 }
 
 /* ─────────────────────────────── Le peintre ─────────────────────────────── */
@@ -481,7 +482,7 @@ export class PeintreTerrain {
 
         /* Loi n°3 — la lumière tire vers l'ambre, l'ombre vers le bleu. */
         if (v > 1) {
-          const t = Math.min(1, (v - 1) * 1.5) * 0.34;
+          const t = Math.min(1, (v - 1) * 1.5) * 0.2;
           r += (CHAUDE.r - r) * t;
           g += (CHAUDE.g - g) * t;
           b += (CHAUDE.b - b) * t;
