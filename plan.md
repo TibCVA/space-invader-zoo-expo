@@ -60,6 +60,7 @@ Règles de style détaillées : `docs/01-ART-BIBLE.md` §0.
 | Images générées (43, 4,19 Mo) | **fait** | 43 clefs sur 43 valides ; portraits et accueil raccordés |
 | Blocage Chrome / Edge (`unsafe-eval`) | **corrigé** | vérifié sous la vraie CSP du serveur |
 | Gel du chargement à 30 % sous la CSP (worker `blob:`) | **corrigé** | 6 gels sur 6 avant, 0 sur 6 après — voir §1 quinquies |
+| Carte et cité vides sur iPhone | **corrigé, marge inconnue** | confirmé sur l'appareil, en production ; reste à relever la trace de montage pour savoir si cela passe confortablement ou de justesse (§1 quinquies) |
 | Raccordement des matières | à faire | 8 matières livrées, sans consommateur |
 | Rendu de la carte d'aventure | **fait, à polir** | saturation 18,93 → 29,15 % (§1 sexies) ; restent les traînées laiteuses, les forêts répétitives, le panneau sur la minicarte en portrait |
 | Dégradés obliques (aplat sous pixi 8.19.0) | **corrigé** | 30 cas sur la vraie fonction, vérifié contre la source de pixi — voir §1 sexies |
@@ -196,6 +197,34 @@ qui n'envoie aucune CSP. Deux pannes bloquantes ont déjà traversé ce trou :
 `unsafe-eval` d'abord, ce worker ensuite. Les captures étaient vertes et le jeu
 était inutilisable. `tools/screenshot.mjs` sert désormais par le binaire du
 serveur, sous la politique réelle, à chaque capture.
+
+**Confirmé sur le terrain le 18/08 au soir.** La carte et la cité s'affichent
+maintenant correctement sur l'iPhone qui ne montrait rien — constaté par le
+propriétaire de l'appareil, sur la production. C'était le symptôme rapporté
+(« on ne voit rien sur la carte et pas grand-chose sur la cité »), et il a
+disparu.
+
+**Attribution — honnêtement incertaine.** Trois changements se sont succédé
+entre le rapport et la confirmation, tous déployés : le décodage hors worker
+(`82a446e`, seule des trois à être mesurée — six gels sur six avant, zéro sur
+six après), puis `preferenceRendu` qui force `webgl` sur WebKit plutôt que de
+laisser PixiJS tenter WebGPU, et le délai de garde porté à 25 s par image
+(`6188626`). Le premier est de loin le plus probable : il frappait *toutes* les
+scènes accélérées sous la vraie CSP, sur tous les navigateurs, et l'iPhone
+était simplement le seul appareil testé. Mais les trois sont partis groupés et
+**aucune mesure ne départage** — les six sondes de `#/diagnostic` passaient déjà
+toutes lors des trois relevés, ce qui excluait la machine sans désigner le
+coupable.
+
+**Ce qui reste à vérifier, et pourquoi cela compte.** « S'affiche correctement »
+ne dit pas *en combien de temps*. Avec un délai de garde de 25 s par image et
+une carte qui crée ~17 900 objets, le téléphone peut très bien réussir de
+justesse : un réseau un peu plus lent, et le défaut revient — chez les cousins,
+pas ici. La trace de montage (`1e34f2d`, `sessionStorage`
+`auvergne.trace-scene.v1`) enregistre durée, taille, nombre d'objets et erreur
+par scène, et se relit dans `#/diagnostic`. **Un seul relevé après ouverture de
+la carte suffit à distinguer « corrigé confortablement » de « passe de
+justesse ».** Tant qu'il manque, tenir la marge pour inconnue.
 
 ## 1 quater. Le multijoueur, vérifié de bout en bout
 
