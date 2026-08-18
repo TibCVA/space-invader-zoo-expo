@@ -243,33 +243,91 @@ La vague D ne compte pas : elle n'est pas embarquée.
 
 ---
 
-## 6. Vague B — les objets actifs de la carte
+## 6. Vague B — les objets actifs et le décor de la carte
 
-**Cette section est volontairement laissée ouverte.** Le catalogue des objets de
-carte est en cours de refonte : la carte compte aujourd'hui 285 objets sur
-105 349 cases praticables, soit un objet toutes les 370 cases, quand une carte
-HMM3 de taille comparable en porte un toutes les 120 à 150. Des familles
-entières manquent — demeures extérieures, objets d'expérience, objets de moral et
-de chance, banques gardées, monolithes. La liste des natures d'objet
-(`MapObjectKind`) va donc s'allonger, et il serait absurde de commander les
-icônes avant de la connaître.
+Le catalogue des natures d'objet va s'allonger avec la densification de la
+carte (285 objets aujourd'hui pour une cible de 700 à 880). Mais **tout ce qui
+existe déjà est commandable dès maintenant**, et c'est une surface bien plus
+large qu'il n'y paraît : des dizaines d'images, chacune remplaçant une entrée
+d'atlas par sa seule clef de manifeste, sans une ligne de code.
 
-Ce qui est déjà certain et peut être produit sans attendre :
+### La contrainte de lisibilité — la demande explicite du propriétaire
 
-- **La contrainte de lisibilité**, qui est la demande explicite du propriétaire :
-  « les éléments actifs doivent être très jolis et bien visibles, bien distincts
-  des éléments juste décoratifs ». Un objet actif doit se lire **en un coup
-  d'œil** au milieu d'un semis de sapins. Les moyens : une **échelle supérieure**
-  au décor voisin, une **silhouette fermée et reconnaissable**, un **socle net**
-  qui l'attache au sol, un **liseré chaud** sur le bord éclairé, et une palette
-  plus **saturée** que le terrain. Le décor, lui, reste désaturé et sans liseré.
-- **Le format** : 88 × 88 avec alpha, catégorie `prop`, clef `carte_<kind>`,
-  fichiers dans `apps/client/public/img/carte/`. Point de contact au sol, au
-  milieu de la base.
-- **Les sept jetons de ressource** (`ressource_<key>`, 88 × 88), qui ne
-  changeront pas : écus, fer, fil d'or, essence, sel, granit, et le septième tel
-  qu'il est déclaré dans `packages/engine/src/types.ts`. Un petit tas peint,
-  brillant, nettement plus saturé que le sol.
+« Les éléments actifs doivent être très jolis et bien visibles, bien distincts
+des éléments juste décoratifs. » Un objet actif se lit **en un coup d'œil** au
+milieu d'un semis de sapins : silhouette fermée et reconnaissable, palette
+nettement plus **saturée** que le terrain, un accent chaud (or, cuivre, grenat)
+par objet. Le décor, lui, reste désaturé, dans les verts et les gris du fond.
+Le moteur fait le reste — clairière dégagée autour de chaque lieu, terre
+foulée au pied, échelle supérieure au décor : tout cela est déjà en place.
 
-La liste complète des natures d'objet suivra dans une révision de ce document,
-dès que le plan de densification de la carte sera arrêté.
+### B.1 — Les seize icônes d'objet de carte (immédiat)
+
+`88 × 88` avec alpha, catégorie `prop`, fichiers dans
+`apps/client/public/img/carte/`. **Point de contact au sol au milieu de la
+base** (le rendu ancre en (0,5 ; 0,78) de la texture). Une entrée par nature,
+clef exactement `carte_<kind>` :
+
+`carte_ville` (bourg fortifié) · `carte_village` (hameau à clocheton) ·
+`carte_mine` (entrée de galerie boisée, wagonnet) · `carte_ressource` (tas
+générique, repli) · `carte_artefact` (coffret ouvragé sur pierre) ·
+`carte_garde` (pavois planté, lances croisées) · `carte_borne` (borne armoriée
+gravée) · `carte_sanctuaire` (chapelle votive) · `carte_auberge` (relais à
+enseigne) · `carte_caravane` (chariot bâché) · `carte_sceau` (stèle scellée de
+cire) · `carte_maison_tresor` (porte de trésor dans la roche) ·
+`carte_belvedere` (plateforme de guet) · `carte_source` (source captée
+fumante) · `carte_quete` (potence à parchemin) · `carte_obstacle` (jamais
+dessiné — ne pas produire).
+
+### B.2 — Les sept jetons de ressource (immédiat)
+
+`ressource_<key>`, `88 × 88`, avec alpha : `ecus`, `bois`, `granit`, `fer`,
+`sel`, `essence`, `filDor`. Un petit tas peint, brillant, nettement plus saturé
+que le sol — c'est lui qu'on voit sur les tas de la carte **et** en annexe des
+mines, qui affichent désormais le jeton de ce qu'elles produisent.
+
+### B.3 — Le décor lui-même, par variante (le gros volume)
+
+C'est la réponse à « des dizaines et des dizaines d'items très bien dessinés » :
+le décor est substituable **pièce par pièce, variante par variante**, clef
+`prop_<nom>_<variante>` (numérotée de 0 à n−1), catégorie `prop`, fichiers dans
+`apps/client/public/img/decor/`.
+
+| Décor | Variantes | Clefs |
+|---|---|---|
+| sapin | 5 | `prop_sapin_0` … `prop_sapin_4` |
+| hetre | 5 | `prop_hetre_0` … `prop_hetre_4` |
+| rocher | 5 | `prop_rocher_0` … `prop_rocher_4` |
+| buisson | 4 | `prop_buisson_0` … `prop_buisson_3` |
+| muret | 4 | `prop_muret_0` … |
+| croix | 4 | `prop_croix_0` … |
+| pont | 4 | `prop_pont_0` … |
+| tour | 4 | `prop_tour_0` … |
+| ferme | 4 | `prop_ferme_0` … |
+| souche | 4 | `prop_souche_0` … |
+| fougere | 4 | `prop_fougere_0` … |
+| borne | 3 | `prop_borne_0` … |
+| moulin | 3 | `prop_moulin_0` … |
+| chapelle | 3 | `prop_chapelle_0` … |
+
+Soit **56 images** qui remplacent la forêt répétitive par de vrais arbres
+peints. Règles :
+
+- **Le point de contact au sol est à (50 % ; 92 %) de l'image** — c'est l'ancre
+  appliquée par le rendu, dimensions libres depuis le correctif des ancres.
+  `256 × 384` est un bon gabarit pour un arbre, `256 × 192` pour un rocher.
+- **Les variantes d'une même essence doivent différer vraiment** — port,
+  penchant, densité du houppier — sans changer d'essence ni de palette : elles
+  sont semées côte à côte par milliers.
+- **Palette du décor** : verts de sapin et de hêtre, gris de granit, jamais
+  d'accent chaud — l'accent chaud est réservé aux objets actifs, c'est lui qui
+  porte la distinction demandée.
+- Commencer par **sapin et hêtre (10 images)** : à eux deux ils couvrent
+  l'écrasante majorité des 32 272 décors semés.
+
+### B.4 — Quand le catalogue s'étend
+
+Chaque nouvelle nature d'objet issue de la densification (demeure extérieure,
+moulin à revenu, banque gardée, monolithe, obélisque…) recevra sa clef
+`carte_<kind>` au moment où elle entrera dans `MapObjectKind`. La liste sera
+ajoutée ici en révision — le mécanisme, lui, ne changera pas.

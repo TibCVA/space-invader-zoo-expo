@@ -69,7 +69,14 @@ export interface ArtAtlas {
   iconKeys(): string[];
   /** Vrai si la clef existe déjà dans l'atlas. */
   hasIcon(key: string): boolean;
-  /** Ancre au sol d'un prop, en pixels depuis le coin haut-gauche de sa texture. */
+  /**
+   * Ancre au sol d'un prop, en **fractions** de sa texture (0..1), prête pour
+   * `sprite.anchor.set`. Elle était auparavant exprimée en pixels de la cellule
+   * procédurale, que l'appelant redivisait par les dimensions de la texture —
+   * un aller-retour qui ne tombait juste que tant que la texture était celle de
+   * l'atlas. Une image générée de dimensions différentes, substituée par le
+   * manifeste, aurait flotté au-dessus du sol.
+   */
   propAnchor(key: PropKey, variant: number): { x: number; y: number };
   /** Statistiques de construction, pour la porte de qualité. */
   readonly stats: AtlasStats;
@@ -199,9 +206,12 @@ class Empaqueteur {
       });
       textures.set(p.key, tex);
       const e = this.entrees.find((q) => q.key === p.key);
+      /* L'ancre reste une fraction : la multiplier par la cellule puis la
+         rediviser à l'usage ne tombait juste que pour la texture de l'atlas.
+         Une image générée d'une autre taille doit garder le pied au sol. */
       ancres.set(p.key, {
-        x: (e?.ancre.x ?? 0.5) * p.w,
-        y: (e?.ancre.y ?? 0.5) * p.h,
+        x: e?.ancre.x ?? 0.5,
+        y: e?.ancre.y ?? 0.5,
       });
     }
 
@@ -386,7 +396,7 @@ export async function buildArtAtlas(renderer: Renderer): Promise<ArtAtlas> {
       const def = PROPS[key];
       if (!def) return { x: 0, y: 0 };
       const v = ((Math.trunc(variant) % def.variantes) + def.variantes) % def.variantes;
-      return ancresProps.get(`prop_${key}_${v}`) ?? { x: def.w / 2, y: def.h * 0.92 };
+      return ancresProps.get(`prop_${key}_${v}`) ?? { x: 0.5, y: 0.92 };
     },
     stats: {
       dureeMs: 0,

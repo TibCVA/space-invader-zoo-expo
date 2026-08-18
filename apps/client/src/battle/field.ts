@@ -792,7 +792,7 @@ export class ChampDeBataille {
       const tex = this.atlas.prop(key, variante);
       const ancre = this.atlas.propAnchor(key, variante);
       const s = new Sprite(tex);
-      s.anchor.set(ancre.x / tex.width, ancre.y / tex.height);
+      s.anchor.set(ancre.x, ancre.y);
       const c = this.geo.local(o.at);
       const k = ((t * 2.1) / tex.height) * echelle;
       s.scale.set(k);

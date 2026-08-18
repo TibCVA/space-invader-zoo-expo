@@ -349,7 +349,7 @@ export class SemisProps {
       const tex = this.atlas.prop(p.key, p.variante);
       s.texture = tex;
       const ancre = this.atlas.propAnchor(p.key, p.variante);
-      s.anchor.set(ancre.x / tex.width, ancre.y / tex.height);
+      s.anchor.set(ancre.x, ancre.y);
       s.tint = p.teinte;
       s.visible = true;
       const o = this.taches[i];
