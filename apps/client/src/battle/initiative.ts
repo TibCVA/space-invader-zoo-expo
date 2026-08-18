@@ -65,6 +65,10 @@ export class BarreInitiative {
     this.hauteurBarre = compact ? 68 : 92;
     this.tailleVignette = compact ? 42 : 58;
     this.cleAffichee = '';
+    /* Le cartouche de round n'a pas la même largeur selon la hauteur de barre :
+       sans cette remise à zéro, un cartouche large peint en paysage survivait au
+       passage en portrait et recouvrait les trois premières vignettes. */
+    this.roundAffiche = -1;
     this.peindreFond();
   }
 
@@ -127,6 +131,9 @@ export class BarreInitiative {
       noeud.scale.set(courant.s);
       noeud.zIndex = estActif ? 10 : 0;
       this.file.addChild(noeud);
+      /* la vignette ne change qu'à la resynchronisation : entre deux, elle
+         glisse et respire, mais son contenu est figé — donc mis en cache. */
+      noeud.cacheAsTexture(true);
     }
     this.file.sortableChildren = true;
     this.peindreOrnement(unites.length, pas, debut, t, actif ? unites.findIndex((u) => u.uid === actif) : -1);

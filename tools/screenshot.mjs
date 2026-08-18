@@ -19,16 +19,27 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.SHOT_PORT ?? 4188);
 
-/** Chaque scène est atteinte par un fragment d'URL géré par le client. */
+/**
+ * Chaque scène est atteinte par un fragment d'URL géré par le client.
+ *
+ * Les attentes ne sont pas des marges de confort : ce sont des mesures. Chaque
+ * capture ouvre un contexte neuf, donc **reconstruit l'atlas** — vingt-huit
+ * créatures gréées, les props, les icônes — et ce conteneur n'a aucun GPU,
+ * Chromium y rendant en logiciel. Le combat a été photographié trois fois sur
+ * son écran de chargement avant qu'on ne s'en aperçoive : à 11 s la barre en
+ * était encore à « on peint les vingt-huit créatures », à 40 s la scène était
+ * complète. Une capture prise trop tôt ne montre pas une régression, elle ne
+ * montre rien — et c'est la façon la plus sûre de conclure de travers.
+ */
 const SCENES = {
   accueil: { hash: '#/', wait: 6500, label: "Page d'accueil" },
   nouvelle: { hash: '#/nouvelle-partie', wait: 3000, label: 'Assistant de nouvelle partie' },
   codex: { hash: '#/codex', wait: 1400, label: 'Codex' },
   options: { hash: '#/options', wait: 1000, label: 'Options' },
   carte: { hash: '#/demo/carte', wait: 5200, label: "Carte d'aventure" },
-  cite_granit: { hash: '#/demo/cite/granit', wait: 3600, label: 'Cité — Châtellenie de Granit' },
-  cite_ermitage: { hash: '#/demo/cite/ermitage', wait: 3600, label: 'Cité — Ermitage des Bois Noirs' },
-  combat: { hash: '#/demo/combat', wait: 4200, label: 'Combat tactique' },
+  cite_granit: { hash: '#/demo/cite/granit', wait: 11000, label: 'Cité — Châtellenie de Granit' },
+  cite_ermitage: { hash: '#/demo/cite/ermitage', wait: 11000, label: 'Cité — Ermitage des Bois Noirs' },
+  combat: { hash: '#/demo/combat', wait: 22000, label: 'Combat tactique' },
   heros: { hash: '#/demo/heros', wait: 4000, label: 'Fiche de héros' },
   royaume: { hash: '#/demo/royaume', wait: 1600, label: 'Vue du royaume' },
   planche_art: { hash: '#/demo/planche-art', wait: 6000, label: 'Planche de contact — créatures' },

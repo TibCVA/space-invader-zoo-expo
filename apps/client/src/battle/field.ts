@@ -594,17 +594,42 @@ export class ChampDeBataille {
     this.container.addChild(this.sol, this.obstacles);
   }
 
-  /** Compose le sol dans une `RenderTexture` : une seule passe de rendu. */
-  peindre(renderer: Renderer, quality: 'basse' | 'moyenne' | 'haute'): void {
+  /**
+   * Compose le sol dans une `RenderTexture` : une seule passe de rendu.
+   *
+   * `zone` est le rectangle à peindre, en pixels du **plateau non étiré**. Il
+   * vaut par défaut la boîte du plateau plus une marge d'un hexagone ; la vue
+   * l'élargit pour que le sol couvre toute la bande qui lui est offerte — en
+   * portrait, la trame ne remplit pas la hauteur, et un aplat de fond à la
+   * place du pré peint se voit immédiatement.
+   */
+  peindre(
+    renderer: Renderer,
+    quality: 'basse' | 'moyenne' | 'haute',
+    zone?: { x: number; y: number; w: number; h: number },
+  ): void {
     const pal = PALETTES[this.ambiance];
     const force = densite(quality);
     const boite = this.geo.boite;
     const marge = Math.round(this.geo.taille * 0.9);
+    const defaut = {
+      x: boite.x - marge,
+      y: boite.y - marge,
+      w: boite.largeur + marge * 2,
+      h: boite.hauteur + marge * 2,
+    };
+    /* La zone demandée ne peut que s'ajouter à la boîte du plateau : jamais la
+       rogner, sans quoi des hexagones se retrouveraient hors du sol peint. */
+    const x0 = Math.min(defaut.x, zone ? zone.x : defaut.x);
+    const y0 = Math.min(defaut.y, zone ? zone.y : defaut.y);
+    const x1 = Math.max(defaut.x + defaut.w, zone ? zone.x + zone.w : 0);
+    const y1 = Math.max(defaut.y + defaut.h, zone ? zone.y + zone.h : 0);
+    const origine = { x: Math.floor(x0), y: Math.floor(y0) };
     const cadre: Cadre = {
       x: 0,
       y: 0,
-      w: Math.ceil(boite.largeur + marge * 2),
-      h: Math.ceil(boite.hauteur + marge * 2),
+      w: Math.ceil(x1 - origine.x),
+      h: Math.ceil(y1 - origine.y),
     };
 
     const racine = new Container();
@@ -666,7 +691,7 @@ export class ChampDeBataille {
 
     /* 5 — gravure de la trame, dans le repère du plateau */
     const trame = new Graphics();
-    trame.position.set(marge - boite.x, marge - boite.y);
+    trame.position.set(-origine.x, -origine.y);
     graverTrame(trame, this.geo, pal);
     racine.addChild(trame);
 
@@ -744,7 +769,7 @@ export class ChampDeBataille {
     this.texture?.destroy(true);
     this.texture = rt;
     this.sol.texture = rt;
-    this.sol.position.set(boite.x - marge, boite.y - marge);
+    this.sol.position.set(origine.x, origine.y);
 
     this.poserObstacles();
   }

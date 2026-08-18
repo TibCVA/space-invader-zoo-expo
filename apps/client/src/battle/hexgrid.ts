@@ -131,6 +131,11 @@ export class Geometrie {
 /**
  * Choisit le rayon d'hexagone et l'origine pour tenir dans la zone offerte.
  * Le plateau est centré ; aucun hexagone n'est jamais coupé.
+ *
+ * `ancrage` décide du placement vertical quand il reste de la hauteur : au
+ * centre partout, sauf en portrait où le plateau se cale **sous la barre
+ * d'initiative** — laisser un vide de plusieurs centimètres entre la barre et
+ * la première ligne d'hexagones est le défaut qu'on corrige ici.
  */
 export function cadrerPlateau(
   x: number,
@@ -138,14 +143,16 @@ export function cadrerPlateau(
   largeur: number,
   hauteur: number,
   etirement = 1,
+  ancrage: 'centre' | 'haut' = 'centre',
 ): Geometrie {
   /* largeur d'un hexagone = √3 × taille ; le plateau fait 15,5 largeurs. */
   const parLargeur = largeur / (Math.sqrt(3) * (HEX_COLS + 0.5));
   const parHauteur = hauteur / (etirement * (1.5 * (HEX_ROWS - 1) + 2));
-  const taille = Math.max(14, Math.floor(Math.min(parLargeur, parHauteur)));
+  const taille = Math.max(12, Math.floor(Math.min(parLargeur, parHauteur)));
   const boite = new Geometrie(taille, { x: 0, y: 0 }, etirement).boite;
   const ox = x + (largeur - boite.largeur) / 2 - boite.x;
-  const oy = y + (hauteur - boite.hauteur * etirement) / 2 - boite.y * etirement;
+  const libre = hauteur - boite.hauteur * etirement;
+  const oy = y + (ancrage === 'haut' ? Math.min(libre, 0) : libre / 2) - boite.y * etirement;
   return new Geometrie(taille, { x: Math.round(ox), y: Math.round(oy) }, etirement);
 }
 

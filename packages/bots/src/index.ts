@@ -154,6 +154,8 @@ interface Planner {
   origins: Map<string, MapCoord>;
   /** héros rentrés au logis : ils ne ressortent pas le jour même */
   resting: Set<string>;
+  /** motifs des refus, pour le diagnostic (voir `BotTurn.refused`) */
+  refused: { command: Command; error: string }[];
 }
 
 function refreshView(planner: Planner): void {
@@ -182,6 +184,15 @@ function emit(planner: Planner, command: Command): boolean {
   const result = isOver(planner) ? null : applySafely(planner, command);
   if (!result || !result.ok) {
     planner.refusals++;
+    if (planner.refused.length < 24) {
+      const error =
+        result && 'error' in result && typeof result.error === 'string'
+          ? result.error
+          : result
+            ? 'refus sans motif'
+            : 'exception du moteur';
+      planner.refused.push({ command, error });
+    }
     return false;
   }
   planner.state = result.state;
@@ -195,7 +206,7 @@ function emit(planner: Planner, command: Command): boolean {
 function applySafely(
   planner: Planner,
   command: Command,
-): { state: GameState; events: GameEvent[]; ok: boolean } | null {
+): { state: GameState; events: GameEvent[]; ok: boolean; error?: string } | null {
   try {
     return applyCommandRef(planner.state, command, planner.world);
   } catch {
@@ -710,6 +721,18 @@ export interface BotTurn {
   steps: { hash: string; command: Command }[];
   /** combats résolus automatiquement */
   battles: number;
+  /**
+   * Commandes que le moteur a refusées sur le clone.
+   *
+   * Aucune n'est retournée à l'appelant — la garantie « aucune commande
+   * invalide » tient. Mais le compte est exposé parce qu'il diagnostique une
+   * panne réelle : à `BUDGET.refusals` refus, `emit` cesse d'accepter quoi que
+   * ce soit et le reste du tour est perdu. Une bannière qui plafonne tour
+   * après tour est une bannière paralysée, et rien d'autre ne le dit.
+   */
+  refusals: number;
+  /** motifs des refus, dans l'ordre, pour le diagnostic */
+  refused: { command: Command; error: string }[];
 }
 
 /**
@@ -741,6 +764,7 @@ export function runBotTurn(state: GameState, world: WorldMap, player: PlayerId):
     claimed: new Set<string>(),
     origins: new Map<string, MapCoord>(),
     resting: new Set<string>(),
+    refused: [],
   };
 
   const alive = sim.players[player]?.alive === true;
@@ -752,6 +776,8 @@ export function runBotTurn(state: GameState, world: WorldMap, player: PlayerId):
       plan: planner.plan,
       steps: planner.steps,
       battles: 0,
+      refusals: planner.refusals,
+      refused: planner.refused,
     };
   }
 
@@ -777,6 +803,8 @@ export function runBotTurn(state: GameState, world: WorldMap, player: PlayerId):
     plan: planner.plan,
     steps: planner.steps,
     battles: planner.battles,
+    refusals: planner.refusals,
+    refused: planner.refused,
   };
 }
 

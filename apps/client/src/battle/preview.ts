@@ -172,12 +172,14 @@ export class CarteApercu {
   fermer(): void {
     this.ouverte = false;
     this.container.visible = false;
+    this.corps.cacheAsTexture(false);
     this.corps.removeChildren().forEach((c) => c.destroy({ children: true }));
     this.fond.clear();
   }
 
   /** Recompose la carte. Appelée seulement quand la prévisualisation change. */
   montrer(apercu: ApercuComplet, combat: CombatState): void {
+    this.corps.cacheAsTexture(false);
     this.corps.removeChildren().forEach((c) => c.destroy({ children: true }));
     this.fond.clear();
     this.ouverte = true;
@@ -394,6 +396,9 @@ export class CarteApercu {
       width: 1.2,
       alpha: 0.6,
     });
+    /* Une fois composée, la carte ne change plus jusqu'à la prochaine cible :
+       elle est mise en cache et ne coûte plus qu'un sprite par image. */
+    this.corps.cacheAsTexture(true);
   }
 
   /** Silhouette d'une pile dans l'en-tête de la carte. */

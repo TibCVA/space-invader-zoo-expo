@@ -87,24 +87,51 @@ import {
 
 interface Gabarit {
   compact: boolean;
+  /** téléphone tenu à la verticale : disposition entièrement empilée */
+  portrait: boolean;
   barre: number;
   gauche: number;
   droite: number;
   bas: number;
+  /** hauteur réservée sous le champ à la carte amarrée (portrait) */
+  info: number;
+  /** hauteur du bandeau de fiche posé au bas, en portrait */
+  fiche: number;
+  /** allongement vertical maximal toléré pour un hexagone */
+  etirementMax: number;
+  /** allongement retenu, calculé au redimensionnement */
   etirement: number;
 }
 
 function gabarit(largeur: number, hauteur: number): Gabarit {
   const compact = largeur < 940 || hauteur < 520;
   if (compact) {
-    return { compact: true, barre: 68, gauche: 0, droite: 0, bas: 74, etirement: hauteur > largeur ? 1.14 : 1 };
+    const portrait = hauteur > largeur * 1.2;
+    return {
+      compact: true,
+      portrait,
+      barre: 68,
+      gauche: 0,
+      droite: 0,
+      bas: 74,
+      /* en portrait, la place laissée sous le champ n'est pas un vide : elle
+         porte la fiche de la pile, et reçoit la carte d'aperçu amarrée. */
+      info: portrait ? Math.round(Math.min(320, Math.max(230, hauteur * 0.44))) : 0,
+      fiche: portrait ? 124 : 0,
+      etirementMax: portrait ? 1.3 : 1,
+      etirement: 1,
+    };
   }
   return {
     compact: false,
+    portrait: false,
     barre: 92,
     gauche: Math.round(Math.min(308, Math.max(250, largeur * 0.17))),
     droite: Math.round(Math.min(346, Math.max(268, largeur * 0.19))),
     bas: 84,
+    info: 0,
+    fiche: 0,
+    etirementMax: 1,
     etirement: 1,
   };
 }
@@ -157,6 +184,12 @@ class VueCombat implements BattleView {
   private readonly actionsCorps = new Container();
   private readonly poignee = new Graphics();
   private readonly aide = new Container();
+  /** bandeau d'information du mode portrait */
+  private readonly infoBas = new Container();
+  private readonly infoFond = new Graphics();
+  private readonly infoCorps = new Container();
+  /** fenêtre de la carte d'aperçu quand elle est rétractée */
+  private readonly masqueCarte = new Graphics();
 
   /* — état de la vue — */
   private combat: CombatState;
@@ -185,6 +218,11 @@ class VueCombat implements BattleView {
   private cleAide = '';
   private cleApercu = '';
   private baseBoard = { x: 0, y: 0 };
+  /** bande écran offerte au champ de bataille, marges comprises */
+  private bandeChamp = { x: 0, y: 0, w: 1, h: 1 };
+  /** en portrait, la carte d'aperçu est un panneau rétractable superposé */
+  private carteRepliee = false;
+  private cleInfo = '';
   private journalLocal: CombatLogEntry[] = [];
   private desabonner: (() => void) | null = null;
   private dernierEvenement = -1;
@@ -219,11 +257,14 @@ class VueCombat implements BattleView {
       this.barre.container,
       this.ficheG,
       this.journalD,
+      this.infoBas,
       this.barreActions,
       this.aide,
       this.grimoire.container,
+      this.masqueCarte,
       this.carte.container,
     );
+    this.infoBas.addChild(this.infoFond, this.infoCorps);
     this.ficheG.addChild(this.ficheGFond, this.ficheGCorps);
     this.journalD.addChild(this.journalDFond, this.journalDCorps);
     this.barreActions.addChild(this.actionsFond, this.poignee, this.actionsCorps);
@@ -333,15 +374,37 @@ class VueCombat implements BattleView {
 
     this.file.purger();
     const marge = this.plan.compact ? 8 : 16;
+    /* En portrait, le cartouche d'effectif déborde de l'hexagone : sans ce
+       retrait, les piles des colonnes de bord sont coupées par l'écran. */
+    const retrait = this.plan.portrait ? 15 : 0;
     const zone = {
-      x: this.plan.gauche + marge,
+      x: this.plan.gauche + marge + retrait,
       y: this.plan.barre + marge,
-      w: Math.max(80, this.largeur - this.plan.gauche - this.plan.droite - marge * 2),
-      h: Math.max(80, this.hauteur - this.plan.barre - this.hauteurPanneauBas() - marge * 2),
+      w: Math.max(80, this.largeur - this.plan.gauche - this.plan.droite - marge * 2 - retrait * 2),
+      h: Math.max(
+        80,
+        this.hauteur - this.plan.barre - this.hauteurPanneauBas() - this.plan.info - marge * 2,
+      ),
     };
+    this.bandeChamp = zone;
+
+    /* Étirement : le plateau prend la hauteur qu'on lui laisse, jusqu'au
+       plafond du gabarit. Au-delà, l'hexagone cesserait d'être un hexagone. */
+    const nature = cadrerPlateau(zone.x, zone.y, zone.w, zone.h, 1);
+    const hNature = Math.max(1, nature.boite.hauteur);
+    this.plan.etirement =
+      Math.round(Math.max(1, Math.min(this.plan.etirementMax, zone.h / hNature)) * 100) / 100;
+
     /* L'origine de la géométrie est en pixels **écran** : `screenOf` et
        `hexAt` du contrat travaillent donc directement dans ce repère. */
-    this.geo = cadrerPlateau(zone.x, zone.y, zone.w, zone.h, this.plan.etirement);
+    this.geo = cadrerPlateau(
+      zone.x,
+      zone.y,
+      zone.w,
+      zone.h,
+      this.plan.etirement,
+      this.plan.portrait ? 'haut' : 'centre',
+    );
     this.baseBoard = { x: this.geo.origine.x, y: this.geo.origine.y };
     this.board.position.set(this.baseBoard.x, this.baseBoard.y);
     this.plateau.scale.set(1, this.plan.etirement);
@@ -358,6 +421,7 @@ class VueCombat implements BattleView {
     this.cleActions = '';
     this.cleAide = '';
     this.cleApercu = '';
+    this.cleInfo = '';
     this.appliquer(true);
   }
 
@@ -421,7 +485,7 @@ class VueCombat implements BattleView {
 
     this.plateau.addChild(this.champ.container, this.marques.container, this.forts.container);
     this.hoteUnites.addChild(this.unites.container);
-    this.champ.peindre(this.deps.app.renderer, this.deps.quality);
+    this.champ.peindre(this.deps.app.renderer, this.deps.quality, this.zoneSolLocale());
 
     /* la file d'animations doit connaître la nouvelle géométrie */
     this.file.remplacerContexte({ geo: this.geo, piles: this.unites });
@@ -510,6 +574,7 @@ class VueCombat implements BattleView {
     this.majApercu();
     this.majFiche();
     this.majJournal();
+    this.majInfoPortrait();
     this.majActions();
     this.majAide();
     this.disposerIhm();
@@ -607,12 +672,83 @@ class VueCombat implements BattleView {
   /** Cible imposée par la vue (mode démonstration, ou clic de sélection). */
   private cibleForcee: string | null = null;
 
+  /**
+   * Rectangle de sol à peindre, en pixels du plateau non étiré. Il couvre
+   * toute la bande offerte au champ : le pré continue au-delà de la trame,
+   * au lieu de laisser voir le granit de fond.
+   */
+  private zoneSolLocale(): { x: number; y: number; w: number; h: number } {
+    const e = Math.max(0.01, this.plan.etirement);
+    const o = this.geo.origine;
+    /* le pré ne s'arrête pas à la trame : il couvre toute la surface libre,
+       réserve de la carte amarrée comprise */
+    const b = {
+      x: this.plan.gauche + 2,
+      y: this.bandeChamp.y - 8,
+      w: this.largeur - this.plan.gauche - this.plan.droite - 4,
+      h: this.bandeChamp.h + this.plan.info + 16,
+    };
+    /* la bande déborde un peu de ses marges : le sol ne doit pas s'arrêter
+       pile sous les panneaux, sinon on voit une couture */
+    const debord = 14;
+    return {
+      x: b.x - o.x - debord,
+      y: (b.y - o.y - debord) / e,
+      w: b.w + debord * 2,
+      h: (b.h + debord * 2) / e,
+    };
+  }
+
+  /** Hauteur visible de la carte d'aperçu rétractée : son bandeau de titre. */
+  private get enteteCarte(): number {
+    return 46;
+  }
+
+  /** La carte d'aperçu est-elle posée en panneau rétractable au bas ? */
+  private get carteAmarree(): boolean {
+    return this.plan.compact;
+  }
+
+  /** Rectangle écran occupé par la carte, telle qu'on la voit. */
+  private zoneCarte(): Rectangle | null {
+    if (!this.carte.estOuverte) return null;
+    const h = this.carteAmarree && this.carteRepliee ? this.enteteCarte : this.carte.hauteurCourante;
+    return new Rectangle(this.ancreApercu.x, this.ancreApercu.y, this.carte.largeur, h);
+  }
+
   /** Pose la carte à côté de la cible, sans jamais sortir de l'écran. */
   private placerCarte(): void {
     const uid = this.apercu?.uidCible ?? this.apercuImpose?.target ?? null;
     const c = uid ? findUnit(this.combat, uid) : null;
     const h = this.carte.hauteurCourante;
     const w = this.carte.largeur;
+
+    /*
+     * En écran étroit la carte n'est plus posée à côté de la cible : elle
+     * s'amarre au bas de l'écran, **superposée** au champ, et se rétracte
+     * d'une touche sur son bandeau. Elle ne recouvre jamais la trame, qui est
+     * calée en haut de la bande.
+     */
+    if (this.carteAmarree) {
+      const visible = this.carteRepliee ? this.enteteCarte : h;
+      const bas = this.hauteur - this.hauteurPanneauBas() - 8;
+      const y = Math.max(this.plan.barre + 8, bas - visible);
+      this.ancreApercu = { x: Math.round((this.largeur - Math.min(w, this.largeur - 16)) / 2), y: Math.round(y) };
+      this.carte.container.position.set(this.ancreApercu.x, this.ancreApercu.y);
+      this.masqueCarte.clear();
+      if (this.carteRepliee) {
+        /* rétractée : seule la coiffe reste à l'écran, le reste glisse dessous */
+        this.masqueCarte
+          .rect(this.ancreApercu.x - 2, this.ancreApercu.y - 6, w + 4, visible + 6)
+          .fill({ color: 0xffffff });
+        this.carte.container.mask = this.masqueCarte;
+      } else {
+        this.carte.container.mask = null;
+      }
+      return;
+    }
+    this.carte.container.mask = null;
+    this.masqueCarte.clear();
     let x = this.largeur - this.plan.droite - w - 22;
     let y = this.plan.barre + 22;
     if (c) {
@@ -641,14 +777,147 @@ class VueCombat implements BattleView {
     this.ficheG.position.set(marge, this.plan.barre + marge);
     this.journalD.position.set(this.largeur - this.plan.droite + 2, this.plan.barre + marge);
     this.barreActions.position.set(0, this.hauteur - this.hauteurPanneauBas());
+    /* la carte amarrée dépliée recouvre le bandeau : on ne laisse pas deux
+       parchemins se chevaucher par les bords */
+    const carteDepliee = this.carteAmarree && this.carte.estOuverte && !this.carteRepliee;
+    this.infoBas.visible =
+      this.plan.fiche > 0 && this.hauteurPanneauBas() <= this.plan.bas && !carteDepliee;
+    this.infoBas.position.set(marge, this.hauteur - this.hauteurPanneauBas() - this.plan.fiche);
     this.grimoire.container.position.set(
       this.plan.compact ? marge : this.plan.gauche + marge + 8,
       this.plan.barre + marge + 8,
     );
     this.aide.position.set(
       this.plan.compact ? marge : this.plan.gauche + marge,
-      this.hauteur - this.hauteurPanneauBas() - 26,
+      this.hauteur - this.hauteurPanneauBas() - this.plan.info - 26,
     );
+  }
+
+  /**
+   * Fige un sous-arbre d'interface en texture. Ces panneaux ne changent qu'à
+   * la reconstruction : les retesseller à chaque image était, après les piles,
+   * le poste de dépense le plus lourd de la scène.
+   */
+  private figer(c: Container): void {
+    c.cacheAsTexture(false);
+    if (c.children.length === 0) return;
+    const b = c.getLocalBounds();
+    if (b.width < 1 || b.height < 1) return;
+    c.cacheAsTexture(true);
+  }
+
+  /**
+   * Bandeau d'information du mode portrait : la pile choisie, ses chiffres,
+   * sa vie, et la dernière ligne de chronique. C'est ce que les deux panneaux
+   * latéraux disent en paysage, ramené à la largeur d'un téléphone.
+   */
+  private majInfoPortrait(): void {
+    if (this.plan.fiche <= 0) {
+      if (this.cleInfo !== 'aucun') {
+        this.cleInfo = 'aucun';
+        this.infoCorps.removeChildren().forEach((c) => c.destroy({ children: true }));
+        this.infoFond.clear();
+      }
+      return;
+    }
+    const u = this.selection ? findUnit(this.combat, this.selection) : null;
+    const dernier = this.journalLocal.length > 0 ? this.journalLocal[this.journalLocal.length - 1] : null;
+    const cle = [
+      u?.uid ?? 'vide',
+      u?.count ?? 0,
+      u?.topHp ?? 0,
+      u?.effects.length ?? 0,
+      dernier?.text ?? '',
+      this.largeur,
+      this.plan.fiche,
+    ].join('|');
+    if (cle === this.cleInfo) return;
+    this.cleInfo = cle;
+    this.infoBas.cacheAsTexture(false);
+    this.infoCorps.removeChildren().forEach((c) => c.destroy({ children: true }));
+    this.infoFond.clear();
+
+    const w = this.largeur - 16;
+    const h = this.plan.fiche - 8;
+    const marge = 12;
+    const g = new Graphics();
+    this.infoCorps.addChild(g);
+    panneau(this.infoFond, this.deps.atlas.materials, 0, 0, w, h, {
+      teinte: PALETTE.parchemin,
+      matiere: 'parchemin',
+      matiereAlpha: 0.2,
+      graine: 19,
+    });
+
+    if (!u) {
+      const t = titre('Aucune pile choisie', 14, PALETTE.encre);
+      t.position.set(marge, 14);
+      this.infoCorps.addChild(t);
+      const s = donnee('Touchez une pile pour lire sa fiche.', 12.5, melanger(PALETTE.encre, PALETTE.brunFougere, 0.4));
+      s.position.set(marge, 36);
+      this.infoCorps.addChild(s);
+      this.figer(this.infoBas);
+      return;
+    }
+
+    const def = unitDef(u);
+    const camp = this.camps[u.side];
+    const vign = vignettePile(this.deps.atlas, u, camp, 52, { nombre: false });
+    vign.position.set(marge, 12);
+    this.infoCorps.addChild(vign);
+
+    const nom = titre(u.count > 1 ? def.namePlural : def.name, 14, PALETTE.encre);
+    nom.position.set(marge + 62, 12);
+    this.infoCorps.addChild(nom);
+
+    const effectif = donnee(
+      `${nombreFr(u.count)} sur ${nombreFr(u.startCount)} · ${camp.nom}`,
+      12,
+      melanger(PALETTE.encre, camp.couleur, 0.4),
+      true,
+    );
+    effectif.position.set(marge + 62, 32);
+    this.infoCorps.addChild(effectif);
+
+    /* chiffres du moteur, sur une ligne : ce sont eux qu'on regarde en combat */
+    const chiffres: [string, string][] = [
+      ['att.', String(effectiveAttack(this.combat, u))],
+      ['déf.', String(effectiveDefense(this.combat, u))],
+      ['dég.', `${def.dmgMin}–${def.dmgMax}`],
+      ['vit.', `${effectiveSpeed(this.combat, u)}`],
+      ['ini.', String(effectiveInitiative(this.combat, u))],
+    ];
+    const pas = Math.floor((w - marge * 2) / chiffres.length);
+    let x = marge;
+    for (const [k, v] of chiffres) {
+      const tk = donnee(k, 11, melanger(PALETTE.encre, PALETTE.brunFougere, 0.45));
+      tk.position.set(x, 68);
+      this.infoCorps.addChild(tk);
+      const tv = donnee(v, 14, PALETTE.encre, true);
+      tv.position.set(x, 80);
+      this.infoCorps.addChild(tv);
+      x += pas;
+    }
+
+    const total = unitTotalHp(u);
+    const max = Math.max(1, u.startCount * def.hp);
+    jauge(g, marge, h - 34, w - marge * 2, 8, total / max, melanger(PALETTE.vertHetre, LIGHT.chaude, 0.25));
+    const vie = donnee(
+      `${nombreFr(total)} / ${nombreFr(max)} points de vie`,
+      11,
+      melanger(PALETTE.encre, PALETTE.brunFougere, 0.45),
+    );
+    vie.position.set(marge, h - 23);
+    this.infoCorps.addChild(vie);
+
+    if (dernier) {
+      const l = donnee(dernier.text, 11, melanger(PALETTE.encre, PALETTE.bleuProfond, 0.25));
+      l.anchor.set(1, 0);
+      l.position.set(w - marge, h - 23);
+      if (l.width < w - marge * 2 - 150) this.infoCorps.addChild(l);
+      else l.destroy();
+    }
+    this.figer(this.infoBas);
   }
 
   private hauteurPanneauBas(): number {
@@ -665,6 +934,7 @@ class VueCombat implements BattleView {
     if (cle === this.cleFiche) return;
     this.cleFiche = cle;
 
+    this.ficheG.cacheAsTexture(false);
     this.ficheGCorps.removeChildren().forEach((c) => c.destroy({ children: true }));
     this.ficheGFond.clear();
     if (this.plan.compact) return;
@@ -682,6 +952,7 @@ class VueCombat implements BattleView {
       this.ficheGCorps.addChild(t);
       y += 30;
       panneau(this.ficheGFond, this.deps.atlas.materials, 0, 0, w, y, { graine: 19 });
+      this.figer(this.ficheG);
       return;
     }
 
@@ -796,6 +1067,7 @@ class VueCombat implements BattleView {
       matiereAlpha: 0.2,
       graine: 19,
     });
+    this.figer(this.ficheG);
   }
 
   /** Historique et modificateurs : ce qui s'est passé, et ce qui pèse. */
@@ -803,6 +1075,7 @@ class VueCombat implements BattleView {
     const cle = `${this.journalLocal.length}:${this.combat.round}:${this.plan.droite}:${this.hauteur}:${this.actif ?? ''}`;
     if (cle === this.cleJournal) return;
     this.cleJournal = cle;
+    this.journalD.cacheAsTexture(false);
     this.journalDCorps.removeChildren().forEach((c) => c.destroy({ children: true }));
     this.journalDFond.clear();
     if (this.plan.compact) return;
@@ -886,6 +1159,7 @@ class VueCombat implements BattleView {
       matiereAlpha: 0.2,
       graine: 37,
     });
+    this.figer(this.journalD);
   }
 
   private pousserJournal(e: CombatLogEntry): void {
@@ -893,6 +1167,7 @@ class VueCombat implements BattleView {
     if (this.journalLocal.length > 200) this.journalLocal.splice(0, this.journalLocal.length - 200);
     this.cleJournal = '';
     this.majJournal();
+    this.majInfoPortrait();
   }
 
   /* ══════════════════════════════ Actions ════════════════════════════════ */
@@ -914,6 +1189,7 @@ class VueCombat implements BattleView {
     ].join('|');
     if (cle === this.cleActions) return;
     this.cleActions = cle;
+    this.barreActions.cacheAsTexture(false);
     this.actionsCorps.removeChildren().forEach((c) => c.destroy({ children: true }));
     this.actionsFond.clear();
     this.poignee.clear();
@@ -1007,6 +1283,7 @@ class VueCombat implements BattleView {
       nom.position.set(14, 20);
       this.actionsCorps.addChild(nom);
     }
+    this.figer(this.barreActions);
   }
 
   /** Ce que la pile active peut tenter, d'après le moteur seul. */
@@ -1068,6 +1345,7 @@ class VueCombat implements BattleView {
     const cle = this.plan.compact ? 'c' : 'l';
     if (cle === this.cleAide) return;
     this.cleAide = cle;
+    this.aide.cacheAsTexture(false);
     this.aide.removeChildren().forEach((c) => c.destroy({ children: true }));
     const texte = this.plan.compact
       ? 'Touchez une case pour marcher, une pile ennemie pour la viser.'
@@ -1079,6 +1357,7 @@ class VueCombat implements BattleView {
       alpha: 0.5,
     });
     this.aide.addChild(g, t);
+    this.figer(this.aide);
   }
 
   /* ══════════════════════════════ Entrées ════════════════════════════════ */
@@ -1142,6 +1421,14 @@ class VueCombat implements BattleView {
   private surAppui(e: FederatedPointerEvent): void {
     if (!this.plan.compact) return;
     const p = this.local(e);
+    /* la carte amarrée se replie et se déplie d'une touche sur son bandeau */
+    const zc = this.zoneCarte();
+    if (zc && this.carteAmarree && p.x >= zc.x && p.x <= zc.x + zc.width && p.y >= zc.y && p.y <= zc.y + Math.min(zc.height, this.enteteCarte)) {
+      this.carteRepliee = !this.carteRepliee;
+      this.placerCarte();
+      this.disposerIhm();
+      return;
+    }
     const yBas = this.hauteur - this.hauteurPanneauBas();
     if (p.y >= yBas && p.y <= yBas + 26) {
       this.panneauReplie = !this.panneauReplie;
@@ -1165,6 +1452,12 @@ class VueCombat implements BattleView {
         }
       }
       return;
+    }
+
+    /* 1 bis — la carte amarrée : elle est superposée, elle prend la touche */
+    if (this.carteAmarree) {
+      const zc = this.zoneCarte();
+      if (zc && zc.contains(p.x, p.y)) return;
     }
 
     /* 2 — le grimoire ouvert */
@@ -1227,7 +1520,7 @@ class VueCombat implements BattleView {
       p.x > this.plan.gauche &&
       p.x < this.largeur - this.plan.droite &&
       p.y > this.plan.barre &&
-      p.y < this.hauteur - this.hauteurPanneauBas()
+      p.y < this.hauteur - this.hauteurPanneauBas() - this.plan.info
     );
   }
 

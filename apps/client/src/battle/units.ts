@@ -58,6 +58,16 @@ export function couleurDeCss(css: string | undefined, secours: number): number {
 
 /* ═══════════════════════════════ Une pile ════════════════════════════════ */
 
+/**
+ * Gel des gréements au repos. Mesuré dans ce conteneur **sans GPU** : aucun
+ * gain reproductible (l'instrument dérive de 2× à l'intérieur d'une même
+ * session, voir le rapport). Le mécanisme est écrit, testé et laissé en place,
+ * mais **désactivé** : il coûte une respiration d'attente à 12 images/s, et on
+ * ne paie pas de qualité pour un gain qu'on n'a pas su mesurer. À rallumer le
+ * jour où la mesure se fait sur une vraie carte graphique.
+ */
+const GEL_DES_GREEMENTS = false;
+
 /** Ce que la vue affiche d'une pile, indépendamment de l'état du moteur. */
 export class PileVue {
   readonly container = new Container();
@@ -70,6 +80,8 @@ export class PileVue {
   uid: string;
   side: 0 | 1;
 
+  /** décor immobile de la pile : ombre de contact, socle de camp, jauge */
+  private readonly decor = new Container();
   private readonly socle = new Graphics();
   private readonly cadran = new Graphics();
   private readonly banniere: Sprite;
@@ -78,6 +90,11 @@ export class PileVue {
   private readonly ombreContact = new Graphics();
 
   private baseBanniereX = 0;
+  /** animation en cours, telle que la vue l'a demandée au gréement */
+  private animCourante = 'attente';
+  /** le gréement est-il figé en texture ? */
+  private rigFige = false;
+  private cacheT = 0;
   private nombreAffiche = -1;
   private vieAffichee = -1;
   private mise = false;
@@ -120,15 +137,22 @@ export class PileVue {
     this.banniere.alpha = 0.96;
     this.baseBanniereX = this.banniere.x;
 
+    /*
+     * Le décor de la pile ne bouge pas d'une image à l'autre : ombre de
+     * contact, socle de camp, jauge de vie. Groupé puis mis en cache, il ne
+     * coûte plus qu'un sprite au lieu de trois `Graphics` retracés — seul le
+     * gréement de la créature reste vivant.
+     */
+    this.decor.addChild(this.ombreContact, this.socle);
     this.container.addChild(
-      this.ombreContact,
-      this.socle,
+      this.decor,
       this.banniere,
       this.rig,
       this.cadran,
       this.cartoucheHote,
     );
     this.peindreSocle();
+    this.decor.cacheAsTexture(true);
     this.sync(unit, null);
   }
 
@@ -148,6 +172,7 @@ export class PileVue {
       this.pos.y = p.y;
       this.placer();
     }
+    this.degeler();
     if (regarde) {
       const dir = regarde.col === unit.at.col && regarde.row === unit.at.row
         ? unit.side === 0 ? 1 : -1
@@ -191,21 +216,35 @@ export class PileVue {
     this.container.position.set(this.pos.x, this.pos.y * this.geo.etirement);
   }
 
+  /** Rend le gréement au dessin direct : son contenu vient de changer. */
+  private degeler(): void {
+    if (!this.rigFige) return;
+    this.rig.cacheAsTexture(false);
+    this.rigFige = false;
+    this.cacheT = 0;
+  }
+
   orienter(dir: 1 | -1): void {
+    this.degeler();
     this.rig.setFacing(dir);
   }
 
   jouer(anim: 'attente' | 'marche' | 'attaque' | 'impact' | 'riposte' | 'defense' | 'mort' | 'capacite'): void {
+    this.animCourante = anim;
+    this.degeler();
     this.rig.play(anim);
   }
 
   frapper(amplitude: number): void {
+    this.degeler();
     const r = this.rig as unknown as { frapper?: (a: number) => void };
     r.frapper?.(Math.min(4, amplitude));
   }
 
   private mourir(): void {
     this.morte = true;
+    this.animCourante = 'mort';
+    this.degeler();
     this.rig.play('mort');
     this.cartoucheHote.visible = false;
     this.cadran.visible = false;
@@ -218,7 +257,32 @@ export class PileVue {
 
   update(dtMs: number): void {
     const s = dtMs / 1000;
-    this.rig.update(s);
+    /*
+     * Coût par image : un gréement de créature, c'est une trentaine de
+     * `Graphics` — quatorze piles, plus de quatre cents appels de dessin par
+     * image. Au **repos**, la pile ne fait que respirer (loi n°7, amplitude de
+     * deux pixels) : on la fige alors en texture et on ne rafraîchit cette
+     * texture que douze fois par seconde. Dès qu'une vraie animation joue —
+     * marche, attaque, impact, mort — le cache tombe et le gréement est de
+     * nouveau dessiné à pleine cadence. Compromis assumé : la respiration
+     * d'attente s'anime à 12 images/s au lieu de 60.
+     */
+    if (GEL_DES_GREEMENTS && this.animCourante === 'attente' && !this.mise && !this.morte) {
+      this.cacheT += dtMs;
+      if (!this.rigFige) {
+        this.rig.update(s);
+        this.rig.cacheAsTexture(true);
+        this.rigFige = true;
+        this.cacheT = 0;
+      } else if (this.cacheT >= 84) {
+        this.rig.update(this.cacheT / 1000);
+        this.rig.updateCacheTexture();
+        this.cacheT = 0;
+      }
+    } else {
+      this.degeler();
+      this.rig.update(s);
+    }
     if (this.reducedMotion) return;
     /* Bannière au vent : amplitude ≤ 3 px, période décorrélée (loi n°7). */
     this.phase += s;
@@ -281,6 +345,7 @@ export class PileVue {
     this.cartouche = plaqueNombre(this.atlas.materials, unit.count, this.camp.couleur, echelle);
     this.cartouche.position.set(this.geo.taille * 0.66, this.geo.taille * 0.3);
     this.cartoucheHote.addChild(this.cartouche);
+    this.cartouche.cacheAsTexture(true);
   }
 
   /** Jauge de vie de la pile : `unitTotalHp` sur le total de départ. */
