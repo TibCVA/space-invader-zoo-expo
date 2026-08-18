@@ -14,7 +14,8 @@
  * si le défaut est dans le choix du moteur de rendu, dans les textures, dans
  * les filtres, ou ailleurs.
  *
- * Les trois épreuves, dans l'ordre où elles s'enchaînent :
+ * Les épreuves, dans l'ordre où elles s'enchaînent — de la plus élémentaire à
+ * la plus proche de ce que le jeu demande vraiment :
  *
  *  1. **un aplat** — le moteur sait-il remplir un triangle ? Si cela échoue,
  *     rien ne marchera ;
@@ -28,7 +29,7 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { Bandeau } from './shell.js';
 import { rapportAssets } from '../art/assets.js';
-import { preferenceRendu, resolutionEcran } from '../boot.js';
+import { obtenirAtlas, preferenceRendu, resolutionEcran } from '../boot.js';
 
 /* ══════════════════════════════ Le relevé ════════════════════════════════ */
 
@@ -93,7 +94,7 @@ async function releverLaMachine(): Promise<Releve> {
 
   try {
     const pixi = await import('pixi.js');
-    const { Application, Graphics, Sprite, Texture, Container, ColorMatrixFilter } = pixi;
+    const { Application, Graphics, RenderTexture, Sprite, Texture, Container, ColorMatrixFilter } = pixi;
 
     const app = new Application();
     await app.init({
@@ -205,9 +206,60 @@ async function releverLaMachine(): Promise<Releve> {
       });
     }
 
+    /* — 4. une grande page d'atlas — */
+    /* Les pages de l'atlas font 2048 px. Sur un téléphone, c'est la première
+       allocation qui peut être refusée en silence : on la demande ici, seule,
+       pour savoir si le mur est là. */
+    try {
+      const cible = RenderTexture.create({ width: 2048, height: 2048, resolution: 1 });
+      const marque = new Graphics().rect(0, 0, 2048, 2048).fill(0x3f7d4a);
+      app.renderer.render({ container: marque, target: cible, clear: true });
+      marque.destroy();
+      const relu = app.renderer.extract.pixels(cible);
+      const px = relu.pixels;
+      const vert = px[1] > 80 && px[0] < 120;
+      cible.destroy(true);
+      epreuves.push({
+        nom: 'Peindre une page de 2048 px',
+        reussie: vert,
+        detail: vert
+          ? 'la page est allouée et relue'
+          : `page allouée mais relue en ${hex(px[0], px[1], px[2])} au lieu d'un vert`,
+      });
+    } catch (cause) {
+      epreuves.push({
+        nom: 'Peindre une page de 2048 px',
+        reussie: false,
+        detail: `refusée : ${String(cause).slice(0, 140)}`,
+      });
+    }
+
     app.destroy(true, { children: true });
   } catch (cause) {
     panne = String(cause).slice(0, 300);
+  }
+
+  /* — 5. l'atlas complet, celui dont la carte ne peut pas se passer — */
+  /* C'est le seul mécanisme lourd que cette page ne testait pas, et c'est
+     précisément celui dont dépendent la carte, les cités et le combat. Sur un
+     appareil où les quatre épreuves ci-dessus passent et où la carte reste
+     vide, c'est ici que la réponse se trouve. */
+  const debutAtlas = Date.now();
+  try {
+    const atlas = await obtenirAtlas();
+    const duree = Date.now() - debutAtlas;
+    const stats = atlas.stats;
+    epreuves.push({
+      nom: 'Construire la planche d’art',
+      reussie: stats.entrees > 0 && stats.pages > 0,
+      detail: `${String(stats.entrees)} vignettes sur ${String(stats.pages)} page(s), en ${String(duree)} ms`,
+    });
+  } catch (cause) {
+    epreuves.push({
+      nom: 'Construire la planche d’art',
+      reussie: false,
+      detail: `échouée après ${String(Date.now() - debutAtlas)} ms : ${String(cause).slice(0, 160)}`,
+    });
   }
 
   /* Les images générées : combien sont arrivées, et pourquoi les autres non. */
@@ -266,7 +318,7 @@ export function EcranDiagnostic(): ReactElement {
               </p>
             ) : null}
 
-            <h3 className="ecran__titre-carte diagnostic__titre">Les trois épreuves</h3>
+            <h3 className="ecran__titre-carte diagnostic__titre">Les épreuves</h3>
             <ul className="diagnostic__epreuves">
               {releve.epreuves.map((e) => (
                 <li key={e.nom} className={e.reussie ? 'diagnostic__ok' : 'diagnostic__echec'}>
@@ -285,7 +337,11 @@ export function EcranDiagnostic(): ReactElement {
                   ? 'Le moteur ne dessine rien du tout : c’est le choix du moteur de rendu qui est en cause.'
                   : echecs.some((e) => e.nom === 'Dessiner une texture')
                     ? 'Les formes passent mais les textures non : les créatures, les décors et les fonds peints manqueront.'
-                    : 'Les formes et les textures passent, mais pas les filtres : la carte d’aventure, qui en applique un sur toute la scène, restera vide alors que les autres écrans s’affichent.'}
+                    : echecs.some((e) => e.nom === 'Exécuter un filtre')
+                      ? 'Les formes et les textures passent, mais pas les filtres : la carte d’aventure, qui en applique un sur toute la scène, restera vide alors que les autres écrans s’affichent.'
+                      : echecs.some((e) => e.nom.startsWith('Peindre une page'))
+                        ? 'Le dessin élémentaire passe, mais pas une page de 2048 px : l’appareil refuse les grandes textures, et la planche d’art ne peut pas être assemblée.'
+                        : 'Tout le dessin élémentaire passe, mais la planche d’art ne se construit pas : c’est elle qui manque à la carte, aux cités et au combat.'}
               </p>
             ) : null}
 
