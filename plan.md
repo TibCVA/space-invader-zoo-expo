@@ -17,19 +17,26 @@ C'est la condition d'un rendu réellement AAA : le vectoriel procédural est exc
 pour l'interface, les icônes et les silhouettes, mais il plafonne sur la matière —
 peau, écorce, pierre, feuillage, visages.
 
-**État au 18/08/2026 : aucun outil de génération d'images n'est disponible dans la
-session de travail.** Recherche effectuée sous `ImageGen`, `generate_image`,
-`image_gen`, `CreateImage` — aucun résultat. Les sous-agents héritent du même jeu
-d'outils. La directive est donc **enregistrée mais inapplicable aujourd'hui** ; elle
-devient contraignante dès qu'un tel outil apparaît. **À vérifier au début de chaque
-lot visuel.**
+**Répartition du travail au 18/08/2026.** Aucun outil de génération d'images n'est
+disponible dans la session Claude Code (recherche sous `ImageGen`,
+`generate_image`, `image_gen`, `CreateImage` : aucun résultat ; les sous-agents
+héritent du même jeu d'outils). **Les images sont donc produites par Codex**, qui
+en dispose. Claude Code fournit le contrat, le chargeur et l'intégration.
 
-Priorités de génération, contraintes de style, budget et traçabilité :
-voir `docs/01-ART-BIBLE.md` §0.
+| Qui | Quoi |
+|---|---|
+| **Codex** | produit les bitmaps et les dépose sous `apps/client/public/img/` avec `manifeste.json`, en suivant **`docs/05-ASSETS.md`** |
+| **Claude Code** | contrat, chargeur, intégration, revue visuelle, redéploiement |
 
-Préparation en cours pour que l'arrivée de l'outil ne coûte aucune réécriture :
-l'atlas d'art est déjà indirect (`atlas.icon`, `atlas.prop`, `atlas.terrainBrush`),
-il restera à ajouter `assets/manifeste.json` et un chargeur à repli procédural.
+**Le tuyau est prêt et testé** : `apps/client/src/art/assets.ts` lit
+`public/img/manifeste.json` au démarrage et remplace les entrées d'atlas
+correspondantes. Une image absente, un chemin dangereux, une dimension absurde ou
+un budget dépassé sont ignorés avec un avertissement, et le rendu procédural reste
+affiché — **le jeu ne dépend jamais d'un asset**. Manifeste vide aujourd'hui,
+toléré sans erreur console. 7 tests verrouillent ce comportement.
+
+Clefs exactes, tailles, priorités, style et budget : **`docs/05-ASSETS.md`**.
+Règles de style détaillées : `docs/01-ART-BIBLE.md` §0.
 
 ---
 
