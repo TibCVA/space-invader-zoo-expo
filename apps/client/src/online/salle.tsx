@@ -453,8 +453,69 @@ export function EcranEnLigne(): ReactElement {
 
             <BoutonPrevenir />
           </div>
+
+          {parties.length === 0 ? <ModeDEmploi /> : null}
         </aside>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Les trois gestes d'une partie entre cousins, montrés seulement quand il n'y a
+ * encore aucune partie.
+ *
+ * Sur un grand écran, la colonne de droite ne portait qu'un encart de deux
+ * lignes — « aucune partie en ligne pour l'instant » — et le reste du champ
+ * restait vide. Or c'est exactement le moment où quelqu'un qui n'a jamais fait
+ * ça se demande ce qu'il doit faire. Une fois la première partie ouverte, le
+ * panneau disparaît : il n'a plus rien à apprendre à personne.
+ */
+function ModeDEmploi(): ReactElement {
+  const etapes: readonly { titre: string; texte: string; icone: string }[] = [
+    {
+      icone: 'banniere',
+      titre: 'Vous ouvrez la partie',
+      texte:
+        'Vous choisissez le nombre de bannières, la durée et la façon de gagner. Le serveur vous rend un code, du genre FOREZ-7K2P, et un lien.',
+    },
+    {
+      icone: 'cle',
+      titre: 'Vous envoyez le lien',
+      texte:
+        'Par message, par courriel, dicté au téléphone : peu importe. Le premier arrivé prend la bannière qu’il veut, choisit sa maison, son héros et son portrait. Aucun compte à créer, aucun mot de passe.',
+    },
+    {
+      icone: 'cloche',
+      titre: 'Chacun joue à son rythme',
+      texte:
+        'La partie dort sur le serveur entre deux coups. Quand c’est à vous, le titre de l’onglet vous le dit, et cette page aussi. Trois jours entre deux tours ne gênent personne.',
+    },
+  ];
+
+  return (
+    <div className="hmm-acc-parchemin hmm-enl-mode-emploi">
+      <h3 className="hmm-acc-bloc-titre">Comment ça se passe</h3>
+      <ol className="hmm-enl-etapes">
+        {etapes.map((etape, index) => (
+          <li key={etape.titre} className="hmm-enl-etape">
+            <span className="hmm-enl-etape-rang" aria-hidden="true">
+              {index + 1}
+            </span>
+            <div className="hmm-enl-etape-corps">
+              <h4 className="hmm-enl-etape-titre">
+                <Icon name={etape.icone} size={16} />
+                <span>{etape.titre}</span>
+              </h4>
+              <p className="hmm-enl-etape-texte">{etape.texte}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <p className="hmm-acc-aide hmm-enl-rassurance">
+        Rien n’est perdu si un cousin ferme son navigateur : la partie vit sur le serveur, pas dans
+        l’onglet.
+      </p>
     </div>
   );
 }

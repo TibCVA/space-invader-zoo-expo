@@ -455,3 +455,82 @@
 :root[data-contraste='renforce'] .hmm-enl-lien-champ {
   border-color: rgba(201, 162, 39, 0.92);
 }
+
+/* ─────────────────────── 8. « Comment ça se passe » ──────────────────────── */
+
+/*
+ * Panneau d'accueil des premiers pas, dans la colonne de droite, tant qu'aucune
+ * partie n'existe. Il occupe le champ que « Mes parties » laissait vide sur un
+ * grand écran, précisément au moment où quelqu'un qui n'a jamais fait ça se
+ * demande par quel bout prendre la chose.
+ */
+.hmm-enl-mode-emploi {
+  margin-top: clamp(14px, 2vw, 22px);
+}
+
+.hmm-enl-etapes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(14px, 1.8vw, 20px);
+}
+
+.hmm-enl-etape {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+/* Le rang gravé : chiffre d'or dans un jeton de parchemin creusé. */
+.hmm-enl-etape-rang {
+  display: grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border-radius: 50%;
+  font-family: Cinzel, Georgia, serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #4c3f2f;
+  background: radial-gradient(circle at 34% 30%, #f0e6cc, #cdbf9d 72%);
+  border: 1px solid rgba(201, 162, 39, 0.7);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 249, 232, 0.85),
+    inset 0 -1px 0 rgba(42, 50, 66, 0.24),
+    0 1px 2px rgba(42, 50, 66, 0.24);
+}
+
+.hmm-enl-etape-titre {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-family: Cinzel, Georgia, serif;
+  font-size: 0.94rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #241c14;
+}
+
+.hmm-enl-etape-texte {
+  margin: 0;
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #4c3f2f;
+}
+
+/* Le mot de la fin se détache du reste par un filet, pas par une couleur. */
+.hmm-enl-rassurance {
+  margin-block-start: clamp(12px, 1.6vw, 18px);
+  padding-block-start: clamp(10px, 1.4vw, 14px);
+  border-block-start: 1px solid rgba(201, 162, 39, 0.34);
+  font-style: italic;
+}
+
+:root[data-contraste='renforce'] .hmm-enl-etape-rang {
+  border-color: rgba(201, 162, 39, 0.92);
+}
