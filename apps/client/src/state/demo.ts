@@ -17,7 +17,15 @@
  * Rien ici n'est aléatoire : deux exécutions produisent le même octet.
  */
 
-import { createRng, hashState, emptyResources, MAP_COLS, MAP_ROWS } from '@auvergne/engine';
+import {
+  createRng,
+  hashState,
+  emptyResources,
+  initialReveal,
+  isPassable,
+  MAP_COLS,
+  MAP_ROWS,
+} from '@auvergne/engine';
 import type {
   ArmyStack,
   GameSetup,
@@ -494,6 +502,108 @@ export function etatDemo(): GameState {
 
 /* ────────────────────── Démonstrations avec la carte ────────────────────── */
 
+/** Les huit cases que le moteur essaie autour d'une cité pour poser un héros. */
+const ABORDS: readonly { col: number; row: number }[] = [
+  { col: 0, row: 1 },
+  { col: 1, row: 1 },
+  { col: -1, row: 1 },
+  { col: 1, row: 0 },
+  { col: -1, row: 0 },
+  { col: 0, row: 2 },
+  { col: 2, row: 1 },
+  { col: -2, row: 1 },
+];
+
+/**
+ * Reporte sur une vraie partie le décor composé à la main.
+ *
+ * `createGame` ouvre le premier jour : deux masures et une taverne par
+ * capitale. Le tableau de cité n'y montrait donc que trois bâtiments, tous du
+ * même archétype (`maison`), et onze archétypes d'architecture sur douze
+ * n'étaient jamais dessinés. La revue visuelle demande l'inverse : Cervières à
+ * ~70 %, l'Hermitage à ~60 %.
+ *
+ * On ne recompose pas la partie : le moteur reste seul maître de la carte et
+ * de ses objets. Seule la **couche politique** des cités décorées par
+ * `etatDemo()` est recopiée — nom, faction, bannière, bâtiments, recrutement,
+ * agitation. Les cités laissées vides par l'état à la main (Viscomtat,
+ * Arconsat) gardent leur garnison neutre telle que le moteur l'a posée. Les
+ * héros et le brouillard suivent ensuite, par le moteur lui-même.
+ *
+ * Effet de bord voulu : la Châtellenie de Noirétable revient à la Maison de
+ * Cervières, sous sa vraie faction `granit`. `createGame` la donnait à
+ * l'Ermitage — seule position de départ libre au sud-est — et
+ * `#/demo/cite/ermitage` tombait donc sur une cité nommée « Noirétable » de
+ * faction `ermitage`, ce que dément l'état à la main comme les emplacements de
+ * sauvegarde. Le siège de l'Ermitage est Notre-Dame de l'Hermitage, centre
+ * neutre que le moteur pose déjà à sa vraie ancre (125, 250). `packages/map`
+ * n'y est pour rien : la géographie n'y impose jamais la faction, et
+ * `starts.ts` le dit en toutes lettres.
+ */
+function appliquerDecorDemo(state: GameState, world: WorldMap): void {
+  const modele = etatDemo();
+
+  /* Une capitale à 70 % ne se lève pas le premier jour : la revue montre la
+     même journée que le journal de `etatDemo()` et que `#/demo/combat`. */
+  state.turn = modele.turn;
+
+  for (const uid of Object.keys(modele.towns).sort()) {
+    const source = modele.towns[uid];
+    /* Une cité sans bâtiment n'est pas un décor : on laisse le moteur. */
+    if (source.built.length === 0) continue;
+    const cible = state.towns[uid];
+    if (!cible) continue;
+    cible.name = source.name;
+    cible.faction = source.faction;
+    cible.owner = source.owner;
+    cible.built = source.built.slice();
+    cible.available = { ...source.available };
+    cible.garrison = source.garrison.map((s) => (s ? { ...s } : null));
+    cible.spells = source.spells.slice();
+    cible.charter = source.charter;
+    cible.isCapital = source.isCapital;
+    cible.unrest = source.unrest;
+  }
+
+  /* La liste des cités de chaque bannière se relit de la propriété : sans
+     cela, l'Ermitage tiendrait encore Noirétable qu'il vient de perdre. */
+  for (const id of Object.keys(state.players) as PlayerId[]) state.players[id].towns = [];
+  for (const uid of Object.keys(state.towns).sort()) {
+    const town = state.towns[uid];
+    if (town.owner) state.players[town.owner]?.towns.push(uid);
+  }
+
+  /* Les héros suivent leur bannière. Anastasia gardait la porte de Noirétable,
+     qui vient de changer de mains : on la ramène au pied de son siège, par les
+     mêmes abords que ceux du moteur. Clotilde, déjà à la porte de Cervières,
+     ne bouge pas d'une case. */
+  const occupees: { col: number; row: number }[] = [];
+  for (const id of Object.keys(state.players) as PlayerId[]) {
+    const joueur = state.players[id];
+    const siege =
+      joueur.towns.map((uid) => state.towns[uid]).find((t) => t?.isCapital) ??
+      state.towns[joueur.towns[0] ?? ''] ??
+      null;
+    if (!siege) continue;
+    for (const uid of joueur.heroes) {
+      const heros = state.heroes[uid];
+      if (!heros) continue;
+      const abord =
+        ABORDS.map((o) => ({ col: siege.at.col + o.col, row: siege.at.row + o.row })).find(
+          (c) =>
+            isPassable(world, c.col, c.row) &&
+            !occupees.some((t) => t.col === c.col && t.row === c.row),
+        ) ?? siege.at;
+      occupees.push({ col: abord.col, row: abord.row });
+      heros.at = { col: abord.col, row: abord.row };
+    }
+  }
+
+  /* Le voile se relit du nouveau domaine : sans cela la Maison de Cervières
+     tiendrait Noirétable sans l'avoir jamais vue. */
+  initialReveal(state, world);
+}
+
 let cachePartie: Promise<{ state: GameState; world: WorldMap; setup: GameSetup }> | null = null;
 
 /**
@@ -510,6 +620,8 @@ export async function partieDemo(): Promise<{ state: GameState; world: WorldMap;
     const setup = setupDemo();
     const world = buildWorld(GRAINE_DEMO);
     const state = createGame(setup, world);
+    appliquerDecorDemo(state, world);
+    state.hash = hashState(state as unknown as Record<string, unknown>);
     return { state, world, setup };
   })();
   return cachePartie;
