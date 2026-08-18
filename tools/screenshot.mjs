@@ -88,19 +88,40 @@ async function main() {
   mkdirSync(outDir, { recursive: true });
 
   if (!skipBuild) {
-    console.log('▸ construction du client…');
+    console.log('▸ construction du client et du serveur…');
     await run('pnpm', ['--filter', '@auvergne/client', 'build']);
+    await run('pnpm', ['--filter', '@auvergne/server', 'build']);
   }
   if (!existsSync(resolve(ROOT, 'apps/client/dist/index.html'))) {
     throw new Error('apps/client/dist/index.html absent — la construction a échoué.');
   }
+  if (!existsSync(resolve(ROOT, 'apps/server/dist/server.js'))) {
+    throw new Error('apps/server/dist/server.js absent — relancez sans --no-build.');
+  }
 
-  console.log('▸ démarrage du serveur de prévisualisation…');
-  const server = spawn(
-    'pnpm',
-    ['--filter', '@auvergne/client', 'exec', 'vite', 'preview', '--port', String(PORT), '--strictPort'],
-    { cwd: ROOT, stdio: 'ignore', detached: true },
-  );
+  /*
+   * On sert par le **vrai binaire du serveur**, et non par `vite preview`.
+   *
+   * Ce n'est pas un détail d'intendance. `vite preview` n'envoie aucune
+   * politique de sécurité de contenu, alors que le serveur envoie
+   * `script-src 'self'`. Deux pannes bloquantes ont déjà traversé ce harnais
+   * sans être vues, pour cette seule raison : PixiJS qui réclame `unsafe-eval`
+   * pour compiler ses shaders, puis PixiJS qui fabrique son décodeur d'images
+   * dans un worker `blob:` — ce dernier figeant le chargement pour de bon, six
+   * fois sur six, sur toutes les scènes accélérées. Les captures étaient
+   * vertes, le jeu était inutilisable.
+   *
+   * Servir par le binaire réel rend la CSP présente à chaque capture. Il
+   * permet aussi de photographier les écrans en ligne, qui ont besoin de
+   * `/api`.
+   */
+  console.log('▸ démarrage du serveur (CSP réelle)…');
+  const server = spawn('node', ['apps/server/dist/server.js'], {
+    cwd: ROOT,
+    stdio: 'ignore',
+    detached: true,
+    env: { ...process.env, PORT: String(PORT), AUVERGNE_STORAGE: 'memory' },
+  });
   const base = `http://127.0.0.1:${PORT}`;
 
   const report = { generatedAt: new Date().toISOString(), shots: [], consoleErrors: [] };

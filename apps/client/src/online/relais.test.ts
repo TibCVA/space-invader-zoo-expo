@@ -90,7 +90,10 @@ describe('relais des commandes en ligne', () => {
   });
 
   it('ignore une réponse qui arrive après un changement de partie', async () => {
-    let resoudre: ((v: commandes.ResultatEnvoi) => void) | null = null;
+    /* `!` plutôt qu'une union avec `null` : l'exécuteur d'une promesse est
+       appelé sur-le-champ, mais TypeScript ne le sait pas et réduirait la
+       variable à `never` au moment de l'appeler. */
+    let resoudre!: (v: commandes.ResultatEnvoi) => void;
     vi.spyOn(commandes, 'envoyerCommandeFiable').mockReturnValue(
       new Promise<commandes.ResultatEnvoi>((r) => {
         resoudre = r;
@@ -102,7 +105,7 @@ describe('relais des commandes en ligne', () => {
 
     /* Le joueur ouvre une autre partie pendant que le coup vole. */
     brancherRelais({ code: 'GRANIT-4M9X', seq: 1, monSlot: 'P2' }, (e) => echos.push(e));
-    resoudre?.({ issue: 'applique', cle: 'k1', charge: reponse('FOREZ-7K2P', 99), tentatives: 1 });
+    resoudre({ issue: 'applique', cle: 'k1', charge: reponse('FOREZ-7K2P', 99), tentatives: 1 });
     await souffler();
 
     expect(echos).toHaveLength(0);

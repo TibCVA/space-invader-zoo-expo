@@ -36,10 +36,26 @@
  */
 import 'pixi.js/unsafe-eval';
 
+/*
+ * SECOND IMPÉRATIF DE LA MÊME FAMILLE, ET POUR LA MÊME RAISON.
+ *
+ * PixiJS décode aussi les images dans un *worker* fabriqué depuis une URL
+ * `blob:`. Notre CSP dit `script-src 'self'` sans mentionner `worker-src`, qui
+ * retombe donc sur `default-src 'self'` et refuse `blob:`. Le worker n'est
+ * jamais créé et la promesse de `Assets.load` n'est **ni tenue ni rejetée** :
+ * le chargement se fige pour de bon. Mesuré six fois sur six sous le vrai
+ * binaire du serveur, sur la carte comme sur les cités et le combat.
+ *
+ * On pose donc la préférence avant tout, et non à la première image chargée :
+ * une fois le décodeur choisi, il est trop tard.
+ */
+import { poserPreferencesAssets } from './art/assets.js';
+
 import { createRoot } from 'react-dom/client';
 import { amorcer } from './boot.js';
 import { App } from './App.js';
 
+poserPreferencesAssets();
 amorcer();
 
 const hote = document.getElementById('root');

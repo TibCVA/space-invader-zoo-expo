@@ -18,6 +18,72 @@ import { Assets, Texture } from 'pixi.js';
 export const RACINE_IMAGES = '/img';
 export const CHEMIN_MANIFESTE = `${RACINE_IMAGES}/manifeste.json`;
 
+/**
+ * Délai de garde par image. Au-delà, on abandonne **cette** image et l'atlas
+ * garde sa version procédurale.
+ *
+ * Deux mégaoctets sur une connexion mobile lente peuvent demander plusieurs
+ * secondes ; dix suffisent largement, et surtout ils bornent l'attente. Sans
+ * borne, une seule requête qui ne revient jamais fige le jeu pour de bon.
+ */
+const DELAI_IMAGE_MS = 10_000;
+
+/**
+ * PixiJS décode les images dans un *worker* qu'il fabrique à partir d'une URL
+ * `blob:`. Notre CSP dit `script-src 'self'` et ne mentionne pas `worker-src` —
+ * qui retombe donc sur `default-src 'self'`, lequel refuse `blob:`. Le worker
+ * n'est jamais créé, la promesse de `Assets.load` **n'est jamais tenue ni
+ * rejetée**, et le chargement se fige définitivement à « on peint les
+ * vingt-huit créatures ».
+ *
+ * Mesuré sous le vrai binaire du serveur : six essais sur six figés, sur la
+ * carte comme sur le combat et les cités. Le harnais de capture ne le voyait
+ * pas parce qu'il sert le bundle par `vite preview`, qui n'envoie aucune CSP —
+ * exactement l'angle mort qui avait déjà laissé passer le défaut `unsafe-eval`.
+ *
+ * On décode donc sur le fil principal. C'est un peu plus lent au démarrage, et
+ * cela ne coûte rien d'autre : la CSP reste stricte, aucune exception n'est
+ * ouverte pour `blob:`.
+ */
+let preferencesPosees = false;
+
+export function poserPreferencesAssets(): void {
+  poserPreferences();
+}
+
+function poserPreferences(): void {
+  if (preferencesPosees) return;
+  preferencesPosees = true;
+  try {
+    Assets.setPreferences({ preferWorkers: false });
+  } catch {
+    /* Une version de PixiJS sans cette préférence : le délai de garde
+       ci-dessous reste le filet de sécurité. */
+  }
+}
+
+/**
+ * `Assets.load` borné dans le temps. Rejette au-delà du délai plutôt que de
+ * laisser l'appelant attendre indéfiniment.
+ */
+async function chargerBorne(url: string, delaiMs = DELAI_IMAGE_MS): Promise<Texture> {
+  poserPreferences();
+  let minuterie: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Assets.load(url) as Promise<Texture>,
+      new Promise<never>((_, rejeter) => {
+        minuterie = setTimeout(
+          () => rejeter(new Error(`délai dépassé après ${String(delaiMs)} ms`)),
+          delaiMs,
+        );
+      }),
+    ]);
+  } finally {
+    if (minuterie !== undefined) clearTimeout(minuterie);
+  }
+}
+
 export type CategorieAsset =
   | 'portrait'
   | 'terrain'
@@ -163,7 +229,7 @@ export async function appliquerAssetsGeneres(
 
       const url = `${RACINE_IMAGES}/${entree.fichier}`;
       try {
-        const texture = (await Assets.load(url)) as Texture;
+        const texture = await chargerBorne(url);
         if (!texture || !texture.source) {
           ignores.push({ clef: entree.clef, raison: 'texture vide' });
           continue;
