@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useMemo, type ReactElement } from 'react';
-import { dayOf, weekOf } from '@auvergne/engine';
+import { dayOf, weekOf, type TownState } from '@auvergne/engine';
 import type { AppState, PathPreview } from '../state/types.js';
 import { annulerChemin, confirmerChemin, selectionner } from '../state/store.js';
 import { dispatch, viewStore } from '../state/store.js';
@@ -126,10 +126,19 @@ export function EcranCite({ state, reducedMotion, uid, demoTown }: EcranCiteProp
   const cible = useMemo(() => {
     if (!game) return null;
     if (uid && game.towns[uid]) return game.towns[uid];
+    /* `#/demo/cite/:town` doit montrer le **siège** de la faction, pas la
+       première cité venue qui en porte la couleur : une seigneurie neutre
+       partage la faction sans rien avoir bâti, et la revue tombait dessus.
+       On classe donc par bannière tenue, capitale, nombre de bâtiments, puis
+       identifiant — ce dernier pour que deux revues rendent la même image. */
     const faction = demoTown === 'ermitage' ? 'ermitage' : 'granit';
+    const rang = (t: TownState): number => (t.owner ? 2 : 0) + (t.isCapital ? 1 : 0);
     const trouvee = Object.values(game.towns)
       .filter((t) => t.faction === faction)
-      .sort((a, b) => b.built.length - a.built.length)[0];
+      .sort(
+        (a, b) =>
+          rang(b) - rang(a) || b.built.length - a.built.length || a.uid.localeCompare(b.uid),
+      )[0];
     return trouvee ?? Object.values(game.towns)[0] ?? null;
   }, [game, uid, demoTown]);
 

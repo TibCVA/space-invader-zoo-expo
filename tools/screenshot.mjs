@@ -36,6 +36,7 @@ const SCENES = {
   nouvelle: { hash: '#/nouvelle-partie', wait: 3000, label: 'Assistant de nouvelle partie' },
   codex: { hash: '#/codex', wait: 1400, label: 'Codex' },
   options: { hash: '#/options', wait: 1000, label: 'Options' },
+  diagnostic: { hash: '#/diagnostic', wait: 6000, label: 'Diagnostic de la machine' },
   carte: { hash: '#/demo/carte', wait: 5200, label: "Carte d'aventure" },
   cite_granit: { hash: '#/demo/cite/granit', wait: 11000, label: 'Cité — Châtellenie de Granit' },
   cite_ermitage: { hash: '#/demo/cite/ermitage', wait: 11000, label: 'Cité — Ermitage des Bois Noirs' },

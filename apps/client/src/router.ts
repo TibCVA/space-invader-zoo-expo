@@ -25,6 +25,7 @@ export type Route =
   | { readonly name: 'charger' }
   | { readonly name: 'codex'; readonly section?: string }
   | { readonly name: 'options' }
+  | { readonly name: 'diagnostic' }
   /* — Parties en ligne asynchrones (docs/04-MULTIJOUEUR.md) — */
   | { readonly name: 'en-ligne' }
   | { readonly name: 'en-ligne-partie'; readonly code: string }
@@ -159,6 +160,10 @@ export function parseRoute(fragment: string): Route {
       return parts[1] ? { name: 'codex', section: parts[1] } : { name: 'codex' };
     case 'options':
       return { name: 'options' };
+    /* Relevé de la machine du joueur. Volontairement hors de tout menu : on
+       l'atteint en tapant l'adresse, quand plus rien d'autre ne s'affiche. */
+    case 'diagnostic':
+      return { name: 'diagnostic' };
     default:
       return { name: 'introuvable', fragment };
   }
@@ -171,6 +176,8 @@ export function formatRoute(route: Route): string {
       return '#/';
     case 'nouvelle-partie':
       return '#/nouvelle-partie';
+    case 'diagnostic':
+      return '#/diagnostic';
     case 'charger':
       return '#/charger';
     case 'codex':

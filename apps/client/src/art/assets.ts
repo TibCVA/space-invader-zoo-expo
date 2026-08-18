@@ -22,11 +22,16 @@ export const CHEMIN_MANIFESTE = `${RACINE_IMAGES}/manifeste.json`;
  * Délai de garde par image. Au-delà, on abandonne **cette** image et l'atlas
  * garde sa version procédurale.
  *
- * Deux mégaoctets sur une connexion mobile lente peuvent demander plusieurs
- * secondes ; dix suffisent largement, et surtout ils bornent l'attente. Sans
- * borne, une seule requête qui ne revient jamais fige le jeu pour de bon.
+ * Le point délicat est de choisir la borne. Dix secondes paraissaient
+ * confortables sur un réseau de bureau ; sur un iPhone en 4G, un panorama de
+ * cinq cents kilo-octets pris dans une file de six requêtes peut les dépasser,
+ * et l'image est alors abandonnée pour rien — la cité retombe sur son décor
+ * procédural alors que la peinture serait arrivée deux secondes plus tard.
+ * Vingt-cinq secondes laissent passer une connexion médiocre tout en bornant
+ * l'attente : sans borne, une requête qui ne revient jamais fige le jeu pour de
+ * bon, ce qui est arrivé.
  */
-const DELAI_IMAGE_MS = 10_000;
+const DELAI_IMAGE_MS = 25_000;
 
 /**
  * PixiJS décode les images dans un *worker* qu'il fabrique à partir d'une URL

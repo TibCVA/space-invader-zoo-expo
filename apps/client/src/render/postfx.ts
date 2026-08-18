@@ -124,8 +124,19 @@ void main(void)
     col = clamp(col, 0.0, 1.0);
     col = mix(col, col * col * (3.0 - 2.0 * col), 0.15);
     /* Exposition : un massif de sapins reste sombre par nature, mais une carte
-       de jeu doit vivre dans les demi-teintes, pas dans les noirs. */
-    col = pow(col, vec3(0.84));
+       de jeu doit vivre dans les demi-teintes, pas dans les noirs.
+       Cette remontée s'applique à la LUMINANCE seule, pas aux trois canaux.
+       Un pow(col, 0.84) par canal remontait le canal faible plus vite que le
+       fort : (max-min)/max s'effondrait. Mesuré par ablation sur la carte, ce
+       seul gamma coûtait 3,13 points de saturation — le plus gros poste de
+       toute la chaîne. Un gain scalaire laisse le rapport min/max intact, donc
+       la chroma exacte, pour la même courbe de clarté. Le gain est plafonné
+       pour qu'aucun canal ne sature à 1 : un écrêtage teinterait les hautes
+       lumières vers le blanc, soit exactement le défaut qu'on corrige. */
+    float lExpo = max(dot(col, vec3(0.299, 0.587, 0.114)), 0.0006);
+    float gainExpo = pow(lExpo, 0.84) / lExpo;
+    float plafond = 1.0 / max(max(col.r, max(col.g, col.b)), 0.0006);
+    col *= min(gainExpo, plafond);
 
     /* Grain animé. */
     float g = bruit(pos * 1.7 + vec2(uTemps.x * 61.0, uTemps.x * 37.0)) - 0.5;
@@ -251,7 +262,12 @@ fn mainFragment(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
   col = col + vec3<f32>(0.072, 0.042, -0.022) * smoothstep(0.34, 1.0, l);
   col = clamp(col, vec3<f32>(0.0), vec3<f32>(1.0));
   col = mix(col, col * col * (vec3<f32>(3.0) - 2.0 * col), 0.15);
-  col = pow(col, vec3<f32>(0.84));
+  /* Voir le commentaire du fragment GLSL : la remontée d'exposition porte sur
+     la luminance seule, sous peine de coûter 3,13 points de saturation. */
+  let lExpo = max(dot(col, vec3<f32>(0.299, 0.587, 0.114)), 0.0006);
+  let gainExpo = pow(lExpo, 0.84) / lExpo;
+  let plafond = 1.0 / max(max(col.r, max(col.g, col.b)), 0.0006);
+  col = col * min(gainExpo, plafond);
 
   let g = bruit(pos * 1.7 + vec2<f32>(reglages.uTemps.x * 61.0, reglages.uTemps.x * 37.0)) - 0.5;
   col = col + vec3<f32>(g * reglages.uReglages.z);

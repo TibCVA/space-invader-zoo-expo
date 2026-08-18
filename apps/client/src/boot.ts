@@ -133,6 +133,38 @@ export function resolutionEcran(): number {
   return Math.min(2, Math.max(1, dpr));
 }
 
+/**
+ * Quel moteur demander en premier.
+ *
+ * Partout, WebGPU : il est plus rapide et mieux taillé pour ce que fait la
+ * carte. **Sauf sur WebKit**, où il vient d'arriver et où l'implémentation est
+ * encore partielle. Un iPhone a rendu la carte d'aventure entièrement vide et
+ * la cité réduite à deux aplats, alors que les écrans de texte s'affichaient
+ * normalement : le moteur s'ouvrait donc, mais ne dessinait pas ce qu'on lui
+ * demandait.
+ *
+ * C'est une **hypothèse**, pas un fait établi : on ne dispose ici ni d'un
+ * appareil Apple, ni de WebKit, et rien de tout cela ne se reproduit sous
+ * Chromium. Elle est retenue parce qu'elle explique l'écart observé — les
+ * formes simples passent, les scènes composées non — et parce que le repli sur
+ * WebGL ne coûte rien : c'est le chemin éprouvé, celui que le jeu a toujours
+ * emprunté ailleurs. `#/diagnostic` tranchera, sur l'appareil lui-même.
+ *
+ * On ne teste pas « iOS » : depuis iPadOS 13, un iPad se présente comme un
+ * Macintosh. On teste WebKit, qui est ce qui compte ici — Safari sur toutes
+ * les plateformes, et tout navigateur sur iPhone, qui n'a pas le choix du
+ * moteur.
+ */
+export function preferenceRendu(): 'webgpu' | 'webgl' {
+  if (typeof navigator === 'undefined') return 'webgpu';
+  const ua = navigator.userAgent;
+  const webkitApple =
+    /\b(iPhone|iPad|iPod)\b/.test(ua) ||
+    (/Safari\//.test(ua) && !/Chrome|Chromium|Edg\//.test(ua)) ||
+    (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
+  return webkitApple ? 'webgl' : 'webgpu';
+}
+
 function nomDuRendu(app: Application): MoteurRendu {
   const nom = (app.renderer as unknown as { name?: string }).name;
   if (nom === 'webgpu' || nom === 'webgl' || nom === 'canvas') return nom;
@@ -150,7 +182,7 @@ export async function obtenirRendu(): Promise<RenduPartage> {
     const app = new Application();
     try {
       await app.init({
-        preference: 'webgpu',
+        preference: preferenceRendu(),
         antialias: true,
         backgroundAlpha: 0,
         resolution: resolutionEcran(),

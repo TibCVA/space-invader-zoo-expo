@@ -386,3 +386,78 @@
 :root[data-animations='reduites'] .ecran__vignette-bouton {
   transition: none;
 }
+
+/* ─────────────────────────── Écran de diagnostic ─────────────────────────── */
+
+/*
+ * Volontairement sobre et sans dépendance : cet écran s'affiche précisément
+ * quand le reste ne s'affiche plus. Il doit rester lisible sur un téléphone,
+ * dans la rue, et se photographier d'un seul geste.
+ */
+.diagnostic {
+  gap: var(--hmm-space-3);
+}
+
+.diagnostic__titre {
+  margin-block-start: var(--hmm-space-3);
+  font-size: var(--hmm-fs-moyen, 1.1rem);
+  color: var(--hmm-texte-clair, #ede3ce);
+}
+
+.diagnostic__epreuves {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hmm-space-2);
+}
+
+.diagnostic__epreuves li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--hmm-space-2);
+  border-inline-start: 3px solid currentColor;
+  background: rgba(16, 20, 24, 0.42);
+  font-family: var(--hmm-font-recit);
+  line-height: var(--hmm-lh-recit);
+}
+
+.diagnostic__epreuves li span {
+  color: var(--hmm-texte-doux);
+  font-size: var(--hmm-fs-base);
+}
+
+.diagnostic__ok {
+  color: #7fae74;
+}
+
+.diagnostic__echec {
+  color: #d4756a;
+}
+
+/* Le relevé brut : une définition par ligne, en gouttière, pour qu'une
+   adresse de navigateur de trois cents caractères ne pousse rien dehors. */
+.diagnostic__releve {
+  margin: 0;
+  display: grid;
+  gap: var(--hmm-space-2);
+}
+
+.diagnostic__releve dt {
+  font-family: var(--hmm-font-titre);
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hmm-or, #c9a227);
+}
+
+.diagnostic__releve dd {
+  margin: 2px 0 0;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--hmm-texte-clair-doux, #cfc6b4);
+  overflow-wrap: anywhere;
+}

@@ -514,6 +514,9 @@ const ABORDS: readonly { col: number; row: number }[] = [
   { col: -2, row: 1 },
 ];
 
+/** Les deux sièges que la revue photographie, et eux seuls. */
+const SIEGES_DEMO: readonly string[] = ['T_cervieres', 'T_hermitage'];
+
 /**
  * Reporte sur une vraie partie le décor composé à la main.
  *
@@ -523,22 +526,31 @@ const ABORDS: readonly { col: number; row: number }[] = [
  * n'étaient jamais dessinés. La revue visuelle demande l'inverse : Cervières à
  * ~70 %, l'Hermitage à ~60 %.
  *
- * On ne recompose pas la partie : le moteur reste seul maître de la carte et
- * de ses objets. Seule la **couche politique** des cités décorées par
- * `etatDemo()` est recopiée — nom, faction, bannière, bâtiments, recrutement,
- * agitation. Les cités laissées vides par l'état à la main (Viscomtat,
- * Arconsat) gardent leur garnison neutre telle que le moteur l'a posée. Les
- * héros et le brouillard suivent ensuite, par le moteur lui-même.
+ * On ne recompose pas la partie : le moteur reste seul maître de la carte, de
+ * ses objets et de son brouillard. Seule la **couche politique** des deux
+ * sièges est recopiée depuis `etatDemo()` — nom, faction, bannière, bâtiments,
+ * recrutement, agitation. Tout le reste de la carte politique est laissé au
+ * moteur.
  *
- * Effet de bord voulu : la Châtellenie de Noirétable revient à la Maison de
- * Cervières, sous sa vraie faction `granit`. `createGame` la donnait à
- * l'Ermitage — seule position de départ libre au sud-est — et
- * `#/demo/cite/ermitage` tombait donc sur une cité nommée « Noirétable » de
- * faction `ermitage`, ce que dément l'état à la main comme les emplacements de
- * sauvegarde. Le siège de l'Ermitage est Notre-Dame de l'Hermitage, centre
- * neutre que le moteur pose déjà à sa vraie ancre (125, 250). `packages/map`
- * n'y est pour rien : la géographie n'y impose jamais la faction, et
- * `starts.ts` le dit en toutes lettres.
+ * Deux corrections viennent avec :
+ *
+ *  - le siège de l'Ermitage passe à **Notre-Dame de l'Hermitage**, centre
+ *    neutre que le moteur pose déjà à sa vraie ancre (125, 250) ;
+ *  - **Noirétable** retrouve sa faction `granit`. `createGame` la peignait en
+ *    `ermitage` parce qu'elle est la seule position de départ que la
+ *    composition laisse à la seconde bannière, et `#/demo/cite/ermitage`
+ *    tombait donc sur une cité nommée « Noirétable » de faction `ermitage` —
+ *    ce que dément l'état à la main comme les emplacements de sauvegarde
+ *    (« Compagnie de Noirétable », granit). `packages/map` n'y est pour rien :
+ *    la géographie n'y impose jamais la faction, et `starts.ts` le dit en
+ *    toutes lettres.
+ *
+ * Noirétable redevient une **seigneurie neutre**, et non un fief de la Maison
+ * de Cervières comme dans l'état à la main. Mesuré : la lui donner étirait le
+ * domaine du joueur local sur soixante-seize lignes, et `#/demo/carte`, qui
+ * cadre sur la boîte englobante de ce domaine, tombait de son zoom 23 au zoom
+ * plancher 15 — la Maison du Trésor sortait du tableau, alors que la légende
+ * de la route affirme la cadrer.
  */
 function appliquerDecorDemo(state: GameState, world: WorldMap): void {
   const modele = etatDemo();
@@ -547,12 +559,10 @@ function appliquerDecorDemo(state: GameState, world: WorldMap): void {
      même journée que le journal de `etatDemo()` et que `#/demo/combat`. */
   state.turn = modele.turn;
 
-  for (const uid of Object.keys(modele.towns).sort()) {
+  for (const uid of SIEGES_DEMO) {
     const source = modele.towns[uid];
-    /* Une cité sans bâtiment n'est pas un décor : on laisse le moteur. */
-    if (source.built.length === 0) continue;
     const cible = state.towns[uid];
-    if (!cible) continue;
+    if (!source || !cible) continue;
     cible.name = source.name;
     cible.faction = source.faction;
     cible.owner = source.owner;
@@ -565,8 +575,25 @@ function appliquerDecorDemo(state: GameState, world: WorldMap): void {
     cible.unrest = source.unrest;
   }
 
+  /* Noirétable : châtellenie de granit, rendue à la neutralité puisque
+     l'Ermitage siège désormais ailleurs. Même garnison que les autres
+     positions de départ inoccupées. */
+  const noiretable = state.towns.T_noiretable;
+  if (noiretable) {
+    noiretable.faction = 'granit';
+    noiretable.owner = null;
+    noiretable.built = [];
+    noiretable.available = {};
+    noiretable.spells = [];
+    noiretable.charter = null;
+    noiretable.garrison = armee([
+      ['granit_t3', 16],
+      ['granit_t2', 22],
+    ]);
+  }
+
   /* La liste des cités de chaque bannière se relit de la propriété : sans
-     cela, l'Ermitage tiendrait encore Noirétable qu'il vient de perdre. */
+     cela, l'Ermitage tiendrait encore Noirétable qu'il vient de quitter. */
   for (const id of Object.keys(state.players) as PlayerId[]) state.players[id].towns = [];
   for (const uid of Object.keys(state.towns).sort()) {
     const town = state.towns[uid];
@@ -574,16 +601,13 @@ function appliquerDecorDemo(state: GameState, world: WorldMap): void {
   }
 
   /* Les héros suivent leur bannière. Anastasia gardait la porte de Noirétable,
-     qui vient de changer de mains : on la ramène au pied de son siège, par les
+     que l'Ermitage ne tient plus : on la ramène au pied de son siège, par les
      mêmes abords que ceux du moteur. Clotilde, déjà à la porte de Cervières,
-     ne bouge pas d'une case. */
+     ne bouge pas d'une case — et le cadrage de `#/demo/carte` non plus. */
   const occupees: { col: number; row: number }[] = [];
   for (const id of Object.keys(state.players) as PlayerId[]) {
     const joueur = state.players[id];
-    const siege =
-      joueur.towns.map((uid) => state.towns[uid]).find((t) => t?.isCapital) ??
-      state.towns[joueur.towns[0] ?? ''] ??
-      null;
+    const siege = joueur.towns.map((uid) => state.towns[uid]).find((t) => t?.isCapital) ?? null;
     if (!siege) continue;
     for (const uid of joueur.heroes) {
       const heros = state.heroes[uid];
@@ -599,8 +623,8 @@ function appliquerDecorDemo(state: GameState, world: WorldMap): void {
     }
   }
 
-  /* Le voile se relit du nouveau domaine : sans cela la Maison de Cervières
-     tiendrait Noirétable sans l'avoir jamais vue. */
+  /* Le voile se relit du nouveau domaine : sans cela l'Ermitage tiendrait
+     Notre-Dame de l'Hermitage sans l'avoir jamais vue. */
   initialReveal(state, world);
 }
 

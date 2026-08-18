@@ -46,6 +46,7 @@ import {
   quitterPartie,
   useAppState,
 } from './state/store.js';
+import { EcranDiagnostic } from './screens/diagnostic.js';
 import { combatDemo, etatDemo, emplacementsDemo, HEROS_DEMO, partieDemo } from './state/demo.js';
 import { listerEmplacements, lireLocal, reprendreLocal, effacerLocal } from './state/persistence.js';
 import {
@@ -319,6 +320,10 @@ export function App(_props: AppProps = {}): ReactElement {
             onSettings={setSettings}
           />
         );
+
+      /* — Relevé de la machine, quand plus rien ne s'affiche — */
+      case 'diagnostic':
+        return <EcranDiagnostic />;
 
       /* — Parties en ligne asynchrones (docs/04-MULTIJOUEUR.md) — */
       case 'en-ligne':

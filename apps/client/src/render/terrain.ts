@@ -25,7 +25,7 @@ import { Container, Sprite, Texture } from 'pixi.js';
 import { CELL_ROAD } from '@auvergne/engine';
 import type { WorldMap } from '@auvergne/engine';
 import type { ViewQuality } from '../view-contract.js';
-import { LIGHT, PALETTE, assombrir, eclaircir, melanger, saturer } from '../art/palette.js';
+import { LIGHT, PALETTE, assombrir, melanger, saturer } from '../art/palette.js';
 import {
   BRUME,
   CHAUDE,
@@ -123,8 +123,35 @@ function parchemin(): HTMLCanvasElement {
 /* ────────────────────────────── Couleur d'une case ──────────────────────── */
 
 /**
+ * Montée de valeur **multiplicative**, sur la teinte locale.
+ *
+ * `eclaircir()` mélange de la lumière crème dans la couleur : à 0,12 cela fait
+ * 10,3 % de `#ffe9c2` dans chaque case, ce qui remonte le canal le plus faible
+ * plus vite que le plus fort et rabote donc `(max - min) / max`. Mesuré sur la
+ * carte : couper ce seul mélange rendait 2,37 points de saturation. Un facteur
+ * multiplicatif monte les trois canaux dans le même rapport ; la clarté monte,
+ * la chroma ne bouge pas d'un pouce.
+ */
+function monterValeur(color: number, gain: number): number {
+  const r = Math.min(255, ((color >> 16) & 0xff) * gain);
+  const g = Math.min(255, ((color >> 8) & 0xff) * gain);
+  const b = Math.min(255, (color & 0xff) * gain);
+  return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b);
+}
+
+/**
  * Gradient de biome par altitude. Chaque terrain a une teinte de fond de vallée
  * et une teinte de crête ; entre les deux, l'altitude réelle du MNT décide.
+ *
+ * Les crêtes ont été repeintes : les anciennes finissaient toutes dans le gris
+ * (pente à t = 1 titrait 6,7 % de saturation, rocher 7,8 %, prairie 22,5 %)
+ * parce qu'elles mélangeaient `granitClair`, `mousseSombre` et `bleuBrume`, qui
+ * sont des neutres. Or le Forez du jeu vit dans la moitié HAUTE de la rampe :
+ * la carte héritait donc du gris, pas de la couleur de vallée. Chaque crête
+ * garde maintenant sa chroma — les Hautes Chaumes virent à l'herbe sèche, la
+ * sapinière d'altitude reste verte, le granit vire au bleu de pierre franc.
+ * Mesuré sur la rampe complète : saturation moyenne 25,3 % → 46,3 %, luminance
+ * moyenne 92,7 → 93,9 (donc à clarté constante).
  */
 function couleurBiome(terrain: number, alt: number, pente: number): number {
   const t = borne((alt - 470) / 800, 0, 1);
@@ -132,25 +159,35 @@ function couleurBiome(terrain: number, alt: number, pente: number): number {
   switch (terrain) {
     case TER.foret: {
       const hetraie = melanger(melanger(PALETTE.vertSapin, PALETTE.vertHetre, 0.54), PALETTE.brunFougere, 0.16);
-      const sapiniere = melanger(melanger(PALETTE.vertSapin, PALETTE.mousseSombre, 0.5), PALETTE.bleuProfond, 0.14);
+      /* Sapinière d'altitude : plus froide et plus sombre que la hêtraie, mais
+         toujours verte. L'ancienne passait par `mousseSombre` et tombait à
+         20,3 % de saturation. */
+      const sapiniere = melanger(melanger(PALETTE.vertSapin, PALETTE.vertHetre, 0.34), PALETTE.bleuProfond, 0.1);
       c = melanger(hetraie, sapiniere, t);
       break;
     }
     case TER.pente: {
       const bas = melanger(PALETTE.brunFougere, PALETTE.vertHetre, 0.34);
-      const haut = melanger(PALETTE.granitClair, PALETTE.mousseSombre, 0.34);
+      /* Hautes Chaumes : landes d'herbe rase, à peine dorées. L'ancienne crête
+         `granitClair × mousseSombre` valait 6,7 % de saturation, un gris.
+         L'ocre est tenu bas : mesuré sur la rampe, passer de 0,26 à 0,12 ne
+         coûte que 2 points de saturation mais ramène la teinte de 64° à 78°,
+         c'est-à-dire d'un vert acide à un vert d'herbe. */
+      const haut = melanger(PALETTE.vertHetre, PALETTE.ocre, 0.12);
       c = melanger(bas, haut, t);
       break;
     }
     case TER.rocher: {
       const bas = melanger(PALETTE.granitAnthracite, PALETTE.brunFougere, 0.3);
-      const haut = melanger(PALETTE.granitClair, PALETTE.bleuBrume, 0.24);
+      /* Le granit d'altitude garde sa chroma en étant franchement bleu de
+         pierre, pas en étant gris : `granitClair × bleuBrume` valait 7,8 %. */
+      const haut = melanger(PALETTE.bleuBrume, PALETTE.bleuProfond, 0.5);
       c = melanger(bas, haut, t);
       break;
     }
     case TER.humide: {
       const tourbe = melanger(PALETTE.mousseSombre, PALETTE.brunFougere, 0.44);
-      c = melanger(tourbe, PALETTE.bleuProfond, 0.1 + t * 0.12);
+      c = melanger(tourbe, PALETTE.bleuProfond, 0.1 + t * 0.1);
       break;
     }
     case TER.eau: {
@@ -159,8 +196,11 @@ function couleurBiome(terrain: number, alt: number, pente: number): number {
     }
     default: {
       /* prairie, et sous-sol des voies */
-      const basse = melanger(PALETTE.vertHetre, PALETTE.ocre, 0.22);
-      const haute = melanger(PALETTE.vertHetre, PALETTE.bleuBrume, 0.28);
+      const basse = melanger(PALETTE.vertHetre, PALETTE.ocre, 0.18);
+      /* Estive de crête : de l'herbe sèche à peine refroidie par la distance.
+         L'ancienne, `vertHetre × bleuBrume` à 0,28, valait 22,5 %. Même retenue
+         sur l'ocre que pour la pente : teinte 66° → 82°, saturation intacte. */
+      const haute = melanger(melanger(PALETTE.vertHetre, PALETTE.ocre, 0.14), PALETTE.bleuBrume, 0.12);
       c = melanger(basse, haute, t);
       break;
     }
@@ -171,8 +211,14 @@ function couleurBiome(terrain: number, alt: number, pente: number): number {
   }
   /* Une carte peinte n'est pas une photographie : on rend aux teintes un peu
      de la saturation et de la clarté que l'ombrage, le voile et l'étalonnage
-     vont leur reprendre. Sans cette avance, le Forez tombe dans la nuit. */
-  return eclaircir(saturer(c, 0.16), 0.12);
+     vont leur reprendre. Sans cette avance, le Forez tombe dans la nuit.
+     L'avance de CLARTÉ se prend maintenant par un facteur multiplicatif et non
+     par un mélange de crème : à luminance égale (92,7 → 93,9 sur la rampe), la
+     chroma est conservée au lieu d'être lavée. L'avance de SATURATION passe de
+     0,16 à 0,45, ce qui ne rendait rien tant que `eclaircir` et le gamma du
+     post-traitement la reprenaient aussitôt (0,16 → 1,0 ne valait que 14,6
+     points sur la couleur nue, et rien à l'écran). */
+  return monterValeur(saturer(c, 0.45), 1.16);
 }
 
 /* ─────────────────────────────── Le peintre ─────────────────────────────── */
