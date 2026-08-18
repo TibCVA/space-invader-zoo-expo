@@ -65,7 +65,7 @@ Règles de style détaillées : `docs/01-ART-BIBLE.md` §0.
 | IA + parties complètes | **fait** | 20 parties IA contre IA jouées ; 0 commande refusée au rejeu ; réflexion médiane 154 ms, p95 219 ms (budget 400) |
 | Conquête des lieux gardés | **corrigé** | voir §1 ter — c'était le défaut le plus grave du projet |
 | Écrans de cité (2 tableaux en parallaxe) | **en cours** | panorama, porte, emplacements et survol en place ; **les bâtiments bâtis sont des blocs gris plats**, à reprendre |
-| Multijoueur asynchrone | **fait, non branché** | flux complet vérifié de bout en bout contre le vrai serveur (voir §1 quater) ; les écrans de jeu appellent encore `dispatch()` en local |
+| Multijoueur asynchrone | **fait et jouable** | parcours complet vérifié dans un vrai navigateur, deux contextes, contre le vrai serveur (voir §1 quater) |
 | Boucles de critique visuelle | partiellement | les sous-agents refonctionnent ; revue par capture appliquée aux cités |
 | Équilibrage par simulation de masse | à faire | l'outil existe (`pnpm sim`, `pnpm balance`), le réglage reste à faire |
 
@@ -142,6 +142,18 @@ pendant que sa capitale entassait vingt mille points de troupes.
 Six tests verrouillent les deux correctifs, chacun vérifié non complaisant :
 il tombe quand on retire la correction qu'il garde.
 
+**Une mesure retirée.** On avait d'abord annoncé que le profil expert passait
+de 20 % à 45 % de victoires. Ce chiffre ne veut rien dire et il est retiré : le
+harnais indexait les départs *et* les profils sur le même `siège + rotation`.
+Comme il y a autant de profils que de sièges, les deux roues tournaient au même
+rythme et chaque profil restait soudé à sa place — le prudent a joué La Renaudie
+vingt fois sur vingt. « Victoires par profil » et « victoires par position »
+étaient deux lectures du même chiffre. Un décalage d'un cran par tour complet de
+la roue des départs désolidarise les deux, et la mesure est refaite.
+
+Le compte des gisements, lui, n'est pas touché par ce biais : il ne dépend
+d'aucune comparaison entre profils.
+
 ## 1 quater. Le multijoueur, vérifié de bout en bout
 
 Le service et le client ont été écrits séparément contre le contrat figé de
@@ -166,22 +178,24 @@ pouvait faire capituler n'importe quel autre**.
 
 Par ordre de valeur pour le joueur, et non d'ordre chronologique.
 
-1. **Les bâtiments du tableau de cité.** C'est le seul défaut visuel qui saute
-   aux yeux aujourd'hui : sur un panorama peint en lumière chaude, les
-   bâtiments bâtis apparaissent en **blocs gris plats**. Diagnostic fait — le
-   toit et le mur de `PALETTE_BATI.granit` tombent tous deux vers 0x77-0x8c,
-   soit deux gris de même valeur, là où la peinture oppose une ardoise sombre
-   à une pierre chaude. Il faut assombrir la couverture, réchauffer le mur,
-   rendre la matière lisible et poser une vraie ombre de contact.
-2. **Brancher le multijoueur sur les écrans de jeu.** Le tuyau est prêt et
-   vérifié ; carte, cité et combat émettent encore en local.
-3. **Polissage de la carte d'aventure** — trop sombre, forêts répétitives,
-   panneau qui recouvre la minicarte en portrait.
-4. **Le vide de 35 % du combat en portrait.**
-5. **Raccordement des huit matières peintes.**
-6. **Équilibrage par simulation** — maintenant que les lieux se prennent, les
-   chiffres de `pnpm sim` veulent dire quelque chose et le réglage des profils
-   peut commencer.
+1. **La carte d'aventure manque de couleur.** Mesuré : le sol rendu tient entre
+   12 et 15 % de saturation, quand les textures peintes de ce même jeu en ont
+   35 à 55. Ce n'est **pas** le brouillard de guerre — le désaturer de 60 à
+   42 % ne change rien à la mesure — ni la teinte de base du terrain : la
+   porter de +16 à +45 % ne gagne que 1,2 point. Trois essais à une constante
+   chacun ont donc échoué, et c'est le résultat utile : la platitude vient du
+   cumul des termes froids (l'ombre tirée à 38 % vers le bleu, le voile
+   d'altitude, la teinte des décors) et demande une passe d'ensemble, pas un
+   réglage. À reprendre avec les quatre termes tenus ensemble et une mesure
+   après chaque essai.
+2. **Le vide de 35 % du combat en portrait.**
+3. **Le tableau de cité, second passage** — il reste aux bâtiments une arête un
+   peu nette et un mur 15 % plus clair que la pierre peinte voisine. Les
+   silhouettes et l'usure feraient le reste.
+4. **La colonne droite vide de `#/en-ligne`** sur grand écran.
+5. **Équilibrage par simulation** — maintenant que les lieux se prennent et que
+   le siège ne détermine plus le profil, les chiffres de `pnpm sim` veulent
+   enfin dire quelque chose.
 
 ## 3. Méthode
 
@@ -206,6 +220,17 @@ Par ordre de valeur pour le joueur, et non d'ordre chronologique.
   distance. Trois sondes successives (`explainTurn`, la force au champ contre
   celle en garnison, puis la valeur brute de `travelEstimate`) ont suffi à les
   isoler. Aucun réglage de pondération n'aurait rien donné.
+- **Régler une constante à la fois, et mesurer.** Trois essais sur la carte —
+  brouillard, saturation de base, teinte des décors — ont chacun déplacé le
+  résultat de moins de deux points. Aucun n'a été conservé : livrer un
+  changement visuel dont on n'a pas vu l'effet, c'est exactement ce que la
+  ligne précédente interdit. Ce qu'ils ont donné vaut mieux qu'un réglage : ils
+  ont montré où le défaut n'est pas.
+- **Vérifier que la mesure mesure ce qu'on croit.** Le harnais de simulation
+  indexait départs et profils sur le même compteur : le « taux de victoire par
+  profil » et le « taux de victoire par position » étaient le même chiffre, et
+  un résultat déjà annoncé a dû être retiré. Une mesure qu'on n'a pas éprouvée
+  contre son propre biais n'est pas une mesure.
 - **Un test qui ne peut pas échouer ne vaut rien.** Chaque correctif est
   accompagné d'un test qu'on vérifie **en retirant la correction** : s'il reste
   vert, il ne garde rien. Deux des six écrits ce jour-là ont dû être resserrés

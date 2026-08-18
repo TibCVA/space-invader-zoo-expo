@@ -165,22 +165,38 @@ export const DEFAULT_OPTIONS: GameOptions = {
 /**
  * Compose la mise en place d'une partie.
  *
- * La `rotation` fait tourner à la fois les départs, les factions et les
- * profils autour de la table. Sans elle, une série entière mesurerait
- * toujours « le profil expert assis à Arconsat » : impossible de démêler la
- * force du profil de celle de la position.
+ * La `rotation` fait tourner les départs, les factions et les profils autour
+ * de la table. Sans elle, une série entière mesurerait toujours « le profil
+ * expert assis à Arconsat » : impossible de démêler la force du profil de
+ * celle de la position.
+ *
+ * **Il ne suffit pas de tout faire tourner ensemble.** Une première série de
+ * vingt parties à quatre a indexé les départs *et* les profils sur le même
+ * `(siège + rotation)`. Comme il y a autant de profils que de sièges, les deux
+ * roues tournaient au même rythme et le profil restait soudé à sa place :
+ * mesuré sur cette série, le prudent a joué La Renaudie 20 fois sur 20,
+ * l'expert Arconsat 15 fois sur 20, l'agressif Noirétable 15 fois sur 20. Le
+ * « taux de victoire par profil » et le « taux de victoire par position »
+ * étaient alors deux lectures du même chiffre, et ni l'un ni l'autre ne
+ * voulait dire quoi que ce soit.
+ *
+ * Le décalage `Math.floor(rotation / count)` désolidarise les deux roues :
+ * elle avance d'un cran chaque fois que la roue des départs a fait un tour
+ * complet. Sur `count²` parties, chaque profil occupe chaque départ le même
+ * nombre de fois, et les deux tableaux redeviennent indépendants.
  */
 export function buildSetup(options: GameOptions): GameSetup {
   const count = Math.max(2, Math.min(5, options.players));
   const sets = START_SETS[count as 2 | 3 | 4 | 5];
   const set = sets[Math.abs(options.rotation) % sets.length];
   const profiles = options.profiles.length > 0 ? options.profiles : DEFAULT_OPTIONS.profiles;
+  const drift = Math.floor(Math.abs(options.rotation) / count);
 
   const players: GameSetup['players'] = [];
   for (let seat = 0; seat < count; seat++) {
     const start = set[(seat + options.rotation) % count];
     const faction: FactionId = (seat + options.rotation) % 2 === 0 ? 'granit' : 'ermitage';
-    const profile = profiles[(seat + options.rotation) % profiles.length];
+    const profile = profiles[(seat + options.rotation + drift) % profiles.length];
     const pool = HEROES_BY_FACTION[faction];
     const hero = pool[(seat + options.rotation) % pool.length];
     players.push({
