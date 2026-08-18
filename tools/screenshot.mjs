@@ -15,9 +15,10 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { portLibre } from './port-libre.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const PORT = Number(process.env.SHOT_PORT ?? 4188);
+const PORT = await portLibre();
 
 /**
  * Chaque scène est atteinte par un fragment d'URL géré par le client.

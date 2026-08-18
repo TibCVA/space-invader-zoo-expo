@@ -13,9 +13,10 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { portLibre } from './port-libre.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const PORT = Number(process.env.SHOT_PORT ?? 4242);
+const PORT = await portLibre();
 const outDir = resolve(ROOT, process.argv[2] ?? 'shots/en-ligne');
 
 async function attendre(url, ms = 60_000) {

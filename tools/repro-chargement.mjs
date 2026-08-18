@@ -11,9 +11,10 @@ import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { portLibre } from './port-libre.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const PORT = Number(process.env.SHOT_PORT ?? 4244);
+const PORT = await portLibre();
 const base = `http://127.0.0.1:${PORT}`;
 const ESSAIS = Number(process.argv[2] ?? 6);
 const PATIENCE_MS = Number(process.argv[3] ?? 45_000);

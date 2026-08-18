@@ -15,9 +15,10 @@ import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { portLibre } from './port-libre.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const PORT = Number(process.env.SHOT_PORT ?? 4243);
+const PORT = await portLibre();
 const base = `http://127.0.0.1:${PORT}`;
 const CLEF_JETONS = 'auvergne.parties.jetons.v1';
 

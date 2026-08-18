@@ -273,6 +273,15 @@ Par ordre de valeur pour le joueur, et non d'ordre chronologique.
   profil » et le « taux de victoire par position » étaient le même chiffre, et
   un résultat déjà annoncé a dû être retiré. Une mesure qu'on n'a pas éprouvée
   contre son propre biais n'est pas une mesure.
+- **Un harnais qui échoue en silence corrompt tout ce qui s'appuie sur lui.**
+  Les quatre harnais de capture servaient le jeu sur un port fixe. Tant qu'une
+  seule capture tournait, cela passait ; dès que plusieurs agents ont travaillé
+  en parallèle, le second serveur n'écoutait pas et Chromium recevait
+  `ERR_CONNECTION_REFUSED`. Ce n'est pas une panne franche : la capture manque,
+  la comparaison avant/après se fait sur des images absentes, et l'on conclut
+  qu'un correctif ne sert à rien. C'est très probablement ce qui a fait annuler
+  le correctif des dégradés — le harnais chargé de le vérifier ne captait plus
+  rien. Chaque harnais demande désormais un port libre au système.
 - **Un correctif mesuré ne se laisse pas défaire en silence.** Le correctif des
   dégradés obliques — vérifié, chiffré, l'écart-type du sol du champ de bataille
   passant de 23,1 à 50,0 — s'est retrouvé intégralement annulé dans l'arbre de
