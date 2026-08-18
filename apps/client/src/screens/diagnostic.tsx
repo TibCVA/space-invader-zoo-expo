@@ -29,7 +29,7 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { Bandeau } from './shell.js';
 import { rapportAssets } from '../art/assets.js';
-import { obtenirAtlas, preferenceRendu, resolutionEcran } from '../boot.js';
+import { obtenirAtlas, preferenceRendu, resolutionEcran, traceScene } from '../boot.js';
 
 /* ══════════════════════════════ Le relevé ════════════════════════════════ */
 
@@ -330,6 +330,25 @@ async function releverLaMachine(): Promise<Releve> {
       reussie: false,
       detail: `échouée après ${String(Date.now() - debutAtlas)} ms : ${String(cause).slice(0, 160)}`,
     });
+  }
+
+  /* La dernière scène accélérée montée sur cet appareil. Vide au premier
+     chargement ; renseignée dès qu'on a ouvert la carte, une cité ou un combat,
+     même — et surtout — si l'écran est resté noir. */
+  const trace = traceScene();
+  if (trace) {
+    lignes.push([
+      'Dernière scène montée',
+      trace.erreur === null
+        ? `${trace.cle} · ${String(trace.largeur)} × ${String(trace.hauteur)} px · ` +
+          `${String(trace.objets)} objets · fabriquée en ${String(trace.dureeMs)} ms · à ${trace.a}`
+        : `${trace.cle} · ÉCHEC à ${trace.a} : ${trace.erreur}`,
+    ]);
+  } else {
+    lignes.push([
+      'Dernière scène montée',
+      'aucune — ouvrez la carte ou une cité, puis revenez sur cette page',
+    ]);
   }
 
   /* Les images générées : combien sont arrivées, et pourquoi les autres non. */

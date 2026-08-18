@@ -411,3 +411,90 @@ export function amorcer(): void {
   brancherAudio();
   brancherPortraitsPeints();
 }
+
+/* ────────────────────── Trace du dernier montage de scène ────────────────── */
+
+/**
+ * Ce que le dernier montage de scène accélérée a produit.
+ *
+ * Pourquoi cette trace existe. Un iPhone affichait une carte entièrement vide
+ * alors que les six épreuves de `#/diagnostic` passaient toutes : remplir,
+ * texturer, filtrer, allouer une page de 2048 px, compiler notre propre
+ * programme GLSL, construire la planche d'art. Aucune capacité ne manquait,
+ * donc le défaut était dans la vue elle-même — et l'on ne pouvait pas le voir
+ * d'ici, faute de WebKit et de carte graphique.
+ *
+ * La scène note donc, en montant, ce qu'elle a fait : sa taille utile, le temps
+ * qu'elle a mis, le nombre d'objets qu'elle a créés, et l'erreur s'il y en a
+ * eu une. Le joueur ouvre la carte, la voit vide, ouvre le diagnostic, et la
+ * trace dit ce qui s'est passé. C'est la seule façon d'observer une panne qui
+ * ne se produit que chez lui.
+ */
+export interface TraceScene {
+  /** clef de la scène, telle que la coquille la nomme */
+  readonly cle: string;
+  /** taille utile demandée, en pixels CSS */
+  readonly largeur: number;
+  readonly hauteur: number;
+  /** durée de la fabrique, en millisecondes */
+  readonly dureeMs: number;
+  /** objets vivants sous la racine de la scène, juste après le montage */
+  readonly objets: number;
+  /** message d'échec, ou `null` si la fabrique a abouti */
+  readonly erreur: string | null;
+  /** horodatage local, pour savoir si la trace est celle qu'on croit */
+  readonly a: string;
+}
+
+/**
+ * La trace est rangée dans `sessionStorage`, et non dans une simple variable.
+ *
+ * Le parcours attendu est : ouvrir la carte, la voir vide, aller au
+ * diagnostic. Or ce dernier pas passe souvent par une adresse retapée ou un
+ * retour arrière, et Safari recharge alors la page — ce qui effacerait une
+ * variable de module. Éprouvé : avec une variable seule, la trace était
+ * introuvable au moment précis où l'on en avait besoin.
+ *
+ * `sessionStorage` disparaît à la fermeture de l'onglet, ce qui est exactement
+ * la durée de vie souhaitée pour un relevé de mise au point.
+ */
+const CLEF_TRACE = 'auvergne.trace-scene.v1';
+
+let derniereTrace: TraceScene | null = null;
+
+export function noterMontageScene(trace: TraceScene): void {
+  derniereTrace = trace;
+  try {
+    sessionStorage.setItem(CLEF_TRACE, JSON.stringify(trace));
+  } catch {
+    /* Navigation privée, quota plein : la variable de module suffira. */
+  }
+}
+
+export function traceScene(): TraceScene | null {
+  if (derniereTrace) return derniereTrace;
+  try {
+    const brut = sessionStorage.getItem(CLEF_TRACE);
+    if (!brut) return null;
+    const lu: unknown = JSON.parse(brut);
+    return lu !== null && typeof lu === 'object' ? (lu as TraceScene) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Compte les objets vivants d'un sous-arbre. Bornée : on veut un ordre de grandeur. */
+export function compterObjets(racine: { children?: unknown[] }): number {
+  let total = 0;
+  const pile: { children?: unknown[] }[] = [racine];
+  while (pile.length > 0 && total < 200_000) {
+    const n = pile.pop();
+    if (!n) continue;
+    total += 1;
+    const enfants = n.children;
+    if (Array.isArray(enfants)) {
+      for (const e of enfants) pile.push(e as { children?: unknown[] });
+    }
+  }
+  return total;
+}

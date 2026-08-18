@@ -13,7 +13,14 @@
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import type { Application, Container } from 'pixi.js';
 import { MAX_FRAME_MS } from '../view-contract.js';
-import { ErreurAmorcage, obtenirAtlas, obtenirRendu, observerProgression } from '../boot.js';
+import {
+  compterObjets,
+  ErreurAmorcage,
+  noterMontageScene,
+  obtenirAtlas,
+  obtenirRendu,
+  observerProgression,
+} from '../boot.js';
 import type { ArtAtlas } from '../art/index.js';
 import type { Progression } from '../boot.js';
 import { Bandeau, EcranChargement, EcranPanne } from './shell.js';
@@ -129,12 +136,24 @@ export function ScenePixi(props: ScenePixiProps): ReactElement {
         app.renderer.resize(w, h);
         conteneur.appendChild(canvas);
 
+        /* Chronométré et compté : sur un appareil où la scène reste vide, c'est
+           cette trace, relue par `#/diagnostic`, qui dira ce qui s'est passé. */
+        const debutFabrique = performance.now();
         scene = await fabrique({ app, atlas, width: w, height: h, reducedMotion });
         if (!vivant) {
           scene.destroy?.();
           return;
         }
         app.stage.addChild(scene.container);
+        noterMontageScene({
+          cle,
+          largeur: w,
+          hauteur: h,
+          dureeMs: Math.round(performance.now() - debutFabrique),
+          objets: compterObjets(scene.container as unknown as { children?: unknown[] }),
+          erreur: null,
+          a: new Date().toLocaleTimeString('fr-FR'),
+        });
 
         /* Cadrage des scènes à taille intrinsèque (la planche de contact). */
         let decalageY = 0;
@@ -245,6 +264,15 @@ export function ScenePixi(props: ScenePixiProps): ReactElement {
         setPrete(true);
       } catch (cause) {
         if (!vivant) return;
+        noterMontageScene({
+          cle,
+          largeur: 0,
+          hauteur: 0,
+          dureeMs: 0,
+          objets: 0,
+          erreur: String(cause).slice(0, 240),
+          a: new Date().toLocaleTimeString('fr-FR'),
+        });
         setErreur(
           cause instanceof ErreurAmorcage
             ? cause
