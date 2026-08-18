@@ -156,6 +156,83 @@ interface Planner {
   resting: Set<string>;
   /** motifs des refus, pour le diagnostic (voir `BotTurn.refused`) */
   refused: { command: Command; error: string }[];
+  /** lisières déjà foulées sans résultat (voir `beginTrail`) */
+  ghosts: Map<string, number>;
+}
+
+/* ── Lisières fantômes ───────────────────────────────────────────────────── */
+
+/**
+ * Combien de jours une lisière stérile reste écartée du classement.
+ *
+ * Pas indéfiniment : la portée de vue dépend du temps qu'il fait
+ * (`weatherModifiers`, `visionBp` tombe à 6500 sous la brume, ce qui ramène
+ * une vue de sept cases à quatre). Une lisière imprenable un jour de brume
+ * peut se lever par temps clair. Deux semaines laissent la météo tourner
+ * plusieurs fois sans réinstaller le va-et-vient.
+ */
+const GHOST_DAYS = 14;
+
+/**
+ * Mémoire des lisières stériles, d'un jour sur l'autre.
+ *
+ * **Le défaut qu'elle corrige.** `sampleFrontier` (`common.ts`) échantillonne
+ * la carte au pas de quatre et déclare « lisière » toute case connue dont un
+ * voisin *à quatre cases* est encore sous le brouillard. Le héros s'y rend,
+ * découvre autour de lui — mais `revealFog` ne perce pas un relief : sur une
+ * carte du Forez, une case à quatre cases de distance derrière une crête
+ * reste noire quoi qu'on fasse. La lisière est donc encore là le lendemain,
+ * avec exactement la même note, et le classement du matin y renvoie le héros.
+ *
+ * Mesuré sur la graine 1 à quatre bannières, siège 3 (profil agressif) : trois
+ * lisières aux cases (201,105), (205,105) et (209,105), notées 2080 chacune,
+ * inchangées du septième au quarante-sixième jour. Le héros faisait la navette
+ * entre (208,105) et (201,113) tous les jours, brûlait ses points de marche,
+ * n'atteignait jamais rien : 471 cases explorées en douze semaines contre 2881
+ * pour l'expert, niveau 1, aucun gisement, aucun combat.
+ *
+ * **Le remède.** On retient les cases où la bannière a passé la nuit. Une
+ * lisière qu'on a foulée et qui se présente encore comme lisière est un
+ * mirage : elle sort du classement pour `GHOST_DAYS` jours. Le remède ne
+ * touche que les cibles de type `lisiere` — un lieu réel se consomme quand on
+ * l'atteint, et écarter une cité foulée casserait le ravitaillement.
+ *
+ * **Déterminisme.** La mémoire est remise à l'état de la veille au début de
+ * chaque `runBotTurn` : rejouer deux fois le même tour donne le même plan.
+ */
+interface Trail {
+  /** jour dont `current` décrit la fin */
+  turn: number;
+  /** état figé à la fin du jour précédent */
+  previous: Map<string, number>;
+  /** état en construction pour le jour courant */
+  current: Map<string, number>;
+}
+
+const trails = new Map<string, Trail>();
+
+function beginTrail(state: GameState, player: PlayerId): Trail {
+  const key = `${state.id}:${player}`;
+  let trail = trails.get(key);
+  if (!trail) {
+    trail = { turn: state.turn, previous: new Map(), current: new Map() };
+    trails.set(key, trail);
+  }
+  if (trail.turn !== state.turn) {
+    trail.previous = trail.current;
+    trail.turn = state.turn;
+  }
+  // Repart toujours de la veille : c'est ce qui rend un second appel sur le
+  // même état strictement identique au premier.
+  trail.current = new Map(trail.previous);
+  for (const [cell, day] of trail.current) {
+    if (state.turn - day > GHOST_DAYS) trail.current.delete(cell);
+  }
+  return trail;
+}
+
+function cellKey(at: MapCoord): string {
+  return `${at.col},${at.row}`;
 }
 
 function refreshView(planner: Planner): void {
@@ -397,6 +474,19 @@ function phaseMovement(planner: Planner): void {
     }
     if (!progressed) break;
   }
+
+  // Où la bannière passe la nuit. Une lisière encore annoncée demain sur une
+  // de ces cases est un mirage : `isGhostFrontier` l'écartera.
+  for (const hero of planner.view.allHeroes) {
+    const fresh = planner.state.heroes[hero.uid];
+    if (fresh) planner.ghosts.set(cellKey(fresh.at), planner.state.turn);
+  }
+}
+
+/** La cible est-elle une lisière déjà foulée sans résultat ? */
+function isGhostFrontier(planner: Planner, target: Target): boolean {
+  if (target.kind !== 'lisiere') return false;
+  return planner.ghosts.has(cellKey(target.at));
 }
 
 /**
@@ -553,7 +643,10 @@ function moveOneHero(
   });
 
   const filtered = ranked.filter(
-    (target) => !wouldBacktrack(planner, hero, target.at) && acceptable(planner, hero, target),
+    (target) =>
+      !wouldBacktrack(planner, hero, target.at) &&
+      !isGhostFrontier(planner, target) &&
+      acceptable(planner, hero, target),
   );
 
   // Route entamée la veille : on la poursuit, sauf si le jour s'est levé sur
@@ -765,6 +858,7 @@ export function runBotTurn(state: GameState, world: WorldMap, player: PlayerId):
     origins: new Map<string, MapCoord>(),
     resting: new Set<string>(),
     refused: [],
+    ghosts: beginTrail(state, player).current,
   };
 
   const alive = sim.players[player]?.alive === true;
@@ -869,6 +963,7 @@ function cachedTurn(state: GameState, world: WorldMap, player: PlayerId): BotTur
 /** Purge la mémoire des plans. Réservé aux tests et au changement de partie. */
 export function resetBotMemory(): void {
   memo.length = 0;
+  trails.clear();
 }
 
 /* ── Diagnostic ──────────────────────────────────────────────────────────── */

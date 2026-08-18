@@ -139,8 +139,33 @@ export interface ChargementPartie {
 }
 
 /** Installe une partie dans le magasin. */
+/* ─────────────────────── Relais des commandes en ligne ──────────────────── */
+
+/**
+ * Crochet posé par `online/partie.ts` quand la partie chargée vient du serveur.
+ *
+ * Le magasin n'importe rien de `online/` : c'est le module réseau qui vient
+ * s'inscrire ici, comme le registre des portraits peints le fait pour le
+ * design system. Le magasin ne sait donc jamais si une partie est en ligne — il
+ * sait seulement qu'après une commande acceptée, quelqu'un veut peut-être en
+ * être informé.
+ */
+type RelaisDeCommande = (command: Command) => boolean;
+
+let relaisDeCommande: RelaisDeCommande | null = null;
+
+/** Inscrit — ou retire, avec `null` — le relais réseau. */
+export function brancherRelaisDeCommandes(relais: RelaisDeCommande | null): void {
+  relaisDeCommande = relais;
+}
+
 export function chargerPartie(chargement: ChargementPartie): void {
   const { state, world, setup, slot, commands, demo = false } = chargement;
+  /* Toute partie qu'on ouvre est locale jusqu'à preuve du contraire : c'est à
+     `installerPartieEnLigne` de rebrancher le relais juste après. Sans cette
+     ligne, ouvrir une sauvegarde solo continuerait d'expédier ses coups à la
+     dernière partie en ligne visitée. */
+  relaisDeCommande = null;
   const localPlayer =
     chargement.localPlayer ??
     setup.players.find((p) => p.kind === 'humain')?.id ??
@@ -254,6 +279,13 @@ export function dispatch(command: Command): DispatchResult {
   });
 
   planifierSauvegarde();
+
+  /* Partie en ligne : le coup vient d'être joué sur le moteur local, il part
+     maintenant au serveur, qui reste seul juge. Rien n'est attendu ici — le
+     contrat des vues veut un `dispatch` synchrone, et sur une partie jouée à
+     plusieurs jours d'intervalle la latence ne se voit pas. */
+  relaisDeCommande?.(command);
+
   return { ok: true, events: resultat.events };
 }
 
@@ -269,6 +301,15 @@ export function ouvrirPanneau(panel: PanelKind | null): void {
 
 export function effacerNotice(): void {
   if (etat.notice !== null) poser({ notice: null });
+}
+
+/**
+ * Affiche un message au joueur sans passer par une commande. Sert au relais des
+ * parties en ligne, qui a des choses à dire — « en attente de Jean », un
+ * conflit de séquence, une coupure réseau — qu'aucune règle du jeu ne produit.
+ */
+export function poserNotice(notice: string | null): void {
+  poser({ notice });
 }
 
 /**
