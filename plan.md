@@ -59,14 +59,15 @@ Règles de style détaillées : `docs/01-ART-BIBLE.md` §0.
 | Déploiement Railway | **fait** | 43 images servies, PostgreSQL connecté, CSP stricte conservée |
 | Images générées (43, 4,19 Mo) | **fait** | 43 clefs sur 43 valides ; portraits et accueil raccordés |
 | Blocage Chrome / Edge (`unsafe-eval`) | **corrigé** | vérifié sous la vraie CSP du serveur |
-| Raccordement cités, matières | à faire | 6 panoramas + 8 matières livrés, sans consommateur |
+| Raccordement des matières | à faire | 8 matières livrées, sans consommateur |
 | Rendu de la carte d'aventure | **fait, à polir** | trop sombre, forêts répétitives, panneau sur la minicarte en portrait |
 | Rendu du combat | **fait, à corriger** | vide de 35 % en portrait ; prévisualisation d'attaque conforme |
-| IA + parties complètes | **inachevé** | 4 760 lignes écrites, baril et simulations manquants |
-| Écrans de cité (2 tableaux en parallaxe) | à faire | |
-| Multijoueur asynchrone | spécifié, à faire | `docs/04-MULTIJOUEUR.md` |
-| Boucles de critique visuelle | **impossible** | outils des sous-agents hors service (voir §3) |
-| Équilibrage par simulation de masse | à faire | |
+| IA + parties complètes | **fait** | 20 parties IA contre IA jouées ; 0 commande refusée au rejeu ; réflexion médiane 154 ms, p95 219 ms (budget 400) |
+| Conquête des lieux gardés | **corrigé** | voir §1 ter — c'était le défaut le plus grave du projet |
+| Écrans de cité (2 tableaux en parallaxe) | **en cours** | panorama, porte, emplacements et survol en place ; **les bâtiments bâtis sont des blocs gris plats**, à reprendre |
+| Multijoueur asynchrone | **fait, non branché** | flux complet vérifié de bout en bout contre le vrai serveur (voir §1 quater) ; les écrans de jeu appellent encore `dispatch()` en local |
+| Boucles de critique visuelle | partiellement | les sous-agents refonctionnent ; revue par capture appliquée aux cités |
+| Équilibrage par simulation de masse | à faire | l'outil existe (`pnpm sim`, `pnpm balance`), le réglage reste à faire |
 
 ## 1 bis. Anomalie de performance mesurée (non résolue)
 
@@ -103,17 +104,84 @@ de les retesseller. Non appliqué à ce stade : modifier du code de rendu qui
 fonctionne, sans pouvoir vérifier le gain sur GPU, ferait courir plus de risque
 que de bénéfice.
 
+## 1 ter. Le monde était inconquérable — corrigé le 18/08
+
+Mesure de départ, sur vingt parties complètes à quatre bannières :
+**zéro gisement, zéro Sceau des Marches, zéro cité gardée pris**, par qui que ce
+soit, en douze semaines. Toutes les parties se réglaient au score de fin de
+chronique, et le profil d'IA le plus immobile l'emportait quinze fois sur vingt.
+
+Deux causes indépendantes, l'une dans le moteur, l'autre dans l'IA.
+
+**La garde d'un lieu ne tombait jamais.** `CombatState` ne décrit le camp
+défenseur que par un joueur, un héros et une cité : devant la garde neutre d'un
+gisement, les trois valent `null` et le lieu n'apparaît nulle part.
+`resolveCombatOutcome` rendait donc son armée au vainqueur, garnissait une cité
+prise, distribuait l'expérience — et laissait la garde intacte. Le gisement se
+relevait au complet au tour suivant. Une bataille rapportait de l'expérience et
+des dépouilles, mais ne prenait rien. `applyCommand` relève désormais, avant la
+résolution qui efface `state.combat`, quel lieu était défendu ; il lui rend ses
+survivants, puis laisse le vainqueur en prendre possession sur-le-champ.
+
+**Un pont rendait le logis infiniment lointain.** `TERRAIN_COST.eau` vaut
+`Number.MAX_SAFE_INTEGER` — c'est juste pour le calcul de chemin, qui doit
+refuser l'eau. Mais `travelEstimate` n'est pas un chemin : c'est une droite
+échantillonnée pour classer des cibles à bon marché, et un pont est de l'eau
+qu'on peut fouler. Un seul échantillon portait l'estimation d'un trajet de cent
+cinquante cases à 4 × 10¹⁶, au-delà de `MAX_SAFE_INTEGER` ; `fallbackHome`, qui
+retient la cité de coût *inférieur* à cette borne, rendait `null`. Un héros
+dépouillé de son armée restait donc planté là jusqu'à la fin de la chronique,
+pendant que sa capitale entassait vingt mille points de troupes.
+
+| | avant | après |
+|---|---|---|
+| gisements pris par bannière | 0 | 1 à 2 |
+| garnison de la capitale en semaine 8 | 21 638 | < 3 600 |
+| héros de campagne en semaine 3 à 8 | armée vide, immobile | ressort réarmé tous les quinze jours |
+
+Six tests verrouillent les deux correctifs, chacun vérifié non complaisant :
+il tombe quand on retire la correction qu'il garde.
+
+## 1 quater. Le multijoueur, vérifié de bout en bout
+
+Le service et le client ont été écrits séparément contre le contrat figé de
+`packages/protocol/src/parties.ts`, puis confrontés au **vrai binaire du
+serveur**, en HTTP, avec deux bocaux à témoins distincts. Onze étapes, toutes
+conformes :
+
+création → lien partageable · l'hôte prend une bannière · un second navigateur
+en prend une autre sans jeton préalable · **aucun jeton d'autrui ne figure dans
+le salon** · lancement · pouls · le joueur inactif reçoit **403 « En attente de
+Thibaut »** · le joueur actif est accepté, la séquence passe de 3 à 4 et la main
+change · **le rejeu de la même clef d'idempotence rend `rejeu: true` et la même
+séquence** · une séquence périmée rend **409 avec l'état à jour joint** ·
+`mes-parties` affiche « C'est ton tour dans une partie ».
+
+Un trou de sécurité corrigé au passage : `Surrender` était accepté hors tour au
+titre d'une exception de la spécification, or `applyCommand` lit
+`state.activePlayer` avant d'entrer dans ce cas — **n'importe quel joueur
+pouvait faire capituler n'importe quel autre**.
+
 ## 2. Suite
 
-1. **Lot 4** (en cours) — carte d'aventure, combat, correction de l'accueil mobile, IA.
-2. **Lot 5** — écrans de cité, multijoueur asynchrone, coquille d'interface de jeu.
-3. **Lot 6** — critique visuelle adverse écran par écran, contre la bible artistique,
-   captures à l'appui, en boucle jusqu'à ce que la comparaison avec un jeu du commerce
-   ne désigne plus immédiatement l'amateur.
-4. **Lot 7** — équilibrage par simulation, accessibilité, performance mobile,
-   tests de bout en bout.
-5. **Dès qu'un outil de génération d'images est disponible** — reprise des portraits,
-   des fonds de cité et des textures de terrain selon `docs/01-ART-BIBLE.md` §0.
+Par ordre de valeur pour le joueur, et non d'ordre chronologique.
+
+1. **Les bâtiments du tableau de cité.** C'est le seul défaut visuel qui saute
+   aux yeux aujourd'hui : sur un panorama peint en lumière chaude, les
+   bâtiments bâtis apparaissent en **blocs gris plats**. Diagnostic fait — le
+   toit et le mur de `PALETTE_BATI.granit` tombent tous deux vers 0x77-0x8c,
+   soit deux gris de même valeur, là où la peinture oppose une ardoise sombre
+   à une pierre chaude. Il faut assombrir la couverture, réchauffer le mur,
+   rendre la matière lisible et poser une vraie ombre de contact.
+2. **Brancher le multijoueur sur les écrans de jeu.** Le tuyau est prêt et
+   vérifié ; carte, cité et combat émettent encore en local.
+3. **Polissage de la carte d'aventure** — trop sombre, forêts répétitives,
+   panneau qui recouvre la minicarte en portrait.
+4. **Le vide de 35 % du combat en portrait.**
+5. **Raccordement des huit matières peintes.**
+6. **Équilibrage par simulation** — maintenant que les lieux se prennent, les
+   chiffres de `pnpm sim` veulent dire quelque chose et le réglage des profils
+   peut commencer.
 
 ## 3. Méthode
 
@@ -131,9 +199,22 @@ que de bénéfice.
   photographié la page avant que le fond peint de 207 ko ne soit décodé, et a fait
   conclure à tort à une régression. Les attentes du harnais sont désormais calées
   sur le poids réel des images.
-- **Les sous-agents sont hors service** depuis le 18/08 : le gestionnaire de
-  permissions du harnais vide les paramètres de tous leurs outils (sonde minimale
-  à l'appui). Le travail se fait donc en direct, sans fan-out ni critique croisée.
+- **Mesurer avant d'accuser.** « L'IA joue mal » était faux : l'IA classait
+  correctement un gisement en tête de ses cibles dès la deuxième semaine, avec
+  un score dix fois supérieur au suivant. Ce qui manquait était ailleurs — deux
+  défauts d'arithmétique, l'un dans le moteur, l'autre dans une estimation de
+  distance. Trois sondes successives (`explainTurn`, la force au champ contre
+  celle en garnison, puis la valeur brute de `travelEstimate`) ont suffi à les
+  isoler. Aucun réglage de pondération n'aurait rien donné.
+- **Un test qui ne peut pas échouer ne vaut rien.** Chaque correctif est
+  accompagné d'un test qu'on vérifie **en retirant la correction** : s'il reste
+  vert, il ne garde rien. Deux des six écrits ce jour-là ont dû être resserrés
+  après cette épreuve.
+- **Les sous-agents refonctionnent** depuis le 18/08 après-midi. Ils écrivent
+  vite et beaucoup, mais **plafonnent sur le jugement visuel** : le module des
+  cités a produit cinq tours de captures sans jamais corriger le défaut le plus
+  visible de son écran. La revue finale reste à faire par le fil principal, à
+  l'œil, capture par capture.
 
 ## 4. Documents de référence
 
