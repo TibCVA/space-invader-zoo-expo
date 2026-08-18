@@ -61,8 +61,9 @@ Règles de style détaillées : `docs/01-ART-BIBLE.md` §0.
 | Blocage Chrome / Edge (`unsafe-eval`) | **corrigé** | vérifié sous la vraie CSP du serveur |
 | Gel du chargement à 30 % sous la CSP (worker `blob:`) | **corrigé** | 6 gels sur 6 avant, 0 sur 6 après — voir §1 quinquies |
 | Raccordement des matières | à faire | 8 matières livrées, sans consommateur |
-| Rendu de la carte d'aventure | **fait, à polir** | trop sombre, forêts répétitives, panneau sur la minicarte en portrait |
-| Rendu du combat | **fait, à corriger** | vide de 35 % en portrait ; prévisualisation d'attaque conforme |
+| Rendu de la carte d'aventure | **fait, à polir** | saturation 18,93 → 29,15 % (§1 sexies) ; restent les traînées laiteuses, les forêts répétitives, le panneau sur la minicarte en portrait |
+| Dégradés obliques (aplat sous pixi 8.19.0) | **corrigé** | 30 cas sur la vraie fonction, vérifié contre la source de pixi — voir §1 sexies |
+| Rendu du combat | **fait, à corriger** | le sol a perdu 19,0 de luminance et 4,0 points de saturation depuis que les dégradés peignent : rampes de `field.ts` à ré-étalonner (§2.3) ; vide de 35 % en portrait |
 | IA + parties complètes | **fait** | 20 parties IA contre IA jouées ; 0 commande refusée au rejeu ; réflexion médiane 154 ms, p95 219 ms (budget 400) |
 | Conquête des lieux gardés | **corrigé** | voir §1 ter — c'était le défaut le plus grave du projet |
 | Écrans de cité (2 tableaux en parallaxe) | **en cours** | panorama, porte, emplacements et survol en place ; **les bâtiments bâtis sont des blocs gris plats**, à reprendre |
@@ -216,28 +217,109 @@ titre d'une exception de la spécification, or `applyCommand` lit
 `state.activePlayer` avant d'entrer dans ce cas — **n'importe quel joueur
 pouvait faire capituler n'importe quel autre**.
 
+## 1 sexies. Les dégradés obliques ne peignaient rien — et la carte était lavée
+
+Deux défauts distincts, tous deux établis par l'ablation puis contre-vérifiés
+par un agent adverse chargé de les **réfuter**. Aucun des deux n'était ce que
+le rapport interne annonçait.
+
+**a) `degradeLineaire` posait un aplat à tout angle non multiple de 90°.** Pas
+un « gris laiteux » : exactement la couleur d'un arrêt extrême, choisie par le
+drapeau `flip` de PixiJS. Balayage de 16 angles, même rampe, même polygone :
+écart-type 55,0 à 0° / 54,7 à 90° / 55,0 à 180° / 54,7 à 270°, et **0,00** à 1,
+5, 15, 30, 45, 60, 89, 91, 118, 135, 315 et 359°. La RenderTexture, que le
+rapport accusait, n'y est pour rien — mêmes chiffres à la deuxième décimale en
+rendu direct. La cause est dans `FillGradient.buildLinearGradient` de pixi
+8.19.0 : le facteur 256 de `textureSpace: 'local'` multiplie aussi le terme de
+translation, que `generateTextureMatrix()` ne renormalise pas. Dès que la
+matrice tourne, `u` sort de [0;1] — mesuré à −53,0 aux quatre coins à 45° — et
+`clamp-to-edge` échantillonne le bord. Sept des quatorze dégradés de
+`battle/**` étaient morts, dont les trois qui portent tout le modèle de valeur
+du sol. Corrigé en `092e513`, vérifié analytiquement contre la source de pixi
+puis sur 30 cas **de la vraie fonction exportée** : aucun aplat, sens correct
+partout.
+
+**b) La carte n'était pas ternie par un coupable unique.** Le classement par
+ablation de 18 termes le montre : le brouillard de guerre ne pèse **rien**
+(+0,01 en neutralisant le bloc entier du shader — il n'est pas actif sur cette
+vue, les taches pâles sont les particules de brume de la météo), les décors
+**ajoutent** 0,75 point, l'ombrage de relief en ajoute 2,20 et l'étalonnage
+bleu des ombres 2,17. La perte venait de trois lavages successifs vers un blanc
+crème appliqués **aux lumières**, puis d'une remontée d'exposition : gamma du
+post-traitement (+3,13), `eclaircir(c, 0.12)` de `couleurBiome` (+2,37), rampe
+d'altitude du biome (+1,69). Correctif combiné livré dans `6188626` — dont le
+message ne le dit pas, ce qui a failli le faire passer pour perdu.
+
+Mesure de la paire, région 1690×930, indicateur (max−min)/max, **reproduite
+trois fois indépendamment à 0,01 point près** (auteur, agent adverse, fil
+principal) : saturation moyenne **18,93 % → 29,15 %**, médiane 17,33 → 29,51,
+à luminance constante (91,8 → 90,7) et contraste légèrement meilleur. Surtout,
+l'**inversion signature** est corrigée : les lumières titraient 18,62 % contre
+22,41 % pour les ombres — une carte peinte fait l'inverse — et passent à
+34,18 % contre 27,01 %. Le sol ensoleillé du sud-ouest, le « 12–15 % » du
+briefing, passe de 15,04 à 29,01 de médiane. Bruit de fond du harnais, mesuré
+sur deux tirages du même code : 0,01 point. Le gain vaut mille fois le bruit.
+
 ## 2. Suite
 
-Par ordre de valeur pour le joueur, et non d'ordre chronologique.
+Par ordre de valeur pour le joueur, et non d'ordre chronologique. Les quatre
+premiers points sortent de la contre-vérification adverse du 18/08 au soir et
+sont **chiffrés** ; ils se traitent dans cet ordre, un changement à la fois.
 
-1. **La carte d'aventure manque de couleur.** Mesuré : le sol rendu tient entre
-   12 et 15 % de saturation, quand les textures peintes de ce même jeu en ont
-   35 à 55. Ce n'est **pas** le brouillard de guerre — le désaturer de 60 à
-   42 % ne change rien à la mesure — ni la teinte de base du terrain : la
-   porter de +16 à +45 % ne gagne que 1,2 point. Trois essais à une constante
-   chacun ont donc échoué, et c'est le résultat utile : la platitude vient du
-   cumul des termes froids (l'ombre tirée à 38 % vers le bleu, le voile
-   d'altitude, la teinte des décors) et demande une passe d'ensemble, pas un
-   réglage. À reprendre avec les quatre termes tenus ensemble et une mesure
-   après chaque essai.
-2. **Le vide de 35 % du combat en portrait.**
-3. **Le tableau de cité, second passage** — il reste aux bâtiments une arête un
-   peu nette et un mur 15 % plus clair que la pierre peinte voisine. Les
-   silhouettes et l'usure feraient le reste.
-4. **La colonne droite vide de `#/en-ligne`** sur grand écran.
-5. **Équilibrage par simulation** — maintenant que les lieux se prennent et que
-   le siège ne détermine plus le profil, les chiffres de `pnpm sim` veulent
-   enfin dire quelque chose.
+1. **Le soleil de l'atlas est à 90° de celui du sol — bloquant.**
+   `degradeSurface` (`art/shading.ts:419`) oriente son dégradé à **135°**,
+   quand `palette.ts` déclare `toSun` au nord-ouest (azimut 315), que
+   `field.ts` éclaire son sol à 45°, que la docstring de `peindre()` annonce
+   « orienté 315° » et que l'art bible §1 loi n°2 dit « soleil au nord-ouest ».
+   Tant que le dégradé était un aplat, la contradiction ne se voyait pas — et
+   c'est *pourquoi* les créatures étaient noires : à 135° le `clamp-to-edge`
+   renvoyait l'arrêt le plus sombre. Depuis `092e513` elle est peinte à
+   l'écran. Mesuré en isolation sur la vraie fonction : NO−NE passe de −24,8 à
+   **+15,9**, en accord avec le témoin de terrain à +19,9 ; sur la planche, 9
+   cellules sur 21 basculent au nord-est et l'écart moyen à la direction du
+   soleil déclaré passe de 26,7° à 46,6°. Même question pour les trois autres
+   appels à 135° : `archetypes.ts:238`, `parchemin.ts:170`, `parchemin.ts:376`.
+2. **Un test versionné sur `degradeLineaire` — bloquant.** Les 30 cas qui
+   valident le correctif vivent dans `**/__epreuve/`, qui est dans
+   `.gitignore` : ils n'existent pas dans l'historique. La propriété à garder
+   est purement algébrique et ne demande pas de GPU — `u = (p·d − proj)/portée`
+   croissant, exactement sur [0;1], arrêts retournés si `dx < 0` ou `dy < 0` —
+   donc elle a sa place dans `art/art.test.ts`, qui n'en teste rien
+   aujourd'hui. Sans lui, la prochaine montée de pixi inverse l'atlas en
+   silence.
+3. **Ré-étalonner les trois rampes de `field.ts`** (641 biome, 676 nappe
+   froide — son premier arrêt est à alpha 0, la couche est entièrement
+   invisible —, 706 glacis). Elles ont été écrites contre un dégradé mort ;
+   maintenant qu'il vit, elles assombrissent et désaturent. C'est la seule voie
+   pour récupérer ce que le sol du combat a perdu, mesuré et reproduit :
+   **−19,0 de luminance et −4,0 points de saturation**. Le correctif des
+   dégradés reste un gain net par ailleurs — sur la planche, +16,5 d'écart-type
+   et +5,8 points de saturation, et la séparation figure/fond du champ passe de
+   19,2 à 28,0 — mais la cible nommée a reculé, et le dossier ne se ferme pas
+   là-dessus.
+4. **Deux incohérences d'état latentes dans `appliquerDecorDemo`**, sans un
+   pixel de conséquence aujourd'hui, mordantes dès qu'une route rendra le point
+   de vue de P2 ou un bandeau de ressources : `state.turn = modele.turn` pousse
+   la partie au tour 38 sans recopier les trésors (l'en-tête affiche « semaine 6 »
+   au-dessus d'un trésor de premier jour, et Cervières tient 22 bâtiments sans
+   qu'un écu ait été dépensé) ; et `initialReveal` étant **additif**, P2 garde
+   le voile levé autour de Noirétable, qu'il n'occupe plus. Un test d'état pur
+   sur ce correctif — turn, faction de `T_noiretable`, les deux routes, union
+   des archétypes ≥ 11 — coûte une seconde et l'empêche d'être défait en
+   silence.
+5. **Le peintre de bâtiments**, second passage : arête un peu nette, mur 15 %
+   plus clair que la pierre peinte voisine, et le raccord entre volumes gris
+   aplats et panorama peint mesuré à **−14,10 points de saturation** sur le
+   pixel échangé à Cervières (mais +6,73 à l'Hermitage). Les silhouettes et
+   l'usure feraient le reste.
+6. **Les traînées laiteuses de la carte** — coin bas-gauche, bande sous
+   Cervières, diagonale en haut à droite. Sur un sol désormais coloré, elles
+   lisent comme des salissures plutôt que comme de la brume.
+7. **Le vide de 35 % du combat en portrait**, et les 52 % de lignes quasi-unies
+   du tableau de cité sur iPhone — défaut préexistant, mesuré inchangé.
+8. **Équilibrage par simulation** — le siège ne détermine plus le profil, et
+   `duel.test.ts` mesure maintenant l'expert à **17/20 (85 %)** pour une cible
+   de 70 %. Les chiffres de `pnpm sim` veulent enfin dire quelque chose.
 
 ## 3. Méthode
 
@@ -291,6 +373,30 @@ Par ordre de valeur pour le joueur, et non d'ordre chronologique.
   avant comme après), donc aucun dégât collatéral ne la justifiait. Ce qui est
   committé après mesure fait foi ; un agent qui veut le défaire doit apporter
   une mesure contraire.
+- **Sur une scène animée, un diff de pixels bruts ne prouve rien — dans aucun
+  sens.** Entre deux captures du **même code**, seuls 52 % des pixels de la
+  carte d'aventure coïncident : le grain, la brume et les particules bougent
+  seuls. Un rapport a conclu « le signal est sous le plancher de bruit, donc la
+  carte est inchangée » avec 7,93 % contre 8,81 % ; un second tirage a donné
+  10,20 % contre 9,05 % et renversé la phrase. Aucun des quatre nombres n'était
+  reproductible : l'argument était un coup de dés. Ce qui tranche, c'est le
+  **masque des pixels stables** — ceux qui coïncident à moins de 4/255 entre
+  deux captures du même code — auquel on restreint la comparaison, plus un
+  recalage de motifs distants pour écarter un décalage de cadrage.
+- **Un correctif mesuré se commite sous un message qui le nomme.** La passe de
+  couleur de la carte — dix points de saturation, le gain visuel le plus net de
+  la journée — est partie dans un commit intitulé « un écran de diagnostic ».
+  `git log` sur les fichiers concernés ne montrait plus rien après, et il a
+  fallu la mesurer pour établir qu'elle n'avait pas été perdue. Un correctif
+  qui ne se lit pas dans l'historique est un correctif qu'on annulera par
+  accident.
+- **Le correctif qui découvre un défaut plus ancien ne se juge pas sur ce
+  défaut.** Réparer les dégradés obliques a fait apparaître une contradiction
+  restée invisible dix mille lignes durant : l'atlas éclaire ses créatures à
+  135°, le sol qui les porte à 45°. Tant que le dégradé posait un aplat, les
+  deux erreurs se masquaient l'une l'autre. La bonne conclusion n'est ni « le
+  correctif régresse, on annule » ni « le correctif est bon, on ferme » : c'est
+  qu'un troisième défaut vient d'être rendu mesurable.
 - **Un test qui ne peut pas échouer ne vaut rien.** Chaque correctif est
   accompagné d'un test qu'on vérifie **en retirant la correction** : s'il reste
   vert, il ne garde rien. Deux des six écrits ce jour-là ont dû être resserrés
