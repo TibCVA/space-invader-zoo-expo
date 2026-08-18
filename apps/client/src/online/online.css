@@ -1,0 +1,457 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Parties en ligne — compléments de style
+   ───────────────────────────────────────────────────────────────────────────
+   Les écrans `#/en-ligne` et `#/en-ligne/:code` sont bâtis sur l'ossature de
+   l'assistant de nouvelle partie : `.hmm-acc-ecran`, `.hmm-acc-bloc`,
+   `.hmm-acc-parchemin`, `.hmm-acc-segment`, `.hmm-acc-lancer`. Cette feuille
+   n'ajoute que ce qui n'existait pas encore — le code de partie, le lien à
+   partager, la liste des bannières, la salle d'attente.
+
+   Mêmes règles que partout : palette de la bible artistique, lumière au
+   nord-ouest, ombres tirant vers `#2a3242`, aucun aplat, aucun coin arrondi
+   au-delà de 3 px, cibles tactiles ≥ 48 px, `prefers-reduced-motion` honoré.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────── 1. Avis et bandeaux ────────────────────────── */
+
+.hmm-enl-alerte {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid rgba(110, 31, 42, 0.6);
+  border-left-width: 4px;
+  border-radius: 3px;
+  background: linear-gradient(168deg, rgba(110, 31, 42, 0.28) 0%, rgba(42, 50, 66, 0.5) 100%);
+  color: #f1e3c8;
+  font-family: var(--acc-recit);
+  font-size: var(--acc-fs-sm);
+  text-shadow: 0 1px 2px rgba(26, 31, 38, 0.8);
+}
+
+.hmm-enl-alerte svg {
+  flex: 0 0 auto;
+}
+
+.hmm-enl-alerte--douce {
+  border-color: rgba(201, 162, 39, 0.62);
+  background: linear-gradient(168deg, rgba(201, 162, 39, 0.2) 0%, rgba(42, 50, 66, 0.48) 100%);
+}
+
+.hmm-enl-bandeau {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 4px;
+  padding: 10px 14px;
+  border: 1px solid rgba(122, 93, 22, 0.5);
+  border-radius: 3px;
+  background: linear-gradient(168deg, rgba(243, 222, 168, 0.85) 0%, rgba(201, 162, 39, 0.42) 100%);
+  color: #3a2c18;
+  font-family: var(--acc-titre);
+  font-size: var(--acc-fs-sm);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-shadow: 0 1px 0 rgba(255, 233, 194, 0.7);
+}
+
+.hmm-enl-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0;
+  color: #5a4a30;
+  font-family: var(--acc-recit);
+  font-size: var(--acc-fs-xs);
+  font-style: italic;
+}
+
+.hmm-enl-note--acquise {
+  color: #3f5a37;
+}
+
+/* ───────────────────────── 2. Le bouton « me prévenir » ─────────────────── */
+
+.hmm-enl-prevenir {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  margin-top: 12px;
+  padding: 10px 18px;
+  border: 1px solid rgba(122, 93, 22, 0.52);
+  border-radius: 3px;
+  cursor: pointer;
+  background: linear-gradient(180deg, rgba(255, 233, 194, 0.6) 0%, rgba(201, 185, 150, 0.5) 100%);
+  color: #3a2c18;
+  font-family: var(--acc-donnee);
+  font-size: var(--acc-fs-sm);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  transition:
+    border-color var(--acc-duree) var(--acc-courbe),
+    background var(--acc-duree) var(--acc-courbe);
+}
+
+.hmm-enl-prevenir:hover,
+.hmm-enl-prevenir:focus-visible {
+  border-color: rgba(201, 162, 39, 0.95);
+  background: linear-gradient(180deg, rgba(255, 240, 212, 0.78) 0%, rgba(214, 198, 162, 0.6) 100%);
+  outline: none;
+}
+
+/* ──────────────────────── 3. Rejoindre par code ─────────────────────────── */
+
+.hmm-enl-rejoindre {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.hmm-enl-code {
+  flex: 1 1 220px;
+  display: flex;
+}
+
+.hmm-enl-code input,
+.hmm-enl-lien-champ {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid rgba(122, 93, 22, 0.44);
+  border-radius: 3px;
+  background: linear-gradient(180deg, rgba(255, 233, 194, 0.42) 0%, rgba(201, 185, 150, 0.34) 100%);
+  color: #241c14;
+  font-family: var(--acc-donnee);
+  font-size: var(--acc-fs-md);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.14em;
+}
+
+.hmm-enl-code input::placeholder {
+  color: rgba(36, 28, 20, 0.42);
+  letter-spacing: 0.14em;
+}
+
+.hmm-enl-code input:focus-visible,
+.hmm-enl-lien-champ:focus-visible {
+  border-color: rgba(201, 162, 39, 0.95);
+  outline: 2px solid rgba(201, 162, 39, 0.5);
+  outline-offset: 1px;
+}
+
+/* ──────────────────────── 4. Le lien à partager ─────────────────────────── */
+
+.hmm-enl-lien {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hmm-enl-code-grand {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid rgba(122, 93, 22, 0.5);
+  border-radius: 3px;
+  background:
+    radial-gradient(120% 140% at 22% 10%, rgba(255, 233, 194, 0.72) 0%, rgba(232, 220, 192, 0) 60%),
+    linear-gradient(180deg, rgba(58, 44, 24, 0.1) 0%, rgba(42, 50, 66, 0.14) 100%);
+  color: #3a2c18;
+  font-family: var(--acc-titre);
+  font-size: clamp(1.35rem, 4.4vw, 1.95rem);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-align: center;
+  text-shadow: 0 1px 0 rgba(255, 233, 194, 0.8);
+}
+
+.hmm-enl-lien-ligne {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.hmm-enl-lien-ligne .hmm-enl-lien-champ {
+  flex: 1 1 200px;
+  font-size: var(--acc-fs-sm);
+  letter-spacing: 0.02em;
+}
+
+/* ───────────────────────── 5. Mes parties en cours ──────────────────────── */
+
+.hmm-enl-parties {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hmm-enl-partie-bouton {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 14px;
+  border: 1px solid rgba(122, 93, 22, 0.36);
+  border-radius: 3px;
+  cursor: pointer;
+  text-align: left;
+  background: linear-gradient(168deg, rgba(255, 233, 194, 0.4) 0%, rgba(201, 185, 150, 0.34) 100%);
+  color: #241c14;
+  transition:
+    border-color var(--acc-duree) var(--acc-courbe),
+    transform var(--acc-duree) var(--acc-courbe);
+}
+
+.hmm-enl-partie-bouton:hover,
+.hmm-enl-partie-bouton:focus-visible {
+  border-color: rgba(201, 162, 39, 0.9);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+/* C'est mon tour : filet d'or épais et fond réchauffé. On ne peut pas le rater. */
+.hmm-enl-partie.est-mon-tour .hmm-enl-partie-bouton {
+  border-color: rgba(201, 162, 39, 0.95);
+  border-left-width: 4px;
+  background: linear-gradient(168deg, rgba(243, 222, 168, 0.72) 0%, rgba(201, 162, 39, 0.3) 100%);
+  box-shadow: 0 0 18px rgba(201, 162, 39, 0.22);
+}
+
+.hmm-enl-partie-avatar {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+}
+
+.hmm-enl-partie-textes {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hmm-enl-partie-code {
+  font-family: var(--acc-titre);
+  font-size: var(--acc-fs-sm);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+
+.hmm-enl-partie-etat {
+  font-family: var(--acc-recit);
+  font-size: var(--acc-fs-sm);
+}
+
+.hmm-enl-partie.est-mon-tour .hmm-enl-partie-etat {
+  font-weight: 600;
+  color: #5c3f0d;
+}
+
+.hmm-enl-partie-detail {
+  font-family: var(--acc-donnee);
+  font-size: var(--acc-fs-xs);
+  color: rgba(36, 28, 20, 0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Le même bloc, posé sur la colonne de la page d'accueil : il lui faut sa
+   propre plaque de parchemin, sans quoi le texte d'encre se poserait sur le
+   fond peint et deviendrait illisible. */
+.hmm-enl-accueil {
+  width: min(100%, 34rem);
+  margin: clamp(10px, 1.8vh, 18px) auto 0;
+  padding: clamp(12px, 2vw, 18px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: 3px;
+  color: var(--acc-encre);
+  background-color: var(--acc-parchemin);
+  background-image:
+    radial-gradient(120% 90% at 22% 14%, rgba(255, 233, 194, 0.7) 0%, rgba(232, 220, 192, 0) 55%),
+    linear-gradient(168deg, #eee2c8 0%, #e4d7b8 44%, #cdbd9c 100%),
+    var(--hmm-tex-parchemin-image, none);
+  background-size: 100% 100%, 100% 100%, var(--hmm-tex-parchemin-size, auto);
+  background-repeat: no-repeat, no-repeat, var(--hmm-tex-parchemin-repeat, repeat);
+  background-blend-mode: normal, normal, var(--hmm-tex-parchemin-blend, multiply);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 233, 194, 0.8),
+    inset 0 -1px 0 rgba(42, 50, 66, 0.28),
+    inset 0 0 0 1px rgba(122, 93, 22, 0.34),
+    0 10px 28px rgba(26, 31, 38, 0.5);
+  animation: hmm-acc-monte 0.36s var(--acc-courbe) both;
+  animation-delay: 1.3s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hmm-enl-accueil {
+    animation: none;
+  }
+}
+
+:root[data-animations='reduites'] .hmm-enl-accueil {
+  animation: none;
+}
+
+/* ──────────────────────────── 6. Les bannières ──────────────────────────── */
+
+.hmm-enl-bannieres {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hmm-enl-banniere {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(122, 93, 22, 0.34);
+  border-radius: 3px;
+  background: linear-gradient(168deg, rgba(255, 233, 194, 0.36) 0%, rgba(201, 185, 150, 0.28) 100%);
+}
+
+.hmm-enl-banniere--libre {
+  border-style: dashed;
+  background: linear-gradient(168deg, rgba(255, 233, 194, 0.16) 0%, rgba(201, 185, 150, 0.14) 100%);
+}
+
+.hmm-enl-banniere.est-moi {
+  border-color: rgba(201, 162, 39, 0.9);
+  border-left-width: 4px;
+}
+
+.hmm-enl-banniere-tete {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hmm-enl-banniere-identite {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hmm-enl-banniere-nom {
+  margin: 0;
+  font-family: var(--acc-titre);
+  font-size: var(--acc-fs-sm);
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  color: #3a2c18;
+}
+
+.hmm-enl-moi {
+  font-family: var(--acc-recit);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: #6b5326;
+}
+
+.hmm-enl-banniere-detail {
+  margin: 2px 0 0;
+  font-family: var(--acc-recit);
+  font-size: var(--acc-fs-xs);
+  color: rgba(36, 28, 20, 0.72);
+}
+
+.hmm-enl-banniere-corps {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hmm-enl-banniere-vu {
+  font-family: var(--acc-donnee);
+  font-size: var(--acc-fs-xs);
+  color: rgba(36, 28, 20, 0.6);
+}
+
+.hmm-enl-banniere-actions,
+.hmm-enl-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.hmm-enl-ia {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  flex: 1 1 260px;
+}
+
+.hmm-enl-ia .hmm-acc-select {
+  flex: 1 1 180px;
+}
+
+/* ───────────────────────── 7. La salle d'attente ────────────────────────── */
+
+.hmm-enl-attente .hmm-acc-recap {
+  margin-top: 4px;
+}
+
+.hmm-enl-nom input {
+  width: 100%;
+}
+
+/* ─────────────────────────── 8. Adaptatif ───────────────────────────────── */
+
+@media (max-width: 719px) {
+  .hmm-enl-lien-ligne,
+  .hmm-enl-rejoindre {
+    flex-direction: column;
+  }
+
+  .hmm-enl-partie-detail {
+    white-space: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hmm-enl-partie-bouton {
+    transition: none;
+  }
+
+  .hmm-enl-partie-bouton:hover,
+  .hmm-enl-partie-bouton:focus-visible {
+    transform: none;
+  }
+}
+
+:root[data-animations='reduites'] .hmm-enl-partie-bouton {
+  transition: none;
+}
+
+:root[data-animations='reduites'] .hmm-enl-partie-bouton:hover,
+:root[data-animations='reduites'] .hmm-enl-partie-bouton:focus-visible {
+  transform: none;
+}
+
+/* Contraste renforcé : les filets d'or passent à pleine opacité. */
+:root[data-contraste='renforce'] .hmm-enl-banniere,
+:root[data-contraste='renforce'] .hmm-enl-partie-bouton,
+:root[data-contraste='renforce'] .hmm-enl-code input,
+:root[data-contraste='renforce'] .hmm-enl-lien-champ {
+  border-color: rgba(201, 162, 39, 0.92);
+}

@@ -51,7 +51,7 @@ import '../../../../packages/ui/src/styles.css';
 import './landing.css';
 
 import { LandingTitle } from './title.js';
-import { LandingFooter, LandingMenu } from './menu.js';
+import { LandingFooter, LandingMenu, type MenuEntry } from './menu.js';
 import { NewGamePage } from './new-game.js';
 import { CodexPage } from './codex.js';
 import { OptionsPage } from './options.js';
@@ -199,6 +199,11 @@ export interface LandingPageProps {
   saveSummary?: { name: string; turn: number; week: number };
   /** Monter le décor animé. Mettre à `false` si l'hôte le monte lui-même. */
   backdrop?: boolean;
+  /**
+   * Entrées ajoutées au menu après Options — c'est par là que passe « Jouer
+   * avec mes cousins » (`docs/04-MULTIJOUEUR.md`).
+   */
+  menuExtra?: MenuEntry[];
   /** Contenu libre glissé sous le menu (bandeau réseau, avertissement…). */
   children?: ReactNode;
 }
@@ -216,6 +221,7 @@ export function LandingPage(props: LandingPageProps): ReactElement {
     version,
     saveSummary,
     backdrop = true,
+    menuExtra,
     children,
   } = props;
 
@@ -252,6 +258,7 @@ export function LandingPage(props: LandingPageProps): ReactElement {
             onLoad={onLoad}
             onCodex={onCodex}
             onOptions={onOptions}
+            extra={menuExtra}
           />
           {hasSave && saveSummary ? (
             <p className="hmm-acc-signet">

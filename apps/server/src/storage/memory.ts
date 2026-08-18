@@ -10,10 +10,12 @@
  */
 import type { Profile, SaveSlot } from '@auvergne/protocol';
 import {
+  sortParties,
   sortSlots,
   type SaveMeta,
   type Storage,
   type StorageKind,
+  type StoredParty,
   type StoredReplay,
   type StoredSave,
 } from './index.js';
@@ -29,6 +31,9 @@ export class MemoryStorage implements Storage {
   readonly label: string;
 
   private readonly buckets = new Map<string, Bucket>();
+
+  /** Parties en ligne, indexées par code. */
+  private readonly parties = new Map<string, StoredParty>();
 
   constructor(label = 'Stockage en mémoire') {
     this.label = label;
@@ -109,6 +114,37 @@ export class MemoryStorage implements Storage {
     return b.replays.map((r) => clone(r)).sort((a, z) => z.createdAt.localeCompare(a.createdAt));
   }
 
+  /* ── Parties en ligne ─────────────────────────────────────────────────── */
+
+  async createParty(party: StoredParty): Promise<void> {
+    if (this.parties.has(party.code)) {
+      throw new Error('Code de partie déjà utilisé.');
+    }
+    this.parties.set(party.code, clone(party));
+  }
+
+  async getParty(code: string): Promise<StoredParty | null> {
+    const found = this.parties.get(code);
+    return found === undefined ? null : clone(found);
+  }
+
+  async putParty(party: StoredParty): Promise<void> {
+    this.parties.set(party.code, clone(party));
+  }
+
+  async listPartiesOf(identity: string): Promise<StoredParty[]> {
+    const out: StoredParty[] = [];
+    for (const party of this.parties.values()) {
+      const tenue = party.joueurs.some((s) => s.identite === identity);
+      if (tenue || party.hote === identity) out.push(clone(party));
+    }
+    return sortParties(out);
+  }
+
+  async countParties(): Promise<number> {
+    return this.parties.size;
+  }
+
   async stats(): Promise<{ identites: number; sauvegardes: number }> {
     let sauvegardes = 0;
     for (const b of this.buckets.values()) sauvegardes += b.saves.size;
@@ -117,6 +153,7 @@ export class MemoryStorage implements Storage {
 
   async close(): Promise<void> {
     this.buckets.clear();
+    this.parties.clear();
   }
 }
 

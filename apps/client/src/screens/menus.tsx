@@ -19,6 +19,7 @@ import {
   OptionsPage,
   type GameSettings,
 } from '../landing/index.js';
+import { BandeauMesParties } from '../online/index.js';
 import { demarrerPartie } from '../state/store.js';
 import { lireLocal, partieReprenable } from '../state/persistence.js';
 import { navigate } from '../router.js';
@@ -103,10 +104,28 @@ export function EcranMenus({ ecran, section, settings, onSettings }: EcranMenusP
           onLoad={(): void => navigate({ name: 'charger' })}
           onCodex={(): void => navigate({ name: 'codex' })}
           onOptions={(): void => navigate({ name: 'options' })}
-        />
+          menuExtra={[
+            {
+              id: 'en-ligne',
+              label: 'Jouer avec mes cousins',
+              hint: 'Une partie en ligne, chacun chez soi, à son rythme',
+              icon: 'cloche',
+              onSelect: (): void => navigate({ name: 'en-ligne' }),
+            },
+          ]}
+        >
+          {/* Ne s'affiche que si le serveur connaît des parties à ce
+              navigateur : sans partie en ligne, l'accueil ne change pas d'un
+              pixel. */}
+          <BandeauMesParties />
+        </LandingPage>
       ) : null}
       {ecran === 'nouvelle-partie' ? (
-        <NewGamePage onStart={demarrer} onBack={(): void => navigate({ name: 'accueil' })} />
+        <NewGamePage
+          onStart={demarrer}
+          onBack={(): void => navigate({ name: 'accueil' })}
+          onNaviguer={(fragment): void => navigate(fragment)}
+        />
       ) : null}
       {ecran === 'codex' ? (
         <CodexPage section={section} onBack={(): void => navigate({ name: 'accueil' })} />

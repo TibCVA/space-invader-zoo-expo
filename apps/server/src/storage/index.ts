@@ -24,6 +24,28 @@ import {
   type SaveSlot,
 } from '@auvergne/protocol';
 import type { Command, GameSetup } from '@auvergne/engine';
+import type { PartyStore } from './parties.js';
+
+export type {
+  AiProfile,
+  PartySetup,
+  PartyStatus,
+  PartyStore,
+  SeatKind,
+  StoredParty,
+  StoredPartyCommand,
+  StoredPartySnapshot,
+  StoredSeat,
+} from './parties.js';
+export {
+  MAX_SNAPSHOTS,
+  SEAT_IDS,
+  SNAPSHOT_EVERY,
+  emptySeat,
+  seatOfIdentity,
+  seatOfToken,
+  sortParties,
+} from './parties.js';
 
 /* ── Types stockés ──────────────────────────────────────────────────────── */
 
@@ -83,7 +105,7 @@ export interface StorageUsage {
  * Zod et la politique d'emplacements sont appliquées en amont, dans les
  * routes, à partir des aides publiées plus bas.
  */
-export interface Storage {
+export interface Storage extends PartyStore {
   readonly kind: StorageKind;
   /** Libellé français affiché dans le diagnostic. */
   readonly label: string;

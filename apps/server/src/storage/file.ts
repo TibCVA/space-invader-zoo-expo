@@ -30,11 +30,13 @@ import { access, mkdir, readFile, readdir, rename, rm, unlink, writeFile } from 
 import { join, resolve } from 'node:path';
 import type { Profile, SaveSlot } from '@auvergne/protocol';
 import {
+  sortParties,
   sortSlots,
   type SaveMeta,
   type SaveVersions,
   type Storage,
   type StorageKind,
+  type StoredParty,
   type StoredReplay,
   type StoredSave,
 } from './index.js';
@@ -44,6 +46,9 @@ const SAVE_SUFFIX = '.save.json';
 
 /** Identifiants acceptés sur le disque : jamais de séparateur ni de point. */
 const SAFE_SEGMENT = /^[a-z0-9][a-z0-9_-]*$/;
+
+/** Codes de partie acceptés sur le disque : `FOREZ-7K2P`. */
+const SAFE_CODE = /^[A-Z]{4,10}-[A-Z0-9]{4}$/;
 
 interface MetaFile {
   slot: SaveSlot;
@@ -213,6 +218,56 @@ export class FileStorage implements Storage {
     return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
+  /* ── Parties en ligne ─────────────────────────────────────────────────── */
+
+  /**
+   * Une partie = un fichier `parties/<CODE>.json`, écrit atomiquement. Le code
+   * est en majuscules et ne contient qu'un tiret : `safeCode` le vérifie avant
+   * qu'il ne touche le système de fichiers.
+   */
+  private partiesDir(): string {
+    return join(this.root, 'parties');
+  }
+
+  private partyPath(code: string): string {
+    return join(this.partiesDir(), `${safeCode(code)}.json`);
+  }
+
+  async createParty(party: StoredParty): Promise<void> {
+    await mkdir(this.partiesDir(), { recursive: true });
+    if (await exists(this.partyPath(party.code))) {
+      throw new Error('Code de partie déjà utilisé.');
+    }
+    await writeAtomic(this.partyPath(party.code), JSON.stringify(party));
+  }
+
+  async getParty(code: string): Promise<StoredParty | null> {
+    return await readJson<StoredParty>(this.partyPath(code));
+  }
+
+  async putParty(party: StoredParty): Promise<void> {
+    await mkdir(this.partiesDir(), { recursive: true });
+    await writeAtomic(this.partyPath(party.code), JSON.stringify(party));
+  }
+
+  async listPartiesOf(identity: string): Promise<StoredParty[]> {
+    const names = await listDir(this.partiesDir());
+    const out: StoredParty[] = [];
+    for (const name of names) {
+      if (!name.endsWith('.json')) continue;
+      const party = await readJson<StoredParty>(join(this.partiesDir(), name));
+      if (party === null || !Array.isArray(party.joueurs)) continue;
+      const tenue = party.joueurs.some((s) => s.identite === identity);
+      if (tenue || party.hote === identity) out.push(party);
+    }
+    return sortParties(out);
+  }
+
+  async countParties(): Promise<number> {
+    const names = await listDir(this.partiesDir());
+    return names.filter((n) => n.endsWith('.json')).length;
+  }
+
   /* ── Divers ───────────────────────────────────────────────────────────── */
 
   async stats(): Promise<{ identites: number; sauvegardes: number }> {
@@ -240,6 +295,14 @@ export class FileStorage implements Storage {
 function safeSegment(value: string): string {
   if (!SAFE_SEGMENT.test(value)) {
     throw new Error("Identifiant de stockage invalide : caractères non autorisés.");
+  }
+  return value;
+}
+
+/** Même barrière pour un code de partie : majuscules, chiffres, un tiret. */
+function safeCode(value: string): string {
+  if (!SAFE_CODE.test(value)) {
+    throw new Error('Code de partie invalide : caractères non autorisés.');
   }
   return value;
 }

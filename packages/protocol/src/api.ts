@@ -96,6 +96,19 @@ export const ERROR_CODES = [
   'methode_non_supportee',
   'route_introuvable',
   'erreur_interne',
+  /* — Parties en ligne asynchrones (`docs/04-MULTIJOUEUR.md`) — */
+  'partie_introuvable',
+  'code_invalide',
+  'jeton_invalide',
+  'banniere_prise',
+  'salon_incomplet',
+  'partie_deja_lancee',
+  'partie_non_lancee',
+  'partie_terminee',
+  'pas_ton_tour',
+  'sequence_perimee',
+  'commande_refusee',
+  'reserve_a_l_hote',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -126,6 +139,20 @@ export const ERROR_STATUS: Readonly<Record<ErrorCode, number>> = {
   methode_non_supportee: 405,
   route_introuvable: 404,
   erreur_interne: 500,
+  partie_introuvable: 404,
+  code_invalide: 400,
+  // 403 : le jeton est lisible mais ne donne droit à rien ici.
+  jeton_invalide: 403,
+  banniere_prise: 409,
+  salon_incomplet: 409,
+  partie_deja_lancee: 409,
+  partie_non_lancee: 409,
+  partie_terminee: 409,
+  pas_ton_tour: 409,
+  // 409 : le client est en retard ; la réponse porte l'état à jour.
+  sequence_perimee: 409,
+  commande_refusee: 422,
+  reserve_a_l_hote: 403,
 };
 
 /** Fabrique une enveloppe d'erreur normalisée. */

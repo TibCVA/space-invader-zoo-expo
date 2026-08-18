@@ -29,7 +29,7 @@ import {
   type ReactElement,
 } from 'react';
 import type { SaveSlot } from '@auvergne/protocol';
-import { motionDisabled, useSettings } from './landing/index.js';
+import { LandingBackdrop, motionDisabled, useSettings } from './landing/index.js';
 import {
   isDemoRoute,
   needsGame,
@@ -70,6 +70,13 @@ import {
   type CommandePouce,
   type EcranMenu,
 } from './screens/index.js';
+import {
+  EcranEnLigne,
+  EcranSalon,
+  abonnerRappels,
+  partiesEnAttente,
+  titreDocument,
+} from './online/index.js';
 import type { Progression } from './boot.js';
 
 /* ═════════════════════════════ Petits crochets ════════════════════════════ */
@@ -120,9 +127,18 @@ export function App(_props: AppProps = {}): ReactElement {
   const reducedMotion = motionDisabled(settings);
 
   /* ── Titre du document ─────────────────────────────────────────────────── */
+  /* Un seul endroit écrit `document.title`, sans quoi les écrans se le
+     disputeraient. Dès qu'une partie en ligne attend mon coup, le titre passe
+     à `TITRE_MON_TOUR` (docs/04-MULTIJOUEUR.md §6) : c'est le rappel qui suit
+     le joueur d'un onglet à l'autre. */
+  const attentes = useSyncExternalStore(abonnerRappels, partiesEnAttente, partiesEnAttente);
+
   useEffect(() => {
-    document.title = `${routeTitle(route)} · Heroes of Might and Magic — Auvergne Edition`;
-  }, [route]);
+    document.title = titreDocument(
+      `${routeTitle(route)} · Heroes of Might and Magic — Auvergne Edition`,
+      attentes,
+    );
+  }, [route, attentes]);
 
   /* ── Chargement des parties de démonstration ───────────────────────────── */
   const besoin = besoinDemo(route);
@@ -302,6 +318,22 @@ export function App(_props: AppProps = {}): ReactElement {
             settings={settings}
             onSettings={setSettings}
           />
+        );
+
+      /* — Parties en ligne asynchrones (docs/04-MULTIJOUEUR.md) — */
+      case 'en-ligne':
+        return (
+          <div className="hmm-acc">
+            <LandingBackdrop settings={settings} />
+            <EcranEnLigne />
+          </div>
+        );
+      case 'en-ligne-partie':
+        return (
+          <div className="hmm-acc">
+            <LandingBackdrop settings={settings} />
+            <EcranSalon code={route.code} />
+          </div>
         );
 
       /* — Emplacements de sauvegarde — */

@@ -74,6 +74,25 @@ const AI_PROFILES: readonly { id: AiProfile; name: string; text: string }[] = [
   { id: 'expert', name: 'Expert', text: 'Optimise ses tours et exploite chaque faiblesse.' },
 ];
 
+/**
+ * Les deux modes de `docs/04-MULTIJOUEUR.md` §7. Le moteur, les règles et
+ * l'interface sont identiques : seule la source de l'état change.
+ */
+type Mode = 'local' | 'en-ligne';
+
+const MODES: readonly { id: Mode; name: string; text: string }[] = [
+  {
+    id: 'local',
+    name: 'Sur cet appareil',
+    text: "Tout le monde joue sur le même écran, ou seul contre l'IA. Sauvegardes locales et serveur.",
+  },
+  {
+    id: 'en-ligne',
+    name: 'En ligne, chacun chez soi',
+    text: "Un lien à partager, aucun compte. Chaque cousin choisit sa bannière et joue quand il peut, sur plusieurs semaines.",
+  },
+];
+
 const DEFAULT_NAMES: readonly string[] = [
   'Maison de Granit',
   'Maison des Bois Noirs',
@@ -278,10 +297,17 @@ export interface NewGamePageProps {
   onStart(setup: GameSetup): void;
   /** Retour à la page d'accueil. */
   onBack(): void;
+  /**
+   * Navigation par fragment, pour le mode « en ligne » : une fois la partie
+   * créée, l'hôte est emmené dans son salon (`#/en-ligne/CODE`). Facultatif :
+   * en son absence, `location.hash` est écrit directement.
+   */
+  onNaviguer?(fragment: string): void;
 }
 
 /** Assistant de nouvelle partie. */
-export function NewGamePage({ onStart, onBack }: NewGamePageProps): ReactElement {
+export function NewGamePage({ onStart, onBack, onNaviguer }: NewGamePageProps): ReactElement {
+  const [mode, setMode] = useState<Mode>('local');
   const [count, setCount] = useState(2);
   const [drafts, setDrafts] = useState<PlayerDraft[]>(() => makeDrafts(2, []));
   const [duration, setDuration] = useState<Duration>('standard');
@@ -365,6 +391,15 @@ export function NewGamePage({ onStart, onBack }: NewGamePageProps): ReactElement
     };
   }, [drafts, duration, victory, seed]);
 
+  /** Navigation du mode en ligne, avec repli sur `location.hash`. */
+  const naviguer = useCallback(
+    (fragment: string): void => {
+      if (onNaviguer !== undefined) onNaviguer(fragment);
+      else if (typeof location !== 'undefined') location.hash = fragment;
+    },
+    [onNaviguer],
+  );
+
   const lancer = useCallback((): void => {
     if (anomalies.length > 0) return;
     jouerEffet('clic_lourd');
@@ -386,10 +421,31 @@ export function NewGamePage({ onStart, onBack }: NewGamePageProps): ReactElement
 
       <div className="hmm-acc-assistant">
         <div className="hmm-acc-assistant-colonne">
+          <section className="hmm-acc-bloc" aria-labelledby="bloc-mode">
+            <h3 className="hmm-acc-bloc-titre" id="bloc-mode">
+              Comment jouez-vous ?
+            </h3>
+            <Segments<Mode>
+              legend="Mode de partie"
+              hint="Le moteur, les règles et l'interface sont les mêmes dans les deux cas : seule la source de l'état change."
+              value={mode}
+              options={MODES}
+              onChange={(next): void => setMode(next)}
+              columns
+            />
+          </section>
+
           <section className="hmm-acc-bloc" aria-labelledby="bloc-bannieres">
             <h3 className="hmm-acc-bloc-titre" id="bloc-bannieres">
               Les bannières
             </h3>
+            {mode === 'en-ligne' ? (
+              <p className="hmm-acc-aide">
+                En ligne, chaque cousin choisit lui-même son nom, son château, son héros et sa
+                position de départ dans le salon. Vous ne fixez ici que le nombre de bannières —
+                les places non réclamées pourront être confiées à l&apos;IA.
+              </p>
+            ) : null}
             <fieldset className="hmm-acc-champ">
               <legend className="hmm-acc-legende">Nombre de bannières</legend>
               <div className="hmm-acc-compteur" role="radiogroup" aria-label="Nombre de bannières">
@@ -412,7 +468,7 @@ export function NewGamePage({ onStart, onBack }: NewGamePageProps): ReactElement
               </div>
             </fieldset>
 
-            <fieldset className="hmm-acc-champ">
+            <fieldset className="hmm-acc-champ" hidden={mode === 'en-ligne'}>
               <legend className="hmm-acc-legende">Disposition équilibrée</legend>
               <p className="hmm-acc-aide">
                 Combinaisons validées par la carte : distances au centre et directions d'expansion comparables.
@@ -439,7 +495,7 @@ export function NewGamePage({ onStart, onBack }: NewGamePageProps): ReactElement
               </div>
             </fieldset>
 
-            <ul className="hmm-acc-joueurs">
+            <ul className="hmm-acc-joueurs" hidden={mode === 'en-ligne'}>
               {drafts.map((draft, index) => {
                 const faction = FACTIONS[draft.faction];
                 const pool = heroesOf(draft.faction);
@@ -676,7 +732,7 @@ export function NewGamePage({ onStart, onBack }: NewGamePageProps): ReactElement
                 <dd className="hmm-acc-tabulaire">{CONTENT_VERSION}</dd>
               </div>
             </dl>
-            {anomalies.length > 0 ? (
+            {mode === 'local' && anomalies.length > 0 ? (
               <ul className="hmm-acc-anomalies">
                 {anomalies.map((a) => (
                   <li key={a}>
@@ -686,15 +742,32 @@ export function NewGamePage({ onStart, onBack }: NewGamePageProps): ReactElement
                 ))}
               </ul>
             ) : null}
-            <button
-              type="button"
-              className="hmm-acc-lancer"
-              disabled={anomalies.length > 0}
-              onClick={lancer}
-            >
-              <Icon name="banniere" size={22} />
-              <span>Lever les bannières</span>
-            </button>
+            {mode === 'en-ligne' ? (
+              /* En ligne, la composition des bannières appartient aux cousins :
+                 l'assistant passe la main à `#/en-ligne`, qui crée la partie et
+                 rend le lien à partager. */
+              <button
+                type="button"
+                className="hmm-acc-lancer"
+                onClick={(): void => {
+                  jouerEffet('clic_lourd');
+                  naviguer('#/en-ligne');
+                }}
+              >
+                <Icon name="banniere" size={22} />
+                <span>Ouvrir le salon en ligne</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="hmm-acc-lancer"
+                disabled={anomalies.length > 0}
+                onClick={lancer}
+              >
+                <Icon name="banniere" size={22} />
+                <span>Lever les bannières</span>
+              </button>
+            )}
           </div>
         </aside>
       </div>

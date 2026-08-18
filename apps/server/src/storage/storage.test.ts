@@ -22,6 +22,7 @@ import {
 } from '@auvergne/protocol';
 import {
   createStorage,
+  emptySeat,
   formatOctets,
   planSlotWrite,
   scrubSecrets,
@@ -29,6 +30,7 @@ import {
   usageOf,
   type SaveMeta,
   type Storage,
+  type StoredParty,
   type StoredSave,
 } from './index.js';
 import { MemoryStorage } from './memory.js';
@@ -66,6 +68,63 @@ function stored(over: Partial<SaveSlot> = {}, bytes = 1000): StoredSave {
     setup: testSetup(),
     state: '{"engineVersion":"1.0.0-noyau"}',
     commands: [{ type: 'EndTurn' }],
+  };
+}
+
+/**
+ * L'ordre des clefs est volontairement anti-alphabétique : `etat` doit
+ * ressortir du stockage **octet pour octet**, sans quoi le hash de la partie
+ * ne serait plus vérifiable (cf. l'en-tête de `storage/parties.ts`).
+ */
+const ETAT_TEXTE = '{"zebre":1,"alpha":2}';
+
+/** Une partie en ligne complète : hôte sans bannière, un cousin installé. */
+function partieStockee(): StoredParty {
+  return {
+    code: 'FOREZ-7K2P',
+    hote: IDENTITE,
+    jetonHote: '0'.repeat(32),
+    setup: { bannieres: 2, duree: 'standard', victoire: 'couronne', graine: 20260818 },
+    statut: 'salon',
+    seq: 3,
+    activePlayer: null,
+    versions: { moteur: '1.0.0', contenu: '1.0.0', carte: '1.0.0' },
+    joueurs: [
+      {
+        ...emptySeat('P1'),
+        jeton: 'a'.repeat(32),
+        identite: AUTRE,
+        nom: 'Jean',
+        faction: 'ermitage',
+        heros: 'agathe',
+        avatar: 'agathe',
+        depart: 'renaudie',
+        kind: 'humain',
+        pret: true,
+        dernierVuLe: NOW,
+      },
+      emptySeat('P2'),
+    ],
+    etat: ETAT_TEXTE,
+    hash: '5631d03501bfb659',
+    instantanes: [{ seq: 3, etat: ETAT_TEXTE, hash: '5631d03501bfb659', creeLe: NOW }],
+    commandes: [
+      {
+        seq: 3,
+        joueur: 'P1',
+        commande: { type: 'EndTurn' },
+        cleIdempotence: 'cle-de-jean-1',
+        appliqueLe: NOW,
+        ok: true,
+        erreur: null,
+        journal: ['Jean lève le camp.'],
+        toursIa: [],
+      },
+    ],
+    creeLe: NOW,
+    majLe: NOW,
+    termineeLe: null,
+    gagnant: null,
   };
 }
 
@@ -297,6 +356,68 @@ function contratDeStockage(nom: string, fabrique: () => Promise<Storage>): void 
       await storage.putSave(IDENTITE, save);
       save.slot.name = 'Modifié après coup';
       expect((await storage.getSave(IDENTITE, 'a'))?.slot.name).toBe('Original');
+    });
+
+    /* ── Parties en ligne ─────────────────────────────────────────────── */
+
+    it('écrit puis relit une partie en ligne à l’identique', async () => {
+      const partie = partieStockee();
+      await storage.createParty(partie);
+
+      const relue = await storage.getParty('FOREZ-7K2P');
+      expect(relue).not.toBeNull();
+      expect(relue?.hote).toBe(IDENTITE);
+      expect(relue?.setup).toEqual(partie.setup);
+      expect(relue?.joueurs).toHaveLength(2);
+      // `etat` est du texte, pas du JSON réordonné : le hash doit rester
+      // vérifiable octet pour octet.
+      expect(relue?.etat).toBe(partie.etat);
+      expect(relue?.hash).toBe(partie.hash);
+      expect(relue?.instantanes[0]?.etat).toBe(partie.etat);
+      expect(relue?.commandes[0]?.cleIdempotence).toBe('cle-de-jean-1');
+      expect(await storage.getParty('FOREZ-0000')).toBeNull();
+    });
+
+    it('refuse deux parties sous le même code', async () => {
+      await storage.createParty(partieStockee());
+      await expect(storage.createParty(partieStockee())).rejects.toThrow();
+    });
+
+    it('remplace une partie existante et fait avancer le `seq`', async () => {
+      const partie = partieStockee();
+      await storage.createParty(partie);
+
+      partie.seq = 4;
+      partie.statut = 'en_cours';
+      partie.activePlayer = 'P2';
+      partie.commandes.push({
+        seq: 4,
+        joueur: 'P1',
+        commande: { type: 'EndTurn' },
+        cleIdempotence: 'cle-de-thibaut-2',
+        appliqueLe: NOW,
+        ok: true,
+        erreur: null,
+        journal: ['Thibaut passe la main.'],
+        toursIa: [],
+      });
+      await storage.putParty(partie);
+
+      const relue = await storage.getParty('FOREZ-7K2P');
+      expect(relue?.seq).toBe(4);
+      expect(relue?.statut).toBe('en_cours');
+      expect(relue?.activePlayer).toBe('P2');
+      expect(relue?.commandes).toHaveLength(2);
+      expect(await storage.countParties()).toBe(1);
+    });
+
+    it('retrouve les parties d’une identité, par bannière ou par hôte', async () => {
+      await storage.createParty(partieStockee());
+
+      // L'hôte n'a pas pris de bannière ; l'autre cousin tient la sienne.
+      expect((await storage.listPartiesOf(IDENTITE)).map((p) => p.code)).toEqual(['FOREZ-7K2P']);
+      expect((await storage.listPartiesOf(AUTRE)).map((p) => p.code)).toEqual(['FOREZ-7K2P']);
+      expect(await storage.listPartiesOf('f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0')).toEqual([]);
     });
   });
 }

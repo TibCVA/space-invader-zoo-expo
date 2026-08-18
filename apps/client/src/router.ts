@@ -25,6 +25,9 @@ export type Route =
   | { readonly name: 'charger' }
   | { readonly name: 'codex'; readonly section?: string }
   | { readonly name: 'options' }
+  /* — Parties en ligne asynchrones (docs/04-MULTIJOUEUR.md) — */
+  | { readonly name: 'en-ligne' }
+  | { readonly name: 'en-ligne-partie'; readonly code: string }
   /* — Partie en cours — */
   | { readonly name: 'partie' }
   | { readonly name: 'partie-cite'; readonly uid: TownUid }
@@ -139,6 +142,14 @@ export function parseRoute(fragment: string): Route {
     }
   }
 
+  /* `#/en-ligne` ouvre le salon des cousins, `#/en-ligne/FOREZ-7K2P` une
+     partie précise. Le code est mis en majuscules dès la lecture : c'est la
+     forme que `PartyCodeSchema` impose, et un lien recopié à la main dans une
+     conversation arrive souvent en minuscules. */
+  if (parts[0] === 'en-ligne') {
+    return parts[1] ? { name: 'en-ligne-partie', code: parts[1].toUpperCase() } : { name: 'en-ligne' };
+  }
+
   switch (parts[0]) {
     case 'nouvelle-partie':
       return { name: 'nouvelle-partie' };
@@ -166,6 +177,10 @@ export function formatRoute(route: Route): string {
       return route.section ? `#/codex/${encodeURIComponent(route.section)}` : '#/codex';
     case 'options':
       return '#/options';
+    case 'en-ligne':
+      return '#/en-ligne';
+    case 'en-ligne-partie':
+      return `#/en-ligne/${encodeURIComponent(route.code)}`;
     case 'partie':
       return '#/partie';
     case 'partie-cite':
@@ -210,6 +225,10 @@ export function routeTitle(route: Route): string {
       return 'Codex';
     case 'options':
       return 'Options';
+    case 'en-ligne':
+      return 'Jouer avec mes cousins';
+    case 'en-ligne-partie':
+      return `Partie ${route.code}`;
     case 'partie':
       return "Carte d'aventure";
     case 'partie-cite':

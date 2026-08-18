@@ -43,6 +43,7 @@ import { registerHealth } from './health.js';
 import { clearIdentityCookie, identityTag, resolveIdentity } from './identity.js';
 import { RateLimiter } from './rate-limit.js';
 import { registerContentRoutes } from './routes/content.js';
+import { registerPartyRoutes } from './routes/parties.js';
 import { registerProfileRoutes } from './routes/profile.js';
 import { registerSaveRoutes } from './routes/saves.js';
 import { registerStatic } from './static.js';
@@ -123,6 +124,7 @@ export async function buildServer(
   registerContentRoutes(app, ctx);
   registerSaveRoutes(app, ctx);
   registerProfileRoutes(app, ctx);
+  registerPartyRoutes(app, ctx);
   registerIdentityRoutes(app);
 
   const statics = await registerStatic(app, ctx);
