@@ -21,15 +21,15 @@ const PORT = Number(process.env.SHOT_PORT ?? 4188);
 
 /** Chaque scène est atteinte par un fragment d'URL géré par le client. */
 const SCENES = {
-  accueil: { hash: '#/', wait: 2600, label: "Page d'accueil" },
-  nouvelle: { hash: '#/nouvelle-partie', wait: 1400, label: 'Assistant de nouvelle partie' },
+  accueil: { hash: '#/', wait: 6500, label: "Page d'accueil" },
+  nouvelle: { hash: '#/nouvelle-partie', wait: 3000, label: 'Assistant de nouvelle partie' },
   codex: { hash: '#/codex', wait: 1400, label: 'Codex' },
   options: { hash: '#/options', wait: 1000, label: 'Options' },
   carte: { hash: '#/demo/carte', wait: 5200, label: "Carte d'aventure" },
   cite_granit: { hash: '#/demo/cite/granit', wait: 3600, label: 'Cité — Châtellenie de Granit' },
   cite_ermitage: { hash: '#/demo/cite/ermitage', wait: 3600, label: 'Cité — Ermitage des Bois Noirs' },
   combat: { hash: '#/demo/combat', wait: 4200, label: 'Combat tactique' },
-  heros: { hash: '#/demo/heros', wait: 1800, label: 'Fiche de héros' },
+  heros: { hash: '#/demo/heros', wait: 4000, label: 'Fiche de héros' },
   royaume: { hash: '#/demo/royaume', wait: 1600, label: 'Vue du royaume' },
   planche_art: { hash: '#/demo/planche-art', wait: 6000, label: 'Planche de contact — créatures' },
   galerie_ui: { hash: '#/demo/galerie', wait: 1800, label: 'Galerie du design system' },

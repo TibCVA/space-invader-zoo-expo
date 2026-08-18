@@ -56,6 +56,7 @@ import { NewGamePage } from './new-game.js';
 import { CodexPage } from './codex.js';
 import { OptionsPage } from './options.js';
 import { mountLandingScene, type LandingSceneHandle } from './scene.js';
+import { useFondPeint } from './backdrop.js';
 import {
   applySettings,
   loadSettings,
@@ -111,8 +112,12 @@ export function LandingBackdrop({ settings }: LandingBackdropProps): ReactElemen
   const sceneRef = useRef<LandingSceneHandle | null>(null);
   const quality = settings?.qualite;
   const reduced = settings ? motionDisabled(settings) : false;
+  const peint = useFondPeint();
 
   useEffect(() => {
+    /* Fond peint disponible : la scène procédurale ne sert plus à rien et
+       coûterait du temps machine pour être recouverte. */
+    if (peint) return undefined;
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
     let handle: LandingSceneHandle | null = null;
@@ -138,8 +143,9 @@ export function LandingBackdrop({ settings }: LandingBackdropProps): ReactElemen
       sceneRef.current = null;
     };
     /* Monté une seule fois : la qualité et le mouvement sont pilotés ensuite
-       par les deux effets ci-dessous, sans reconstruire la scène. */
-  }, []);
+       par les deux effets ci-dessous, sans reconstruire la scène. Seule
+       l'arrivée du fond peint peut la démonter. */
+  }, [peint]);
 
   useEffect(() => {
     if (quality) sceneRef.current?.setQuality(quality);
@@ -151,7 +157,26 @@ export function LandingBackdrop({ settings }: LandingBackdropProps): ReactElemen
 
   return (
     <div className="hmm-acc-fond" aria-hidden="true">
-      <canvas ref={canvasRef} className="hmm-acc-fond-toile" />
+      {peint ? (
+        <>
+          <img
+            src={peint.paysage}
+            alt=""
+            className="hmm-acc-fond-peint hmm-acc-fond-peint--paysage"
+            decoding="async"
+            fetchPriority="high"
+          />
+          <img
+            src={peint.portrait}
+            alt=""
+            className="hmm-acc-fond-peint hmm-acc-fond-peint--portrait"
+            decoding="async"
+            fetchPriority="high"
+          />
+        </>
+      ) : (
+        <canvas ref={canvasRef} className="hmm-acc-fond-toile" />
+      )}
       <div className="hmm-acc-fond-voile" />
     </div>
   );

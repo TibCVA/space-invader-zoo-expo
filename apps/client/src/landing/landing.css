@@ -2228,3 +2228,36 @@
     color: #241c14;
   }
 }
+
+/* ── Fond peint ────────────────────────────────────────────────────────────
+   Deux compositions distinctes, choisies par l'orientation : le paysage garde
+   son tiers gauche calme pour le titre, le portrait son tiers médian pour les
+   boutons. Recadrer l'une pour obtenir l'autre produirait exactement le défaut
+   qu'on corrige ici. La dérive très lente respecte la loi n°7 — rien n'est
+   parfaitement immobile, rien ne distrait. */
+.hmm-acc-fond-peint {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  will-change: transform;
+  animation: hmm-acc-derive 48s ease-in-out infinite alternate;
+}
+
+.hmm-acc-fond-peint--portrait { display: none; }
+
+@media (orientation: portrait) {
+  .hmm-acc-fond-peint--paysage { display: none; }
+  .hmm-acc-fond-peint--portrait { display: block; }
+}
+
+@keyframes hmm-acc-derive {
+  from { transform: scale(1.03) translate3d(-0.6%, -0.4%, 0); }
+  to   { transform: scale(1.06) translate3d(0.6%, 0.4%, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hmm-acc-fond-peint { animation: none; transform: none; }
+}
