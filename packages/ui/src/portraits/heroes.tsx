@@ -1,5 +1,28 @@
 /**
- * Les vingt-et-un portraits de héros.
+ * Les vingt-et-un portraits de héros — VERSION SVG, **qui fait autorité**.
+ *
+ * ┌──────────────────────────────────────────────────────────────────────┐
+ * │  ARBITRAGE DES PORTRAITS EN DOUBLE                                    │
+ * │                                                                       │
+ * │  Deux jeux de portraits coexistent dans le dépôt :                    │
+ * │                                                                       │
+ * │   • ce fichier — SVG React, 280 × 340, modelé complet. C'est la       │
+ * │     version que le joueur regarde en grand (fiche de héros, royaume,  │
+ * │     taverne, codex), et ses fiches sont écrites d'après les           │
+ * │     biographies de `packages/content/src/heroes.ts`. **Elle fait      │
+ * │     autorité** sur l'identité des vingt-et-un héros : âge, carrure,   │
+ * │     teint, chevelure, pilosité, couvre-chef, vêtement et couleurs.    │
+ * │                                                                       │
+ * │   • `apps/client/src/art/portraits.ts` — textures PixiJS, 168 × 208,  │
+ * │     empaquetées dans l'atlas (`icon('portrait_<id>')`) pour le        │
+ * │     canevas : jetons de carte, planche de contact. **Elle suit** :    │
+ * │     sa table `SPECS` est la transposition de `HERO_PORTRAIT_LIST`     │
+ * │     ci-dessous, et la correspondance des champs est documentée en     │
+ * │     tête de ce fichier-là.                                            │
+ * │                                                                       │
+ * │  Modifier un portrait commence donc TOUJOURS ici ; la version Pixi    │
+ * │  est mise à jour dans la foulée. Ne jamais diverger en silence.       │
+ * └──────────────────────────────────────────────────────────────────────┘
  *
  * Chaque spécification est écrite d'après la biographie de
  * `packages/content/src/heroes.ts` : l'âge, la morphologie, la coiffure, le

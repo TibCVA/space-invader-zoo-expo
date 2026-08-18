@@ -65,7 +65,9 @@ function clotilde(): HeroInstance {
     def: 'clotilde',
     owner: 'P1',
     level: 12,
-    xp: 31_400,
+    /* Seuils du moteur : niveau 12 à 34 375, niveau 13 à 41 150. Une valeur
+       en deçà du seuil affichait une jauge d'expérience vide. */
+    xp: 37_400,
     vaillance: 9,
     garde: 8,
     mystique: 6,
@@ -132,7 +134,8 @@ function auguste(): HeroInstance {
     def: 'auguste',
     owner: 'P1',
     level: 7,
-    xp: 8_900,
+    /* Niveau 7 à 11 125, niveau 8 à 14 500. */
+    xp: 12_900,
     vaillance: 4,
     garde: 6,
     mystique: 3,
@@ -171,7 +174,8 @@ function anastasia(): HeroInstance {
     def: 'anastasia',
     owner: 'P2',
     level: 10,
-    xp: 19_800,
+    /* Niveau 10 à 23 075, niveau 11 à 28 375. */
+    xp: 25_800,
     vaillance: 5,
     garde: 6,
     mystique: 9,
@@ -509,6 +513,61 @@ export async function partieDemo(): Promise<{ state: GameState; world: WorldMap;
     return { state, world, setup };
   })();
   return cachePartie;
+}
+
+/* ─────────────────────────── Combat de démonstration ────────────────────── */
+
+let cacheCombat: Promise<{ state: GameState; world: WorldMap; setup: GameSetup }> | null = null;
+
+/** Sept piles par camp, comme l'exige `#/demo/combat` (docs/03-ROUTES.md §2). */
+const ARMEE_ATTAQUE: readonly (readonly [string, number])[] = [
+  ['granit_t1_up', 64],
+  ['granit_t2', 31],
+  ['granit_t3_up', 24],
+  ['granit_t4_up', 18],
+  ['granit_t5', 11],
+  ['granit_t6', 6],
+  ['granit_t7', 2],
+];
+
+const ARMEE_DEFENSE: readonly (readonly [string, number])[] = [
+  ['ermitage_t1_up', 55],
+  ['ermitage_t2', 34],
+  ['ermitage_t3', 22],
+  ['ermitage_t4', 15],
+  ['ermitage_t5', 9],
+  ['ermitage_t6', 4],
+  ['ermitage_t7', 2],
+];
+
+/**
+ * La partie de démonstration, arrêtée sur un combat déjà engagé.
+ *
+ * Le combat est **monté par le moteur** (`startCombat`) : aucune règle n'est
+ * réécrite ici. Seuls le numéro de round et quelques lignes de journal sont
+ * posés à la main, pour que la revue visuelle montre une bataille en cours
+ * plutôt qu'un déploiement vide. Rien n'est jamais sauvegardé.
+ */
+export async function combatDemo(): Promise<{ state: GameState; world: WorldMap; setup: GameSetup }> {
+  if (cacheCombat) return cacheCombat;
+  cacheCombat = (async () => {
+    const [base, { startCombat }] = await Promise.all([partieDemo(), import('@auvergne/engine')]);
+    const combat = startCombat(base.state, {
+      attacker: { player: 'P1', hero: null, army: armee(ARMEE_ATTAQUE) },
+      defender: { player: 'P2', hero: null, town: null, army: armee(ARMEE_DEFENSE) },
+      terrain: 'foret',
+      region: 'coeur_bois_noirs',
+      siege: false,
+    });
+    const state: GameState = {
+      ...base.state,
+      turn: 38,
+      phase: 'combat',
+      combat: { ...combat, round: 3 },
+    };
+    return { state, world: base.world, setup: base.setup };
+  })();
+  return cacheCombat;
 }
 
 /* ───────────────────── Emplacements de sauvegarde ───────────────────────── */

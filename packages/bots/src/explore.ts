@@ -79,8 +79,8 @@ export interface Target {
 const GAIN = {
   /** un point de valeur de ressource ramassée */
   resourceUnit: 9,
-  /** gisement : rente quotidienne, capitalisée sur le reste de la partie */
-  mineDaily: 240,
+  /** un gisement pris à la dernière heure vaut encore ce nombre de jours */
+  mineFloorDays: 10,
   artefactCommun: 900,
   artefactRare: 1800,
   artefactMajeur: 3200,
@@ -143,10 +143,61 @@ function artefactGain(obj: MapObject): number {
   }
 }
 
-function mineGain(state: GameState, obj: MapObject, maxWeeks: number): number {
-  const amount = Number(obj.data.amount ?? 1) | 0;
-  const daysLeft = Math.max(7, maxWeeks * 7 - state.turn);
-  return Math.trunc((GAIN.mineDaily * amount * daysLeft) / 84);
+/**
+ * Valeur d'un gisement : c'est une **rente**, pas un magot.
+ *
+ * Un gisement verse `amount` unités par jour jusqu'à la fin de la partie ; sa
+ * valeur est donc le produit du rendement, du cours de la ressource et des
+ * jours restants — la même monnaie que celle d'un tas ramassé au bord du
+ * chemin (`resourceGain`). On escompte le tout de moitié : une rente se perd,
+ * un tas ramassé est acquis.
+ *
+ * Ce détail décide de la partie. Les écus tombent tout seuls des cités, mais
+ * le bois, le granit et le fer ne viennent que des gisements : une bannière
+ * qui les néglige accumule une trésorerie inutile et ne bâtit plus rien
+ * passé la quatrième demeure.
+ */
+function mineGain(
+  state: GameState,
+  view: Perception,
+  obj: MapObject,
+  maxWeeks: number,
+): number {
+  const amount = Math.max(1, Number(obj.data.amount ?? 1) | 0);
+  const key = String(obj.data.resource ?? 'ecus');
+  const worth =
+    key === 'ecus'
+      ? 1
+      : key === 'bois' || key === 'granit'
+        ? 6
+        : key === 'fer' || key === 'sel'
+          ? 9
+          : 14;
+  const daysLeft = Math.max(GAIN.mineFloorDays, maxWeeks * 7 - state.turn);
+  const base = Math.trunc((amount * worth * daysLeft * GAIN.resourceUnit) / 2);
+  return bp(base, famineBp(view, key));
+}
+
+/**
+ * Multiplicateur de disette.
+ *
+ * Le cours d'une ressource ne dit pas ce qu'elle vaut *pour nous ce matin*.
+ * Une bannière assise sur cent mille écus mais sans un lingot de fer ne peut
+ * plus rien bâtir : le prochain gisement de fer vaut alors trois fois son
+ * cours, et le péage voisin ne vaut presque rien. C'est exactement la
+ * situation dans laquelle les premières parties simulées enlisaient les
+ * quatre profils.
+ */
+function famineBp(view: Perception, key: string): number {
+  const stock = (view.self.resources as unknown as Record<string, number>)[key] | 0;
+  if (key === 'ecus') {
+    // Les écus tombent des cités : ils ne manquent jamais longtemps.
+    return stock >= 6000 ? 5000 : 10000;
+  }
+  if (stock <= 4) return 30000;
+  if (stock <= 12) return 20000;
+  if (stock <= 30) return 13000;
+  return 10000;
 }
 
 /**
@@ -169,7 +220,9 @@ function placeGain(
     case 'artefact':
       return { gain: artefactGain(obj), kind: 'artefact' };
     case 'mine':
-      return obj.owner === mine ? null : { gain: mineGain(state, obj, maxWeeks), kind: 'gisement' };
+      return obj.owner === mine
+        ? null
+        : { gain: mineGain(state, view, obj, maxWeeks), kind: 'gisement' };
     case 'sceau':
       return obj.owner === mine ? null : { gain: GAIN.sceau, kind: 'sceau' };
     case 'maison_tresor':
@@ -277,6 +330,11 @@ export function rankTargets(
     const valued = placeGain(state, view, obj, options.maxWeeks);
     if (!valued || valued.gain <= 0) continue;
     const guard = guardPowerOf(obj.guard);
+    // Nous sommes déjà sur l'entrée et la garde tient toujours : la journée
+    // d'hier n'a rien donné, insister ne donnera rien de plus. Le héros doit
+    // repartir, sans quoi il campe indéfiniment sur un lieu qu'il ne peut pas
+    // prendre (cf. rapport, bogue moteur nº 2).
+    if (guard > 0 && cells(hero.at, obj.entrance) === 0) continue;
     push(
       scored(
         state,

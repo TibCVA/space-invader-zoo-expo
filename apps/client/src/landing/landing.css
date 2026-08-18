@@ -480,11 +480,26 @@
   text-overflow: ellipsis;
 }
 
-.hmm-acc-bouton-chevron {
+/* Fleuron de marge : un ornement, pas un chevron d'interface. */
+.hmm-acc-bouton-fleuron {
   flex: 0 0 auto;
-  color: #7a5d16;
-  transform: rotate(-90deg);
+  display: grid;
+  place-items: center;
+  opacity: 0.62;
+  transition:
+    opacity var(--acc-duree) var(--acc-courbe),
+    transform var(--acc-duree) var(--acc-courbe);
+}
+
+.hmm-acc-fleuron {
+  display: block;
+  filter: drop-shadow(0 1px 0 rgba(36, 28, 20, 0.42));
+}
+
+.hmm-acc-fleuron-filet,
+.hmm-acc-fleuron-coeur {
   transition: transform var(--acc-duree) var(--acc-courbe);
+  transform-origin: 19.6px 11px;
 }
 
 .hmm-acc-bouton:hover:not(:disabled),
@@ -500,9 +515,15 @@
   outline: none;
 }
 
-.hmm-acc-bouton:hover:not(:disabled) .hmm-acc-bouton-chevron,
-.hmm-acc-bouton:focus-visible .hmm-acc-bouton-chevron {
-  transform: rotate(-90deg) translateY(-3px);
+.hmm-acc-bouton:hover:not(:disabled) .hmm-acc-bouton-fleuron,
+.hmm-acc-bouton:focus-visible .hmm-acc-bouton-fleuron {
+  opacity: 1;
+  transform: translateX(3px);
+}
+
+.hmm-acc-bouton:hover:not(:disabled) .hmm-acc-fleuron-coeur,
+.hmm-acc-bouton:focus-visible .hmm-acc-fleuron-coeur {
+  transform: scale(1.14);
 }
 
 .hmm-acc-bouton:active:not(:disabled) {
@@ -1918,6 +1939,117 @@
 }
 
 /* ───────────────── 9. Adaptatif, encoches, accessibilité ───────────────── */
+
+/*
+ * Téléphone en portrait — une composition **propre au portrait**.
+ *
+ * Ce n'était pas le cas : la mise en page du paysage, simplement rétrécie,
+ * donnait un tiers de ciel vide en haut, un titre qui commençait à mi-hauteur
+ * et des boutons qui chevauchaient le bourg. Or un portrait ne se lit pas
+ * comme un paysage : il se lit en **trois bandes empilées**.
+ *
+ *   ┌──────────────┐  0 %   titre, sur le ciel
+ *   │    TITRE     │
+ *   ├──────────────┤  ~30 % fenêtre de tableau : crêtes, bourg
+ *   │   tableau    │
+ *   ├──────────────┤  ~55 % menu, sur le voile bas
+ *   │     menu     │
+ *   └──────────────┘  100 %
+ *
+ * Le titre est donc ancré en haut, le menu en bas, et la bande libre du milieu
+ * est exactement celle où la scène place son bourg (`scene.ts`, plateau à
+ * 0,555 h en portrait). Les boutons se resserrent pour que les trois bandes
+ * tiennent sans que la fenêtre de tableau ne se referme.
+ */
+@media (orientation: portrait) and (max-width: 47.99rem) {
+  .hmm-acc-scene {
+    justify-content: flex-start;
+    gap: 10px;
+    padding:
+      calc(var(--acc-haut) + clamp(12px, 3vh, 26px))
+      calc(var(--acc-droite) + 16px)
+      calc(var(--acc-bas) + 12px)
+      calc(var(--acc-gauche) + 16px);
+  }
+
+  .hmm-acc-colonne {
+    max-width: none;
+    margin: 0;
+    flex: 1 1 auto;
+    justify-content: space-between;
+    gap: 14px;
+  }
+
+  /* Titre centré : en portrait, l'axe de la page est l'axe du bourg. */
+  .hmm-acc-titre {
+    align-items: center;
+    text-align: center;
+  }
+
+  .hmm-acc-h1-ligne {
+    justify-content: center;
+  }
+
+  .hmm-acc-filet {
+    align-self: center;
+  }
+
+  .hmm-acc-menu {
+    margin-top: auto;
+  }
+
+  .hmm-acc-menu-liste {
+    gap: 7px;
+  }
+
+  .hmm-acc-bouton,
+  .hmm-acc-bouton-corps {
+    /* Toujours au-dessus des 48 px imposés par le brief (§10). */
+    min-height: 56px;
+  }
+
+  .hmm-acc-bouton-corps {
+    padding: 7px 14px;
+    gap: 11px;
+  }
+
+  .hmm-acc-bouton-icone {
+    width: 34px;
+    height: 34px;
+  }
+
+  /* L'aide tient sur une ligne : sur deux, cinq boutons mangeaient l'écran. */
+  .hmm-acc-bouton-hint {
+    white-space: nowrap;
+    font-size: 0.85rem;
+    line-height: 1.24;
+  }
+
+  .hmm-acc-signet {
+    align-self: stretch;
+  }
+
+  .hmm-acc-pied {
+    justify-content: center;
+    gap: 8px;
+  }
+}
+
+/* Le voile de lecture suit la même bascule : latéral en paysage, empilé en
+   portrait. Sans cela, le menu du bas se posait sur le tableau à nu. */
+@media (orientation: portrait) {
+  .hmm-acc-fond-voile {
+    background:
+      linear-gradient(180deg, rgba(26, 31, 38, 0.7) 0%, rgba(26, 31, 38, 0.3) 17%, rgba(26, 31, 38, 0) 33%),
+      linear-gradient(0deg, rgba(26, 31, 38, 0.82) 0%, rgba(26, 31, 38, 0.6) 24%, rgba(26, 31, 38, 0.14) 44%, rgba(26, 31, 38, 0) 56%);
+  }
+
+  :root[data-contraste='renforce'] .hmm-acc-fond-voile {
+    background:
+      linear-gradient(180deg, rgba(20, 24, 30, 0.88) 0%, rgba(20, 24, 30, 0.5) 20%, rgba(20, 24, 30, 0.1) 36%),
+      linear-gradient(0deg, rgba(20, 24, 30, 0.94) 0%, rgba(20, 24, 30, 0.78) 26%, rgba(20, 24, 30, 0.3) 46%, rgba(20, 24, 30, 0) 58%);
+  }
+}
 
 /* Téléphone en paysage : l'horizon descend, la colonne se resserre. */
 @media (max-height: 460px) and (orientation: landscape) {

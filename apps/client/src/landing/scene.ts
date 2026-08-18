@@ -47,6 +47,7 @@ import {
   rgb as rgbOf,
   rgba,
   rimLight,
+  rimWidth,
   shade,
   softSprite,
   sunEdge,
@@ -280,85 +281,278 @@ interface CloudOptions {
   distance: number;
   erosion: number;
   seed: number;
+  /** `cumulus` = amas volumétrique à base plate ; `cirrus` = voile étiré */
+  kind: 'cumulus' | 'cirrus';
+}
+
+/**
+ * Un **cumulus**, pré-rendu dans son propre tampon.
+ *
+ * Un nuage n'est pas un tas de dégradés radiaux : c'est un volume. Il a une
+ * base **plate** (c'est le niveau de condensation, il est horizontal et il est
+ * dans l'ombre), des bourgeons qui montent, une couronne **éclairée au
+ * nord-ouest** et des flancs qui s'occluent les uns les autres. C'est ce
+ * rapport couronne claire / socle sombre qui donne la structure ; sans lui on
+ * n'obtient qu'une tache grise floue.
+ *
+ * Le tampon dédié est indispensable : il permet d'ombrer la base **à travers
+ * le masque du nuage** (`source-atop`) et d'éroder ce nuage-là, pas le ciel.
+ */
+function cumulusSprite(
+  radius: number,
+  aplati: number,
+  seed: number,
+  lit: string,
+  body: string,
+  dark: string,
+  erosion: number,
+  s: number,
+): HTMLCanvasElement {
+  const rand = mulberry32(seed);
+  /*
+   * Le tampon est **plus grand que le nuage**, avec une marge d'une fois et
+   * demie le rayon nominal de chaque côté. Ce n'était pas le cas au premier
+   * jet : les bourgeons débordaient et se faisaient couper au carré par le
+   * bord du tampon, ce qui semait le ciel de rectangles nets — un défaut de
+   * rendu, pas un nuage.
+   */
+  const coeur = radius * 3.6;
+  const pad = radius * 1.6;
+  const w = Math.ceil(coeur + pad * 2);
+  const h = Math.ceil(radius * 3.6);
+  const canvas = surface(w, h);
+  const ctx = context2d(canvas);
+  /* Base plate : le pied de tous les bourgeons est sur la même horizontale. */
+  const baseY = h - radius * 0.75;
+
+  /* Profil de l'amas : plus haut au tiers gauche, effiloché à droite. */
+  const lobes: { x: number; y: number; r: number }[] = [];
+  const n = 6 + Math.floor(rand() * 5);
+  for (let i = 0; i < n; i++) {
+    const t = (i + 0.5) / n;
+    /* Cloche décentrée vers la gauche : un cumulus n'est pas symétrique. */
+    const hump = Math.pow(Math.sin(Math.PI * Math.pow(t, 1.35)), 0.7);
+    const r = radius * (0.3 + hump * 0.78) * (0.78 + rand() * 0.46);
+    lobes.push({
+      x: pad + coeur * t + (rand() - 0.5) * radius * 0.35,
+      y: baseY - r * (0.42 + hump * 0.5) * (0.8 + rand() * 0.42) * (0.7 + 0.6 * (1 - aplati)),
+      r,
+    });
+  }
+
+  /* 1 — le socle : les flancs sud-est, sourds, sous les bourgeons. */
+  for (const l of lobes) {
+    const gr = ctx.createRadialGradient(l.x + l.r * 0.22, l.y + l.r * 0.3, l.r * 0.05, l.x, l.y, l.r * 1.04);
+    gr.addColorStop(0, rgba(dark, 0.72));
+    gr.addColorStop(0.62, rgba(dark, 0.6));
+    gr.addColorStop(0.9, rgba(dark, 0.22));
+    gr.addColorStop(1, rgba(dark, 0));
+    ctx.fillStyle = gr;
+    ctx.beginPath();
+    ctx.ellipse(l.x, l.y + l.r * 0.1, l.r * 1.2, l.r * (0.72 + aplati * 0.4), 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /* 2 — le corps : la valeur moyenne, bien tenue jusqu'aux deux tiers. */
+  for (const l of lobes) {
+    const gr = ctx.createRadialGradient(l.x - l.r * 0.2, l.y - l.r * 0.24, l.r * 0.06, l.x, l.y, l.r);
+    gr.addColorStop(0, rgba(body, 0.96));
+    gr.addColorStop(0.58, rgba(body, 0.9));
+    gr.addColorStop(0.84, rgba(body, 0.44));
+    gr.addColorStop(1, rgba(body, 0));
+    ctx.fillStyle = gr;
+    ctx.beginPath();
+    ctx.ellipse(l.x, l.y, l.r * 1.06, l.r * (0.86 + aplati * 0.2), 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /* 3 — la couronne : le bourgeon reçoit le soleil sur son épaule nord-ouest. */
+  for (const l of lobes) {
+    const cxx = l.x - l.r * 0.3;
+    const cyy = l.y - l.r * 0.36;
+    const cr = l.r * 0.68;
+    const gr = ctx.createRadialGradient(cxx - cr * 0.24, cyy - cr * 0.26, cr * 0.04, cxx, cyy, cr);
+    gr.addColorStop(0, rgba(lit, 0.95));
+    gr.addColorStop(0.5, rgba(lit, 0.72));
+    gr.addColorStop(0.86, rgba(lit, 0.16));
+    gr.addColorStop(1, rgba(lit, 0));
+    ctx.fillStyle = gr;
+    ctx.beginPath();
+    ctx.ellipse(cxx, cyy, cr * 1.02, cr * 0.84, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /* 4 — le fil de lumière sur l'épaule du plus haut bourgeon, et lui seul :
+     répété sur trois lobes, il se lisait comme un trait de dessin dans le ciel. */
+  const haut = lobes.reduce((a, b) => (a.y <= b.y ? a : b));
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.ellipse(haut.x, haut.y, haut.r * 0.9, haut.r * 0.76, 0, Math.PI * 1.14, Math.PI * 1.58);
+  ctx.strokeStyle = rgba(C.lumiere, 0.26);
+  ctx.lineWidth = Math.max(1, 1.3 * s);
+  ctx.stroke();
+  ctx.restore();
+
+  /* 5 — érosion, à trois échelles : sans elle, ce sont encore des ellipses. */
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.globalAlpha = erosion * 0.9;
+  ctx.drawImage(noiseMask(w, h, seed + 71, radius * 0.62, 0.06, 2.4), 0, 0);
+  ctx.globalAlpha = erosion * 0.7;
+  ctx.drawImage(noiseMask(w, h, seed + 72, radius * 0.22, 0.16, 3), 0, 0);
+  ctx.globalAlpha = erosion * 0.44;
+  ctx.drawImage(noiseMask(w, h, seed + 74, radius * 0.075, 0.24, 3.4), 0, 0);
+  ctx.restore();
+
+  /* 6 — la base : plate, franche, et nettement plus sombre que la couronne. */
+  ctx.save();
+  ctx.globalCompositeOperation = 'source-atop';
+  const socle = ctx.createLinearGradient(0, baseY - radius * 0.8, 0, baseY + radius * 0.2);
+  socle.addColorStop(0, rgba(dark, 0));
+  socle.addColorStop(0.6, rgba(dark, 0.24));
+  socle.addColorStop(1, rgba(mix(dark, C.bleuProfond, 0.34), 0.44));
+  ctx.fillStyle = socle;
+  ctx.fillRect(0, baseY - radius * 0.62, w, h - baseY + radius * 0.62);
+  /* Grain interne : la vapeur n'est pas lisse. */
+  ctx.globalAlpha = 0.13;
+  ctx.drawImage(tintMask(noiseMask(w, h, seed + 73, radius * 0.16, 0, 2), C.ombre), 0, 0);
+  ctx.restore();
+
+  /* 7 — la base est rognée net, le sommet reste vaporeux. */
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
+  const coupe = ctx.createLinearGradient(0, baseY - radius * 0.06, 0, baseY + radius * 0.4);
+  coupe.addColorStop(0, 'rgba(0,0,0,0)');
+  coupe.addColorStop(0.5, 'rgba(0,0,0,0.55)');
+  coupe.addColorStop(1, 'rgba(0,0,0,0.95)');
+  ctx.fillStyle = coupe;
+  ctx.fillRect(0, baseY - radius * 0.06, w, h - baseY + radius * 0.06);
+  ctx.restore();
+
+  return canvas;
+}
+
+/** Un **cirrus** : un voile étiré, strié, jamais un tas de boules. */
+function cirrusSprite(
+  length: number,
+  seed: number,
+  lit: string,
+  dark: string,
+  s: number,
+): HTMLCanvasElement {
+  const rand = mulberry32(seed);
+  /* Marge de sûreté, comme pour le cumulus : aucun filament ne doit toucher le
+     bord du tampon, sous peine d'y laisser une arête droite. */
+  const corps = Math.ceil(length);
+  const marge = Math.ceil(length * 0.06);
+  const w = corps + marge * 2;
+  const h = Math.ceil(length * (0.12 + rand() * 0.1));
+  const canvas = surface(w, Math.max(8, h));
+  const ctx = context2d(canvas);
+  const cy = canvas.height * 0.5;
+  /* Sept à douze filaments parallèles, de longueurs très inégales. */
+  const brins = 7 + Math.floor(rand() * 6);
+  for (let i = 0; i < brins; i++) {
+    const t = i / brins;
+    const x0 = marge + corps * rand() * 0.42;
+    const len = Math.min(corps + marge - x0, corps * (0.2 + rand() * 0.58) * (1 - t * 0.2));
+    const y = cy + (rand() - 0.5) * canvas.height * 0.5;
+    const ep = Math.max(1, canvas.height * (0.04 + rand() * 0.09));
+    const grad = ctx.createLinearGradient(x0, 0, x0 + len, 0);
+    grad.addColorStop(0, rgba(rand() > 0.5 ? lit : dark, 0));
+    grad.addColorStop(0.3, rgba(lit, 0.42 + rand() * 0.3));
+    grad.addColorStop(0.72, rgba(lit, 0.2));
+    grad.addColorStop(1, rgba(lit, 0));
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    /* Le filament remonte légèrement : un cirrus suit le vent d'altitude. */
+    ctx.ellipse(x0 + len / 2, y - len * 0.02, len / 2, ep, -0.03 - rand() * 0.05, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.globalAlpha = 0.66;
+  ctx.drawImage(noiseMask(canvas.width, canvas.height, seed + 31, 26 * s, 0.02, 2.4), 0, 0);
+  ctx.globalAlpha = 0.4;
+  ctx.drawImage(noiseMask(canvas.width, canvas.height, seed + 32, 7 * s, 0.16, 3), 0, 0);
+  ctx.restore();
+  return canvas;
 }
 
 function paintClouds(g: Geo, width: number, height: number, o: CloudOptions): HTMLCanvasElement {
-  const tmp = surface(width, height);
-  const ctx = context2d(tmp);
+  const out = surface(width, height);
+  const ctx = context2d(out);
   const rand = mulberry32(o.seed);
+
+  /**
+   * Colle un nuage **et ses deux répliques** à une largeur d'écart.
+   *
+   * Le plan des nuages défile en boucle : il est dessiné deux fois, décalé de
+   * sa propre largeur. Si un nuage touche un bord, la boucle le coupe net et
+   * une arête verticale traverse le ciel à intervalle régulier. En répliquant
+   * ce qui déborde, le tampon devient périodique et la boucle ne se voit plus.
+   */
+  const poser = (sprite: HTMLCanvasElement, x: number, y: number, alpha: number): void => {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(sprite, x, y);
+    if (x < 0) ctx.drawImage(sprite, x + width, y);
+    else if (x + sprite.width > width) ctx.drawImage(sprite, x - width, y);
+    ctx.restore();
+  };
 
   for (let i = 0; i < o.count; i++) {
     const cx = rand() * width;
     const cy = lerp(o.yMin, o.yMax, Math.pow(rand(), o.bias));
-    const radius = lerp(o.rMin, o.rMax, rand()) * g.s;
+    /*
+     * Un nuage est un **grand motif** : sa taille suit l'échelle de
+     * composition, pas l'échelle de détail. Calibré sur `g.s`, il devenait
+     * démesuré sur un écran haute densité étroit et le couvert avalait tout le
+     * ciel du portrait.
+     */
+    const radius = lerp(o.rMin, o.rMax, rand()) * Math.min(g.s, g.c * 1.2);
     /* Un nuage proche du soleil reçoit un cœur bien plus chaud. */
     const near = 1 - clamp(Math.abs(cx - g.sunX) / (width * 0.55), 0, 1);
     /* Un nuage de crépuscule est ambré, pas gris : c'est la lumière rasante
        qui le colore, d'autant plus qu'il est proche du soleil. */
-    const lit = mix(mix(C.ocre, C.lumiere, 0.42), C.lumiere, 0.1 + near * 0.5);
-    const mid = aerial(mix(C.ocre, C.grenat, 0.22), o.distance * 0.55);
-    const dark = aerial(mix(C.ombre, C.grenat, 0.2), o.distance * 0.4);
-    /* Plus le nuage est bas sur l'horizon, plus il s'étire. */
-    const aplati = o.flatten * (0.42 + 0.58 * (1 - cy / height));
-    const blobs = 8 + Math.floor(rand() * 8);
-    for (let b = 0; b < blobs; b++) {
-      const t = b / blobs;
-      const bx = cx + (rand() - 0.5) * radius * 3.1;
-      const by = cy + (rand() - 0.5) * radius * 0.62 * aplati;
-      const br = radius * (0.4 + rand() * 0.78) * (1 - t * 0.16);
-      const grad = ctx.createRadialGradient(
-        bx - br * 0.46,
-        by - br * 0.44 * aplati,
-        br * 0.04,
-        bx,
-        by,
-        br,
-      );
-      grad.addColorStop(0, rgba(lit, 0.86));
-      grad.addColorStop(0.28, rgba(mid, 0.58));
-      grad.addColorStop(0.62, rgba(dark, 0.26));
-      grad.addColorStop(1, rgba(dark, 0));
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.ellipse(bx, by, br * 1.24, br * aplati, (rand() - 0.5) * 0.28, 0, Math.PI * 2);
-      ctx.fill();
+    const lit = aerial(mix(C.lumiere, C.ocre, 0.3 - near * 0.22), o.distance * 0.18);
+    const body = aerial(mix(mix(C.ocre, C.parcheminOmbre, 0.42), C.bleuBrume, 0.16), o.distance * 0.36);
+    const dark = aerial(mix(mix(C.ombre, C.grenat, 0.22), C.bleuBrume, 0.2), o.distance * 0.26);
+
+    if (o.kind === 'cirrus') {
+      const sprite = cirrusSprite(radius * 5.4, o.seed + i * 17, lit, dark, g.s);
+      poser(sprite, cx - sprite.width / 2, cy - sprite.height / 2, 0.28 + near * 0.3);
+      continue;
     }
+
+    /* Plus le nuage est bas sur l'horizon, plus il s'étire. */
+    const aplati = clamp(o.flatten * (0.4 + 0.6 * (1 - cy / height)), 0.1, 1);
+    const sprite = cumulusSprite(radius, aplati, o.seed + i * 29, lit, body, dark, o.erosion, g.s);
+    poser(sprite, cx - sprite.width / 2, cy - sprite.height * 0.78, 0.62 + near * 0.3);
   }
 
   /*
-   * Érosion en trois échelles. Sans elle, un nuage reste un tas d'ellipses,
-   * et près de l'horizon les grands disques se lisent comme des planètes.
+   * Le bas du tampon s'efface. C'est la même règle que pour les crêtes : une
+   * bande de hauteur fixe ne doit jamais couper son contenu, sans quoi le bord
+   * du tampon se lit comme un trait horizontal en travers du ciel.
    */
   ctx.save();
   ctx.globalCompositeOperation = 'destination-out';
-  ctx.globalAlpha = o.erosion;
-  ctx.drawImage(noiseMask(width, height, o.seed + 71, 62 * g.s, 0.02, 2.2), 0, 0);
-  ctx.globalAlpha = o.erosion * 0.82;
-  ctx.drawImage(noiseMask(width, height, o.seed + 72, 21 * g.s, 0.12, 2.9), 0, 0);
-  ctx.globalAlpha = o.erosion * 0.5;
-  ctx.drawImage(noiseMask(width, height, o.seed + 74, 7 * g.s, 0.22, 3.4), 0, 0);
+  const bord = ctx.createLinearGradient(0, height * 0.7, 0, height);
+  bord.addColorStop(0, 'rgba(0,0,0,0)');
+  bord.addColorStop(1, 'rgba(0,0,0,1)');
+  ctx.fillStyle = bord;
+  ctx.fillRect(0, height * 0.7, width, height * 0.3);
   ctx.restore();
 
-  /* Modelé général : chaud au nord-ouest, froid au sud-est. */
-  ctx.save();
-  ctx.globalCompositeOperation = 'source-atop';
-  const lg = ctx.createLinearGradient(0, 0, width * 0.5, height * 1.4);
-  lg.addColorStop(0, rgba(C.lumiere, 0.16));
-  lg.addColorStop(0.45, rgba(C.ocre, 0.05));
-  lg.addColorStop(1, rgba(C.ombre, 0.2));
-  ctx.fillStyle = lg;
-  ctx.fillRect(0, 0, width, height);
-  ctx.globalAlpha = 0.1;
-  ctx.drawImage(tintMask(noiseMask(width, height, o.seed + 73, 9 * g.s, 0, 2), C.ombre), 0, 0);
-  ctx.restore();
-
-  /* Adoucissement final : les bords d'un nuage ne sont jamais nets. */
-  const out = surface(width, height);
-  const octx = context2d(out);
-  octx.filter = `blur(${(1.1 * g.s).toFixed(2)}px)`;
-  octx.drawImage(tmp, 0, 0);
-  octx.filter = 'none';
-  return out;
+  /* Adoucissement final, très léger : la structure doit survivre au flou. */
+  const soft = surface(width, height);
+  const sctx = context2d(soft);
+  sctx.filter = `blur(${(0.6 * g.s).toFixed(2)}px)`;
+  sctx.drawImage(out, 0, 0);
+  sctx.filter = 'none';
+  return soft;
 }
 
 /* ──────────────────── Plans 2 et 3 : crêtes et sapinières ───────────────── */
@@ -375,12 +569,22 @@ interface RidgeSpec {
   /** brume accumulée au pied du versant */
   haze: number;
   seed: number;
+  /**
+   * Étagement de végétation : fraction de l'amplitude sous la crête où la
+   * futaie prend le relais de la lande. `0` laisse le versant nu. Les monts du
+   * Forez portent la forêt jusque vers 1 300 m puis la chaume : c'est cette
+   * limite, sinueuse et jamais horizontale, qui fait lire l'échelle.
+   */
+  treeline?: number;
+  /** teinte de l'étage boisé */
+  wood?: string;
 }
 
 /** Profil d'une crête : bruit de crête + une octave douce, jamais une sinusoïde. */
 function ridgeProfile(spec: RidgeSpec, g: Geo): (x: number) => number {
   const n1 = makeNoise1D(spec.seed);
   const n2 = makeNoise1D(spec.seed + 401);
+  const n3 = makeNoise1D(spec.seed + 733);
   const base = g.horizon * spec.base;
   const amp = g.h * spec.amp;
   return (x: number): number => {
@@ -391,8 +595,32 @@ function ridgeProfile(spec: RidgeSpec, g: Geo): (x: number) => number {
     const r = Math.pow(ridged(n1, u, 5) * 0.5 + 0.5, 0.55);
     const detail = (ridged(n2, u * 3.7 + 7, 3) * 0.5 + 0.5) * 0.22;
     const soft = fbm1(n2, u * 0.47 + 11, 3) * 0.3;
-    return base - (r * 0.74 + detail + soft) * amp;
+    /* Dentelure de sommet : sans cette dernière octave, l'arête est un pli de
+       papier découpé. Elle est trop fine pour se voir isolément, assez pour
+       que l'œil cesse de lire un triangle. */
+    const dent = (ridged(n3, u * 13.5 + 3, 2) * 0.5 + 0.5) * 0.055;
+    return base - (r * 0.74 + detail + soft + dent) * amp;
   };
+}
+
+/**
+ * Point le plus haut atteint par une crête sur un intervalle.
+ *
+ * C'est la clé de la **couture horizontale** : chaque plan est peint dans son
+ * propre tampon, et si le sommet du profil tombe au-dessus du bord supérieur
+ * de ce tampon, le remplissage opaque commence sur ce bord — l'écran est barré
+ * d'un trait net à la hauteur exacte du bord de la bande. La bande doit donc
+ * être dimensionnée sur le relief réel, jamais sur une fraction fixe.
+ */
+function ridgeCeiling(spec: RidgeSpec, g: Geo, x0: number, x1: number): number {
+  const profile = ridgeProfile(spec, g);
+  let min = Infinity;
+  const steps = 256;
+  for (let i = 0; i <= steps; i++) {
+    const y = profile(x0 + ((x1 - x0) * i) / steps);
+    if (y < min) min = y;
+  }
+  return min;
 }
 
 function paintRidge(
@@ -407,6 +635,9 @@ function paintRidge(
   const profile = ridgeProfile(spec, g);
   const step = Math.max(2, Math.round(2 * g.s));
   const local = (x: number): number => profile(x + originX) - originY;
+  /* Amplitude du relief en pixels : toutes les longueurs de modelé s'y
+     rapportent, jamais à la hauteur du tampon, qui n'a pas de sens physique. */
+  const ampPx = g.h * spec.amp;
 
   const path = new Path2D();
   path.moveTo(0, height);
@@ -414,11 +645,14 @@ function paintRidge(
   path.lineTo(width, height);
   path.closePath();
 
-  const crest = local(width * 0.5);
+  /* Le sommet réel, pas un échantillon au milieu : c'est lui qui cale tous les
+     dégradés du versant, et il ne tombe presque jamais au centre du cadre. */
+  let crest = Infinity;
+  for (let x = 0; x <= width; x += step) crest = Math.min(crest, local(x));
   const body = aerial(spec.color, spec.distance);
   const grad = ctx.createLinearGradient(0, crest - height * 0.04, 0, height);
-  grad.addColorStop(0, aerial(tint(spec.color, 0.34), spec.distance));
-  grad.addColorStop(0.12, aerial(tint(spec.color, 0.1), spec.distance));
+  grad.addColorStop(0, aerial(tint(spec.color, 0.2), spec.distance));
+  grad.addColorStop(0.12, aerial(tint(spec.color, 0.06), spec.distance));
   grad.addColorStop(0.42, body);
   grad.addColorStop(1, aerial(shade(spec.color, 0.42), spec.distance + 260));
   ctx.save();
@@ -459,12 +693,25 @@ function paintRidge(
   const rctx = context2d(relief);
   const champ = new Float32Array(sw * sh);
   const nRelief = makeNoise2D(spec.seed + 77);
-  /* Ravines : la maille est deux fois plus serrée en x qu'en y. */
-  const echelleX = (78 * g.s) / q;
-  const echelleY = (150 * g.s) / q;
+  const nArete = makeNoise2D(spec.seed + 78);
+  /* Ravines : la maille est un peu plus serrée en x qu'en y. */
+  const echelleX = (104 * g.s) / q;
+  const echelleY = (128 * g.s) / q;
   for (let y = 0; y < sh; y++) {
     for (let x = 0; x < sw; x++) {
-      champ[y * sw + x] = fbm2(nRelief, x / echelleX, y / echelleY, 4, 0.52, 2.13);
+      /*
+       * Deux composantes, et c'est leur somme qui fait la montagne :
+       *
+       *  - un bruit fractal doux, qui donne la matière du versant ;
+       *  - un bruit **de crête** (`1 − |bruit|`), qui produit de vraies arêtes
+       *    secondaires : contreforts descendant de la ligne de faîte, combes
+       *    entre eux. C'est ce que l'on lit comme « une montagne » plutôt que
+       *    comme « une surface bosselée ».
+       */
+      const doux = fbm2(nRelief, x / echelleX, y / echelleY, 4, 0.52, 2.13);
+      const arete =
+        1 - Math.abs(fbm2(nArete, x / (echelleX * 1.5), y / (echelleY * 1.15), 3, 0.55, 2.07)) * 2.4;
+      champ[y * sw + x] = doux * 0.62 + arete * 0.3;
     }
   }
   const img = rctx.createImageData(sw, sh);
@@ -494,29 +741,80 @@ function paintRidge(
       const len = Math.sqrt(dzdx * dzdx + dzdy * dzdy + 1);
       const lambert = clamp((-dzdx * lx - dzdy * ly + lz) / len, 0, 1);
       /* Étalement : le relief doux du Forez doit rester lisible. */
-      const v = clamp((lambert - 0.5) * 2.4, -1, 1);
-      /* Le modelé s'éteint vers le bas, où la brume prend le relais. */
-      const fade = clamp(1 - depth / (height * 0.62), 0, 1);
+      const v = clamp((lambert - 0.5) * 3.1, -1, 1);
+      /*
+       * Le modelé s'éteint vers le bas, où la brume prend le relais. Il
+       * s'éteint sur **l'amplitude du relief**, pas sur la hauteur du tampon :
+       * indexé sur le tampon, il descendait jusqu'au bas de l'image et
+       * dessinait de longues rayures verticales par-dessus la forêt.
+       */
+      const fade = clamp(1 - depth / (ampPx * 0.95), 0, 1);
       const k = i * 4;
       if (v >= 0) {
         data[k] = chaud.r;
         data[k + 1] = chaud.g;
         data[k + 2] = chaud.b;
-        data[k + 3] = v * 0.42 * fade * 255;
+        data[k + 3] = v * 0.34 * fade * 255;
       } else {
         data[k] = froid.r;
         data[k + 1] = froid.g;
         data[k + 2] = froid.b;
-        data[k + 3] = -v * 0.4 * fade * 255;
+        data[k + 3] = -v * 0.36 * fade * 255;
       }
     }
   }
   rctx.putImageData(img, 0, 0);
   ctx.save();
-  ctx.filter = `blur(${Math.max(0.8, width / 700).toFixed(2)}px)`;
+  ctx.filter = `blur(${Math.max(1.4, width / 420).toFixed(2)}px)`;
   ctx.drawImage(relief, 0, 0, width, height);
   ctx.filter = 'none';
   ctx.restore();
+
+  /*
+   * Étagement de végétation : sous une altitude qui varie d'un vallon à
+   * l'autre, la lande cède à la futaie. La limite est floutée — une lisière
+   * nette serait un bord dur, ce que la bible interdit (§4, lisières).
+   */
+  if (spec.treeline && spec.treeline > 0) {
+    const nWood = makeNoise1D(spec.seed + 617);
+    const amp = g.h * spec.amp;
+    const wood = aerial(spec.wood ?? mix(C.vertSapin, C.granitAnthracite, 0.28), spec.distance);
+    const belt = new Path2D();
+    const bstep = Math.max(3, Math.round(4 * g.s));
+    belt.moveTo(0, height);
+    for (let x = 0; x <= width; x += bstep) {
+      const ondule = 0.62 + fbm1(nWood, x / (width * 0.055), 4) * 0.72;
+      belt.lineTo(x, local(x) + amp * spec.treeline * ondule);
+    }
+    belt.lineTo(width, height);
+    belt.closePath();
+    ctx.save();
+    ctx.filter = `blur(${Math.max(1.4, width / 300).toFixed(2)}px)`;
+    const wg = ctx.createLinearGradient(0, crest, 0, height);
+    wg.addColorStop(0, rgba(wood, 0.5));
+    wg.addColorStop(0.5, rgba(wood, 0.66));
+    wg.addColorStop(1, rgba(shade(wood, 0.3), 0.5));
+    ctx.fillStyle = wg;
+    ctx.fill(belt);
+    ctx.filter = 'none';
+    /* Grain de futaie : la masse boisée n'est pas un aplat non plus. */
+    ctx.save();
+    ctx.clip(belt);
+    ctx.globalAlpha = 0.24;
+    ctx.drawImage(
+      tintMask(noiseMask(width, height, spec.seed + 58, 15 * g.s, 0.2, 2.8), shade(wood, 0.44)),
+      0,
+      0,
+    );
+    ctx.globalAlpha = 0.14;
+    ctx.drawImage(
+      tintMask(noiseMask(width, height, spec.seed + 59, 44 * g.s, 0.06, 2.1), tint(wood, 0.26)),
+      0,
+      0,
+    );
+    ctx.restore();
+    ctx.restore();
+  }
 
   /* Matière : bruit multi-octave, jamais d'aplat. */
   ctx.globalAlpha = 0.15;
@@ -529,117 +827,392 @@ function paintRidge(
   );
   ctx.globalAlpha = 1;
 
-  /* Brume de vallée : un dégradé plat serait un aplat, on le module au bruit. */
-  const mistTop = crest + height * 0.08;
-  const mg = ctx.createLinearGradient(0, mistTop, 0, height);
-  mg.addColorStop(0, rgba(C.bleuBrume, 0));
-  mg.addColorStop(0.55, rgba(C.bleuBrume, spec.haze * 0.5));
-  mg.addColorStop(1, rgba(C.bleuBrume, spec.haze));
-  ctx.fillStyle = mg;
-  ctx.fillRect(0, mistTop, width, height - mistTop);
-  ctx.globalAlpha = spec.haze * 0.7;
-  ctx.drawImage(
-    tintMask(noiseMask(width, height, spec.seed + 57, 90 * g.s, 0.16, 2.1), C.bleuBrume),
-    0,
-    mistTop * 0.35,
-  );
-  ctx.globalAlpha = 1;
+  /*
+   * Brume de vallée. Elle **s'accumule au pied du versant**, sur une ou deux
+   * fois son amplitude : réglée sur la hauteur du tampon, elle noyait le
+   * tableau entier dans un bleu pâle et effaçait tout le travail de valeur.
+   */
+  const mistTop = crest + ampPx * 0.85;
+  const mistBottom = Math.min(height, crest + ampPx * 2.6);
+  if (mistBottom > mistTop) {
+    const mg = ctx.createLinearGradient(0, mistTop, 0, mistBottom);
+    mg.addColorStop(0, rgba(C.bleuBrume, 0));
+    mg.addColorStop(0.55, rgba(C.bleuBrume, spec.haze * 0.5));
+    mg.addColorStop(1, rgba(C.bleuBrume, spec.haze));
+    ctx.fillStyle = mg;
+    ctx.fillRect(0, mistTop, width, height - mistTop);
+    ctx.globalAlpha = spec.haze * 0.5;
+    ctx.drawImage(
+      tintMask(noiseMask(width, height, spec.seed + 57, 90 * g.s, 0.16, 2.1), C.bleuBrume),
+      0,
+      mistTop * 0.35,
+    );
+    ctx.globalAlpha = 1;
+  }
   ctx.restore();
 
   /*
-   * Liseré doré sur l'arête (loi n°4). Son intensité suit la pente : un
-   * contour d'épaisseur constante sur toute la crête donnerait un dessin
-   * cerné, ce que la loi n°6 interdit.
+   * L'arête. Deux traits seulement, et jamais continus :
+   *
+   *  - un **fil chaud** sur les segments dont la face regarde le nord-ouest
+   *    (pente descendante vers l'ouest), là où le soleil rase la roche ;
+   *  - un **liseré doré** très mince (loi n°4) sur les segments opposés.
+   *
+   * Chacun s'éteint là où l'autre s'allume : une arête cernée sur toute sa
+   * longueur donne le découpage de papier que la loi n°6 interdit.
    */
   ctx.save();
   ctx.lineCap = 'round';
-  const rim = SUN.rimOpacity * (1 - clamp(spec.distance / 1500, 0, 0.72));
+  const proximite = 1 - clamp(spec.distance / 1500, 0, 0.78);
+  const rim = SUN.rimOpacity * proximite;
   for (let x = 0; x <= width; x += step) {
     const slope = (local(x + span) - local(x - span)) / (span * 2);
-    const face = clamp(0.28 + slope * 3.4, 0.05, 1);
+    /* `slope > 0` : le terrain descend vers l'est, la face est au soleil. */
+    const auSoleil = clamp(slope * 2.6, 0, 1);
+    const aLOmbre = clamp(-slope * 2.6, 0, 1);
     ctx.beginPath();
     ctx.moveTo(x, local(x));
     ctx.lineTo(x + step, local(x + step));
-    ctx.strokeStyle = rgba(C.vieilOr, rim * face);
-    ctx.lineWidth = Math.max(0.8, (0.6 + face * 0.9) * g.s);
-    ctx.stroke();
-    ctx.strokeStyle = rgba(C.lumiere, 0.15 * face);
-    ctx.lineWidth = Math.max(0.5, 0.7 * g.s);
-    ctx.stroke();
+    if (auSoleil > 0.04) {
+      ctx.strokeStyle = rgba(C.lumiere, 0.3 * auSoleil * proximite);
+      ctx.lineWidth = Math.max(0.6, 1.1 * g.s);
+      ctx.stroke();
+    }
+    if (aLOmbre > 0.04) {
+      ctx.strokeStyle = rgba(C.vieilOr, rim * 0.55 * aLOmbre);
+      ctx.lineWidth = Math.max(0.5, 0.9 * g.s);
+      ctx.stroke();
+    }
   }
+
+  /*
+   * Halo de brume juste au-dessus de l'arête. C'est lui qui empêche le
+   * découpage : dans un massif, l'air chargé diffuse la lumière et le sommet
+   * ne rencontre jamais le ciel sur un pixel franc.
+   */
+  ctx.globalCompositeOperation = 'destination-over';
+  ctx.filter = `blur(${Math.max(2, ampPx / 14).toFixed(2)}px)`;
+  /*
+   * Le halo est une **bande qui suit l'arête**, bord supérieur compris. Tracé
+   * avec un bord supérieur droit, il barrait le ciel d'une ligne horizontale
+   * parfaite en travers de tout l'écran : le flou ne sauve pas un bord droit,
+   * il ne fait que l'adoucir de quelques pixels.
+   */
+  const halo = new Path2D();
+  halo.moveTo(0, local(0) - ampPx * 0.3);
+  for (let x = 0; x <= width; x += step * 2) halo.lineTo(x, local(x) - ampPx * 0.3);
+  for (let x = width; x >= 0; x -= step * 2) halo.lineTo(x, local(x) + ampPx * 0.34);
+  halo.closePath();
+  ctx.fillStyle = rgba(mix(C.bleuBrume, C.ocre, 0.22), 0.16 * (0.4 + clamp(spec.distance / 1400, 0, 1)));
+  ctx.fill(halo);
+  ctx.filter = 'none';
   ctx.restore();
 
   return local;
 }
 
-/** Sapin pré-rendu : silhouette dentelée, trois valeurs, liseré doré. */
+/**
+ * Un sapin, pré-rendu **à sa taille d'affichage**.
+ *
+ * Trois erreurs sont corrigées ici par rapport au premier jet :
+ *
+ *  1. le lutin était rendu à 120 × `s` puis **agrandi une seconde fois** par
+ *     `s` : sur un téléphone à forte densité, les sapins faisaient trois fois
+ *     leur taille et leurs traits d'ornement suivaient ;
+ *  2. le liseré valait `hauteur × 0,024`, soit cinq pixels sur un grand lutin,
+ *     pour un décalage d'un seul : l'anneau ressortait **de tous les côtés** et
+ *     donnait le contour doré continu, l'« autocollant » ;
+ *  3. cinq silhouettes par rangée se répétaient visiblement. La forme dépend
+ *     maintenant entièrement de la graine : inclinaison, élancement, densité
+ *     d'étages, dissymétrie gauche/droite, valeur.
+ */
 function firSprite(height: number, seed: number, distance: number): HTMLCanvasElement {
-  const w = Math.ceil(height * 0.62);
-  const h = Math.ceil(height);
-  const canvas = surface(w + 4, h + 4);
-  const ctx = context2d(canvas);
   const rand = mulberry32(seed);
-  const base = aerial(C.vertSapin, distance);
-  const cx = (w + 4) / 2;
+  /* Élancement : du sapin de crête, étroit et serré, au sapin de vallon. */
+  const elan = 0.34 + rand() * 0.24;
+  const h = Math.max(6, Math.ceil(height));
+  const w = Math.max(4, Math.ceil(h * elan));
+  const pad = Math.ceil(Math.max(2, h * 0.05));
+  const canvas = surface(w + pad * 2, h + pad * 2);
+  const ctx = context2d(canvas);
+  /* Chaque sujet a sa propre valeur : une futaie n'est pas monochrome. */
+  const teinte = mix(C.vertSapin, rand() > 0.55 ? C.mousseSombre : C.bleuProfond, rand() * 0.34);
+  const base = aerial(shade(teinte, rand() * 0.16), distance);
+  const cx = (w + pad * 2) / 2;
+  const top = pad;
+  /* Inclinaison : aucun arbre n'est parfaitement vertical. */
+  const lean = (rand() - 0.5) * w * 0.22;
+  const axe = (p: number): number => cx + lean * Math.pow(p, 1.6);
 
-  /* Tronc. */
-  const trunk = aerial(C.brunFougere, distance + 120);
-  ctx.fillStyle = shade(trunk, 0.3);
-  ctx.fillRect(cx - h * 0.022, h * 0.72, h * 0.045, h * 0.28);
+  /* Tronc, visible seulement au pied. */
+  const trunk = aerial(mix(C.brunFougere, C.encre, 0.4), distance + 140);
+  ctx.fillStyle = rgba(trunk, 0.9);
+  ctx.fillRect(axe(1) - h * 0.017, top + h * 0.86, Math.max(1, h * 0.034), h * 0.15);
 
-  /* Ramure : quatre à six étages dentelés, jamais un triangle. */
-  const tiers = 4 + Math.floor(rand() * 3);
-  const path = new Path2D();
-  path.moveTo(cx, 2);
+  /*
+   * Ramure : sept à douze étages, chacun tiré indépendamment à gauche et à
+   * droite. C'est cette dissymétrie qui empêche l'œil de reconnaître un motif.
+   */
+  const tiers = 7 + Math.floor(rand() * 6);
   const left: { x: number; y: number }[] = [];
   const right: { x: number; y: number }[] = [];
   for (let t = 0; t < tiers; t++) {
     const p = (t + 1) / tiers;
-    const y = 2 + p * h * 0.92;
-    const spread = (w / 2) * Math.pow(p, 0.78) * (0.82 + rand() * 0.3);
-    const notch = spread * (0.42 + rand() * 0.2);
-    left.push({ x: cx - notch, y: y - h * 0.06 });
-    left.push({ x: cx - spread, y });
-    right.push({ x: cx + notch, y: y - h * 0.06 });
-    right.push({ x: cx + spread, y });
+    const y = top + Math.pow(p, 1.04) * h * 0.94;
+    const enveloppe = (w / 2) * Math.pow(p, 0.74);
+    const sg = enveloppe * (0.74 + rand() * 0.42);
+    const sd = enveloppe * (0.74 + rand() * 0.42);
+    const creux = 0.36 + rand() * 0.22;
+    /* La branche retombe : sa pointe est plus basse que son attache. */
+    const tombe = h * 0.012 * (0.5 + rand());
+    left.push({ x: axe(p) - enveloppe * creux, y: y - h * (0.045 + rand() * 0.025) });
+    left.push({ x: axe(p) - sg, y: y + tombe });
+    right.push({ x: axe(p) + enveloppe * creux, y: y - h * (0.045 + rand() * 0.025) });
+    right.push({ x: axe(p) + sd, y: y + tombe });
   }
+  const path = new Path2D();
+  path.moveTo(axe(0), top);
   for (const p of right) path.lineTo(p.x, p.y);
-  path.lineTo(cx + w * 0.06, h + 2);
-  path.lineTo(cx - w * 0.06, h + 2);
+  path.lineTo(axe(1) + w * 0.05, top + h);
+  path.lineTo(axe(1) - w * 0.05, top + h);
   for (let i = left.length - 1; i >= 0; i--) path.lineTo(left[i].x, left[i].y);
   path.closePath();
 
-  const grad = ctx.createLinearGradient(cx - w / 2, 0, cx + w / 2, h);
-  grad.addColorStop(0, tint(base, 0.3));
-  grad.addColorStop(0.4, base);
-  grad.addColorStop(1, shade(base, 0.44));
+  /* Corps : lumière au nord-ouest, ombre froide au sud-est (lois 2 et 3). */
+  const grad = ctx.createLinearGradient(cx - w * 0.6, top, cx + w * 0.6, top + h);
+  grad.addColorStop(0, tint(base, 0.34));
+  grad.addColorStop(0.3, tint(base, 0.1));
+  grad.addColorStop(0.6, base);
+  grad.addColorStop(1, shade(base, 0.5));
   ctx.fillStyle = grad;
   ctx.fill(path);
 
-  /* Ombre propre du côté sud-est. */
   ctx.save();
   ctx.clip(path);
-  const sg = ctx.createLinearGradient(cx, 0, cx + w * 0.7, h * 0.6);
-  sg.addColorStop(0, rgba(C.ombre, 0));
-  sg.addColorStop(1, rgba(C.ombre, 0.4));
-  ctx.fillStyle = sg;
-  ctx.fillRect(0, 0, w + 4, h + 4);
+  /* Ombre propre : la moitié sud-est de la couronne est dans son propre noir. */
+  const sg2 = ctx.createLinearGradient(cx - w * 0.1, top, cx + w * 0.62, top + h * 0.62);
+  sg2.addColorStop(0, rgba(C.ombre, 0));
+  sg2.addColorStop(1, rgba(C.ombre, 0.46));
+  ctx.fillStyle = sg2;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  /* Étages : chaque verticille projette son ombre sur celui du dessous. */
+  if (h > 26) {
+    ctx.lineCap = 'round';
+    for (let t = 1; t < tiers; t++) {
+      const p = t / tiers;
+      const y = top + Math.pow(p, 1.04) * h * 0.94;
+      const e = (w / 2) * Math.pow(p, 0.74);
+      ctx.beginPath();
+      ctx.moveTo(axe(p) - e * 0.94, y + h * 0.012);
+      ctx.quadraticCurveTo(axe(p), y - h * 0.014, axe(p) + e * 0.94, y + h * 0.014);
+      ctx.strokeStyle = rgba(C.ombrePortee, 0.2);
+      ctx.lineWidth = Math.max(0.6, h * 0.012);
+      ctx.stroke();
+      /* Et reçoit la lumière sur son épaule ouest. */
+      ctx.beginPath();
+      ctx.moveTo(axe(p) - e * 0.9, y - h * 0.014);
+      ctx.quadraticCurveTo(axe(p) - e * 0.3, y - h * 0.03, axe(p), y - h * 0.02);
+      ctx.strokeStyle = rgba(C.lumiere, 0.16);
+      ctx.lineWidth = Math.max(0.5, h * 0.008);
+      ctx.stroke();
+    }
+  }
   ctx.restore();
 
-  const proche = 1 - clamp(distance / 900, 0, 0.82);
-  tintedOutline(ctx, path, base, Math.max(0.5, height * 0.01 * (0.4 + proche)));
-  rimLight(ctx, path, Math.max(0.8, height * 0.024), SUN.rimOpacity * proche);
-  sunEdge(ctx, path, Math.max(0.7, height * 0.018), 0.26 * proche);
+  const proche = 1 - clamp(distance / 900, 0, 0.85);
+  const box = { x: pad, y: top, w, h };
+  /* Contour teinté seulement du côté de l'ombre, et très fin. */
+  if (h > 18) tintedOutline(ctx, path, shade(base, 0.2), Math.max(0.5, h * 0.006));
+  /* Liseré : 1 à 2 px, sud-est uniquement. Le reste est un cerne. */
+  rimLight(ctx, path, rimWidth(h / 90), SUN.rimOpacity * (0.5 + proche * 0.5), box);
+  sunEdge(ctx, path, rimWidth(h / 110), 0.3 * proche, box);
   return canvas;
 }
 
 /* ───────────────────── Plan 4 : le bourg fortifié ───────────────────────── */
+
+interface AshlarOptions {
+  /** hauteur d'assise, en unités de composition */
+  course?: number;
+  /** longueur moyenne d'une pierre, en unités de composition */
+  stoneLen?: number;
+  /** mousse au pied du mur, 0 à 1 */
+  moss?: number;
+  /** décalage d'assise : 0 pour un appareil réglé, 0,5 pour un appareil croisé */
+  offset?: number;
+}
+
+/**
+ * **Appareil de granit.**
+ *
+ * Une grille de blocs d'un seul gris est un aplat, donc un défaut (loi n°1) :
+ * c'est exactement ce que montrait la première version de la courtine. Une
+ * muraille du Forez, elle, est un assemblage de blocs **tous différents** —
+ * le granit d'un même front de taille varie du chamois au gris bleuté selon le
+ * grain et l'exposition — montés à joints creux, épaufrés aux angles, verdis
+ * au pied par la mousse et lavés de coulures sous chaque ouverture.
+ *
+ * On peint donc, pierre par pierre :
+ *
+ *  1. une **valeur propre** tirée d'un bruit à grande maille (les bancs de
+ *     carrière se suivent), plus un aléa individuel ;
+ *  2. un dégradé interne, clair au nord-ouest ;
+ *  3. un **joint creux** : filet sombre en bas et à droite, filet clair en haut
+ *     et à gauche — c'est le relief du joint qui fait la pierre, pas le trait ;
+ *  4. une épaufrure d'angle sur une pierre sur sept ;
+ *  5. par-dessus l'ensemble, les grandes salissures et la mousse.
+ *
+ * L'appelant a déjà découpé la silhouette du mur : cette fonction remplit.
+ */
+function ashlar(
+  ctx: CanvasRenderingContext2D,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  stone: string,
+  u: number,
+  seed: number,
+  o: AshlarOptions = {},
+): void {
+  const rand = mulberry32(seed);
+  const course = Math.max(2.5, (o.course ?? 13) * u);
+  const avg = Math.max(4, (o.stoneLen ?? 25) * u);
+  const joint = Math.max(0.7, course * 0.09);
+  const banc = makeNoise2D(seed + 55);
+  const mortier = shade(mix(stone, C.parcheminOmbre, 0.3), 0.34);
+
+  ctx.save();
+  /* Le mortier occupe le fond : les joints sont donc des creux, pas des traits
+     posés par-dessus. */
+  ctx.fillStyle = mortier;
+  ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+
+  let row = 0;
+  for (let y = y0; y < y1; y += course, row++) {
+    const decalage = row % 2 === 0 ? 0 : (o.offset ?? 0.5);
+    let x = x0 - avg * (decalage + rand() * 0.3);
+    const hh = Math.min(course, y1 - y);
+    while (x < x1) {
+      const len = avg * (0.6 + rand() * 0.9);
+      /* Valeur du banc, puis aléa de la pierre : deux échelles, jamais une. */
+      const v = fbm2(banc, x / (avg * 3.4), y / (course * 5), 3, 0.5, 2.1);
+      const perso = (rand() - 0.5) * 0.24;
+      let col = v + perso > 0 ? tint(stone, 0.05 + (v + perso) * 0.3) : shade(stone, 0.04 - (v + perso) * 0.34);
+      const nature = rand();
+      /* Une pierre sur dix est chamois, une sur douze est verdie : c'est cette
+         minorité qui fait lire du granit et non du béton peint. */
+      if (nature > 0.9) col = mix(col, C.ocre, 0.2 + rand() * 0.14);
+      else if (nature < 0.085) col = mix(col, C.mousseSombre, 0.22 + rand() * 0.16);
+      else if (nature < 0.16) col = mix(col, C.bleuProfond, 0.12);
+
+      const px0 = Math.max(x0, x + joint * 0.5);
+      const px1 = Math.min(x1, x + len - joint * 0.5);
+      const largeur = px1 - px0;
+      if (largeur > 0.8) {
+        const g2 = ctx.createLinearGradient(px0, y, px0 + largeur * 0.5, y + hh);
+        g2.addColorStop(0, tint(col, 0.14));
+        g2.addColorStop(0.45, col);
+        g2.addColorStop(1, shade(col, 0.2));
+        ctx.fillStyle = g2;
+        ctx.fillRect(px0, y + joint * 0.5, largeur, Math.max(0.8, hh - joint));
+
+        /* Joint creux : lumière sur l'arête supérieure, ombre sous la pierre. */
+        ctx.fillStyle = rgba(C.lumiere, 0.13);
+        ctx.fillRect(px0, y + joint * 0.5, largeur, Math.max(0.5, joint * 0.55));
+        ctx.fillStyle = rgba(contourOf(stone), 0.42);
+        ctx.fillRect(px0, y + hh - joint * 0.9, largeur, Math.max(0.5, joint * 0.7));
+        ctx.fillStyle = rgba(contourOf(stone), 0.26);
+        ctx.fillRect(px1 - Math.max(0.5, joint * 0.5), y + joint * 0.5, Math.max(0.5, joint * 0.5), hh - joint);
+
+        /* Épaufrure : le coin d'une pierre sur sept a sauté. */
+        if (rand() > 0.86 && largeur > joint * 4) {
+          const cs = Math.min(largeur * 0.4, hh * 0.5);
+          ctx.fillStyle = rgba(mortier, 0.9);
+          ctx.beginPath();
+          if (rand() > 0.5) {
+            ctx.moveTo(px1, y + joint * 0.5);
+            ctx.lineTo(px1 - cs, y + joint * 0.5);
+            ctx.lineTo(px1, y + joint * 0.5 + cs);
+          } else {
+            ctx.moveTo(px0, y + hh - joint);
+            ctx.lineTo(px0 + cs, y + hh - joint);
+            ctx.lineTo(px0, y + hh - joint - cs);
+          }
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+      x += len;
+    }
+  }
+
+  /* Grandes salissures : lessivage des pluies, taches d'humidité, suie. */
+  const w = x1 - x0;
+  const hgt = y1 - y0;
+  ctx.globalAlpha = 0.2;
+  ctx.drawImage(tintMask(noiseMask(w, hgt, seed + 71, Math.max(6, course * 5), 0.1, 2.4), C.ombrePortee), x0, y0);
+  ctx.globalAlpha = 0.11;
+  ctx.drawImage(tintMask(noiseMask(w, hgt, seed + 72, Math.max(4, course * 1.6), 0, 2.2), C.ocre), x0, y0);
+  ctx.globalAlpha = 1;
+
+  /* Mousse au pied : elle monte du sol et suit les joints. */
+  const moss = o.moss ?? 0.55;
+  if (moss > 0) {
+    const mg = ctx.createLinearGradient(0, y1 - hgt * 0.42, 0, y1);
+    mg.addColorStop(0, rgba(C.mousseSombre, 0));
+    mg.addColorStop(0.6, rgba(C.mousseSombre, 0.2 * moss));
+    mg.addColorStop(1, rgba(mix(C.mousseSombre, C.vertHetre, 0.24), 0.62 * moss));
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.fillStyle = mg;
+    ctx.fillRect(x0, y1 - hgt * 0.42, w, hgt * 0.42);
+    /* Rongée par un bruit fin : une frange de mousse régulière n'existe pas. */
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.globalAlpha = 0.34;
+    ctx.drawImage(noiseMask(w, hgt, seed + 73, Math.max(3, course * 0.8), 0.2, 3), x0, y0);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+/**
+ * Coulure sous une ouverture : l'eau de pluie qui sort d'une archère ou d'une
+ * baie lave la pierre en dessous et y dépose sa crasse. Deux traînées légères
+ * suffisent à dater un mur.
+ */
+function grimeStreak(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  len: number,
+  seed: number,
+): void {
+  const rand = mulberry32(seed);
+  ctx.save();
+  for (let i = 0; i < 3; i++) {
+    const sx = x + w * (0.1 + rand() * 0.8);
+    const l = len * (0.4 + rand() * 0.8);
+    const g = ctx.createLinearGradient(sx, y, sx, y + l);
+    g.addColorStop(0, rgba(C.ombrePortee, 0.34));
+    g.addColorStop(0.35, rgba(mix(C.ombrePortee, C.brunFougere, 0.4), 0.18));
+    g.addColorStop(1, rgba(C.ombrePortee, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(sx - w * 0.12, y, Math.max(0.8, w * (0.16 + rand() * 0.26)), l);
+  }
+  ctx.restore();
+}
 
 function paintTown(
   ctx: CanvasRenderingContext2D,
   g: Geo,
   width: number,
   height: number,
+  /** hauteur du plateau dans le repère du plan, imposée par la composition */
+  plateauY: number,
+  /** abscisse du bourg dans le repère du plan */
+  cx: number,
 ): TownMeta {
   const rand = mulberry32(g.seed + 4242);
   const meta: TownMeta = { chimneys: [], banners: [], windows: [], towers: [] };
@@ -647,10 +1220,7 @@ function paintTown(
      cadre en portrait comme en paysage. */
   const scale = g.c;
   const px = (v: number): number => v * scale;
-
   /* Assiette : l'éperon occupe le tiers droit, le soleil vient de la gauche. */
-  const cx = width * 0.58;
-  const plateauY = height * 0.42;
   const rock = C.granitAnthracite;
   const rockLit = mix(C.granitClair, C.ocre, 0.14);
 
@@ -707,21 +1277,66 @@ function paintTown(
    * d'un seul dégradé se lit comme un dôme lisse, et le critique visuel a
    * raison d'y voir une forme géométrique non retravaillée.
    */
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 5; i++) {
     const pan = new Path2D();
-    const x0 = leftX - px(120) + i * px(230) + rand() * px(50);
-    const largeur = px(230) + rand() * px(150);
+    const x0 = leftX - px(140) + i * px(160) + rand() * px(60);
+    const largeur = px(180) + rand() * px(170);
+    /* Le pan n'est pas un quadrilatère : son arête supérieure est brisée. */
     pan.moveTo(x0, height);
-    pan.lineTo(x0 + largeur * 0.24, plateauY + px(20) + rand() * px(60));
-    pan.lineTo(x0 + largeur * 0.7, plateauY + px(50) + rand() * px(90));
+    pan.lineTo(x0 + largeur * 0.18, plateauY + px(26) + rand() * px(70));
+    pan.lineTo(x0 + largeur * 0.44, plateauY + px(52) + rand() * px(60));
+    pan.lineTo(x0 + largeur * 0.74, plateauY + px(44) + rand() * px(110));
     pan.lineTo(x0 + largeur, height);
     pan.closePath();
-    ctx.fillStyle = rgba(i % 2 === 0 ? tint(rock, 0.16) : shade(rock, 0.3), 0.4);
+    /* Flouté : un plan de roche n'a pas d'arête vive à cette distance, et une
+       facette franche se lit comme un polygone, pas comme du granit. */
+    ctx.save();
+    ctx.filter = `blur(${Math.max(1.5, px(4)).toFixed(1)}px)`;
+    ctx.fillStyle = rgba(i % 2 === 0 ? tint(rock, 0.2) : shade(rock, 0.34), 0.34);
     ctx.fill(pan);
-    ctx.strokeStyle = rgba(contourOf(rock), 0.3);
+    ctx.restore();
+    /* Seule l'arête au soleil est marquée, d'un fil chaud et non d'un cerne. */
+    ctx.strokeStyle = rgba(C.lumiere, 0.1);
     ctx.lineWidth = Math.max(0.8, px(1.4));
     ctx.stroke(pan);
   }
+
+  /*
+   * Dalles du plateau. Le dessus de l'éperon était une nappe unie, et c'est
+   * l'aplat le plus large du tableau. Le granit du Forez se débite en grandes
+   * dalles séparées de fissures herbues : quelques joints obliques, un liseré
+   * chaud sur leur lèvre nord-ouest, et la surface se met à porter la lumière.
+   */
+  for (let i = 0; i < 9; i++) {
+    const dx = leftX - px(60) + i * px(120) + rand() * px(50);
+    const dy = plateauY + px(6) + rand() * px(120);
+    ctx.beginPath();
+    ctx.moveTo(dx, dy);
+    ctx.bezierCurveTo(
+      dx + px(70),
+      dy + px(30) + rand() * px(28),
+      dx + px(120),
+      dy + px(60),
+      dx + px(210) + rand() * px(120),
+      dy + px(150) + rand() * px(70),
+    );
+    ctx.strokeStyle = rgba(contourOf(rock), 0.34);
+    ctx.lineWidth = Math.max(0.7, px(1.6));
+    ctx.stroke();
+    ctx.strokeStyle = rgba(C.lumiere, 0.08);
+    ctx.lineWidth = Math.max(0.5, px(1));
+    ctx.translate(-px(1.6), -px(1.2));
+    ctx.stroke();
+    ctx.translate(px(1.6), px(1.2));
+  }
+  /* Touffes d'herbe rase dans les fissures : la roche n'est jamais stérile. */
+  ctx.globalAlpha = 0.26;
+  ctx.drawImage(
+    tintMask(noiseMask(width, height, g.seed + 66, 18 * g.s, 0.3, 3.2), mix(C.mousseSombre, C.vertHetre, 0.34)),
+    0,
+    0,
+  );
+  ctx.globalAlpha = 1;
 
   /* Talus d'éboulis au pied : la roche se délite, elle ne s'arrête pas net. */
   for (let i = 0; i < 46; i++) {
@@ -770,6 +1385,25 @@ function paintTown(
   ctx.stroke();
   ctx.restore();
 
+  /*
+   * Ombre portée du bourg sur son plateau. Azimut 315°, donc vers le sud-est,
+   * longue, bleutée, jamais noire (lois 2 et 3). Sans elle la citadelle est
+   * *posée* sur la roche comme une découpe de papier : c'est l'ombre au sol,
+   * bien plus que le contour, qui pose un bâtiment dans un paysage.
+   */
+  ctx.save();
+  ctx.filter = `blur(${Math.max(2, px(8)).toFixed(1)}px)`;
+  const ombreBourg = new Path2D();
+  ombreBourg.moveTo(cx - px(232), plateauY + px(16));
+  ombreBourg.lineTo(cx + px(244), plateauY + px(6));
+  ombreBourg.lineTo(cx + px(336), plateauY + px(148));
+  ombreBourg.lineTo(cx - px(96), plateauY + px(176));
+  ombreBourg.closePath();
+  ctx.fillStyle = rgba(C.ombrePortee, SUN.shadowOpacity * 1.3);
+  ctx.fill(ombreBourg);
+  ctx.filter = 'none';
+  ctx.restore();
+
   /* — La courtine — */
   const wallLeft = cx - px(215);
   const wallRight = cx + px(215);
@@ -777,7 +1411,7 @@ function paintTown(
   const wallBottom = plateauY + px(16);
   /* Le granit du Forez tourne au chamois sous une lumière rasante : une
      muraille strictement grise, au crépuscule, sonne faux. */
-  const stone = mix(mix(C.granitClair, C.parcheminOmbre, 0.34), C.ocre, 0.16);
+  const stone = mix(mix(C.granitClair, C.parcheminOmbre, 0.3), C.ocre, 0.24);
 
   const wall = new Path2D();
   wall.moveTo(wallLeft, wallBottom);
@@ -798,51 +1432,51 @@ function paintTown(
   wall.lineTo(wallRight, wallBottom);
   wall.closePath();
 
+  const wallBox = { x: wallLeft, y: wallTop - px(20), w: wallRight - wallLeft, h: wallBottom - wallTop + px(20) };
   ctx.save();
   ctx.fillStyle = bodyGradient(ctx, wallLeft, wallTop, wallRight, wallBottom, stone, 0.3, 0.46);
   ctx.fill(wall);
   ctx.save();
   ctx.clip(wall);
-  /* Appareil de pierre : assises décalées, jointoiement teinté. */
-  for (let row = 0; row * px(13) < wallBottom - wallTop + px(20); row++) {
-    const y = wallTop - px(18) + row * px(13);
-    ctx.beginPath();
-    ctx.moveTo(wallLeft, y);
-    ctx.lineTo(wallRight, y);
-    ctx.strokeStyle = rgba(contourOf(stone), 0.3);
-    ctx.lineWidth = Math.max(0.6, px(1));
-    ctx.stroke();
-    const offset = row % 2 === 0 ? 0 : px(11);
-    for (let bx = wallLeft + offset; bx < wallRight; bx += px(22)) {
-      ctx.beginPath();
-      ctx.moveTo(bx, y);
-      ctx.lineTo(bx, y + px(13));
-      ctx.stroke();
-    }
-  }
+  ashlar(ctx, wallLeft - px(4), wallTop - px(24), wallRight + px(4), wallBottom + px(4), stone, scale, g.seed + 311, {
+    course: 12,
+    stoneLen: 24,
+    moss: 0.7,
+  });
+  /* Modelé général du front : le soleil rase la muraille par la gauche. */
+  const front = ctx.createLinearGradient(wallLeft, wallTop, wallRight, wallBottom);
+  front.addColorStop(0, rgba(C.lumiere, 0.2));
+  front.addColorStop(0.36, rgba(C.lumiere, 0.03));
+  front.addColorStop(0.75, rgba(C.ombre, 0.16));
+  front.addColorStop(1, rgba(C.ombre, 0.34));
+  ctx.fillStyle = front;
+  ctx.fillRect(wallLeft - px(6), wallTop - px(26), wallRight - wallLeft + px(12), wallBottom - wallTop + px(32));
   /* Mâchicoulis : bande d'ombre sous le parapet. */
   const mach = ctx.createLinearGradient(0, wallTop, 0, wallTop + px(16));
-  mach.addColorStop(0, rgba(C.ombrePortee, 0.5));
+  mach.addColorStop(0, rgba(C.ombrePortee, 0.55));
   mach.addColorStop(1, rgba(C.ombrePortee, 0));
   ctx.fillStyle = mach;
   ctx.fillRect(wallLeft, wallTop, wallRight - wallLeft, px(16));
   ctx.globalAlpha = 0.13;
   ctx.drawImage(tintMask(noiseMask(width, height, g.seed + 64, 10 * g.s, 0, 2), C.ombre), 0, 0);
   ctx.globalAlpha = 1;
-  ctx.restore();
-  tintedOutline(ctx, wall, stone, Math.max(0.8, px(1.4)));
-  rimLight(ctx, wall, Math.max(1.2, px(2)));
-  sunEdge(ctx, wall, Math.max(1, px(1.6)), 0.3);
-  ctx.restore();
 
-  /* Archères. */
+  /* Archères, peintes dans le mur : elles y creusent, elles ne s'y posent pas. */
   for (let i = 0; i < 7; i++) {
     const ax = wallLeft + px(28) + i * px(52);
-    ctx.fillStyle = rgba(C.ombrePortee, 0.68);
+    grimeStreak(ctx, ax - px(2), wallTop + px(40), px(8), px(34), g.seed + i * 31);
+    ctx.fillStyle = rgba(C.ombrePortee, 0.72);
     ctx.fillRect(ax, wallTop + px(24), px(3.4), px(16));
-    ctx.fillStyle = rgba(C.lumiere, 0.12);
+    ctx.fillStyle = rgba(C.lumiere, 0.14);
     ctx.fillRect(ax - px(1.4), wallTop + px(24), px(1.2), px(16));
+    ctx.fillStyle = rgba(C.ombrePortee, 0.3);
+    ctx.fillRect(ax + px(3.4), wallTop + px(24), px(1.2), px(16));
   }
+  ctx.restore();
+  tintedOutline(ctx, wall, stone, Math.max(0.8, px(1.2)));
+  rimLight(ctx, wall, rimWidth(scale * 1.6), SUN.rimOpacity, wallBox);
+  sunEdge(ctx, wall, rimWidth(scale * 1.4), 0.32, wallBox);
+  ctx.restore();
 
   /* — La porte : une courtine sans entrée n'est qu'un mur — */
   const gateX = cx - px(46);
@@ -894,14 +1528,43 @@ function paintTown(
   ctx.fillStyle = ao;
   ctx.fillRect(wallLeft - px(30), wallBottom - px(22), wallRight - wallLeft + px(60), px(36));
 
-  /** Toit conique ou en bâtière, ardoise bleutée, lumière au nord-ouest. */
-  const roof = (path: Path2D, base: string): void => {
+  /**
+   * Toit conique ou en bâtière : **ardoise du Forez**, posée en rangs à
+   * recouvrement. Un triangle d'un seul dégradé serait un aplat de plus ; ce
+   * sont les rangs et leur ombre portée qui font la couverture.
+   */
+  const roof = (path: Path2D, base: string, box: { x: number; y: number; w: number; h: number }): void => {
     ctx.save();
-    ctx.fillStyle = bodyGradient(ctx, 0, 0, width * 0.3, height * 0.3, base, 0.36, 0.5);
+    ctx.fillStyle = bodyGradient(ctx, box.x, box.y, box.x + box.w, box.y + box.h, base, 0.18, 0.5);
     ctx.fill(path);
-    tintedOutline(ctx, path, base, Math.max(0.8, px(1.3)));
-    rimLight(ctx, path, Math.max(1.2, px(2.1)));
-    sunEdge(ctx, path, Math.max(1, px(1.6)), 0.36);
+    ctx.save();
+    ctx.clip(path);
+    const rang = Math.max(1.6, px(5));
+    const rand2 = mulberry32(g.seed + Math.round(box.x * 7 + box.y * 3));
+    for (let y = box.y; y < box.y + box.h + rang; y += rang) {
+      ctx.fillStyle = rgba(contourOf(base), 0.34);
+      ctx.fillRect(box.x - px(4), y, box.w + px(8), Math.max(0.5, rang * 0.24));
+      ctx.fillStyle = rgba(C.lumiere, 0.1);
+      ctx.fillRect(box.x - px(4), y + rang * 0.24, box.w + px(8), Math.max(0.4, rang * 0.16));
+      /* Un joint vertical sur deux rangs : les ardoises sont décalées. */
+      if (rang > 3) {
+        for (let x = box.x + rand2() * rang * 2; x < box.x + box.w; x += rang * (1.4 + rand2() * 0.8)) {
+          ctx.fillStyle = rgba(contourOf(base), 0.2);
+          ctx.fillRect(x, y, Math.max(0.4, rang * 0.14), rang);
+        }
+      }
+    }
+    /* Lumière rasante sur le versant nord-ouest, ombre franche sur l'autre. */
+    const vers = ctx.createLinearGradient(box.x, box.y, box.x + box.w, box.y + box.h * 0.6);
+    vers.addColorStop(0, rgba(C.lumiere, 0.2));
+    vers.addColorStop(0.36, rgba(C.lumiere, 0));
+    vers.addColorStop(1, rgba(C.ombrePortee, 0.52));
+    ctx.fillStyle = vers;
+    ctx.fillRect(box.x - px(6), box.y - px(6), box.w + px(12), box.h + px(12));
+    ctx.restore();
+    tintedOutline(ctx, path, base, Math.max(0.7, px(1.1)));
+    rimLight(ctx, path, rimWidth(scale * 1.5), SUN.rimOpacity, box);
+    sunEdge(ctx, path, rimWidth(scale * 1.3), 0.38, box);
     ctx.restore();
   };
   const slate = mix(C.granitClair, C.bleuProfond, 0.4);
@@ -914,31 +1577,33 @@ function paintTown(
     body.lineTo(tx + w / 2 + w * 0.05, ty - h);
     body.lineTo(tx + w / 2, ty);
     body.closePath();
+    const tbox = { x: tx - w / 2, y: ty - h, w, h };
     ctx.save();
     ctx.fillStyle = bodyGradient(ctx, tx - w / 2, ty - h, tx + w / 2, ty, stone, 0.36, 0.5);
     ctx.fill(body);
     ctx.save();
     ctx.clip(body);
-    for (let row = 0; row * px(12) < h + px(12); row++) {
-      const y = ty - h + row * px(12);
-      ctx.beginPath();
-      ctx.moveTo(tx - w, y);
-      ctx.lineTo(tx + w, y);
-      ctx.strokeStyle = rgba(contourOf(stone), 0.26);
-      ctx.lineWidth = Math.max(0.6, px(0.9));
-      ctx.stroke();
-    }
+    ashlar(ctx, tx - w, ty - h - px(4), tx + w, ty + px(4), stone, scale, g.seed + Math.round(tx), {
+      course: 11,
+      stoneLen: 17,
+      moss: 0.5,
+    });
     /* Cylindre : le modelé va du clair au sombre en travers. */
     const cyl = ctx.createLinearGradient(tx - w / 2, 0, tx + w / 2, 0);
-    cyl.addColorStop(0, rgba(C.lumiere, 0.2));
-    cyl.addColorStop(0.32, rgba(C.lumiere, 0.04));
-    cyl.addColorStop(0.72, rgba(C.ombre, 0.22));
-    cyl.addColorStop(1, rgba(C.ombre, 0.44));
+    cyl.addColorStop(0, rgba(C.lumiere, 0.24));
+    cyl.addColorStop(0.32, rgba(C.lumiere, 0.05));
+    cyl.addColorStop(0.72, rgba(C.ombre, 0.26));
+    cyl.addColorStop(1, rgba(C.ombre, 0.5));
     ctx.fillStyle = cyl;
     ctx.fillRect(tx - w, ty - h - px(4), w * 2, h + px(8));
+    /* Bandeau de larmier au tiers de la tour : elle a été surélevée un jour. */
+    ctx.fillStyle = rgba(tint(stone, 0.16), 0.7);
+    ctx.fillRect(tx - w, ty - h * 0.42, w * 2, Math.max(1, px(3)));
+    ctx.fillStyle = rgba(contourOf(stone), 0.5);
+    ctx.fillRect(tx - w, ty - h * 0.42 + Math.max(1, px(3)), w * 2, Math.max(0.8, px(1.6)));
     ctx.restore();
-    tintedOutline(ctx, body, stone, Math.max(0.8, px(1.3)));
-    rimLight(ctx, body, Math.max(1.2, px(2)));
+    tintedOutline(ctx, body, stone, Math.max(0.7, px(1.1)));
+    rimLight(ctx, body, rimWidth(scale * 1.5), SUN.rimOpacity, tbox);
     ctx.restore();
 
     const cone = new Path2D();
@@ -948,7 +1613,7 @@ function paintTown(
     cone.lineTo(tx - w * 0.5, ty - h + px(6));
     cone.lineTo(tx - w * 0.72, ty - h + px(3));
     cone.closePath();
-    roof(cone, slate);
+    roof(cone, slate, { x: tx - w * 0.72, y: ty - h - w * 1.05, w: w * 1.44, h: w * 1.05 + px(6) });
 
     meta.towers.push({ x: tx, y: ty - h });
     if (banner) {
@@ -973,30 +1638,39 @@ function paintTown(
   keep.lineTo(keepX + keepW / 2 + px(3), keepY - keepH);
   keep.lineTo(keepX + keepW / 2, keepY);
   keep.closePath();
+  const keepBox = { x: keepX - keepW / 2, y: keepY - keepH, w: keepW, h: keepH };
   ctx.save();
   ctx.fillStyle = bodyGradient(ctx, keepX - keepW, keepY - keepH, keepX + keepW, keepY, stone, 0.34, 0.5);
   ctx.fill(keep);
   ctx.save();
   ctx.clip(keep);
-  for (let row = 0; row * px(14) < keepH + px(14); row++) {
-    const y = keepY - keepH + row * px(14);
-    ctx.beginPath();
-    ctx.moveTo(keepX - keepW, y);
-    ctx.lineTo(keepX + keepW, y);
-    ctx.strokeStyle = rgba(contourOf(stone), 0.28);
-    ctx.lineWidth = Math.max(0.6, px(1));
-    ctx.stroke();
+  ashlar(ctx, keepX - keepW, keepY - keepH - px(4), keepX + keepW, keepY + px(4), stone, scale, g.seed + 407, {
+    course: 14,
+    stoneLen: 28,
+    moss: 0.32,
+  });
+  /* Chaînage d'angle : de grands blocs longs, plus clairs, montent aux arêtes. */
+  for (const cote of [-1, 1] as const) {
+    for (let i = 0; i * px(28) < keepH; i++) {
+      const y = keepY - px(6) - i * px(28);
+      const bw = i % 2 === 0 ? px(20) : px(13);
+      const bx = cote < 0 ? keepX - keepW / 2 : keepX + keepW / 2 - bw;
+      ctx.fillStyle = rgba(tint(stone, 0.2), 0.6);
+      ctx.fillRect(bx, y - px(26), bw, px(25));
+      ctx.fillStyle = rgba(contourOf(stone), 0.4);
+      ctx.fillRect(bx, y - px(2), bw, Math.max(0.7, px(1.4)));
+    }
   }
   const keepShade = ctx.createLinearGradient(keepX - keepW / 2, 0, keepX + keepW / 2, 0);
-  keepShade.addColorStop(0, rgba(C.lumiere, 0.22));
-  keepShade.addColorStop(0.5, rgba(C.lumiere, 0));
-  keepShade.addColorStop(1, rgba(C.ombre, 0.4));
+  keepShade.addColorStop(0, rgba(C.lumiere, 0.26));
+  keepShade.addColorStop(0.42, rgba(C.lumiere, 0.02));
+  keepShade.addColorStop(1, rgba(C.ombre, 0.46));
   ctx.fillStyle = keepShade;
   ctx.fillRect(keepX - keepW, keepY - keepH - px(6), keepW * 2, keepH + px(12));
   ctx.restore();
-  tintedOutline(ctx, keep, stone, Math.max(0.9, px(1.6)));
-  rimLight(ctx, keep, Math.max(1.4, px(2.4)));
-  sunEdge(ctx, keep, Math.max(1, px(1.8)), 0.32);
+  tintedOutline(ctx, keep, stone, Math.max(0.8, px(1.3)));
+  rimLight(ctx, keep, rimWidth(scale * 1.7), SUN.rimOpacity, keepBox);
+  sunEdge(ctx, keep, rimWidth(scale * 1.5), 0.34, keepBox);
   ctx.restore();
 
   const keepRoof = new Path2D();
@@ -1004,7 +1678,12 @@ function paintTown(
   keepRoof.lineTo(keepX, keepY - keepH - px(56));
   keepRoof.lineTo(keepX + keepW / 2 + px(12), keepY - keepH);
   keepRoof.closePath();
-  roof(keepRoof, slate);
+  roof(keepRoof, slate, {
+    x: keepX - keepW / 2 - px(12),
+    y: keepY - keepH - px(56),
+    w: keepW + px(24),
+    h: px(56),
+  });
   meta.chimneys.push({ x: keepX + px(26), y: keepY - keepH - px(10), scale: 1.15, seed: 3 });
 
   /* — Les tours — */
@@ -1021,18 +1700,37 @@ function paintTown(
   chapel.lineTo(chapX + px(34), chapY - px(52));
   chapel.lineTo(chapX + px(34), chapY);
   chapel.closePath();
+  const chapBox = { x: chapX - px(34), y: chapY - px(52), w: px(68), h: px(52) };
+  const chapStone = mix(stone, C.parchemin, 0.2);
   ctx.save();
-  ctx.fillStyle = bodyGradient(ctx, chapX - px(34), chapY - px(52), chapX + px(34), chapY, mix(stone, C.parchemin, 0.2), 0.32, 0.44);
+  ctx.fillStyle = bodyGradient(ctx, chapX - px(34), chapY - px(52), chapX + px(34), chapY, chapStone, 0.32, 0.44);
   ctx.fill(chapel);
-  tintedOutline(ctx, chapel, stone, Math.max(0.7, px(1.1)));
-  rimLight(ctx, chapel, Math.max(1, px(1.8)));
+  ctx.save();
+  ctx.clip(chapel);
+  ashlar(ctx, chapX - px(36), chapY - px(54), chapX + px(36), chapY + px(2), chapStone, scale, g.seed + 519, {
+    course: 9,
+    stoneLen: 15,
+    moss: 0.6,
+  });
+  /* Baie en plein cintre, encadrée de claveaux clairs. */
+  ctx.fillStyle = rgba(shade(C.bleuProfond, 0.34), 0.8);
+  ctx.beginPath();
+  ctx.ellipse(chapX, chapY - px(30), px(7), px(11), 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = rgba(tint(chapStone, 0.3), 0.7);
+  ctx.lineWidth = Math.max(0.7, px(2));
+  ctx.stroke();
+  grimeStreak(ctx, chapX - px(7), chapY - px(19), px(14), px(20), g.seed + 77);
+  ctx.restore();
+  tintedOutline(ctx, chapel, stone, Math.max(0.6, px(0.9)));
+  rimLight(ctx, chapel, rimWidth(scale * 1.3), SUN.rimOpacity, chapBox);
   ctx.restore();
   const spire = new Path2D();
   spire.moveTo(chapX - px(40), chapY - px(52));
   spire.lineTo(chapX, chapY - px(118));
   spire.lineTo(chapX + px(40), chapY - px(52));
   spire.closePath();
-  roof(spire, mix(slate, C.mousseSombre, 0.22));
+  roof(spire, mix(slate, C.mousseSombre, 0.22), { x: chapX - px(40), y: chapY - px(118), w: px(80), h: px(66) });
   /* Croix de faîte, dessinée, jamais un caractère. */
   ctx.strokeStyle = rgba(C.vieilOr, 0.62);
   ctx.lineWidth = Math.max(0.8, px(1.8));
@@ -1053,27 +1751,61 @@ function paintTown(
     const wallColor = shade(houseTints[Math.floor(rand() * houseTints.length)], rand() * 0.28);
     const house = new Path2D();
     house.rect(hx - hw / 2, hy - hh, hw, hh);
+    const houseBox = { x: hx - hw / 2, y: hy - hh, w: hw, h: hh };
     ctx.save();
     ctx.fillStyle = bodyGradient(ctx, hx - hw / 2, hy - hh, hx + hw / 2, hy, wallColor, 0.2 + rand() * 0.24, 0.44 + rand() * 0.2);
     ctx.fill(house);
-    /* Ombre de l'avant-toit : c'est elle qui fait tenir le toit sur le mur. */
     ctx.save();
     ctx.clip(house);
+    /* Torchis sur solin de pierre : le bas du mur est appareillé, le haut est
+       enduit et lavé de pluie. Deux matières, jamais une seule. */
+    ashlar(ctx, hx - hw / 2, hy - hh * 0.36, hx + hw / 2, hy + px(2), mix(wallColor, C.granitAnthracite, 0.5), scale, g.seed + i * 61, {
+      course: 7,
+      stoneLen: 11,
+      moss: 0.8,
+    });
+    ctx.globalAlpha = 0.22;
+    ctx.drawImage(
+      tintMask(noiseMask(Math.ceil(hw) + 2, Math.ceil(hh) + 2, g.seed + i * 13, px(9), 0.06, 2.4), C.ombrePortee),
+      hx - hw / 2,
+      hy - hh,
+    );
+    ctx.globalAlpha = 1;
+    /* Colombage : deux poteaux et une écharpe, à peine marqués. */
+    if (rand() > 0.45) {
+      ctx.strokeStyle = rgba(shade(C.brunFougere, 0.3), 0.5);
+      ctx.lineWidth = Math.max(0.7, px(2.2));
+      ctx.beginPath();
+      ctx.moveTo(hx - hw * 0.26, hy - hh + px(3));
+      ctx.lineTo(hx - hw * 0.26, hy - hh * 0.36);
+      ctx.moveTo(hx + hw * 0.26, hy - hh + px(3));
+      ctx.lineTo(hx + hw * 0.26, hy - hh * 0.36);
+      ctx.moveTo(hx - hw * 0.26, hy - hh * 0.36);
+      ctx.lineTo(hx + hw * 0.26, hy - hh + px(3));
+      ctx.stroke();
+    }
+    /* Ombre de l'avant-toit : c'est elle qui fait tenir le toit sur le mur. */
     const avant = ctx.createLinearGradient(0, hy - hh, 0, hy - hh + px(14));
-    avant.addColorStop(0, rgba(C.ombrePortee, 0.52));
+    avant.addColorStop(0, rgba(C.ombrePortee, 0.56));
     avant.addColorStop(1, rgba(C.ombrePortee, 0));
     ctx.fillStyle = avant;
     ctx.fillRect(hx - hw, hy - hh, hw * 2, px(14));
     ctx.restore();
-    tintedOutline(ctx, house, wallColor, Math.max(0.6, px(1)));
-    rimLight(ctx, house, Math.max(0.9, px(1.5)));
+    tintedOutline(ctx, house, wallColor, Math.max(0.5, px(0.8)));
+    rimLight(ctx, house, rimWidth(scale * 1.2), SUN.rimOpacity, houseBox);
     ctx.restore();
+    const faitage = px(19) + rand() * px(8);
     const hroof = new Path2D();
     hroof.moveTo(hx - hw / 2 - px(5), hy - hh);
-    hroof.lineTo(hx, hy - hh - px(19) - rand() * px(8));
+    hroof.lineTo(hx, hy - hh - faitage);
     hroof.lineTo(hx + hw / 2 + px(5), hy - hh);
     hroof.closePath();
-    roof(hroof, mix(slate, C.brunFougere, rand() * 0.3));
+    roof(hroof, mix(slate, C.brunFougere, rand() * 0.3), {
+      x: hx - hw / 2 - px(5),
+      y: hy - hh - faitage,
+      w: hw + px(10),
+      h: faitage,
+    });
     if (rand() > 0.45) {
       meta.chimneys.push({ x: hx + hw * 0.28, y: hy - hh - px(12), scale: 0.55 + rand() * 0.4, seed: i });
     }
@@ -1109,17 +1841,26 @@ function paintTown(
     ctx.drawImage(sprite, tx - sprite.width / 2, ty - sprite.height, sprite.width, sprite.height);
   }
 
-  /* — Brume qui monte du pied de l'éperon : ancre le bourg dans la vallée — */
-  const foot = ctx.createLinearGradient(0, plateauY + px(60), 0, height);
-  foot.addColorStop(0, rgba(C.bleuBrume, 0));
-  foot.addColorStop(0.55, rgba(C.bleuBrume, 0.2));
-  foot.addColorStop(1, rgba(C.bleuBrume, 0.34));
-  ctx.fillStyle = foot;
-  ctx.fillRect(0, plateauY + px(60), width, height - plateauY - px(60));
+  /*
+   * Brume qui monte du pied de l'éperon. Elle **s'arrête** : étalée jusqu'au
+   * bas du plan, elle recouvrait tout le tiers inférieur du tableau d'une
+   * nappe grise uniforme — un aplat, et le pire des aplats puisqu'il tuait la
+   * séparation entre la vallée et le premier plan.
+   */
+  const brumeHaut = plateauY + px(90);
+  const brumeBas = Math.min(height, plateauY + px(340));
+  if (brumeBas > brumeHaut) {
+    const foot = ctx.createLinearGradient(0, brumeHaut, 0, brumeBas);
+    foot.addColorStop(0, rgba(C.bleuBrume, 0));
+    foot.addColorStop(0.5, rgba(C.bleuBrume, 0.13));
+    foot.addColorStop(1, rgba(C.bleuBrume, 0.2));
+    ctx.fillStyle = foot;
+    ctx.fillRect(0, brumeHaut, width, brumeBas - brumeHaut);
+  }
 
   /* Perspective atmosphérique du plan : le bourg est proche, la dose est faible. */
   ctx.save();
-  ctx.globalAlpha = 0.07;
+  ctx.globalAlpha = 0.045;
   ctx.globalCompositeOperation = 'source-atop';
   ctx.fillStyle = C.bleuBrume;
   ctx.fillRect(0, 0, width, height);
@@ -1443,30 +2184,61 @@ export function mountLandingScene(
     canvas.width = w;
     canvas.height = h;
 
-    /* Composition : horizon au tiers bas en paysage, plus haut en portrait. */
+    /*
+     * ## Composition
+     *
+     * Le portrait n'est **pas** le paysage recadré. En paysage le titre et le
+     * menu occupent la colonne de gauche et le bourg respire à droite ; en
+     * portrait ils occupent le haut et le bas, et le tableau doit se replier
+     * dans la bande intermédiaire.
+     *
+     * D'où deux jeux de repères, et non un seul multiplié par un facteur :
+     *
+     * | | paysage | portrait |
+     * |---|---|---|
+     * | horizon | 0,60 h | 0,455 h |
+     * | plateau du bourg | 0,72 h | 0,555 h |
+     * | axe du bourg | 0,62 w | 0,50 w |
+     * | soleil | 0,21 w | 0,24 w |
+     *
+     * En portrait, le bourg est **centré** : décentré, il tomberait sous une
+     * colonne de boutons qui, elle, tient toute la largeur.
+     */
     const portrait = cssH > cssW;
-    const horizon = h * (portrait ? 0.5 : 0.6);
+    const horizon = h * (portrait ? 0.455 : 0.6);
     geo = {
       w,
       h,
       horizon,
-      sunX: w * (portrait ? 0.26 : 0.21),
-      sunY: horizon - h * 0.075,
+      sunX: w * (portrait ? 0.24 : 0.21),
+      sunY: horizon - h * (portrait ? 0.055 : 0.075),
       m: Math.round(Math.max(26, w * 0.03)),
       s: Math.max(0.55, Math.min(2, h / 900)),
-      c: Math.max(0.3, Math.min(1.6, Math.min(h / 900, w / 1150))),
+      /* L'échelle de composition se cale sur la dimension **contraignante** :
+         la hauteur en paysage, la largeur en portrait. */
+      c: portrait
+        ? Math.max(0.3, Math.min(1.6, Math.min(h / 1500, w / 820)))
+        : Math.max(0.3, Math.min(1.6, Math.min(h / 900, w / 1150))),
       seed,
     };
     const m = geo.m;
+    /* Plateau du bourg et axe du bourg, en pixels de rendu absolus. */
+    const plateauAbs = h * (portrait ? 0.555 : 0.72);
+    const townCx = w * (portrait ? 0.5 : 0.62);
 
     /* Plan 1 — le ciel et ses nuages. */
     const sky: Layer = { canvas: paintSky(geo), x: 0, y: 0, depth: 0 };
-    const cirrusH = Math.ceil(horizon * 0.62);
+    /*
+     * Les deux plans de nuages couvrent tout le ciel et s'effacent avant leur
+     * bord inférieur : une bande courte, comme il y en avait une, laissait une
+     * arête horizontale nette au tiers du ciel.
+     */
+    const cirrusH = Math.ceil(horizon * 1.15);
     const cirrus: Layer = {
       canvas: paintClouds(geo, w + m * 2, cirrusH, {
-        count: Math.round(p.clouds * 0.55),
-        yMin: cirrusH * 0.16,
-        yMax: cirrusH * 0.9,
+        count: Math.max(3, Math.round(p.clouds * 0.4)),
+        yMin: cirrusH * 0.08,
+        yMax: cirrusH * 0.42,
         bias: 1.7,
         rMin: 34,
         rMax: 96,
@@ -1474,6 +2246,7 @@ export function mountLandingScene(
         distance: 1250,
         erosion: 0.92,
         seed: seed + 301,
+        kind: 'cirrus',
       }),
       x: -m,
       y: 0,
@@ -1481,19 +2254,22 @@ export function mountLandingScene(
       drift: 1.6,
       alpha: 0.72,
     };
-    const cumulusH = Math.ceil(horizon * 1.0);
+    const cumulusH = Math.ceil(horizon * 1.15);
     const cumulus: Layer = {
       canvas: paintClouds(geo, w + m * 2, cumulusH, {
-        count: p.clouds,
-        yMin: cumulusH * 0.3,
-        yMax: cumulusH * 0.96,
+        /* Un ciel de crépuscule respire : la moitié de la voûte reste nue,
+           sans quoi le couvert mange la lumière rasante qui fait le tableau. */
+        count: Math.max(4, Math.round(p.clouds * 0.5)),
+        yMin: cumulusH * 0.2,
+        yMax: cumulusH * 0.56,
         bias: 0.62,
-        rMin: 42,
-        rMax: 132,
+        rMin: 38,
+        rMax: 104,
         flatten: 0.5,
         distance: 880,
         erosion: 0.86,
         seed: seed + 302,
+        kind: 'cumulus',
       }),
       x: -m,
       y: 0,
@@ -1502,8 +2278,56 @@ export function mountLandingScene(
       alpha: 0.92,
     };
 
+    /*
+     * ## Plans 2 et 3 — crêtes et sapinières
+     *
+     * **La couture horizontale.** Chaque plan est peint dans un tampon puis
+     * collé à une hauteur donnée. Tant que ces tampons commençaient à une
+     * fraction *fixe* de l'écran, il suffisait qu'un sommet passe au-dessus du
+     * bord pour que le remplissage opaque démarre sur ce bord : l'écran était
+     * barré d'un trait net, sur toute sa largeur, à la hauteur exacte du bord
+     * de la bande — spectaculaire en portrait, où les crêtes montent haut et
+     * tranchent sur la futaie sombre du plan suivant.
+     *
+     * La hauteur de chaque bande est donc calculée **sur le relief réel** :
+     * `ridgeCeiling` donne le sommet du profil, on remonte encore d'une marge
+     * (et, pour la sapinière, de la hauteur du plus grand sapin, qui déborde
+     * de sa crête). Un plan ne peut plus se faire couper.
+     */
+    const specs: RidgeSpec[] = portrait
+      ? [
+          { base: 0.80, amp: 0.115, freq: 2.1, color: mix(C.bleuProfond, C.bleuBrume, 0.42), distance: 620, haze: 0.2, seed: seed + 5 },
+          { base: 0.90, amp: 0.135, freq: 2.7, color: mix(C.bleuProfond, C.granitAnthracite, 0.4), distance: 380, haze: 0.14, seed: seed + 6, treeline: 0.5, wood: mix(C.vertSapin, C.bleuProfond, 0.46) },
+          { base: 1.0, amp: 0.155, freq: 1.6, color: mix(C.vertSapin, C.bleuProfond, 0.34), distance: 210, haze: 0.08, seed: seed + 7, treeline: 0.34, wood: mix(C.vertSapin, C.mousseSombre, 0.26) },
+        ]
+      : [
+          { base: 0.78, amp: 0.16, freq: 2.3, color: mix(C.bleuProfond, C.bleuBrume, 0.42), distance: 620, haze: 0.22, seed: seed + 5 },
+          { base: 0.87, amp: 0.21, freq: 3.1, color: mix(C.bleuProfond, C.granitAnthracite, 0.4), distance: 380, haze: 0.15, seed: seed + 6, treeline: 0.52, wood: mix(C.vertSapin, C.bleuProfond, 0.46) },
+          { base: 0.97, amp: 0.25, freq: 1.7, color: mix(C.vertSapin, C.bleuProfond, 0.34), distance: 210, haze: 0.09, seed: seed + 7, treeline: 0.36, wood: mix(C.vertSapin, C.mousseSombre, 0.26) },
+        ];
+    const midSpec: RidgeSpec = {
+      base: portrait ? 1.12 : 1.03,
+      amp: portrait ? 0.13 : 0.2,
+      freq: 1.25,
+      color: mix(C.vertSapin, C.granitAnthracite, 0.2),
+      distance: 220,
+      haze: 0.1,
+      seed: seed + 8,
+      /* Masse boisée sous la crête : les sapins dessinés se posent dessus au
+         lieu de se découper sur une pente nue, qui les faisait flotter. */
+      treeline: 0.22,
+      wood: mix(C.vertSapin, C.encre, 0.24),
+    };
+
+    /* Hauteur du plus grand sapin : la sapinière déborde de sa propre crête. */
+    const firBase = h * (portrait ? 0.052 : 0.062);
+    const marge = Math.round(h * 0.03);
+
     /* Plan 2 — les crêtes lointaines. */
-    const farTop = Math.round(horizon - h * 0.3);
+    const farTop = Math.max(
+      0,
+      Math.round(Math.min(...specs.map((s) => ridgeCeiling(s, geo, -m, w + m))) - marge),
+    );
     const farLayer = surface(w + m * 2, h - farTop + m);
     const farCtx = context2d(farLayer);
     /*
@@ -1511,27 +2335,16 @@ export function mountLandingScene(
      * saturation monte à chaque plan : c'est cet écart, plus que la brume,
      * qui donne la profondeur. Trop de brume aplatit tout en bleu pâle.
      */
-    const specs: RidgeSpec[] = [
-      { base: 0.78, amp: 0.16, freq: 2.3, color: mix(C.bleuProfond, C.bleuBrume, 0.5), distance: 1400, haze: 0.42, seed: seed + 5 },
-      { base: 0.87, amp: 0.21, freq: 3.1, color: mix(C.bleuProfond, C.granitAnthracite, 0.42), distance: 980, haze: 0.3, seed: seed + 6 },
-      { base: 0.97, amp: 0.25, freq: 1.7, color: mix(C.vertSapin, C.bleuProfond, 0.44), distance: 620, haze: 0.2, seed: seed + 7 },
-    ];
     for (const spec of specs) paintRidge(farCtx, spec, geo, -m, farTop, w + m * 2, h - farTop + m);
     const far: Layer = { canvas: farLayer, x: -m, y: farTop, depth: 6 };
 
     /* Plan 3 — les sapinières moyennes. */
-    const midTop = Math.round(horizon - h * 0.12);
+    const midTop = Math.max(
+      0,
+      Math.round(ridgeCeiling(midSpec, geo, -m, w + m) - firBase * 1.5 - marge),
+    );
     const midLayer = surface(w + m * 2, h - midTop + m);
     const midCtx = context2d(midLayer);
-    const midSpec: RidgeSpec = {
-      base: 1.03,
-      amp: 0.2,
-      freq: 1.25,
-      color: mix(C.vertSapin, C.granitAnthracite, 0.2),
-      distance: 300,
-      haze: 0.12,
-      seed: seed + 8,
-    };
     const midLine = paintRidge(midCtx, midSpec, geo, -m, midTop, w + m * 2, h - midTop + m);
 
     /*
@@ -1561,39 +2374,55 @@ export function mountLandingScene(
     );
     midCtx.restore();
 
+    /*
+     * ## La sapinière
+     *
+     * Quatre rangs, du plus lointain au plus proche. Chaque rang a ses propres
+     * silhouettes, pré-rendues **à leur taille d'affichage** et à leur
+     * distance : la désaturation est cuite dans le lutin, jamais posée en
+     * voile uniforme par-dessus, qui effacerait tout le modelé.
+     *
+     * Trois précautions contre le motif répété, qui était très lisible :
+     *
+     *  - **quatorze** silhouettes par rang au lieu de cinq, toutes tirées de
+     *    graines différentes (élancement, inclinaison, étages, valeur) ;
+     *  - la **densité suit un bruit** : les sapins se groupent en bosquets et
+     *    laissent des clairières, au lieu de border la crête comme un peigne ;
+     *  - chaque rang se termine par un **voile de lisière** flouté qui noie sa
+     *    base dans le rang suivant : aucune ligne d'arbres ne s'arrête net.
+     */
     const firRand = mulberry32(seed + 909);
     const count = p.firs;
-    /*
-     * Quatre rangées de sapinière, de la plus lointaine à la plus proche.
-     * Chaque rangée a ses propres silhouettes pré-rendues, à sa distance :
-     * la désaturation est ainsi cuite dans le sprite, et non posée en voile
-     * uniforme par-dessus — un voile plat effacerait tout le modelé.
-     */
-    const rows: { yOff: number; scale: number; dist: number }[] = [
-      { yOff: -h * 0.012, scale: 0.34, dist: 680 },
-      { yOff: h * 0.032, scale: 0.52, dist: 470 },
-      { yOff: h * 0.086, scale: 0.78, dist: 290 },
-      { yOff: h * 0.16, scale: 1.14, dist: 130 },
+    const rows: { yOff: number; hauteur: number; dist: number; densite: number }[] = [
+      { yOff: -h * 0.004, hauteur: firBase * 0.4, dist: 720, densite: 1 },
+      { yOff: h * 0.018, hauteur: firBase * 0.58, dist: 520, densite: 0.92 },
+      { yOff: h * 0.05, hauteur: firBase * 0.82, dist: 320, densite: 0.8 },
+      { yOff: h * 0.098, hauteur: firBase * 1.2, dist: 150, densite: 0.66 },
     ];
+    const nDensite = makeNoise1D(seed + 4711);
     for (let r = 0; r < rows.length; r++) {
       const row = rows[r];
       const sprites: HTMLCanvasElement[] = [];
-      for (let i = 0; i < 5; i++) sprites.push(firSprite(120 * geo.s, seed + 200 + r * 11 + i, row.dist));
-      const n = Math.max(4, Math.round((count / rows.length) * (1 - r * 0.1)));
-      /* Distribution en grille secouée : ni peigne régulier, ni tas. */
+      for (let i = 0; i < 14; i++) {
+        sprites.push(firSprite(row.hauteur * (0.62 + (i / 13) * 0.86), seed + 2000 + r * 137 + i * 7, row.dist));
+      }
+      const n = Math.max(6, Math.round((count / rows.length) * row.densite));
       for (let i = 0; i < n; i++) {
-        const x = ((i + 0.5 + (firRand() - 0.5) * 1.5) / n) * (w + m * 2);
+        const x = ((i + 0.5 + (firRand() - 0.5) * 1.7) / n) * (w + m * 2);
+        /* Bosquets et clairières : sous le seuil, l'arbre n'est pas planté. */
+        const dens = fbm1(nDensite, x / (w * 0.11) + r * 31, 3) * 0.5 + 0.5;
+        if (dens < 0.3 && firRand() > 0.3) continue;
         const sprite = sprites[Math.floor(firRand() * sprites.length)];
-        const sc = row.scale * (0.6 + firRand() * firRand() * 1.1) * geo.s * 0.72;
+        const sc = 0.82 + firRand() * 0.42;
         const sw = sprite.width * sc;
         const sh = sprite.height * sc;
-        const y = midLine(x) + row.yOff + firRand() * h * 0.028;
+        const y = midLine(x) + row.yOff + firRand() * h * 0.016;
         midCtx.save();
         /* Ombre portée au sol, vers le sud-est, bleutée. */
-        midCtx.globalAlpha = 0.2;
+        midCtx.globalAlpha = 0.22;
         midCtx.fillStyle = C.ombrePortee;
         midCtx.beginPath();
-        midCtx.ellipse(x + sh * 0.16, y, sw * 0.42, sh * 0.045, 0, 0, Math.PI * 2);
+        midCtx.ellipse(x + sh * 0.14, y, sw * 0.44, sh * 0.05, 0, 0, Math.PI * 2);
         midCtx.fill();
         midCtx.globalAlpha = 1;
         if (firRand() > 0.5) {
@@ -1605,23 +2434,89 @@ export function mountLandingScene(
         }
         midCtx.restore();
       }
+      /* Lisière : la base du rang se dissout dans l'air du rang suivant. */
+      if (r < rows.length - 1) {
+        const y0 = midLine(w * 0.5) + row.yOff - row.hauteur * 0.2;
+        const y1 = midLine(w * 0.5) + row.yOff + row.hauteur * 0.55;
+        const lg = midCtx.createLinearGradient(0, y0, 0, y1);
+        lg.addColorStop(0, rgba(mix(C.bleuBrume, C.ocre, 0.24), 0));
+        lg.addColorStop(1, rgba(mix(C.bleuBrume, C.ocre, 0.24), 0.075 - r * 0.018));
+        midCtx.save();
+        midCtx.globalCompositeOperation = 'source-atop';
+        midCtx.fillStyle = lg;
+        midCtx.fillRect(0, y0, midLayer.width, y1 - y0);
+        midCtx.restore();
+      }
+    }
+    /*
+     * Fond de vallée. Sous la dernière rangée, le versant descend vers un
+     * bassin **boisé et à l'ombre** : c'est le point le plus sombre de tout le
+     * lointain, et c'est lui qui fait ressortir la citadelle. Sans lui, le bas
+     * du plan restait une nappe gris-vert uniforme — un aplat qui occupait un
+     * bon tiers du tableau.
+     */
+    const valleeHaut = midLine(w * 0.5) + rows[rows.length - 1].yOff + firBase * 0.5;
+    if (valleeHaut < midLayer.height) {
+      midCtx.save();
+      midCtx.globalCompositeOperation = 'source-atop';
+      const vg = midCtx.createLinearGradient(0, valleeHaut, 0, midLayer.height);
+      vg.addColorStop(0, rgba(mix(C.vertSapin, C.bleuProfond, 0.4), 0));
+      vg.addColorStop(0.45, rgba(mix(C.vertSapin, C.bleuProfond, 0.34), 0.44));
+      vg.addColorStop(1, rgba(mix(mix(C.vertSapin, C.encre, 0.42), C.ombre, 0.16), 0.82));
+      midCtx.fillStyle = vg;
+      midCtx.fillRect(0, valleeHaut, midLayer.width, midLayer.height - valleeHaut);
+      /* Futaie lointaine, en masses : la vallée n'est pas une nappe. */
+      midCtx.globalAlpha = 0.26;
+      midCtx.drawImage(
+        tintMask(
+          noiseMask(midLayer.width, midLayer.height, seed + 84, 26 * geo.s, 0.18, 2.7),
+          mix(C.vertSapin, C.encre, 0.5),
+        ),
+        0,
+        0,
+      );
+      midCtx.globalAlpha = 0.14;
+      midCtx.drawImage(
+        tintMask(
+          noiseMask(midLayer.width, midLayer.height, seed + 85, 84 * geo.s, 0.02, 2),
+          mix(C.bleuBrume, C.ocre, 0.3),
+        ),
+        0,
+        0,
+      );
+      midCtx.restore();
     }
     const mid: Layer = { canvas: midLayer, x: -m, y: midTop, depth: 9 };
 
-    /* Plan 4 — le bourg fortifié. */
-    const townTop = Math.round(horizon - h * 0.2);
+    /*
+     * Plan 4 — le bourg fortifié.
+     *
+     * La bande commence au-dessus du sommet du plus haut mât, jamais à une
+     * fraction fixe : c'est la même règle que pour les crêtes. La hauteur
+     * bâtie au-dessus du plateau vaut à peu près 420 unités de composition
+     * (courtine 86, donjon 18 + 178, toiture 56, mât et bannière 60).
+     */
+    const bati = 430 * geo.c;
+    const townTop = Math.max(0, Math.round(plateauAbs - bati - marge));
     const townCanvas = surface(w + m * 2, h - townTop + m);
     const townCtx = context2d(townCanvas);
-    townMeta = paintTown(townCtx, geo, w + m * 2, h - townTop + m);
+    townMeta = paintTown(
+      townCtx,
+      geo,
+      w + m * 2,
+      h - townTop + m,
+      plateauAbs - townTop,
+      townCx + m,
+    );
     townLayer = { canvas: townCanvas, x: -m, y: townTop, depth: 11.5 };
 
     /* Plan 5 — le premier plan, en deux nappes décalées. */
-    const fgFarTop = Math.round(h - h * 0.34);
+    const fgFarTop = Math.round(h - h * (portrait ? 0.3 : 0.34));
     const fgFarCanvas = surface(w + m * 2, h - fgFarTop + m);
     paintForeground(context2d(fgFarCanvas), geo, w + m * 2, h - fgFarTop + m, false);
     const fgFar: Layer = { canvas: fgFarCanvas, x: -m, y: fgFarTop, depth: 15 };
 
-    const fgNearTop = Math.round(h - h * 0.26);
+    const fgNearTop = Math.round(h - h * (portrait ? 0.22 : 0.26));
     const fgNearCanvas = surface(w + m * 2, h - fgNearTop + m);
     paintForeground(context2d(fgNearCanvas), geo, w + m * 2, h - fgNearTop + m, true);
     const fgNear: Layer = { canvas: fgNearCanvas, x: -m, y: fgNearTop, depth: 21 };

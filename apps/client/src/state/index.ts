@@ -61,6 +61,7 @@ export type { EtatEcriture, Sauvegarde } from './persistence.js';
 export {
   GRAINE_DEMO,
   HEROS_DEMO,
+  combatDemo,
   emplacementsDemo,
   etatDemo,
   partieDemo,

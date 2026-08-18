@@ -151,12 +151,19 @@ export interface Perception {
   enemyTowns: KnownTown[];
   /** héros adverses actuellement visibles */
   enemyHeroes: HeroInstance[];
-  /** cases explorées */
-  explored: number;
+  /**
+   * Cases explorées.
+   *
+   * Calculé à la demande : `perceive()` est rappelé après **chaque** commande
+   * du tour, et compter cent six mille cases dix fois par tour coûtait plus
+   * cher que toutes les décisions réunies. La plupart des appels ne lisent
+   * jamais ce champ.
+   */
+  readonly explored: number;
   /** total de cases de la carte */
   total: number;
-  /** points de lisière du brouillard, échantillonnés, triés */
-  frontier: MapCoord[];
+  /** points de lisière du brouillard, échantillonnés, triés — calculé à la demande */
+  readonly frontier: MapCoord[];
 }
 
 const FRONTIER_STRIDE = 4;
@@ -248,12 +255,6 @@ export function perceive(state: GameState, world: WorldMap, player: PlayerId): P
     places.push({ obj, fresh: isVisibleCell(state, world, player, obj.entrance) });
   }
 
-  let explored = 0;
-  const fog = self.fog;
-  for (let i = 0; i < fog.length; i++) {
-    if (fog[i] !== FOG_UNKNOWN) explored++;
-  }
-
   let capital: TownState | null = null;
   for (const town of towns) {
     if (town.isCapital) {
@@ -262,6 +263,9 @@ export function perceive(state: GameState, world: WorldMap, player: PlayerId): P
     }
   }
   if (!capital && towns.length > 0) capital = towns[0];
+
+  let exploredCache = -1;
+  let frontierCache: MapCoord[] | null = null;
 
   return {
     player,
@@ -274,9 +278,22 @@ export function perceive(state: GameState, world: WorldMap, player: PlayerId): P
     neutralTowns,
     enemyTowns,
     enemyHeroes,
-    explored,
     total,
-    frontier: sampleFrontier(state, world, player),
+    get explored(): number {
+      if (exploredCache < 0) {
+        let count = 0;
+        const fog = self.fog;
+        for (let i = 0; i < fog.length; i++) {
+          if (fog[i] !== FOG_UNKNOWN) count++;
+        }
+        exploredCache = count;
+      }
+      return exploredCache;
+    },
+    get frontier(): MapCoord[] {
+      if (frontierCache === null) frontierCache = sampleFrontier(state, world, player);
+      return frontierCache;
+    },
   };
 }
 
@@ -284,22 +301,34 @@ export function perceive(state: GameState, world: WorldMap, player: PlayerId): P
  * Lisière du brouillard : cases explorées bordant l'inconnu. Échantillonnée
  * avec un pas régulier pour rester bon marché, puis triée pour rester
  * strictement déterministe.
+ *
+ * L'échantillonnage regarde à **une foulée** de distance, pas à une case. La
+ * lisière d'une carte à peine entamée est un anneau d'une case d'épaisseur :
+ * en n'interrogeant que les quatre voisins immédiats d'un maillage au pas de
+ * quatre, on ne tombait presque jamais dessus, et une bannière se retrouvait
+ * avec une seule lisière connue — donc plus rien à explorer, donc un héros
+ * planté devant sa capitale jusqu'au dernier jour.
  */
 function sampleFrontier(state: GameState, world: WorldMap, player: PlayerId): MapCoord[] {
   const p = state.players[player];
   if (!p) return [];
   const fog = p.fog;
   const out: MapCoord[] = [];
+  const reach = FRONTIER_STRIDE;
   for (let row = 1; row < world.rows - 1; row += FRONTIER_STRIDE) {
     for (let col = 1; col < world.cols - 1; col += FRONTIER_STRIDE) {
       const i = row * world.cols + col;
       if (fog[i] === FOG_UNKNOWN) continue;
       if (!isPassable(world, col, row)) continue;
+      const west = Math.max(0, col - reach);
+      const east = Math.min(world.cols - 1, col + reach);
+      const north = Math.max(0, row - reach);
+      const south = Math.min(world.rows - 1, row + reach);
       const unknownNeighbour =
-        fog[i - 1] === FOG_UNKNOWN ||
-        fog[i + 1] === FOG_UNKNOWN ||
-        fog[i - world.cols] === FOG_UNKNOWN ||
-        fog[i + world.cols] === FOG_UNKNOWN;
+        fog[row * world.cols + west] === FOG_UNKNOWN ||
+        fog[row * world.cols + east] === FOG_UNKNOWN ||
+        fog[north * world.cols + col] === FOG_UNKNOWN ||
+        fog[south * world.cols + col] === FOG_UNKNOWN;
       if (!unknownNeighbour) continue;
       out.push({ col, row });
     }

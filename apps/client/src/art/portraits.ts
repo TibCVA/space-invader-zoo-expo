@@ -1,5 +1,35 @@
 /**
- * Portraits des vingt-et-un héros (`portrait_<id>`).
+ * Portraits des vingt-et-un héros (`portrait_<id>`) — VERSION PIXI.
+ *
+ * ┌──────────────────────────────────────────────────────────────────────┐
+ * │  ARBITRAGE DES PORTRAITS EN DOUBLE                                    │
+ * │                                                                       │
+ * │  Deux jeux de portraits coexistent dans le dépôt :                    │
+ * │                                                                       │
+ * │   • `packages/ui/src/portraits/` — SVG React, 280 × 340, modelé       │
+ * │     complet. **C'est lui qui fait autorité** sur l'identité des       │
+ * │     vingt-et-un héros : âge, carrure, teint, chevelure, pilosité,     │
+ * │     couvre-chef, vêtement et couleurs. C'est la version que le joueur │
+ * │     regarde en grand (fiche de héros, royaume, taverne, codex), et    │
+ * │     ses fiches sont écrites d'après les biographies de                │
+ * │     `packages/content/src/heroes.ts`.                                 │
+ * │                                                                       │
+ * │   • ce fichier — textures PixiJS, 168 × 208, empaquetées dans l'atlas │
+ * │     (`icon('portrait_<id>')`). Il sert au canevas : jetons de carte,  │
+ * │     planche de contact, vignettes de combat. **Il suit.**             │
+ * │                                                                       │
+ * │  La table `SPECS` ci-dessous est la transposition fidèle de           │
+ * │  `HERO_PORTRAIT_LIST` (`packages/ui/src/portraits/heroes.tsx`) dans   │
+ * │  le vocabulaire de ce moteur de dessin :                              │
+ * │    age → age ·  build → carrure (0,90…1,18 ramené à 0,56…1,00)        │
+ * │    skin → teint (TEINTS) ·  hair → teinte de chevelure (HAIRS)        │
+ * │    hairStyle → cheveuxLongueur + cheveuxVolume                        │
+ * │    facial → barbe (0 … 0,82) ·  head → coiffe                         │
+ * │    garment → matiere ·  cloth → vetement ·  trim → col                │
+ * │                                                                       │
+ * │  Toute modification d'un portrait commence par le SVG ; ce fichier    │
+ * │  est mis à jour ensuite. Ne jamais diverger en silence.               │
+ * └──────────────────────────────────────────────────────────────────────┘
  *
  * Peinture vectorielle stylisée, cadrage poitrine, lumière latérale douce à
  * 315°, fond évoquant la faction : granit et bannière pour la Châtellenie,
@@ -80,46 +110,51 @@ interface Spec {
   pose: number;
 }
 
-const CHATAIN = 0x53381f;
-const NOISETTE = 0x3f2c1a;
-const BLOND = 0xa8853f;
-const GRIS = 0x8d8578;
-const ROUX = 0x8c4a24;
-const NOIR = 0x2b2119;
+/* Nuancier de chevelure repris de `HAIRS` (packages/ui/src/portraits/kit.tsx),
+   valeur `base` de chaque rampe : le même héros porte la même tête des deux
+   côtés du dépôt. */
+const NOIR = 0x2b2723;
+const CHATAIN = 0x6b4a2c;
+const CHATAIN_CLAIR = 0x8b6236;
+const BLOND_CENDRE = 0xb9ac85;
+const ROUX = 0x9c4e24;
+const GRIS = 0x8e8a83;
+const BLANC = 0xd8d2c4;
+const POIVRE_SEL = 0x6b655c;
 
 const G = FACTION_PALETTE.granit;
 const E = FACTION_PALETTE.ermitage;
 
 /**
- * Fiche visuelle de chaque héros. Elle découle de sa classe, de son titre et
- * de sa biographie dans `packages/content` : le sénéchal des chemins porte le
- * bonnet du maître de poste, la Dame des Brumes le voile, le Poing de Pamole
- * les épaules du carrier.
+ * Fiche visuelle de chaque héros — transposition de `HERO_PORTRAIT_LIST`
+ * (`packages/ui/src/portraits/heroes.tsx`), qui fait autorité : voir
+ * l'arbitrage en tête de fichier. L'ordre suit celui du design system :
+ * Châtellenie, Ermitage, puis Jules le Gardien des Bornes.
  */
 const SPECS: Record<string, Spec> = {
-  paul: { age: 31, carrure: 0.86, teint: TEINTS[1], cheveux: NOISETTE, cheveuxLongueur: 0.5, cheveuxVolume: 0.9, barbe: 0.2, coiffe: 'chapel', vetement: G.primaire, col: ACIER, matiere: 'metal', pose: -4 },
-  thibaut: { age: 44, carrure: 0.62, teint: TEINTS[0], cheveux: CHATAIN, cheveuxLongueur: 0.6, cheveuxVolume: 0.95, barbe: 0.3, coiffe: 'bonnet', vetement: G.sombre, col: G.clair, matiere: 'tissu', pose: 5 },
-  loic: { age: 38, carrure: 0.7, teint: TEINTS[2], cheveux: NOIR, cheveuxLongueur: 0.45, cheveuxVolume: 0.85, barbe: 0.42, coiffe: 'chapeau', vetement: G.pierre, col: G.accent, matiere: 'tissu', pose: -6 },
-  matthieu: { age: 49, carrure: 1, teint: TEINTS[3], cheveux: GRIS, cheveuxLongueur: 0.35, cheveuxVolume: 0.8, barbe: 0.55, coiffe: 'chapel', vetement: G.pierre, col: ACIER, matiere: 'metal', pose: 3 },
-  clotilde: { age: 34, carrure: 0.6, teint: TEINTS[4], cheveux: ROUX, cheveuxLongueur: 1.25, cheveuxVolume: 1.1, barbe: 0, coiffe: 'coiffe', vetement: G.primaire, col: G.clair, matiere: 'tissu', pose: -3 },
-  caroline: { age: 52, carrure: 0.66, teint: TEINTS[0], cheveux: GRIS, cheveuxLongueur: 0.9, cheveuxVolume: 1, barbe: 0, coiffe: 'coiffe', vetement: G.sombre, col: G.accent, matiere: 'tissu', pose: 4 },
-  thomas: { age: 27, carrure: 0.72, teint: TEINTS[1], cheveux: BLOND, cheveuxLongueur: 0.4, cheveuxVolume: 0.9, barbe: 0.1, coiffe: 'aucune', vetement: G.pierre, col: G.primaire, matiere: 'tissu', pose: -7 },
-  georges: { age: 58, carrure: 1, teint: TEINTS[2], cheveux: GRIS, cheveuxLongueur: 0.3, cheveuxVolume: 0.75, barbe: 0.7, coiffe: 'chapel', vetement: G.pierre, col: ACIER, matiere: 'metal', pose: 2 },
-  auguste: { age: 61, carrure: 0.68, teint: TEINTS[0], cheveux: GRIS, cheveuxLongueur: 0.75, cheveuxVolume: 0.95, barbe: 0.62, coiffe: 'chapeau', vetement: G.primaire, col: G.accent, matiere: 'tissu', pose: 6 },
-  josephine: { age: 41, carrure: 0.64, teint: TEINTS[3], cheveux: NOISETTE, cheveuxLongueur: 1.1, cheveuxVolume: 1.05, barbe: 0, coiffe: 'voile', vetement: G.sombre, col: G.clair, matiere: 'tissu', pose: -5 },
+  paul: { age: 29, carrure: 0.84, teint: TEINTS[1], cheveux: CHATAIN, cheveuxLongueur: 0.28, cheveuxVolume: 0.72, barbe: 0, coiffe: 'aucune', vetement: 0x414a52, col: 0x6e1f2a, matiere: 'metal', pose: -4 },
+  thibaut: { age: 41, carrure: 0.69, teint: TEINTS[0], cheveux: CHATAIN_CLAIR, cheveuxLongueur: 0.7, cheveuxVolume: 0.95, barbe: 0.3, coiffe: 'capuche', vetement: 0x5a4128, col: 0xc9a227, matiere: 'tissu', pose: 5 },
+  loic: { age: 44, carrure: 0.78, teint: TEINTS[1], cheveux: POIVRE_SEL, cheveuxLongueur: 0.4, cheveuxVolume: 0.82, barbe: 0.36, coiffe: 'bonnet', vetement: 0x414a52, col: 0xede3ce, matiere: 'tissu', pose: -6 },
+  matthieu: { age: 38, carrure: 0.97, teint: TEINTS[3], cheveux: NOIR, cheveuxLongueur: 0.4, cheveuxVolume: 0.82, barbe: 0.6, coiffe: 'aucune', vetement: 0x5a4128, col: 0x414a52, matiere: 'tissu', pose: 3 },
+  clotilde: { age: 34, carrure: 0.62, teint: TEINTS[0], cheveux: CHATAIN, cheveuxLongueur: 0.5, cheveuxVolume: 1, barbe: 0, coiffe: 'coiffe', vetement: 0x6e1f2a, col: 0x8c2230, matiere: 'tissu', pose: -3 },
+  caroline: { age: 37, carrure: 0.65, teint: TEINTS[0], cheveux: BLOND_CENDRE, cheveuxLongueur: 0.95, cheveuxVolume: 0.9, barbe: 0, coiffe: 'voile', vetement: 0x414a52, col: 0xede3ce, matiere: 'tissu', pose: 4 },
+  thomas: { age: 46, carrure: 0.72, teint: TEINTS[3], cheveux: GRIS, cheveuxLongueur: 0.4, cheveuxVolume: 0.82, barbe: 0.22, coiffe: 'chapel', vetement: 0x5a4128, col: 0xc9a227, matiere: 'tissu', pose: -7 },
+  georges: { age: 58, carrure: 1, teint: TEINTS[3], cheveux: GRIS, cheveuxLongueur: 0.22, cheveuxVolume: 0.6, barbe: 0.82, coiffe: 'cagoule', vetement: 0x414a52, col: 0x6e1f2a, matiere: 'metal', pose: 2 },
+  auguste: { age: 61, carrure: 0.75, teint: TEINTS[4], cheveux: BLANC, cheveuxLongueur: 1.2, cheveuxVolume: 1.05, barbe: 0.6, coiffe: 'capuche', vetement: 0x6e1f2a, col: 0xc9a227, matiere: 'tissu', pose: 6 },
+  josephine: { age: 48, carrure: 0.75, teint: TEINTS[1], cheveux: POIVRE_SEL, cheveuxLongueur: 0.9, cheveuxVolume: 0.95, barbe: 0, coiffe: 'coiffe', vetement: 0x5a4128, col: 0xede3ce, matiere: 'tissu', pose: -5 },
 
-  anastasia: { age: 46, carrure: 0.6, teint: TEINTS[4], cheveux: GRIS, cheveuxLongueur: 1.2, cheveuxVolume: 1.05, barbe: 0, coiffe: 'voile', vetement: E.primaire, col: E.clair, matiere: 'tissu', pose: -4 },
-  mathilde: { age: 36, carrure: 0.62, teint: TEINTS[0], cheveux: CHATAIN, cheveuxLongueur: 1.15, cheveuxVolume: 1, barbe: 0, coiffe: 'coiffe', vetement: E.accent, col: E.pierre, matiere: 'tissu', pose: 5 },
-  agathe: { age: 29, carrure: 0.66, teint: TEINTS[1], cheveux: ROUX, cheveuxLongueur: 0.8, cheveuxVolume: 1.1, barbe: 0, coiffe: 'capuche', vetement: E.primaire, col: E.appoint, matiere: 'tissu', pose: -6 },
-  roxane: { age: 32, carrure: 0.7, teint: TEINTS[2], cheveux: NOIR, cheveuxLongueur: 0.55, cheveuxVolume: 0.9, barbe: 0, coiffe: 'capuche', vetement: E.sombre, col: E.appoint, matiere: 'tissu', pose: 4 },
-  jean: { age: 47, carrure: 0.94, teint: TEINTS[3], cheveux: NOISETTE, cheveuxLongueur: 0.5, cheveuxVolume: 0.95, barbe: 0.6, coiffe: 'capuche', vetement: E.sombre, col: BOIS, matiere: 'fourrure', pose: 3 },
-  adele: { age: 24, carrure: 0.56, teint: TEINTS[4], cheveux: BLOND, cheveuxLongueur: 1.3, cheveuxVolume: 1.15, barbe: 0, coiffe: 'aucune', vetement: E.appoint, col: E.accent, matiere: 'tissu', pose: -3 },
-  ines: { age: 39, carrure: 0.62, teint: TEINTS[2], cheveux: NOIR, cheveuxLongueur: 0.95, cheveuxVolume: 1, barbe: 0, coiffe: 'cagoule', vetement: E.pierre, col: E.primaire, matiere: 'tissu', pose: 6 },
-  gustave: { age: 54, carrure: 1, teint: TEINTS[1], cheveux: GRIS, cheveuxLongueur: 0.35, cheveuxVolume: 0.8, barbe: 0.68, coiffe: 'aucune', vetement: GRANIT_CLAIR, col: E.appoint, matiere: 'granit', pose: 2 },
-  come: { age: 43, carrure: 0.66, teint: TEINTS[0], cheveux: CHATAIN, cheveuxLongueur: 0.7, cheveuxVolume: 0.9, barbe: 0.4, coiffe: 'bonnet', vetement: E.primaire, col: E.clair, matiere: 'tissu', pose: -5 },
-  lise: { age: 26, carrure: 0.6, teint: TEINTS[3], cheveux: NOIR, cheveuxLongueur: 1.2, cheveuxVolume: 1.1, barbe: 0, coiffe: 'aucune', vetement: E.accent, col: PALETTE.bleuProfond, matiere: 'ecailles', pose: -2 },
+  anastasia: { age: 45, carrure: 0.59, teint: TEINTS[4], cheveux: NOIR, cheveuxLongueur: 1.2, cheveuxVolume: 1.05, barbe: 0, coiffe: 'voile', vetement: 0x1b3a2b, col: 0x9fb4c2, matiere: 'tissu', pose: -4 },
+  mathilde: { age: 52, carrure: 0.72, teint: TEINTS[0], cheveux: GRIS, cheveuxLongueur: 0.5, cheveuxVolume: 1, barbe: 0, coiffe: 'coiffe', vetement: 0xcfc6b4, col: 0x4e8977, matiere: 'tissu', pose: 5 },
+  agathe: { age: 27, carrure: 0.62, teint: TEINTS[1], cheveux: ROUX, cheveuxLongueur: 0.95, cheveuxVolume: 0.9, barbe: 0, coiffe: 'aucune', vetement: 0x2f3b2e, col: 0x6b5433, matiere: 'fourrure', pose: -6 },
+  roxane: { age: 31, carrure: 0.69, teint: TEINTS[1], cheveux: NOIR, cheveuxLongueur: 0.4, cheveuxVolume: 0.82, barbe: 0, coiffe: 'capuche', vetement: 0x3f4e38, col: 0x6b5433, matiere: 'tissu', pose: 4 },
+  jean: { age: 43, carrure: 0.91, teint: TEINTS[3], cheveux: CHATAIN, cheveuxLongueur: 0.7, cheveuxVolume: 0.95, barbe: 0.6, coiffe: 'aucune', vetement: 0x2f3b2e, col: 0x6b5433, matiere: 'fourrure', pose: 3 },
+  adele: { age: 24, carrure: 0.56, teint: TEINTS[4], cheveux: BLOND_CENDRE, cheveuxLongueur: 0.85, cheveuxVolume: 1.2, barbe: 0, coiffe: 'couronne', vetement: 0x4a6138, col: 0x7c8f6b, matiere: 'tissu', pose: -3 },
+  ines: { age: 36, carrure: 0.65, teint: TEINTS[0], cheveux: CHATAIN, cheveuxLongueur: 0.95, cheveuxVolume: 0.9, barbe: 0, coiffe: 'voile', vetement: 0xcfc6b4, col: 0xc9a227, matiere: 'tissu', pose: 6 },
+  gustave: { age: 50, carrure: 1, teint: TEINTS[3], cheveux: GRIS, cheveuxLongueur: 0, cheveuxVolume: 0.4, barbe: 0.6, coiffe: 'aucune', vetement: 0x4a4e52, col: 0x6b5433, matiere: 'fourrure', pose: 2 },
+  come: { age: 57, carrure: 0.65, teint: TEINTS[4], cheveux: BLANC, cheveuxLongueur: 0.3, cheveuxVolume: 0.6, barbe: 0.82, coiffe: 'aucune', vetement: 0x1b3a2b, col: 0x9fb4c2, matiere: 'tissu', pose: -5 },
+  lise: { age: 29, carrure: 0.62, teint: TEINTS[4], cheveux: NOIR, cheveuxLongueur: 1.2, cheveuxVolume: 1.05, barbe: 0, coiffe: 'aucune', vetement: 0x2b3a4a, col: 0x4e8977, matiere: 'tissu', pose: -2 },
 
-  jules: { age: 51, carrure: 0.78, teint: TEINTS[2], cheveux: GRIS, cheveuxLongueur: 0.6, cheveuxVolume: 0.9, barbe: 0.5, coiffe: 'chapeau', vetement: BOIS, col: PALETTE.vieilOr, matiere: 'tissu', pose: 0 },
+  jules: { age: 54, carrure: 0.78, teint: TEINTS[1], cheveux: POIVRE_SEL, cheveuxLongueur: 0.7, cheveuxVolume: 0.95, barbe: 0.3, coiffe: 'chapeau', vetement: 0x5a4128, col: 0xc9a227, matiere: 'tissu', pose: 0 },
 };
 
 const SPEC_DEFAUT: Spec = {

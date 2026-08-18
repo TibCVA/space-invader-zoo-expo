@@ -22,10 +22,11 @@ import {
   type HeroInstance,
   type SkillId,
   type TownState,
+  type WorldMap,
 } from '@auvergne/engine';
 
 import { armyPowerOf, garrisonTarget, pourInto, strongestHero } from './army.js';
-import { bp, sameCell, type Perception } from './common.js';
+import { bp, daysAway, sameCell, type Perception } from './common.js';
 import { threatOnTown } from './evaluate.js';
 import type { BotProfile } from './profiles.js';
 
@@ -259,6 +260,10 @@ export function planGarrisonTransfers(
   const hero = state.heroes[uid];
   if (!hero || hero.owner !== view.player) return [];
   if (hero.downUntilTurn > state.turn) return [];
+  // `town.visitingHero` survit au départ du héros (bogue moteur nº 1) : sans
+  // cette vérification on échangerait des troupes avec un héros absent, et le
+  // moteur refuserait chaque commande.
+  if (hero.inTown !== town.uid && !sameCell(hero.at, town.at)) return [];
 
   let totalPower = 0;
   for (const h of view.allHeroes) totalPower += armyPowerOf(h.army);
@@ -341,6 +346,51 @@ export function planRegroup(
     }
   }
   return commands;
+}
+
+/* ── Ravitaillement ──────────────────────────────────────────────────────── */
+
+/** La garnison doit peser ce multiple du héros pour justifier le retour. */
+const RESUPPLY_RATIO = 2;
+/** Au-delà de ce nombre de journées, le voyage coûte plus qu'il ne rapporte. */
+const RESUPPLY_MAX_DAYS = 3;
+
+/**
+ * Cité où le héros devrait rentrer chercher ses renforts, ou `null`.
+ *
+ * Sans cette règle, une bannière lève des troupes tous les matins, les empile
+ * dans sa capitale, et laisse son héros de tête courir la campagne avec
+ * l'armée du premier jour : il n'ose plus attaquer la moindre garde, ne gagne
+ * plus d'expérience, et la partie s'enlise — c'est très exactement ce que
+ * faisaient les quatre profils dans les premières parties simulées.
+ *
+ * On en fait une décision **franche** plutôt qu'une cible notée : une cible
+ * notée réapparaît dès que le héros a fait un pas hors des murs, et le héros
+ * passe la partie à faire la navette. Ici, il rentre quand la garnison pèse
+ * le double de ce qu'il porte, et il s'arrête pour la journée en arrivant.
+ */
+export function resupplyTown(
+  state: GameState,
+  world: WorldMap,
+  view: Perception,
+  hero: HeroInstance,
+): TownState | null {
+  const ours = armyPowerOf(hero.army);
+  let best: TownState | null = null;
+  let bestDays = RESUPPLY_MAX_DAYS + 1;
+  for (const town of view.towns) {
+    if (hero.inTown === town.uid || sameCell(hero.at, town.at)) continue;
+    const waiting = armyPowerOf(town.garrison);
+    if (waiting <= 0) continue;
+    if (waiting < ours * RESUPPLY_RATIO) continue;
+    const days = daysAway(state, world, view.player, hero, town.at);
+    if (days > RESUPPLY_MAX_DAYS) continue;
+    if (days < bestDays || (days === bestDays && best !== null && town.uid < best.uid)) {
+      best = town;
+      bestDays = days;
+    }
+  }
+  return best;
 }
 
 /**

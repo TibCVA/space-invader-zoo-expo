@@ -95,8 +95,18 @@ function styleNote(taille: number, couleur: number): TextStyle {
   });
 }
 
-function libelle(texte: string, x: number, y: number, taille = 15, couleur = PALETTE.encre): Text {
-  const t = new Text({ text: texte.toLocaleUpperCase('fr-FR'), style: styleLegende(taille, couleur) });
+function libelle(
+  texte: string,
+  x: number,
+  y: number,
+  taille = 15,
+  couleur = PALETTE.encre,
+  /** largeur de repli du texte ; par défaut la largeur historique de 170 px */
+  repli = 170,
+): Text {
+  const style = styleLegende(taille, couleur);
+  style.wordWrapWidth = repli;
+  const t = new Text({ text: texte.toLocaleUpperCase('fr-FR'), style });
   t.anchor.set(0.5, 0);
   t.position.set(x, y);
   return t;
@@ -196,7 +206,11 @@ function cellule(
   g.poly(flat(fond), true).stroke({ color: melanger(PALETTE.parcheminOmbre, PALETTE.granitClair, 0.4), width: 1.2, alpha: 0.6 });
   c.addChild(g);
   c.addChild(contenu);
-  const t = libelle(texte, w / 2, h - (sousTitre ? 38 : 24), 15);
+  /* Le libellé se replie sur la largeur de SA cellule, et il est posé à partir
+     de sa hauteur mesurée : un nom sur deux lignes (« Maître-arbalétrier »,
+     « Sceau des Marches ») venait sinon s'écrire par-dessus le sous-titre. */
+  const t = libelle(texte, w / 2, 0, 15, PALETTE.encre, Math.max(72, w - 14));
+  t.position.y = h - (sousTitre ? 24 : 10) - t.height;
   c.addChild(t);
   if (sousTitre) {
     const s = new Text({

@@ -259,37 +259,97 @@ export function bodyGradient(
 }
 
 /**
- * Liseré de contre-jour (loi n°4) : `#C9A227` à 40 %, du côté **opposé** au
- * soleil, donc au sud-est. Le tracé reçu est décalé d'un pixel et redessiné.
+ * Boîte englobante approximative d'un tracé, fournie par l'appelant : `Path2D`
+ * n'expose pas la sienne. Elle sert à orienter les dégradés de liseré.
+ */
+export interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * Épaisseur d'un liseré, bornée à **1–2 px de composition** (loi n°4).
+ *
+ * Sans ce garde-fou, un lutin pré-rendu à 220 px reçoit un trait de 5 px qui,
+ * une fois clippé, cerne la silhouette **de tous les côtés** : c'est le
+ * « contour doré épais » que la loi n°6 interdit et que l'œil lit comme un
+ * autocollant. Le liseré est un accident de lumière, pas un cerne.
+ */
+export function rimWidth(scale = 1): number {
+  return clamp(1.15 * scale, 0.7, 2.2);
+}
+
+/**
+ * Liseré de contre-jour (loi n°4) : `#C9A227` à 40 %, **du seul côté opposé
+ * au soleil**, donc au sud-est, sur 1 à 2 px.
+ *
+ * Deux mécanismes se cumulent pour qu'il n'entoure jamais la silhouette :
+ *
+ *  1. le tracé est décalé vers le nord-ouest d'un peu **plus** que son
+ *     épaisseur, si bien que l'anneau sort entièrement du masque sur la face
+ *     éclairée — un décalage d'un pixel sous un trait de cinq ne suffisait pas
+ *     et laissait le trait ressortir partout ;
+ *  2. si la boîte englobante est connue, l'encre elle-même est un dégradé
+ *     nord-ouest → sud-est, nul du côté du soleil.
  */
 export function rimLight(
   ctx: CanvasRenderingContext2D,
   path: Path2D,
   width = 1.6,
   opacity: number = SUN.rimOpacity,
+  box?: Box,
 ): void {
+  const w = Math.max(0.6, width);
+  const off = w * 1.15;
   ctx.save();
   ctx.clip(path);
-  ctx.translate(-1.1, -1.1);
-  ctx.strokeStyle = rgba(C.vieilOr, opacity);
-  ctx.lineWidth = width;
+  ctx.translate(SUN.from.x * off, SUN.from.y * off);
+  if (box) {
+    const g = ctx.createLinearGradient(box.x, box.y, box.x + box.w, box.y + box.h);
+    g.addColorStop(0, rgba(C.vieilOr, 0));
+    g.addColorStop(0.4, rgba(C.vieilOr, 0));
+    g.addColorStop(0.68, rgba(C.vieilOr, opacity * 0.5));
+    g.addColorStop(1, rgba(C.vieilOr, opacity));
+    ctx.strokeStyle = g;
+  } else {
+    ctx.strokeStyle = rgba(C.vieilOr, opacity);
+  }
+  ctx.lineWidth = w;
   ctx.lineJoin = 'round';
   ctx.stroke(path);
   ctx.restore();
 }
 
-/** Éclat chaud sur l'arête tournée vers le soleil (nord-ouest). */
+/**
+ * Éclat chaud sur l'arête tournée vers le soleil (nord-ouest). Même discipline
+ * que `rimLight`, en miroir : décalage supérieur à l'épaisseur, dégradé nul du
+ * côté de l'ombre.
+ */
 export function sunEdge(
   ctx: CanvasRenderingContext2D,
   path: Path2D,
   width = 1.4,
   opacity = 0.34,
+  box?: Box,
 ): void {
+  const w = Math.max(0.6, width);
+  const off = w * 1.15;
   ctx.save();
   ctx.clip(path);
-  ctx.translate(1.1, 1.1);
-  ctx.strokeStyle = rgba(C.lumiere, opacity);
-  ctx.lineWidth = width;
+  ctx.translate(SUN.shadow.x * off, SUN.shadow.y * off);
+  if (box) {
+    const g = ctx.createLinearGradient(box.x + box.w, box.y + box.h, box.x, box.y);
+    g.addColorStop(0, rgba(C.lumiere, 0));
+    g.addColorStop(0.4, rgba(C.lumiere, 0));
+    g.addColorStop(0.7, rgba(C.lumiere, opacity * 0.5));
+    g.addColorStop(1, rgba(C.lumiere, opacity));
+    ctx.strokeStyle = g;
+  } else {
+    ctx.strokeStyle = rgba(C.lumiere, opacity);
+  }
+  ctx.lineWidth = w;
   ctx.lineJoin = 'round';
   ctx.stroke(path);
   ctx.restore();

@@ -1,0 +1,388 @@
+/* =========================================================================
+   Compléments de la coquille — ce que `apps/client/src/styles.css` ne couvre
+   pas encore : chapeaux de section, cartes de sort, piles d'armée, vignettes
+   cliquables, corps des emplacements de sauvegarde et barre de confirmation
+   posée sur une scène.
+
+   Mêmes règles que partout : palette du brief, aucune couleur hors liste,
+   aucun coin très arrondi, trois strates par surface, cibles ≥ 48 px,
+   `env(safe-area-inset-*)` respecté, `prefers-reduced-motion` honoré.
+   ========================================================================= */
+
+/* ════════════ 0. CORRECTIFS DE LISIBILITÉ DE LA COQUILLE ════════════════
+
+   `apps/client/src/styles.css` pose les matières procédurales de
+   `packages/ui` (`--hmm-tex-*-image`) sans reprendre le mode de fusion qui va
+   avec (`--hmm-tex-*-blend`). Or ces matières sont faites de trois couches
+   dont deux sont des voiles de bruit prévus pour être fusionnés en
+   `soft-light` et `overlay` : composés en `normal`, ils déposent une brume
+   claire qui délave le granit et rend le texte illisible. On rétablit le mode
+   de fusion ici, la feuille des écrans étant chargée après celle de la
+   coquille. Correctif signalé dans le rapport.
+   ======================================================================== */
+
+/* `packages/ui` ne pose `box-sizing: border-box` que sous `.hmm-root`, et
+   `apps/client/src/landing` que sous `.hmm-acc`. La coquille de jeu
+   (`.jeu-racine`) n'était couverte par ni l'un ni l'autre : `.jeu-page`, large
+   de 100 % **plus** ses marges intérieures, débordait de 32 px sur un
+   téléphone et les panneaux se trouvaient rognés à droite. */
+.jeu-racine,
+.jeu-racine *,
+.jeu-racine *::before,
+.jeu-racine *::after {
+  box-sizing: border-box;
+}
+
+.jeu-bandeau,
+.jeu-pouce {
+  background-blend-mode: var(--hmm-tex-granit-blend, normal), normal;
+}
+
+.jeu-chargement__carte {
+  background-blend-mode: var(--hmm-tex-parchemin-blend, normal), normal;
+}
+
+.jeu-panne__carte,
+.jeu-chantier__carte {
+  background-blend-mode: var(--hmm-tex-parchemin-blend, normal);
+}
+
+/* Le libellé secondaire du bandeau doit rester lisible sur le granit. */
+.jeu-bandeau__note {
+  color: var(--hmm-texte-clair);
+  opacity: 0.78;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sur un écran étroit, le titre a besoin de toute la largeur : la note
+   disparaît plutôt que de chevaucher. */
+@media (max-width: 719px) {
+  .jeu-bandeau__note {
+    display: none;
+  }
+}
+
+/* Les cinq commandes de pouce portent du texte sur granit : il lui faut le
+   contraste des libellés clairs, pas celui des mentions secondaires. */
+.jeu-pouce__bouton {
+  color: var(--hmm-texte-clair);
+}
+
+/* Un emplacement libre est posé sur le fond de nuit : son cadre pointillé doit
+   être clair, pas encre sur encre. */
+.emplacement__vide {
+  color: var(--hmm-texte-clair-doux);
+  border-color: rgba(201, 162, 39, 0.34);
+  background-image: linear-gradient(168deg, rgba(255, 233, 194, 0.05) 0%, rgba(42, 50, 66, 0.18) 100%);
+}
+
+/* `.hmm-jauge` aligne la gouttière et sa légende sur une seule ligne, la
+   légende en `nowrap` : une légende un peu longue écrase la gouttière jusqu'à
+   la faire disparaître. On lui donne une largeur plancher et on autorise le
+   passage à la ligne. Correctif signalé dans le rapport. */
+.hmm-jauge {
+  flex-wrap: wrap;
+}
+
+.hmm-jauge__gouttiere {
+  min-width: min(100%, 180px);
+}
+
+.hmm-jauge__legende {
+  white-space: normal;
+}
+
+/* La barre de ressources défile à l'horizontale, mais sans `min-width: 0` elle
+   pousse quand même son parent : sur un téléphone, la page entière finissait
+   par déborder de côté. */
+.hmm-ressources {
+  min-width: 0;
+  max-width: 100%;
+  overscroll-behavior-x: contain;
+}
+
+/* Aucun enfant de la colonne de lecture ne peut élargir la page. */
+.jeu-page > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Les grilles à minimum fixe débordent dès que la colonne est plus étroite que
+   ce minimum : `min(100%, …)` les ramène à une seule carte par ligne. */
+.emplacements,
+.fiche__artefacts,
+.fiche__grille,
+.fiche__stats {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--colonne, 260px)), 1fr));
+}
+
+.emplacements {
+  --colonne: 320px;
+}
+
+.fiche__artefacts {
+  --colonne: 200px;
+}
+
+.fiche__grille {
+  --colonne: 228px;
+}
+
+.fiche__stats {
+  --colonne: 120px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 120px), 1fr));
+}
+
+/* Le badge « Automatique » ne doit jamais déborder de la carte. */
+.emplacement__entete {
+  flex-wrap: wrap;
+}
+
+.emplacement__nom {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* ─────────────────────────── Titres et notes ───────────────────────────── */
+
+.ecran__titre-carte {
+  margin: 0;
+  font-family: var(--hmm-font-titre);
+  font-size: var(--hmm-fs-grand);
+  font-weight: 700;
+  letter-spacing: var(--hmm-ls-titre);
+  text-transform: uppercase;
+  color: var(--hmm-encre);
+  text-shadow: 0 1px 0 rgba(255, 233, 194, 0.6);
+}
+
+.ecran__chapeau {
+  margin: 0;
+  font-family: var(--hmm-font-recit);
+  font-size: var(--hmm-fs-lecture);
+  line-height: var(--hmm-lh-recit);
+  color: var(--hmm-texte-clair-doux);
+}
+
+.ecran__note {
+  margin: var(--hmm-space-2) 0 0;
+  font-family: var(--hmm-font-recit);
+  font-size: var(--hmm-fs-base);
+  line-height: var(--hmm-lh-recit);
+  color: var(--hmm-texte-doux);
+}
+
+.ecran__accent {
+  color: var(--hmm-encre);
+}
+
+/* Bandeau d'information en tête d'écran : parchemin sur granit, filet d'or à
+   gauche. Lisible sur le fond de nuit, contrairement à un panneau de cuir. */
+.ecran__bandeau-avis {
+  margin: 0;
+  padding: var(--hmm-space-3) var(--hmm-space-4);
+  border: var(--hmm-filet-fin) solid var(--hmm-or-attenue);
+  border-left: var(--hmm-filet-epais) solid var(--hmm-or);
+  border-radius: var(--hmm-radius-xs);
+  background-image: linear-gradient(170deg, rgba(201, 162, 39, 0.14) 0%, rgba(42, 50, 66, 0.28) 100%);
+  box-shadow: var(--hmm-ombre-panneau);
+  color: var(--hmm-texte-clair);
+  font-family: var(--hmm-font-recit);
+  font-size: var(--hmm-fs-lecture);
+  line-height: var(--hmm-lh-recit);
+}
+
+.ecran__accent strong {
+  font-family: var(--hmm-font-titre);
+  letter-spacing: var(--hmm-ls-cartouche);
+  text-transform: uppercase;
+  font-size: var(--hmm-fs-petit);
+  color: var(--hmm-grenat);
+}
+
+/* ───────────────────────── Mise en page du royaume ──────────────────────── */
+
+/* Trois bandes empilées plutôt qu'une grille unique : un panneau posé sur
+   toute la largeur (`grid-column: 1 / -1`) empêche `auto-fit` d'effondrer les
+   colonnes vides, et l'écran se retrouve avec un grand trou à droite. */
+.royaume__pile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hmm-space-6);
+}
+
+.royaume__duo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: var(--hmm-space-6);
+  align-items: start;
+}
+
+/* Les six matières premières tiennent sur une seule ligne quand la place le
+   permet : `auto-fit` effondre les colonnes restées vides. */
+.royaume__matieres {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: var(--hmm-space-3);
+}
+
+/* Les listes de cités et de héros vivent dans une colonne étroite : une seule
+   carte par ligne y est plus lisible que deux moitiés serrées. */
+.royaume__cartes {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+}
+
+/* ───────────────────── Vignette cliquable (héros, cité) ─────────────────── */
+
+.ecran__vignette-bouton {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: border-color var(--hmm-duree) var(--hmm-courbe),
+    box-shadow var(--hmm-duree) var(--hmm-courbe);
+}
+
+.ecran__vignette-bouton:hover,
+.ecran__vignette-bouton:focus-visible {
+  border-color: var(--hmm-or);
+  box-shadow: var(--hmm-ombre-assise), 0 0 0 1px rgba(201, 162, 39, 0.4);
+  outline: none;
+}
+
+.ecran__vignette-bouton:active {
+  transform: translateY(1px);
+}
+
+/* ───────────────────────── Piles d'armée et sorts ───────────────────────── */
+
+.ecran__pile {
+  background-image: linear-gradient(172deg, rgba(255, 233, 194, 0.3) 0%, rgba(201, 185, 150, 0.22) 100%);
+  border: var(--hmm-filet-fin) solid rgba(36, 28, 20, 0.2);
+  border-radius: var(--hmm-radius-xs);
+  box-shadow: var(--hmm-ombre-assise);
+}
+
+.ecran__pile--vide {
+  opacity: 0.62;
+  background-image: linear-gradient(172deg, rgba(201, 185, 150, 0.26) 0%, rgba(201, 185, 150, 0.14) 100%);
+}
+
+.ecran__pile-numero {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  font-family: var(--hmm-font-titre);
+  font-size: var(--hmm-fs-micro);
+  color: var(--hmm-encre);
+  border: var(--hmm-filet-fin) solid var(--hmm-or-attenue);
+  border-radius: var(--hmm-radius-xs);
+  background-image: linear-gradient(180deg, rgba(255, 233, 194, 0.6) 0%, rgba(201, 162, 39, 0.22) 100%);
+}
+
+.ecran__carte-sort {
+  border-left: var(--hmm-filet-epais) solid var(--teinte, var(--hmm-or-attenue));
+  border-bottom: none;
+  background-image: linear-gradient(172deg, rgba(255, 233, 194, 0.28) 0%, rgba(201, 185, 150, 0.2) 100%);
+  border-radius: var(--hmm-radius-xs);
+  box-shadow: var(--hmm-ombre-assise);
+}
+
+/* ──────────────────── Emplacements de sauvegarde ────────────────────────── */
+
+.emplacement__corps {
+  display: flex;
+  gap: var(--hmm-space-4);
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.emplacement__texte {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hmm-space-1);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.emplacement__vignette {
+  flex: 0 0 auto;
+  display: block;
+  padding: 3px;
+  border: var(--hmm-filet-fin) solid var(--hmm-or-attenue);
+  border-radius: var(--hmm-radius-xs);
+  background-image: linear-gradient(168deg, rgba(255, 233, 194, 0.4) 0%, rgba(42, 50, 66, 0.3) 100%);
+  box-shadow: var(--hmm-ombre-assise);
+}
+
+.emplacement__vignette canvas {
+  display: block;
+  width: 96px;
+  height: 156px;
+  border-radius: 1px;
+}
+
+.emplacement__empreinte {
+  font-size: var(--hmm-fs-micro);
+  color: rgba(36, 28, 20, 0.55);
+  letter-spacing: 0.06em;
+  margin: var(--hmm-space-1) 0 0;
+}
+
+/* ───────────────────── Légende posée sur une scène ──────────────────────── */
+
+/* Sur un téléphone, la légende ne doit pas manger le tiers de la scène. */
+@media (max-width: 719px) {
+  .jeu-scene__legende {
+    max-width: calc(100% - var(--hmm-space-6));
+    padding: var(--hmm-space-2) var(--hmm-space-3);
+    font-size: var(--hmm-fs-micro);
+  }
+}
+
+/* ───────────────── Barre de confirmation posée sur une scène ────────────── */
+
+.jeu-confirmation {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--hmm-space-4) + var(--hmm-safe-bas));
+  width: min(720px, calc(100% - var(--hmm-space-8)));
+  z-index: var(--hmm-z-colle);
+}
+
+@media (max-width: 899px) {
+  .jeu-racine--avec-pouce .jeu-confirmation {
+    bottom: calc(var(--hmm-touch-ample) + var(--hmm-space-3) + var(--hmm-safe-bas));
+  }
+}
+
+/* ─────────────────── Indicateur de sauvegarde flottant ─────────────────── */
+
+.jeu-etat-sauvegarde {
+  position: fixed;
+  right: calc(var(--hmm-space-4) + var(--hmm-safe-droite));
+  top: calc(var(--hmm-space-3) + var(--hmm-safe-haut));
+  z-index: var(--hmm-z-toast);
+  padding: var(--hmm-space-1) var(--hmm-space-3);
+  border: var(--hmm-filet-fin) solid var(--hmm-or-attenue);
+  border-radius: var(--hmm-radius-xs);
+  background-image: linear-gradient(170deg, rgba(42, 44, 47, 0.9) 0%, rgba(26, 31, 38, 0.94) 100%);
+  box-shadow: var(--hmm-ombre-panneau);
+  pointer-events: none;
+}
+
+/* ─────────────────────────── Mouvement réduit ───────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .ecran__vignette-bouton {
+    transition: none;
+  }
+}
+
+:root[data-animations='reduites'] .ecran__vignette-bouton {
+  transition: none;
+}

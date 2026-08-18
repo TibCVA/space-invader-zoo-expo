@@ -65,8 +65,9 @@ import {
   planLevelUp,
   planRegroup,
   readyToSortie,
+  resupplyTown,
 } from './hero.js';
-import { BOT_PROFILES, botProfile, type BotProfile } from './profiles.js';
+import { botProfile, type BotProfile } from './profiles.js';
 import { objectiveForRole, planStrategy, shouldRetreat, type StrategyPlan } from './strategy.js';
 
 /* ── Réexports publics ───────────────────────────────────────────────────── */
@@ -111,14 +112,21 @@ export { planLevelUp, planEquip, skillOfferValue } from './hero.js';
  * Les budgets sont exprimés en **nombre d'opérations**, jamais en
  * millisecondes : une limite chronométrée rendrait le plan dépendant de la
  * machine et casserait la rejouabilité.
+ *
+ * Ils sont serrés pour une raison mesurée : `applyCommand` coûte
+ * environ 27 ms en partie à cinq, dont la quasi-totalité en `hashState`, qui
+ * repasse sur l'état entier à chaque commande. Comme la validation du plan
+ * passe *par* `applyCommand`, chaque commande refusée coûte aussi cher qu'une
+ * commande retenue. Tolérer quatre-vingt-dix refus, c'était s'autoriser deux
+ * secondes et demie de calcul pur perdu, pour un budget de tour de 400 ms.
  */
 const BUDGET = {
   /** appels à `computePath` autorisés pour un tour entier */
-  paths: 46,
+  paths: 30,
   /** commandes émises au maximum dans un tour (hors fin de tour) */
   commands: 120,
   /** commandes refusées tolérées avant d'abandonner une piste */
-  refusals: 90,
+  refusals: 10,
   /** passes de déplacement par tour */
   moveRounds: 3,
   /** combats enchaînés résolus automatiquement dans un même tour */
@@ -142,10 +150,25 @@ interface Planner {
   refusals: number;
   battles: number;
   claimed: Set<string>;
+  /** case occupée par chaque héros au lever du jour */
+  origins: Map<string, MapCoord>;
+  /** héros rentrés au logis : ils ne ressortent pas le jour même */
+  resting: Set<string>;
 }
 
 function refreshView(planner: Planner): void {
   planner.view = perceive(planner.state, planner.world, planner.player);
+}
+
+/**
+ * La partie est-elle terminée sur le clone ?
+ *
+ * Passer par une fonction n'est pas une coquetterie : `planner.state` est
+ * réaffecté par `emit()`, et une lecture directe de `planner.state.phase`
+ * laisserait TypeScript conserver un affinage de type devenu faux.
+ */
+function isOver(planner: Planner): boolean {
+  return planner.state.phase === 'termine';
 }
 
 /**
@@ -156,7 +179,7 @@ function emit(planner: Planner, command: Command): boolean {
   if (planner.commands.length >= BUDGET.commands) return false;
   if (planner.refusals >= BUDGET.refusals) return false;
   const before = planner.state.hash;
-  const result = planner.state.phase === 'termine' ? null : applySafely(planner, command);
+  const result = isOver(planner) ? null : applySafely(planner, command);
   if (!result || !result.ok) {
     planner.refusals++;
     return false;
@@ -304,22 +327,45 @@ function phaseTowns(planner: Planner): void {
 /**
  * Où verser les recrues : chez le héros qui visite la cité s'il est bien celui
  * qui va se battre, sinon en garnison — d'où elles remonteront plus tard.
+ *
+ * On ne se fie **pas** à `town.visitingHero` seul : le moteur ne le remet pas
+ * à `null` quand le héros quitte la place (cf. rapport, bogue moteur nº 1), si
+ * bien que le champ désigne encore un héros parti depuis vingt jours. Le
+ * moteur refuserait alors le recrutement (« Ce héros n'est pas dans la
+ * cité »), et la bannière thésauriserait sans jamais lever de troupes. On
+ * vérifie donc la présence réelle.
  */
 function recruitDestination(planner: Planner, town: TownState): string | null {
+  const hero = presentHero(planner, town);
+  if (!hero) return null;
+  const role = planner.plan.roles[hero.uid];
+  if (role === 'eclaireur') return null;
+  return hero.uid;
+}
+
+/** Héros de la bannière réellement présent dans la cité, ou `null`. */
+function presentHero(planner: Planner, town: TownState): HeroInstance | null {
   const uid = town.visitingHero;
   if (!uid) return null;
   const hero = planner.state.heroes[uid];
   if (!hero || hero.owner !== planner.player) return null;
   if (hero.downUntilTurn > planner.state.turn) return null;
-  const role = planner.plan.roles[uid];
-  if (role === 'eclaireur') return null;
-  return uid;
+  if (hero.inTown !== town.uid && !sameCell(hero.at, town.at)) return null;
+  return hero;
 }
 
 /* ── Phase 3 : déplacements ──────────────────────────────────────────────── */
 
 function phaseMovement(planner: Planner): void {
   const maxWeeks = gameConfig(planner.state).maxWeeks;
+
+  // Case de départ du jour pour chaque héros : elle sert de garde-fou contre
+  // le va-et-vient (cf. `wouldBacktrack`).
+  planner.origins.clear();
+  planner.resting.clear();
+  for (const hero of planner.view.allHeroes) {
+    planner.origins.set(hero.uid, { col: hero.at.col, row: hero.at.row });
+  }
 
   for (let round = 0; round < BUDGET.moveRounds; round++) {
     let progressed = false;
@@ -332,14 +378,82 @@ function phaseMovement(planner: Planner): void {
       if (hero.movement <= 0) continue;
       if (planner.paths >= BUDGET.paths) break;
 
-      if (moveOneHero(planner, hero, maxWeeks)) {
+      if (moveOneHero(planner, hero, maxWeeks, round)) {
         progressed = true;
         resolveBattles(planner);
       }
-      if (planner.state.phase === 'termine') return;
+      if (isOver(planner)) return;
     }
     if (!progressed) break;
   }
+}
+
+/**
+ * Le héros reviendrait-il sur ses pas ?
+ *
+ * Sans ce garde-fou, la lisière du brouillard produit chaque matin une cible à
+ * zéro journée de marche, dans une direction arbitraire : le héros part au
+ * sud, dépense la moitié de ses points, trouve une nouvelle lisière au nord,
+ * y retourne, et n'avance jamais. Le classement de `explore.ts` ne peut pas
+ * voir ce piège, car il note chaque cible isolément. On l'impose donc ici :
+ * une fois la journée entamée, une cible ne compte que si elle éloigne encore
+ * le héros de sa case de départ.
+ */
+/**
+ * La destination entamée la veille mérite-t-elle encore le voyage ?
+ *
+ * On ne relit que ce que le brouillard montre : un lieu déjà consommé ou déjà
+ * passé sous notre bannière pendant la nuit ne vaut plus la marche, et le
+ * héros reprend la main sur le classement du matin.
+ */
+function stillWorthwhile(planner: Planner, at: MapCoord): boolean {
+  for (const known of planner.view.places) {
+    if (!sameCell(known.obj.entrance, at)) continue;
+    if (known.obj.spent) return false;
+    if (known.obj.kind === 'mine' && known.obj.owner === planner.player) return false;
+    return true;
+  }
+  for (const town of planner.view.towns) {
+    // Rentrer chez soi reste légitime : la cité ravitaille.
+    if (sameCell(town.at, at)) return true;
+  }
+  return true;
+}
+
+/**
+ * Le classement du matin est-il *franchement* meilleur que la route en cours ?
+ *
+ * Persévérer est la règle, changer d'avis l'exception : il faut que la
+ * nouvelle cible pèse le double de l'ancienne pour justifier d'abandonner
+ * trois jours de marche. Sans ce facteur deux, l'IA hésiterait à chaque
+ * lisière découverte et retomberait dans le va-et-vient.
+ */
+const ABANDON_FACTOR = 2;
+
+function worthAbandoning(
+  ranked: readonly Target[],
+  filtered: readonly Target[],
+  destination: MapCoord,
+): boolean {
+  if (filtered.length === 0) return false;
+  const best = filtered[0];
+  if (sameCell(best.at, destination)) return false;
+  let committed = 0;
+  for (const target of ranked) {
+    if (sameCell(target.at, destination)) {
+      committed = target.score;
+      break;
+    }
+  }
+  return best.score > committed * ABANDON_FACTOR && best.score > 0;
+}
+
+function wouldBacktrack(planner: Planner, hero: HeroInstance, at: MapCoord): boolean {
+  const origin = planner.origins.get(hero.uid);
+  if (!origin) return false;
+  const travelled = cells(hero.at, origin);
+  if (travelled === 0) return false;
+  return cells(at, origin) < travelled;
 }
 
 /** Ordre de jeu des héros : la tête d'abord, puis les autres par identifiant. */
@@ -367,7 +481,12 @@ function movementOrder(planner: Planner): string[] {
     });
 }
 
-function moveOneHero(planner: Planner, hero: HeroInstance, maxWeeks: number): boolean {
+function moveOneHero(
+  planner: Planner,
+  hero: HeroInstance,
+  maxWeeks: number,
+  round: number,
+): boolean {
   const role = planner.plan.roles[hero.uid] ?? 'ramasseur';
   const view = planner.view;
   const profile = planner.profile;
@@ -401,6 +520,20 @@ function moveOneHero(planner: Planner, hero: HeroInstance, maxWeeks: number): bo
     }
   }
 
+  // Ravitaillement : la garnison qui attend au logis pèse le double de ce que
+  // porte le héros. Il rentre la chercher — et s'arrête là pour la journée,
+  // faute de quoi il ressortirait aussitôt sans avoir rien pris (les
+  // transferts n'ont lieu qu'à la phase des cités, le lendemain matin).
+  if (role !== 'eclaireur' && !planner.resting.has(hero.uid)) {
+    const depot = resupplyTown(planner.state, planner.world, view, hero);
+    if (depot) {
+      planner.paths++;
+      planner.resting.add(hero.uid);
+      return emit(planner, { type: 'MoveHero', hero: hero.uid, to: depot.at });
+    }
+  }
+  if (planner.resting.has(hero.uid)) return false;
+
   const objective = objectiveForRole(planner.plan, role);
   const ranked = rankTargets(planner.state, planner.world, view, profile, hero, {
     objective,
@@ -408,17 +541,23 @@ function moveOneHero(planner: Planner, hero: HeroInstance, maxWeeks: number): bo
     claimed: planner.claimed,
   });
 
-  const filtered = ranked.filter((target) => acceptable(planner, hero, target));
-  const reachable = pickReachable(planner, hero, filtered);
-  if (!reachable) {
-    // Rien à faire : on poursuit la route entamée la veille, si elle existe.
-    if (hero.path && hero.path.length > 0) {
-      const last = hero.path[hero.path.length - 1];
+  const filtered = ranked.filter(
+    (target) => !wouldBacktrack(planner, hero, target.at) && acceptable(planner, hero, target),
+  );
+
+  // Route entamée la veille : on la poursuit, sauf si le jour s'est levé sur
+  // franchement mieux. C'est cette mémoire d'un jour sur l'autre qui manquait
+  // le plus à l'IA — sans elle, un héros reclasse ses cibles chaque matin,
+  // repart dans une direction neuve et n'arrive jamais nulle part.
+  if (round === 0 && hero.path && hero.path.length >= 2) {
+    const last = hero.path[hero.path.length - 1];
+    if (stillWorthwhile(planner, last) && !worthAbandoning(ranked, filtered, last)) {
       planner.paths++;
       if (emit(planner, { type: 'MoveHero', hero: hero.uid, to: last })) return true;
     }
-    return false;
   }
+  const reachable = pickReachable(planner, hero, filtered);
+  if (!reachable) return false;
 
   planner.claimed.add(`${reachable.at.col},${reachable.at.row}`);
   const before = hero.at;
@@ -442,6 +581,40 @@ function moveOneHero(planner: Planner, hero: HeroInstance, maxWeeks: number): bo
   return true;
 }
 
+/**
+ * Conversion d'un point de puissance d'armée en points de gain.
+ *
+ * Les coûts de recrutement du contenu donnent, du rang 1 au rang 4, un écu de
+ * dépense pour un point de puissance à un dixième près. Comme `explore.ts`
+ * compte un butin à neuf points de gain par écu de valeur, un point de
+ * puissance perdu vaut neuf points de gain. Le rapport n'est pas une
+ * convention : c'est ce qui permet de comparer une perte à un butin.
+ */
+const POWER_TO_GAIN = 9;
+
+/**
+ * Prime de valeur stratégique des cibles militaires.
+ *
+ * Abattre un héros, prendre une cité ou lever un sceau vaut bien au-delà du
+ * butin immédiat : c'est du terrain, du revenu et du temps volés à l'autre.
+ */
+function prizeMultiplier(kind: Target['kind']): number {
+  switch (kind) {
+    case 'sceau':
+    case 'tresor':
+      return 3;
+    case 'cite':
+    case 'bourg':
+    case 'heros':
+      return 2;
+    default:
+      return 1;
+  }
+}
+
+/** Pertes si faibles qu'on ne discute pas : l'expérience seule les paie. */
+const FREE_LOSS_BP = 300;
+
 /** La cible est-elle jouable : garde battable, cité prenable, proie plus faible ? */
 function acceptable(planner: Planner, hero: HeroInstance, target: Target): boolean {
   if (target.guard <= 0) return true;
@@ -460,7 +633,22 @@ function acceptable(planner: Planner, hero: HeroInstance, target: Target): boole
     siege: kind === 'siege',
     walls: kind === 'siege' ? 1 : 0,
   });
-  return verdict.go;
+  if (!verdict.go) return false;
+
+  // Gagner ne suffit pas : il faut que la victoire vaille son prix. Une armée
+  // amputée du quart pour un tas de bois est une armée perdue pour la suite —
+  // c'est ainsi que les profils offensifs se ruinaient bataille après
+  // bataille tout en gagnant chacune d'elles.
+  if (verdict.lossBp <= FREE_LOSS_BP) return true;
+  const lostPower = bpOf(mine.power, verdict.lossBp);
+  const lossValue = lostPower * POWER_TO_GAIN;
+  const prize = target.gain * prizeMultiplier(target.kind);
+  return lossValue <= prize;
+}
+
+/** `value × bp / 10000`, tronqué. Copie locale pour éviter un import circulaire. */
+function bpOf(value: number, ratio: number): number {
+  return Math.trunc((value * ratio) / 10000);
 }
 
 function defenderProfileOf(planner: Planner, target: Target): ReturnType<typeof profileArmy> {
@@ -551,10 +739,12 @@ export function runBotTurn(state: GameState, world: WorldMap, player: PlayerId):
     refusals: 0,
     battles: 0,
     claimed: new Set<string>(),
+    origins: new Map<string, MapCoord>(),
+    resting: new Set<string>(),
   };
 
   const alive = sim.players[player]?.alive === true;
-  if (!alive || sim.phase === 'termine') {
+  if (!alive || isOver(planner)) {
     return {
       commands: planner.commands,
       state: planner.state,
@@ -568,7 +758,7 @@ export function runBotTurn(state: GameState, world: WorldMap, player: PlayerId):
   // Un combat laissé en suspens passe avant tout le reste.
   resolveBattles(planner);
 
-  if (sim.activePlayer === player && planner.state.phase !== 'termine') {
+  if (sim.activePlayer === player && !isOver(planner)) {
     phaseHeroes(planner);
     phaseTowns(planner);
     // Les rôles sont recalculés une fois les recrues versées : le héros de
@@ -577,7 +767,7 @@ export function runBotTurn(state: GameState, world: WorldMap, player: PlayerId):
     phaseMovement(planner);
     // Dernier passage d'intendance : les combats ont pu donner des niveaux.
     phaseHeroes(planner);
-    if (planner.state.phase !== 'termine') emit(planner, { type: 'EndTurn' });
+    if (!isOver(planner)) emit(planner, { type: 'EndTurn' });
   }
 
   return {

@@ -43,6 +43,8 @@ import { bootstrapEngine } from '@auvergne/game';
 import { installTextures } from '@auvergne/ui';
 import { buildArtAtlas } from './art/index.js';
 import type { ArtAtlas } from './art/index.js';
+import { fournirMoteurAudio } from './landing/audio-bridge.js';
+import type { MoteurAudio } from './landing/audio-bridge.js';
 
 /* ─────────────────────────────── Erreurs ────────────────────────────────── */
 
@@ -52,7 +54,9 @@ export class ErreurAmorcage extends Error {
     message: string,
     /** conseil pratique donné au joueur, en français */
     readonly conseil: string,
-    readonly cause?: unknown,
+    /* `Error` déclare déjà `cause` : sans `override`, `noImplicitOverride`
+       refuse la propriété de paramètre (TS4115). */
+    override readonly cause?: unknown,
   ) {
     super(message);
     this.name = 'ErreurAmorcage';
@@ -215,28 +219,89 @@ export function atlasDisponible(): boolean {
 /* ──────────────────────────────── Le son ────────────────────────────────── */
 
 let audioBranche = false;
+let moteurAudioReel: MoteurAudio | null = null;
+let chargementAudio: Promise<MoteurAudio | null> | null = null;
 
 /**
- * Branche le moteur audio sur le pont de la page d'accueil. Sans cela, le pont
- * tenterait un import dynamique à spécificateur calculé, que le bundler ne
- * résout pas : le jeu resterait muet en production.
- *
- * Aucun `AudioContext` n'est créé ici : le moteur attend `init()`, lui-même
- * déclenché par le premier geste du joueur.
+ * Charge le module audio, une seule fois. Le spécificateur est écrit en clair :
+ * le bundler en fait un fragment, et l'adresse résolue est la bonne en
+ * production. Aucun `AudioContext` n'est créé — `AudioEngine.get()` attend
+ * `init()`, lui-même déclenché par le premier geste du joueur.
  */
-export async function brancherAudio(): Promise<void> {
+async function chargerAudio(): Promise<MoteurAudio | null> {
+  chargementAudio ??= import('./audio/index.js')
+    .then((module): MoteurAudio | null => {
+      moteurAudioReel = module.AudioEngine.get();
+      return moteurAudioReel;
+    })
+    .catch((): null => {
+      /* Le jeu doit rester parfaitement jouable en silence. */
+      chargementAudio = null;
+      return null;
+    });
+  return chargementAudio;
+}
+
+/** Exécute l'ordre tout de suite si le moteur est là, sinon dès qu'il arrive. */
+function differer(ordre: (moteur: MoteurAudio) => void): void {
+  if (moteurAudioReel) {
+    try {
+      ordre(moteurAudioReel);
+    } catch {
+      /* Un son raté n'interrompt jamais une interaction. */
+    }
+    return;
+  }
+  void chargerAudio().then((moteur) => {
+    if (!moteur) return;
+    try {
+      ordre(moteur);
+    } catch {
+      /* Sans conséquence. */
+    }
+  });
+}
+
+/**
+ * Façade posée **synchroniquement** sur le pont audio de la page d'accueil.
+ *
+ * Le pont a trois canaux : moteur injecté, `globalThis.AuvergneAudio`, puis —
+ * en dernier ressort — un import à spécificateur calculé que le bundler laisse
+ * tel quel. Ce troisième canaux échoue en production (`GET /audio/index.js`
+ * → 404 dans le journal de la console). Injecter cette façade dès la première
+ * ligne de `amorcer()` ferme la course : le pont prend toujours le canal n°1,
+ * et le vrai module n'est téléchargé qu'au premier son demandé.
+ */
+const FACADE_AUDIO: MoteurAudio = {
+  get ready(): boolean {
+    return moteurAudioReel?.ready ?? false;
+  },
+  async init(): Promise<void> {
+    const moteur = await chargerAudio();
+    if (moteur) await moteur.init();
+  },
+  setBus(bus, volume): void {
+    differer((m) => m.setBus(bus, volume));
+  },
+  playTheme(theme): void {
+    differer((m) => m.playTheme(theme));
+  },
+  stopTheme(fadeMs): void {
+    differer((m) => m.stopTheme(fadeMs));
+  },
+  sfx(key): void {
+    differer((m) => m.sfx(key));
+  },
+  ambience(key): void {
+    differer((m) => m.ambience(key));
+  },
+};
+
+/** Branche la façade audio sur le pont de la page d'accueil. Idempotent. */
+export function brancherAudio(): void {
   if (audioBranche) return;
   audioBranche = true;
-  try {
-    const [{ AudioEngine }, { fournirMoteurAudio }] = await Promise.all([
-      import('./audio/index.js'),
-      import('./landing/audio-bridge.js'),
-    ]);
-    fournirMoteurAudio(AudioEngine.get());
-  } catch {
-    /* Le jeu doit rester parfaitement jouable en silence. */
-    audioBranche = false;
-  }
+  fournirMoteurAudio(FACADE_AUDIO);
 }
 
 /* ────────────────────────── Amorçage complet ────────────────────────────── */
@@ -247,5 +312,5 @@ export async function brancherAudio(): Promise<void> {
  */
 export function amorcer(): void {
   amorcerMoteur();
-  void brancherAudio();
+  brancherAudio();
 }

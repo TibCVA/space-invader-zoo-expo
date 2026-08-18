@@ -17,6 +17,54 @@ import { useCallback, useId, useRef, type ReactElement, type ReactNode } from 'r
 import { Icon } from '@auvergne/ui';
 import { jouerEffet } from './audio-bridge.js';
 
+/**
+ * **Fleuron de marge.**
+ *
+ * À droite de chaque entrée se trouvait un chevron d'interface, tourné d'un
+ * quart de tour : à cette taille, sur du parchemin, il ne se lisait plus comme
+ * une flèche mais comme un glyphe parasite tombé là par accident.
+ *
+ * Un menu d'enluminure n'a pas de chevrons : il a des **fleurons**. Celui-ci
+ * est un losange d'or entre deux filets effilés, l'ornement que l'on trouve en
+ * fin de ligne dans un manuscrit. Il est dessiné, jamais typographié, et il
+ * garde une fonction : au survol, il s'ouvre et son losange s'allume, ce qui
+ * signale l'entrée active sans rien emprunter au vocabulaire des formulaires.
+ */
+function Fleuron(): ReactElement {
+  const id = `${useId()}-fleuron`;
+  return (
+    <svg
+      className="hmm-acc-fleuron"
+      viewBox="0 0 26 22"
+      width="26"
+      height="22"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0.3" y2="1">
+          <stop offset="0" stopColor="#F3DEA8" />
+          <stop offset="0.45" stopColor="#C9A227" />
+          <stop offset="1" stopColor="#7A5D16" />
+        </linearGradient>
+      </defs>
+      {/* Deux filets effilés, l'un vers le haut, l'autre vers le bas. */}
+      <path
+        className="hmm-acc-fleuron-filet"
+        d="M3.2 3.4C7 5.6 9.4 7.9 10.6 10.4M3.2 18.6C7 16.4 9.4 14.1 10.6 11.6"
+        fill="none"
+        stroke="#8A6A18"
+        strokeOpacity="0.72"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+      {/* Le losange, cœur de l'ornement. */}
+      <path className="hmm-acc-fleuron-coeur" d="M15.4 11 19.6 5.6 23.8 11 19.6 16.4Z" fill={`url(#${id})`} />
+      <path d="M19.6 7.4 21.9 11 19.6 14.4 17.3 11Z" fill="#FFE9C2" fillOpacity="0.34" />
+    </svg>
+  );
+}
+
 /** Ferrures d'angle et rivets : la plaque est vraiment fixée. */
 function Ferrures(): ReactElement {
   const fer = `${useId()}-fer`;
@@ -114,8 +162,8 @@ function BoutonMenu({ entry, index, onHover }: BoutonProps): ReactElement {
               {disabled && entry.disabledHint ? entry.disabledHint : entry.hint}
             </span>
           </span>
-          <span className="hmm-acc-bouton-chevron" aria-hidden="true">
-            <Icon name="chevron" size={18} />
+          <span className="hmm-acc-bouton-fleuron" aria-hidden="true">
+            <Fleuron />
           </span>
         </span>
       </button>
