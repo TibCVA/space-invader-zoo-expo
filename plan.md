@@ -65,6 +65,41 @@ Règles de style détaillées : `docs/01-ART-BIBLE.md` §0.
 | Boucles de critique visuelle | à faire | |
 | Équilibrage par simulation de masse | à faire | |
 
+## 1 bis. Anomalie de performance mesurée (non résolue)
+
+Les scènes PixiJS s'effondrent à **1–2 images par seconde** dans l'environnement
+de développement, alors que les écrans DOM tiennent 60 fps.
+
+| Condition (route `#/demo/combat`) | images/s |
+|---|---|
+| 1280 × 654 | 2 |
+| 320 × 180 — 16 fois moins de pixels | 6 |
+| scène masquée (`stage.visible = false`) | 60 |
+| planche d'art **statique**, toutes tailles | 1 |
+
+Ce que ces mesures établissent : le coût est dans le **rendu de la scène**, pas
+dans la logique de mise à jour (60 fps scène masquée), et il ne diminue que d'un
+facteur 3 pour 16 fois moins de pixels — donc il tient surtout au nombre et à la
+complexité des objets, pas au remplissage.
+
+Ce qu'elles n'établissent pas : **ce conteneur n'a aucun GPU** ; Chromium y rend
+en logiciel (SwiftShader). Le chiffre observé sur une vraie carte graphique peut
+être tout autre. Aucune conclusion ne doit être tirée sans mesure sur une machine
+réelle.
+
+Comptes d'objets vivants relevés : combat 751, planche d'art 2 290,
+**carte 21 657** — ce dernier est manifestement trop élevé et mérite un
+regroupement des décors en sprites cachés.
+
+Sonde disponible en console : `__auvergne.compter()` et `__auvergne.app`.
+
+Piste privilégiée quand la mesure sera faite sur machine réelle : mettre en
+cache les sous-arbres statiques (`cacheAsTexture`) — champ de bataille, barre
+d'initiative, carte de prévisualisation, semis de décor de la carte — plutôt que
+de les retesseller. Non appliqué à ce stade : modifier du code de rendu qui
+fonctionne, sans pouvoir vérifier le gain sur GPU, ferait courir plus de risque
+que de bénéfice.
+
 ## 2. Suite
 
 1. **Lot 4** (en cours) — carte d'aventure, combat, correction de l'accueil mobile, IA.

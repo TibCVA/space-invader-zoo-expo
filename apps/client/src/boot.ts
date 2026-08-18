@@ -173,6 +173,41 @@ export async function obtenirRendu(): Promise<RenduPartage> {
     /* Le ticker est piloté par les écrans : rien ne tourne à vide. */
     app.ticker.stop();
     avancer('atlas', 0.3);
+    /*
+     * Sonde de performance. Le coût par image d'une scène PixiJS dépend bien
+     * plus du NOMBRE d'objets vivants que du nombre de pixels : au-delà de
+     * quelques milliers de `Graphics`, le moteur reconstruit ses lots à chaque
+     * image et la fréquence s'effondre, identiquement en 320 × 180 et en
+     * 1920 × 1080. `__auvergne` permet de compter sans instrumenter le code.
+     */
+    (globalThis as { __auvergne?: unknown }).__auvergne = {
+      app,
+      compter(): { total: number; graphics: number; sprites: number; conteneurs: number; profondeur: number } {
+        let total = 0;
+        let graphics = 0;
+        let sprites = 0;
+        let conteneurs = 0;
+        let profondeur = 0;
+        const pile: { n: { children?: unknown[]; constructor: { name: string } }; d: number }[] = [
+          { n: app.stage as never, d: 0 },
+        ];
+        while (pile.length) {
+          const { n, d } = pile.pop()!;
+          total += 1;
+          if (d > profondeur) profondeur = d;
+          const nom = n.constructor?.name ?? '';
+          if (nom.includes('Graphics')) graphics += 1;
+          else if (nom.includes('Sprite')) sprites += 1;
+          else conteneurs += 1;
+          const enfants = n.children;
+          if (Array.isArray(enfants)) {
+            for (const e of enfants) pile.push({ n: e as never, d: d + 1 });
+          }
+        }
+        return { total, graphics, sprites, conteneurs, profondeur };
+      },
+    };
+
     return { app, backend: nomDuRendu(app) };
   })();
   return renduPromesse;
