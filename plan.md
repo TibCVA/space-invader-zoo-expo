@@ -59,6 +59,7 @@ Règles de style détaillées : `docs/01-ART-BIBLE.md` §0.
 | Déploiement Railway | **fait** | 43 images servies, PostgreSQL connecté, CSP stricte conservée |
 | Images générées (43, 4,19 Mo) | **fait** | 43 clefs sur 43 valides ; portraits et accueil raccordés |
 | Blocage Chrome / Edge (`unsafe-eval`) | **corrigé** | vérifié sous la vraie CSP du serveur |
+| Gel du chargement à 30 % sous la CSP (worker `blob:`) | **corrigé** | 6 gels sur 6 avant, 0 sur 6 après — voir §1 quinquies |
 | Raccordement des matières | à faire | 8 matières livrées, sans consommateur |
 | Rendu de la carte d'aventure | **fait, à polir** | trop sombre, forêts répétitives, panneau sur la minicarte en portrait |
 | Rendu du combat | **fait, à corriger** | vide de 35 % en portrait ; prévisualisation d'attaque conforme |
@@ -154,6 +155,47 @@ la roue des départs désolidarise les deux, et la mesure est refaite.
 Le compte des gisements, lui, n'est pas touché par ce biais : il ne dépend
 d'aucune comparaison entre profils.
 
+**La mesure refaite**, vingt parties à quatre bannières, sièges désolidarisés
+des profils :
+
+| profil | victoires |
+|---|---|
+| expert | 9 / 20 — 45 % |
+| équilibré | 8 / 20 — 40 % |
+| agressif | 2 / 20 — 10 % |
+| prudent | 1 / 20 — 5 % |
+
+Le classement est enfin celui qu'on attend d'un jeu qui fonctionne : le profil
+le plus fin gagne le plus souvent, le plus timoré le moins. Un Sceau des Marches
+est levé dans 3 parties sur 20, contre aucune avant. Zéro commande refusée au
+rejeu sur les vingt parties, réflexion médiane 119 ms.
+
+## 1 quinquies. Le jeu se figeait à 30 % sous sa propre CSP
+
+Le défaut le plus grave de la journée, trouvé par un module de cité qui
+travaillait sur autre chose. **Toutes les scènes accélérées étaient
+inaccessibles en production** — carte, cités, combat — bloquées pour de bon sur
+« On peint les vingt-huit créatures… ». Six essais sur six sous le vrai binaire
+du serveur, jamais un seul abouti.
+
+PixiJS décode les images dans un *worker* fabriqué depuis une URL `blob:`. La
+politique dit `script-src 'self'` sans mentionner `worker-src`, qui retombe donc
+sur `default-src 'self'` et refuse `blob:`. Le worker n'est jamais créé, et la
+promesse de `Assets.load` **n'est ni tenue ni rejetée** : elle reste en suspens
+pour toujours. Aucun délai de garde ne la bornait — la règle « le repli
+procédural n'est jamais retiré » ne tenait donc pas : il n'y avait pas de repli,
+il y avait un gel.
+
+Corrigé sans ouvrir la politique : décodage sur le fil principal
+(`preferWorkers: false`, posé dans `main.tsx` avant tout le reste) et délai de
+garde de dix secondes par image. Six essais sur six chargent désormais, en 8,7 s.
+
+**Ce que le harnais doit en retenir.** Il servait le bundle par `vite preview`,
+qui n'envoie aucune CSP. Deux pannes bloquantes ont déjà traversé ce trou :
+`unsafe-eval` d'abord, ce worker ensuite. Les captures étaient vertes et le jeu
+était inutilisable. `tools/screenshot.mjs` sert désormais par le binaire du
+serveur, sous la politique réelle, à chaque capture.
+
 ## 1 quater. Le multijoueur, vérifié de bout en bout
 
 Le service et le client ont été écrits séparément contre le contrat figé de
@@ -240,6 +282,14 @@ Par ordre de valeur pour le joueur, et non d'ordre chronologique.
   cités a produit cinq tours de captures sans jamais corriger le défaut le plus
   visible de son écran. La revue finale reste à faire par le fil principal, à
   l'œil, capture par capture.
+- **Lire les rapports d'agent jusqu'au bout, surtout la section « hors
+  périmètre ».** Le gel du chargement sous CSP — le défaut le plus grave du
+  projet, qui rendait toutes les scènes accélérées inaccessibles — a été
+  signalé en passant, en sixième point, par un module qui travaillait sur les
+  cités. Il aurait pu rester dans un rapport non lu.
+- **Un test de bout en bout doit courir dans les conditions de production.**
+  C'est la même leçon deux fois : ce qui n'est pas éprouvé sous la vraie CSP,
+  contre le vrai binaire, dans un vrai navigateur, n'est pas éprouvé.
 
 ## 4. Documents de référence
 
