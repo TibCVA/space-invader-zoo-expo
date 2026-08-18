@@ -6,6 +6,11 @@ const r = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 export default defineConfig({
   resolve: {
     alias: {
+      /* Les clefs profondes passent AVANT la clef de base : l'alias de Vite
+         remplace par préfixe, et `@auvergne/engine/x` deviendrait sinon
+         `…/src/index.ts/x`. Le testkit du combat est le seul module qu'on
+         importe en profondeur — il n'a pas sa place dans le baril public. */
+      '@auvergne/engine/combat/testkit': r('./packages/engine/src/combat/testkit.ts'),
       '@auvergne/engine': r('./packages/engine/src/index.ts'),
       '@auvergne/game': r('./packages/game/src/index.ts'),
       '@auvergne/content': r('./packages/content/src/index.ts'),

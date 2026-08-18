@@ -14,7 +14,7 @@
  * tous du journal du moteur.
  */
 
-import { hexDistance, hexLine } from '@auvergne/engine';
+import { hexDistance, hexLine, hexPath } from '@auvergne/engine';
 import type { CombatLogEntry, CombatState, GameEvent, HexCoord } from '@auvergne/engine';
 import { LIGHT, PALETTE, melanger } from '../art/palette.js';
 import type { Geometrie } from './hexgrid.js';
@@ -232,6 +232,11 @@ export class FileAnimations {
    * Déplacement le long du chemin hexagonal, une case après l'autre. La durée
    * n'est connue qu'au départ : elle est fixée dans `debut`, que la file
    * appelle **avant** de lire `duree`.
+   *
+   * Le chemin est celui du **moteur**, pas une ligne droite. Voir
+   * `cheminDeMarche` : la pile suivait auparavant l'interpolation linéaire de
+   * `hexLine`, et traversait donc obstacles et piles alliées sous les yeux du
+   * joueur, alors que la prévisualisation lui avait montré le contour.
    */
   private marche(uid: string, vers: HexCoord, index: number): void {
     const ctx = this.ctx;
@@ -246,7 +251,7 @@ export class FileAnimations {
           tache.duree = 0;
           return;
         }
-        chemin = hexLine(pile.hex, vers);
+        chemin = cheminDeMarche(ctx.combat(), uid, pile.hex, vers);
         tache.duree = Math.max(0.12, Math.min(1.6, 0.17 * Math.max(1, chemin.length - 1)));
         pile.jouer('marche');
         pile.orienter(vers.col >= pile.hex.col ? 1 : -1);
@@ -495,6 +500,45 @@ export class FileAnimations {
 }
 
 /* ═══════════════════════════════ Aides ═══════════════════════════════════ */
+
+/**
+ * Le chemin que la pile va **jouer**, celui que le moteur a réellement suivi.
+ *
+ * L'animation interpolait par `hexLine` — la ligne droite — pendant que la
+ * prévisualisation au survol montrait le vrai chemin de `hexPath`, qui contourne
+ * obstacles et piles. Dès que les deux divergeaient, la créature traversait un
+ * rocher ou une pile alliée sous les yeux du joueur, exactement là où on venait
+ * de lui montrer le contour.
+ *
+ * Deux précautions rendent l'appel au moteur honnête :
+ *
+ *  - au moment où l'animation démarre, l'état du combat a déjà appliqué le
+ *    déplacement : la pile y est **à l'arrivée**, avec son propre corps posé sur
+ *    `vers`. On repart donc d'un clone replacé au départ — l'occupation s'exclut
+ *    par uid (`unitAt`), le clone ne bute pas sur son propre corps ;
+ *  - si le moteur ne rend rien (état déjà avancé par d'autres événements, case
+ *    devenue imprenable), on retombe sur la ligne droite : une trajectoire
+ *    approchée vaut mieux qu'une pile figée.
+ *
+ * Les volants passent par le même appel : `hexPath` leur rend déjà la ligne
+ * droite, qui est leur vrai déplacement.
+ */
+export function cheminDeMarche(
+  combat: CombatState,
+  uid: string,
+  de: HexCoord,
+  vers: HexCoord,
+): HexCoord[] {
+  const unite = combat.units.find((u) => u.uid === uid);
+  if (unite) {
+    const chemin = hexPath(combat, { ...unite, at: de }, vers);
+    const bout = chemin?.[chemin.length - 1];
+    if (chemin && chemin.length >= 2 && bout && bout.col === vers.col && bout.row === vers.row) {
+      return chemin;
+    }
+  }
+  return hexLine(de, vers);
+}
 
 /** École devinée depuis le texte du journal, à défaut d'un détail chiffré. */
 function ecoleDuTexte(texte: string): 'braises' | 'sources' | 'brumes' | 'racines' {
