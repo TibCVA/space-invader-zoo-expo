@@ -19,6 +19,10 @@
  */
 import {
   BLOCK_SIZE,
+  CELL_BRIDGE,
+  CELL_PASSABLE,
+  TERRAIN_COST,
+  TERRAINS,
   type GameState,
   type HeroInstance,
   type MapCoord,
@@ -141,14 +145,39 @@ function blockGraphOf(world: WorldMap, staticBlocked: Uint8Array): BlockGraph {
   return { bcols, brows, avgCost, links };
 }
 
+/**
+ * Barème de marche indexé par le code de terrain, **dérivé** de `TERRAIN_COST`.
+ *
+ * Cette table était auparavant recopiée à la main — `[70, 85, 100, 125, 145,
+ * 160, 200, 0]` — à côté d'un `terrainIndex === 7` qui codait « eau » en dur.
+ * Deux vérités pour un seul barème, et la copie ne prévenait personne : ajouter
+ * un terrain à `TERRAINS` déplaçait l'indice de l'eau, faisait retomber le
+ * nouveau terrain sur le `?? 100` silencieux, et le calcul de chemin se mettait
+ * à mentir sans qu'aucun test ne rougisse. Le jour où la carte gagnera ses
+ * falaises et ses cols, c'est précisément ce qui serait arrivé.
+ *
+ * `MIN_TERRAIN_COST` reste l'invariant : un coût nul signifie « infranchissable »
+ * pour tous les appelants de `rawCost`, jamais « gratuit ».
+ */
+const MAX_COUT_FRANCHISSABLE = 10_000;
+
+export const COUT_PAR_INDICE: readonly number[] = TERRAINS.map((t) => {
+  const c = TERRAIN_COST[t];
+  return Number.isFinite(c) && c <= MAX_COUT_FRANCHISSABLE ? c : 0;
+});
+
+/** L'indice de l'eau, lu dans `TERRAINS` au lieu d'être écrit en dur. */
+const INDICE_EAU = TERRAINS.indexOf('eau');
+
+/** Un pont se franchit au prix d'un chemin. */
+const COUT_PONT = TERRAIN_COST.chemin;
+
 function rawCost(world: WorldMap, index: number): number {
   const f = world.flags[index] | 0;
   const terrainIndex = world.terrain[index] | 0;
-  // 7 = 'eau' dans TERRAINS
-  if (terrainIndex === 7) return (f & 4) !== 0 ? 85 : 0;
-  if ((f & 1) === 0) return 0;
-  const costs = [70, 85, 100, 125, 145, 160, 200, 0];
-  return costs[terrainIndex] ?? 100;
+  if (terrainIndex === INDICE_EAU) return (f & CELL_BRIDGE) !== 0 ? COUT_PONT : 0;
+  if ((f & CELL_PASSABLE) === 0) return 0;
+  return COUT_PAR_INDICE[terrainIndex] ?? TERRAIN_COST.prairie;
 }
 
 function buildStaticBlocked(state: GameState, world: WorldMap): Uint8Array {
