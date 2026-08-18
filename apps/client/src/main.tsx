@@ -20,6 +20,22 @@
  * qui possède des ressources GPU.
  */
 
+/*
+ * PREMIER IMPORT, ET IL DOIT LE RESTER.
+ *
+ * PixiJS 8 compile ses synchronisations d'uniformes et de shaders en
+ * fabriquant des fonctions à l'exécution (`new Function`). Cela réclame
+ * `unsafe-eval` dans la politique de sécurité de contenu — que le serveur
+ * refuse volontairement (`script-src 'self'`, apps/server/src/server.ts).
+ * Sans ce module, Chrome et Edge affichent « Ce navigateur n'a pu ouvrir ni
+ * WebGPU ni WebGL » : la carte, les cités et les combats ne se dessinent pas.
+ *
+ * `pixi.js/unsafe-eval` installe des équivalents interprétés de ces
+ * générateurs. Il doit être chargé AVANT toute création de moteur de rendu,
+ * donc avant `./boot.js`.
+ */
+import 'pixi.js/unsafe-eval';
+
 import { createRoot } from 'react-dom/client';
 import { amorcer } from './boot.js';
 import { App } from './App.js';
