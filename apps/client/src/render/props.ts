@@ -46,6 +46,30 @@ const HAUTEUR_CASES: Readonly<Record<PropKey, number>> = {
 /** Décors menus, escamotés au zoom lointain (niveau de détail). */
 const MENUS: ReadonlySet<PropKey> = new Set<PropKey>(['fougere', 'souche', 'buisson']);
 
+/**
+ * Ce qui est trop haut pour pousser au pied d'un lieu qu'on peut visiter.
+ *
+ * Tout décor d'au moins une case de haut masque ou concurrence l'objet qu'il
+ * jouxte. Mesuré avant correction : **76 % des objets avaient un décor non menu
+ * dans le rectangle de 5 × 4 qui les entoure, et 55 % avaient un voisin plus
+ * haut qu'eux**. Le semis n'excluait que l'empreinte exacte de l'objet, une
+ * case le plus souvent.
+ */
+const TROP_HAUT: ReadonlySet<PropKey> = new Set<PropKey>(
+  (Object.keys(HAUTEUR_CASES) as PropKey[]).filter((k) => HAUTEUR_CASES[k] >= 1),
+);
+
+/**
+ * Rayon de dégagement autour d'un lieu visitable, en cases.
+ *
+ * Deux cases, soit une clairière de 5 × 5. C'est le procédé de HMM3, qui ne
+ * grossit pas ses tas de ressource mais les **pose dans une trouée** : l'œil
+ * les trouve parce que rien ne pousse autour, pas parce qu'ils sont énormes.
+ * Le sous-bois menu — fougères, souches, buissons — continue de pousser, sans
+ * quoi la clairière se verrait comme un disque nu et artificiel.
+ */
+const DEGAGEMENT = 2;
+
 interface Plant {
   readonly key: PropKey;
   readonly variante: number;
@@ -100,6 +124,8 @@ export class SemisProps {
   private readonly corps: Sprite[] = [];
   private readonly taches: Sprite[] = [];
   private readonly densite: number;
+  /** 1 = case au voisinage d'un lieu visitable : pas de grand décor ici. */
+  private readonly clairieres: Uint8Array;
 
   constructor(
     private readonly world: WorldMap,
@@ -109,6 +135,36 @@ export class SemisProps {
     this.couche.label = 'decor';
     this.ombres.label = 'ombres-decor';
     this.densite = quality === 'basse' ? 0.45 : quality === 'moyenne' ? 0.75 : 1;
+    this.clairieres = this.marquerClairieres();
+  }
+
+  /**
+   * Les cases où le grand décor ne pousse pas : le voisinage des lieux visitables.
+   *
+   * Calculé une fois, à la construction. Le coût est d'un octet par case —
+   * cent six kilo-octets pour toute la carte — contre une recherche de voisinage
+   * à chaque semis de bloc, qui serait refaite à chaque déplacement de caméra.
+   */
+  private marquerClairieres(): Uint8Array {
+    const w = this.world;
+    const masque = new Uint8Array(w.cols * w.rows);
+    for (const objet of w.objects) {
+      /* `obstacle` est du décor : il n'a pas de clairière à lui. */
+      if (objet.kind === 'obstacle') continue;
+      const cases = objet.footprint.length ? objet.footprint : [objet.at];
+      for (const c of cases) {
+        for (let dr = -DEGAGEMENT; dr <= DEGAGEMENT; dr += 1) {
+          const row = c.row + dr;
+          if (row < 0 || row >= w.rows) continue;
+          for (let dc = -DEGAGEMENT; dc <= DEGAGEMENT; dc += 1) {
+            const col = c.col + dc;
+            if (col < 0 || col >= w.cols) continue;
+            masque[row * w.cols + col] = 1;
+          }
+        }
+      }
+    }
+    return masque;
   }
 
   get nombreVisible(): number {
@@ -181,6 +237,14 @@ export class SemisProps {
             break;
           }
         }
+        /*
+         * La clairière autour d'un lieu visitable. On ne supprime pas tout le
+         * décor — une trouée nette se verrait comme un disque de tondeuse — mais
+         * tout ce qui atteint la case de haut, c'est-à-dire tout ce qui pouvait
+         * masquer ou dépasser l'objet. Le sous-bois menu reste, et c'est lui qui
+         * rend la clairière crédible.
+         */
+        if (this.clairieres[index] === 1 && TROP_HAUT.has(choix)) continue;
         if (tirage > chance * this.densite) continue;
 
         const variante = Math.floor(alea(col, row, 307) * 5);
