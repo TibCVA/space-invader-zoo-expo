@@ -111,7 +111,7 @@ export class JetonsHeros {
   }
 
   private taille(v: Cadrage): number {
-    return borne(v.zoom * 2.05, 26, 96);
+    return borne(v.zoom * 2.45, 30, 112);
   }
 
   sync(state: GameState): void {
@@ -256,6 +256,7 @@ export class JetonsHeros {
       alpha: 0.55,
     });
     /* Loi n°4 : liseré doré au sud-est, en arc, jamais un contour complet. */
+    g.moveTo(Math.cos(0.15) * l * 0.56, cy + Math.sin(0.15) * l * 0.56);
     g.arc(0, cy, l * 0.56, 0.15, 1.55).stroke({
       color: LIGHT.rim,
       width: Math.max(1, taille * 0.035),
@@ -265,6 +266,7 @@ export class JetonsHeros {
     /* Jauge de points de marche : un arc d'or sous le cartouche. */
     const rj = taille * 0.42;
     const yj = -taille * 0.1;
+    g.moveTo(Math.cos(Math.PI * 0.12) * rj, yj + Math.sin(Math.PI * 0.12) * rj);
     g.arc(0, yj, rj, Math.PI * 0.12, Math.PI * 0.88).stroke({
       color: assombrir(PALETTE.brunFougere, 0.3),
       width: Math.max(2, taille * 0.075),
@@ -274,6 +276,7 @@ export class JetonsHeros {
     if (j.marche > 0.001) {
       const a0 = Math.PI * 0.88;
       const a1 = a0 - (Math.PI * 0.76) * j.marche;
+      g.moveTo(Math.cos(a1) * rj, yj + Math.sin(a1) * rj);
       g.arc(0, yj, rj, a1, a0).stroke({
         color: j.marche > 0.25 ? PALETTE.vieilOr : PALETTE.grenat,
         width: Math.max(1.5, taille * 0.055),
@@ -319,10 +322,13 @@ export class JetonsHeros {
         j.tailleDessinee = taille;
         this.peindre(j, taille, propre ?? false);
         this.peindreJauge(j, taille, selection === j.uid);
+        /* Le portrait est cadré poitrine : on l'agrandit pour que le visage
+           remplisse le cartouche, sinon on ne reconnaît personne à 40 px. */
         const tp = j.portrait.texture;
-        const eff = (taille * 0.72) / Math.max(1, tp.height);
-        j.portrait.scale.set(eff * 1.28);
-        j.portrait.position.set(0, -taille * 0.62);
+        j.portrait.scale.set((taille * 1.72) / Math.max(1, tp.height));
+        j.portrait.anchor.set(0.5, 0.34);
+        j.portrait.tint = melanger(0xffffff, LIGHT.chaude, 0.2);
+        j.portrait.position.set(0, -taille * 0.66);
         const tb = j.banniere.texture;
         j.banniere.scale.set((taille * 0.78) / Math.max(1, tb.height));
         j.ombre.width = taille * 0.86;

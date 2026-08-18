@@ -77,6 +77,7 @@ export class PileVue {
   private cartouche: Container | null = null;
   private readonly ombreContact = new Graphics();
 
+  private baseBanniereX = 0;
   private nombreAffiche = -1;
   private vieAffichee = -1;
   private mise = false;
@@ -101,16 +102,23 @@ export class PileVue {
     /* La créature est mise à l'échelle de l'hexagone : la silhouette doit
        tenir dans sa case sans jamais la déborder de plus d'un tiers. */
     const b = this.rig.getLocalBounds();
-    const hauteurCible = geo.taille * (unitDef(unit).size === 2 ? 2.5 : 2.15);
-    this.echelle = Math.min(1.35, hauteurCible / Math.max(24, b.height));
+    const hauteurCible = geo.taille * (unitDef(unit).size === 2 ? 2.9 : 2.5);
+    this.echelle = Math.min(1.7, hauteurCible / Math.max(24, b.height));
     this.rig.scale.set(this.echelle);
     this.rig.setFacing(unit.side === 0 ? 1 : -1);
 
+    /* Le pennon de camp est un repère, pas un décor : il reste petit, planté
+       derrière l'épaule, et ne mange jamais la silhouette de la créature. */
     this.banniere = new Sprite(atlas.banner(couleurHex(camp.couleur), camp.motif));
-    this.banniere.anchor.set(0.5, 0.06);
-    const hb = geo.taille * 1.55;
+    this.banniere.anchor.set(0.5, 0.04);
+    const hb = geo.taille * 0.92;
     this.banniere.scale.set(hb / Math.max(8, this.banniere.texture.height));
-    this.banniere.position.set(-geo.taille * 0.62, -geo.taille * 2.1);
+    this.banniere.position.set(
+      (unit.side === 0 ? -1 : 1) * geo.taille * 0.66,
+      -geo.taille * 1.62,
+    );
+    this.banniere.alpha = 0.96;
+    this.baseBanniereX = this.banniere.x;
 
     this.container.addChild(
       this.ombreContact,
@@ -153,7 +161,7 @@ export class PileVue {
     }
     /* Perspective atmosphérique : les piles du fond tirent vers la brume. */
     const profondeur = 1 - unit.at.row / (HEX_ROWS - 1);
-    this.rig.tint = melanger(0xffffff, LIGHT.brume, profondeur * 0.16);
+    this.rig.tint = melanger(0xffffff, LIGHT.brume, profondeur * 0.12);
     if (!unit.alive && !this.morte) this.mourir();
   }
 
@@ -216,7 +224,7 @@ export class PileVue {
     this.phase += s;
     const w = (Math.PI * 2) / (3.1 + (this.uid.charCodeAt(1) % 5) * 0.7);
     this.banniere.rotation = Math.sin(this.phase * w) * 0.05;
-    this.banniere.x = -this.geo.taille * 0.62 + Math.sin(this.phase * w * 1.3) * 1.6;
+    this.banniere.x = this.baseBanniereX + Math.sin(this.phase * w * 1.3) * 1.6;
     this.cartoucheHote.y = Math.sin(this.phase * 1.1) * 0.8;
   }
 
@@ -247,9 +255,9 @@ export class PileVue {
     /* socle de camp : un croissant teinté, côté ombre, plus un liseré doré */
     const s = this.socle;
     s.clear();
-    const anneau = blob(0, t * 0.02, t * 0.62, t * 0.26, { seed: 21, points: 20, wobble: 0.12 });
-    s.poly(flat(anneau)).fill({ color: melanger(this.camp.couleur, LIGHT.froide, 0.42), alpha: 0.3 });
-    s.poly(flat(anneau)).stroke({ color: melanger(this.camp.couleur, LIGHT.chaude, 0.25), width: 1.6, alpha: 0.55 });
+    const anneau = blob(0, t * 0.04, t * 0.6, t * 0.25, { seed: 21, points: 20, wobble: 0.12 });
+    s.poly(flat(anneau)).fill({ color: melanger(this.camp.couleur, LIGHT.froide, 0.55), alpha: 0.22 });
+    s.poly(flat(anneau)).stroke({ color: melanger(this.camp.couleur, LIGHT.chaude, 0.3), width: 1.8, alpha: 0.62 });
     const nw = anneau.filter((p) => p.x + p.y < 0);
     if (nw.length > 2) {
       s.poly(flat(nw)).stroke({ color: LIGHT.rim, width: 1.3, alpha: LIGHT.rimAlpha });
@@ -271,7 +279,7 @@ export class PileVue {
     this.cartouche?.destroy({ children: true });
     const echelle = Math.max(0.72, Math.min(1.15, this.geo.taille / 42));
     this.cartouche = plaqueNombre(this.atlas.materials, unit.count, this.camp.couleur, echelle);
-    this.cartouche.position.set(this.geo.taille * 0.56, this.geo.taille * 0.42);
+    this.cartouche.position.set(this.geo.taille * 0.66, this.geo.taille * 0.3);
     this.cartoucheHote.addChild(this.cartouche);
   }
 

@@ -18,7 +18,7 @@ import { Container, Sprite, Texture } from 'pixi.js';
 import type { WorldMap } from '@auvergne/engine';
 import type { ArtAtlas, PropKey } from '../art/index.js';
 import { oscillationProp } from '../art/props.js';
-import { LIGHT, melanger } from '../art/palette.js';
+import { LIGHT, PALETTE, melanger } from '../art/palette.js';
 import type { ViewQuality } from '../view-contract.js';
 import { TER, alea, borne, xEcran, yEcran } from './commun.js';
 import type { Cadrage } from './commun.js';
@@ -54,6 +54,8 @@ interface Plant {
   readonly row: number;
   /** teinte de perspective atmosphérique, déjà calculée */
   readonly teinte: number;
+  /** facteur de taille propre à ce pied : une futaie n'est jamais régulière */
+  readonly taille: number;
   readonly menu: boolean;
 }
 
@@ -143,8 +145,8 @@ export class SemisProps {
             chance = 0.62;
             const r = alea(col, row, 211);
             /* Sapinière au-dessus de 950 m, hêtraie plus bas (packages/map). */
-            const sapin = alt > 950 ? 0.86 : alt > 800 ? 0.58 : 0.24;
-            choix = r < sapin ? 'sapin' : r < sapin + 0.14 ? 'buisson' : 'hetre';
+            const sapin = alt > 980 ? 0.74 : alt > 830 ? 0.5 : 0.2;
+            choix = r < sapin ? 'sapin' : r < sapin + 0.2 ? 'buisson' : 'hetre';
             break;
           }
           case TER.prairie: {
@@ -185,14 +187,21 @@ export class SemisProps {
         const jx = alea(col, row, 401) * 0.86 + 0.07;
         const jy = alea(col, row, 409) * 0.7 + 0.2;
         /* Loi n°5 : l'altitude éloigne, donc désature vers le bleu de brume. */
-        const voile = borne((alt - 700) / 2600, 0, 0.24) + borne(pente / 340, 0, 0.05);
-        const teinte = melanger(0xffffff, LIGHT.brume, voile);
+        const voile = borne((alt - 820) / 3400, 0, 0.17) + borne(pente / 460, 0, 0.04);
+        /* Chaque pied prend sa lumière : un versant de futaie n'est pas uni. */
+        const humeur = alea(col, row, 503) - 0.5;
+        const teinte = melanger(
+          melanger(0xffffff, LIGHT.brume, voile),
+          humeur > 0 ? LIGHT.chaude : melanger(LIGHT.froide, PALETTE.vertSapin, 0.4),
+          Math.abs(humeur) * 0.4,
+        );
         out.push({
           key: choix,
           variante,
           col: col + jx,
           row: row + jy,
           teinte,
+          taille: 0.8 + alea(col, row, 601) * 0.42,
           menu: MENUS.has(choix),
         });
       }
@@ -292,7 +301,7 @@ export class SemisProps {
       const p = this.visibles[i];
       const s = this.corps[i];
       const tex = s.texture;
-      const hauteur = HAUTEUR_CASES[p.key] * v.zoom;
+      const hauteur = HAUTEUR_CASES[p.key] * p.taille * v.zoom;
       const echelle = hauteur / Math.max(1, tex.height);
       const x = xEcran(v, p.col);
       const y = yEcran(v, p.row);
@@ -314,8 +323,8 @@ export class SemisProps {
       o.width = largeur;
       o.height = largeur * 0.42;
       /* Loi n°2 : l'ombre part au sud-est, longueur = hauteur × 1,28. */
-      o.position.set(x + hauteur * 0.1, y + hauteur * 0.045);
-      o.alpha = LIGHT.ombrePorteeAlpha;
+      o.position.set(x + hauteur * 0.14, y + hauteur * 0.05);
+      o.alpha = LIGHT.ombrePorteeAlpha + 0.1;
     }
   }
 

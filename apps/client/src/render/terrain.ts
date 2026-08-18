@@ -25,7 +25,7 @@ import { Container, Sprite, Texture } from 'pixi.js';
 import { CELL_ROAD } from '@auvergne/engine';
 import type { WorldMap } from '@auvergne/engine';
 import type { ViewQuality } from '../view-contract.js';
-import { LIGHT, PALETTE, assombrir, melanger } from '../art/palette.js';
+import { LIGHT, PALETTE, assombrir, melanger, saturer } from '../art/palette.js';
 import {
   BRUME,
   CHAUDE,
@@ -50,7 +50,7 @@ const G = BLOC + 2 * MARGE;
 /** Mètres par case (la grille du Forez est à ~48 m). */
 const METRES_PAR_CASE = 48;
 /** Exagération du relief : sans elle, un massif réel paraît plat en 2D. */
-const EXAGERATION = 2.6;
+const EXAGERATION = 5;
 
 /* Vecteur unitaire surface → soleil, azimut 315°, élévation 38° (loi n°2). */
 const SOLEIL_X = -Math.cos((38 * Math.PI) / 180) * Math.SQRT1_2;
@@ -131,8 +131,8 @@ function couleurBiome(terrain: number, alt: number, pente: number): number {
   let c: number;
   switch (terrain) {
     case TER.foret: {
-      const hetraie = melanger(PALETTE.vertSapin, PALETTE.vertHetre, 0.46);
-      const sapiniere = melanger(PALETTE.vertSapin, PALETTE.bleuProfond, 0.24);
+      const hetraie = melanger(melanger(PALETTE.vertSapin, PALETTE.vertHetre, 0.54), PALETTE.brunFougere, 0.16);
+      const sapiniere = melanger(melanger(PALETTE.vertSapin, PALETTE.mousseSombre, 0.5), PALETTE.bleuProfond, 0.14);
       c = melanger(hetraie, sapiniere, t);
       break;
     }
@@ -169,7 +169,9 @@ function couleurBiome(terrain: number, alt: number, pente: number): number {
   if (pente > 11 && terrain !== TER.eau) {
     c = melanger(c, PALETTE.granitClair, Math.min(0.34, (pente - 11) / 46));
   }
-  return c;
+  /* Une carte peinte n'est pas une photographie : on rend aux teintes un peu
+     de la saturation que l'ombrage et la brume vont leur reprendre. */
+  return saturer(c, 0.14);
 }
 
 /* ─────────────────────────────── Le peintre ─────────────────────────────── */
@@ -367,7 +369,7 @@ export class PeintreTerrain {
         /* Bruit de teinte par case : deux cases voisines ne sont jamais
            exactement de la même couleur (loi n°1). */
         const jitter = alea(cc, rc, 17) - 0.5;
-        couleur = melanger(couleur, jitter > 0 ? LIGHT.chaude : LIGHT.froide, Math.abs(jitter) * 0.16);
+        couleur = melanger(couleur, jitter > 0 ? LIGHT.chaude : LIGHT.froide, Math.abs(jitter) * 0.075);
         cr[k] = (couleur >> 16) & 255;
         cg[k] = (couleur >> 8) & 255;
         cb[k] = couleur & 255;
@@ -417,8 +419,8 @@ export class PeintreTerrain {
            serpente, donc aucune frontière de biome ne suit la grille. */
         const wa = ch.gauche.doux(wx * 1.15, wy * 1.15);
         const wb = ch.gaucheB.doux(wx * 1.15, wy * 1.15);
-        const sx = gx - 0.5 + wa * 0.9;
-        const sy = gy - 0.5 + wb * 0.9;
+        const sx = gx - 0.5 + wa * 1.15;
+        const sy = gy - 0.5 + wb * 1.15;
 
         const dans = dedans[
           borne(Math.round(gy - 0.5), 0, G - 1) * G + borne(Math.round(gx - 0.5), 0, G - 1)
@@ -461,22 +463,25 @@ export class PeintreTerrain {
 
         /* Strate 3 — occlusion ambiante : les fonds de vallée se referment. */
         const creux = flou[h00] - alt[h00];
-        const ao = borne(creux / 26, -0.7, 1);
+        const ao = borne(creux / 26, -0.4, 1);
 
         /* Strate 4 — bruit de matière, deux octaves. */
         const o1 = ch.matiere.doux(wx * 3.3, wy * 3.3);
         const o2 = ch.grain.brut(wx * 12.7 + 41, wy * 12.7 + 17);
         const matiere = o1 * 0.62 + o2 * 0.38;
+        /* Une large dérive de valeur : c'est elle qui donne au sol l'aspect
+           d'une aquarelle plutôt que d'une teinte imprimée. */
+        const nappe = ch.gaucheB.doux(wx * 0.28 + 53, wy * 0.28 + 19);
 
-        let v = sh * (1 - ao * 0.17) * (1 + matiere * 0.1);
-        v = borne(v, 0.4, 1.55);
+        let v = sh * (1 - ao * 0.13) * (1 + matiere * 0.13 + nappe * 0.1);
+        v = borne(v, 0.38, 1.62);
         r *= v;
         g *= v;
         b *= v;
 
         /* Loi n°3 — la lumière tire vers l'ambre, l'ombre vers le bleu. */
         if (v > 1) {
-          const t = Math.min(1, (v - 1) * 1.5) * 0.3;
+          const t = Math.min(1, (v - 1) * 1.5) * 0.34;
           r += (CHAUDE.r - r) * t;
           g += (CHAUDE.g - g) * t;
           b += (CHAUDE.b - b) * t;
@@ -509,7 +514,7 @@ export class PeintreTerrain {
 
         /* Loi n°5 — perspective atmosphérique : les hauteurs bleuissent. */
         const altP = alt[h00];
-        const voile = borne((altP - 660) / 2150, 0, 0.28);
+        const voile = borne((altP - 780) / 2700, 0, 0.19);
         if (voile > 0) {
           r += (BRUME.r - r) * voile;
           g += (BRUME.g - g) * voile;

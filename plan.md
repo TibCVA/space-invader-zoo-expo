@@ -92,4 +92,5 @@ il restera à ajouter `assets/manifeste.json` et un chargeur à repli procédura
 | `docs/02-API.md` | contrats inter-modules imposés |
 | `docs/03-ROUTES.md` | routes du client et scènes de revue visuelle |
 | `docs/04-MULTIJOUEUR.md` | parties en ligne asynchrones |
+| `docs/05-ASSETS.md` | **contrat des images générées** : chemins, clefs, tailles, style |
 | `docs/90-DOCUMENT-MAITRE.md` | document de conception d'origine |

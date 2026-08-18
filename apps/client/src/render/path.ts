@@ -112,6 +112,7 @@ export class CheminPerles {
         color: LIGHT.chaude,
         alpha: atteignable ? 0.75 : 0.4,
       });
+      g.moveTo(p.x + Math.cos(-0.5) * r * 0.92, p.y + Math.sin(-0.5) * r * 0.92);
       g.arc(p.x, p.y, r * 0.92, -0.5, 1.9).stroke({
         color: LIGHT.rim,
         width: Math.max(1, r * 0.16),

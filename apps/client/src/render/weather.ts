@@ -31,12 +31,12 @@ const CLIMATS: Readonly<Record<WeatherKind, Reglage>> = {
       { kind: 'brume', intensite: 0.4 },
     ],
     voile: melanger(PALETTE.bleuProfond, PALETTE.bleuBrume, 0.4),
-    alpha: 0.14,
+    alpha: 0.11,
   },
   brume: {
-    effets: [{ kind: 'brume', intensite: 1 }],
+    effets: [{ kind: 'brume', intensite: 0.34 }],
     voile: PALETTE.bleuBrume,
-    alpha: 0.13,
+    alpha: 0.055,
   },
   givre: {
     effets: [{ kind: 'givre', intensite: 0.9 }],

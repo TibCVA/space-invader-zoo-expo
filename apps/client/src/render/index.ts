@@ -48,7 +48,7 @@ import { Minicarte } from './minimap.js';
 import { Meteo } from './weather.js';
 import { creerPostFx } from './postfx.js';
 import type { PostTraitement } from './postfx.js';
-import { borne, colEcran, rowEcran, xEcran, yEcran } from './commun.js';
+import { borne, champs, colEcran, rowEcran, xEcran, yEcran } from './commun.js';
 import type { Cadrage } from './commun.js';
 
 /** Budget de peinture de terrain par image, en millisecondes. */
@@ -228,34 +228,55 @@ class CarteAventure implements MapView {
     if (reel) out.set(reel);
     const joueur = state.players[this.deps.localPlayer];
     if (!joueur) return out;
-    const foyers: MapCoord[] = [];
+
+    /* Les foyers : cités, héros, point de cadrage — et les relais du chemin qui
+       les relie, pour que la contrée traversée forme une seule contrée claire
+       plutôt que deux taches sans lien. */
+    const socles: MapCoord[] = [];
     for (const uid of joueur.towns) {
       const t = state.towns[uid];
-      if (t) foyers.push(t.at);
+      if (t) socles.push(t.at);
     }
     for (const uid of joueur.heroes) {
       const h = state.heroes[uid];
-      if (h) foyers.push(h.at);
+      if (h) socles.push(h.at);
     }
-    if (this.deps.focus) foyers.push(this.deps.focus);
-    const rayon = 82;
-    for (const f of foyers) {
-      const c0 = Math.max(0, f.col - rayon);
-      const c1 = Math.min(w.cols - 1, f.col + rayon);
-      const r0 = Math.max(0, f.row - rayon);
-      const r1 = Math.min(w.rows - 1, f.row + rayon);
-      for (let row = r0; row <= r1; row += 1) {
-        const dr = row - f.row;
-        for (let col = c0; col <= c1; col += 1) {
-          const dc = col - f.col;
-          /* Contour ovale et bruité : la frontière du connu n'est pas un carré. */
-          const d = (dc * dc) / (rayon * rayon) + (dr * dr) / ((rayon * 0.78) * (rayon * 0.78));
-          if (d > 1) continue;
-          const i = row * w.cols + col;
-          if (out[i] < 1) out[i] = 1;
+    const centre = this.deps.focus;
+    if (centre) socles.push(centre);
+    const foyers: MapCoord[] = [...socles];
+    if (centre) {
+      for (const s of socles) {
+        for (const t of [0.25, 0.5, 0.75]) {
+          foyers.push({
+            col: Math.round(s.col + (centre.col - s.col) * t),
+            row: Math.round(s.row + (centre.row - s.row) * t),
+          });
         }
       }
     }
+
+    const ch = champs();
+    const marquer = (niveau: number, a: number, b: number) => {
+      for (const f of foyers) {
+        const c0 = Math.max(0, Math.floor(f.col - a - 4));
+        const c1 = Math.min(w.cols - 1, Math.ceil(f.col + a + 4));
+        const r0 = Math.max(0, Math.floor(f.row - b - 4));
+        const r1 = Math.min(w.rows - 1, Math.ceil(f.row + b + 4));
+        for (let row = r0; row <= r1; row += 1) {
+          const dr = (row - f.row) / b;
+          for (let col = c0; col <= c1; col += 1) {
+            const dc = (col - f.col) / a;
+            /* Frontière gauchie par le bruit : jamais un ovale de géomètre. */
+            const seuil = 1 + ch.gauche.doux(col * 0.11, row * 0.11) * 0.34;
+            if (dc * dc + dr * dr > seuil) continue;
+            const i = row * w.cols + col;
+            if (out[i] < niveau) out[i] = niveau;
+          }
+        }
+      }
+    };
+    marquer(1, 96, 66);
+    marquer(2, 44, 22);
     return out;
   }
 

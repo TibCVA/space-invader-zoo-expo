@@ -104,13 +104,13 @@ interface PaletteSol {
 
 const PALETTES: Readonly<Record<Ambiance, PaletteSol>> = {
   sapiniere: {
-    fond: 0x2f3b2e,
-    clair: melanger(PALETTE.vertHetre, PALETTE.ocre, 0.22),
-    sombre: 0x1e3226,
+    fond: 0x2b3729,
+    clair: melanger(PALETTE.vertHetre, PALETTE.ocre, 0.15),
+    sombre: 0x1a2b21,
     detail: melanger(PALETTE.brunFougere, PALETTE.vertSapin, 0.4),
     detail2: melanger(PALETTE.vertHetre, LIGHT.chaude, 0.28),
     pinceau: 'foret',
-    matiereAlpha: 0.3,
+    matiereAlpha: 0.44,
   },
   prairie: {
     fond: 0x4a6138,
@@ -119,7 +119,7 @@ const PALETTES: Readonly<Record<Ambiance, PaletteSol>> = {
     detail: melanger(PALETTE.ocre, PALETTE.vertHetre, 0.4),
     detail2: melanger(PALETTE.parchemin, PALETTE.vertHetre, 0.55),
     pinceau: 'prairie',
-    matiereAlpha: 0.28,
+    matiereAlpha: 0.42,
   },
   rocher: {
     fond: 0x4a4e52,
@@ -128,7 +128,7 @@ const PALETTES: Readonly<Record<Ambiance, PaletteSol>> = {
     detail: melanger(PALETTE.granitClair, PALETTE.bleuBrume, 0.3),
     detail2: melanger(PALETTE.mousseSombre, PALETTE.granitClair, 0.4),
     pinceau: 'rocher',
-    matiereAlpha: 0.34,
+    matiereAlpha: 0.46,
   },
   humide: {
     fond: melanger(PALETTE.mousseSombre, PALETTE.bleuProfond, 0.42),
@@ -137,7 +137,7 @@ const PALETTES: Readonly<Record<Ambiance, PaletteSol>> = {
     detail: melanger(PALETTE.bleuProfond, PALETTE.bleuBrume, 0.4),
     detail2: melanger(PALETTE.brunFougere, PALETTE.mousseSombre, 0.5),
     pinceau: 'humide',
-    matiereAlpha: 0.3,
+    matiereAlpha: 0.44,
   },
   cour: {
     fond: melanger(PALETTE.granitClair, PALETTE.brunFougere, 0.3),
@@ -145,8 +145,8 @@ const PALETTES: Readonly<Record<Ambiance, PaletteSol>> = {
     sombre: melanger(PALETTE.granitAnthracite, PALETTE.brunFougere, 0.24),
     detail: melanger(PALETTE.parcheminOmbre, PALETTE.granitClair, 0.5),
     detail2: melanger(PALETTE.brunFougere, PALETTE.granitAnthracite, 0.4),
-    pinceau: 'pierre',
-    matiereAlpha: 0.32,
+    pinceau: 'gravier',
+    matiereAlpha: 0.46,
   },
 };
 
@@ -183,93 +183,156 @@ function nappes(g: Graphics, cadre: Cadre, pal: PaletteSol, graine: number, forc
   }
 }
 
+/**
+ * Jeu de lumière : flaques de soleil chaudes et poches d'ombre froides. C'est
+ * ce qui empêche un sol correctement texturé de rester monotone, et ce qui
+ * détache les silhouettes sombres des piles (loi n°3).
+ */
+function dapple(g: Graphics, cadre: Cadre, pal: PaletteSol, force: number): void {
+  const rand = prng(6607);
+  const n = Math.round(20 * force);
+  for (let i = 0; i < n; i += 1) {
+    const x = cadre.x + rand() * cadre.w;
+    const y = cadre.y + rand() * cadre.h;
+    const r = cadre.w * (0.03 + rand() * 0.08);
+    const chaud = rand() > 0.42;
+    const poly = blob(x, y, r, r * (0.5 + rand() * 0.35), { seed: i * 31 + 7, points: 20, wobble: 0.34 });
+    g.poly(flat(poly)).fill({
+      color: chaud ? LIGHT.chaude : LIGHT.froide,
+      alpha: chaud ? 0.11 : 0.13,
+    });
+    /* le cœur de la flaque est plus franc que son bord : jamais un disque uni */
+    g.poly(flat(blob(x - r * 0.12, y - r * 0.1, r * 0.5, r * 0.28, { seed: i * 5 + 2, points: 14, wobble: 0.3 }))).fill({
+      color: chaud ? melanger(LIGHT.chaude, pal.clair, 0.4) : ombreBleutee(pal.sombre, 0.5),
+      alpha: chaud ? 0.12 : 0.14,
+    });
+  }
+}
+
+/** Nombre d'éléments d'un semis, proportionnel à la surface réellement peinte. */
+function semis(cadre: Cadre, parMillionDePixels: number, force: number): number {
+  return Math.max(8, Math.round((parMillionDePixels * cadre.w * cadre.h * force) / 1_000_000));
+}
+
 /** Sapinière : litière d'aiguilles, mousses, racines affleurantes, cônes. */
 function detailSapiniere(g: Graphics, cadre: Cadre, pal: PaletteSol, force: number): void {
   const rand = prng(4409);
-  /* coussins de mousse */
-  for (let i = 0; i < Math.round(58 * force); i += 1) {
+
+  /* coussins de mousse : deux valeurs, jamais un aplat vert */
+  for (let i = 0; i < semis(cadre, 230, force); i += 1) {
     const x = cadre.x + rand() * cadre.w;
     const y = cadre.y + rand() * cadre.h;
-    const r = 8 + rand() * 22;
-    const poly = blob(x, y, r, r * 0.5, { seed: i * 7 + 1, points: 14, wobble: 0.34 });
-    g.poly(flat(poly)).fill({ color: melanger(PALETTE.mousseSombre, PALETTE.vertHetre, 0.45), alpha: 0.24 });
-    g.poly(flat(blob(x - r * 0.2, y - r * 0.16, r * 0.6, r * 0.28, { seed: i * 3, points: 11, wobble: 0.3 }))).fill({
-      color: faceEclairee(pal.detail2, 0.5),
-      alpha: 0.18,
+    const r = 7 + rand() * 20;
+    g.poly(flat(blob(x, y, r, r * 0.5, { seed: i * 7 + 1, points: 14, wobble: 0.34 }))).fill({
+      color: melanger(PALETTE.mousseSombre, PALETTE.vertHetre, 0.45),
+      alpha: 0.26,
+    });
+    g.poly(flat(blob(x - r * 0.22, y - r * 0.18, r * 0.58, r * 0.26, { seed: i * 3, points: 11, wobble: 0.3 }))).fill({
+      color: faceEclairee(pal.detail2, 0.55),
+      alpha: 0.22,
     });
   }
-  /* aiguilles : traits courts orientés au hasard, deux valeurs */
-  for (let i = 0; i < Math.round(560 * force); i += 1) {
+
+  /* litière d'aiguilles : deux passes groupées, sombre puis éclairée. Un seul
+     tracé par passe — cinq mille appels de `stroke` coûteraient une seconde. */
+  const aiguilles = semis(cadre, 5600, force);
+  for (let passe = 0; passe < 2; passe += 1) {
+    for (let i = 0; i < aiguilles / 2; i += 1) {
+      const x = cadre.x + rand() * cadre.w;
+      const y = cadre.y + rand() * cadre.h;
+      const a = rand() * Math.PI;
+      const l = 3.5 + rand() * 8;
+      g.moveTo(x, y).lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l * 0.7);
+    }
+    g.stroke({
+      color: passe === 0 ? ombreBleutee(pal.detail, 0.62) : faceEclairee(pal.detail, 0.72),
+      width: passe === 0 ? 1.1 : 0.9,
+      alpha: passe === 0 ? 0.3 : 0.26,
+      cap: 'round',
+    });
+  }
+
+  /* pommes de pin et brindilles */
+  for (let i = 0; i < semis(cadre, 420, force); i += 1) {
     const x = cadre.x + rand() * cadre.w;
     const y = cadre.y + rand() * cadre.h;
-    const a = rand() * Math.PI;
-    const l = 3 + rand() * 7;
-    g.moveTo(x, y).lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
-    if (i % 3 === 0) {
-      g.stroke({ color: faceEclairee(pal.detail, 0.6), width: 0.9, alpha: 0.3 });
-    } else {
-      g.stroke({ color: ombreBleutee(pal.detail, 0.6), width: 1, alpha: 0.24 });
-    }
+    const r = 1.6 + rand() * 2.6;
+    g.poly(flat(blob(x, y, r, r * 1.4, { seed: i * 11 + 5, points: 9, wobble: 0.3 }))).fill({
+      color: ombreBleutee(PALETTE.brunFougere, 0.4),
+      alpha: 0.5,
+    });
+    g.poly(flat(blob(x - r * 0.3, y - r * 0.4, r * 0.4, r * 0.5, { seed: i, points: 7, wobble: 0.3 }))).fill({
+      color: faceEclairee(PALETTE.brunFougere, 0.55),
+      alpha: 0.45,
+    });
   }
-  /* racines : fuseaux rampants, éclairés au nord-ouest */
-  for (let i = 0; i < Math.round(14 * force); i += 1) {
+
+  /* racines affleurantes : fuseaux rampants, liseré chaud au nord-ouest */
+  for (let i = 0; i < semis(cadre, 34, force); i += 1) {
     const x = cadre.x + rand() * cadre.w;
     const y = cadre.y + rand() * cadre.h;
     const a = rand() * Math.PI * 2;
     const l = 40 + rand() * 90;
-    const racine = fuseau(x, y, x + Math.cos(a) * l, y + Math.sin(a) * l, 9 + rand() * 6, { seed: i * 5 });
-    g.poly(flat(racine)).fill({ color: melanger(PALETTE.brunFougere, PALETTE.vertSapin, 0.35), alpha: 0.42 });
-    const haut = racine.map((p) => ({ x: p.x - 1.1, y: p.y - 1.4 }));
-    g.poly(flat(haut), true).stroke({ color: LIGHT.rim, width: 1, alpha: 0.16 });
+    const racine = fuseau(x, y, x + Math.cos(a) * l, y + Math.sin(a) * l * 0.6, 8 + rand() * 6, { seed: i * 5 });
+    g.poly(flat(racine)).fill({ color: melanger(PALETTE.brunFougere, PALETTE.vertSapin, 0.35), alpha: 0.5 });
+    g.poly(flat(racine.map((q) => ({ x: q.x - 1.1, y: q.y - 1.4 }))), true).stroke({
+      color: LIGHT.chaude,
+      width: 1.1,
+      alpha: 0.2,
+    });
+    g.poly(flat(racine), true).stroke({ color: assombrir(PALETTE.brunFougere, 0.5), width: 1, alpha: 0.4 });
   }
 }
 
 /** Prairie : touffes d'herbe à trois brins, fleurs d'ocre, sentes usées. */
 function detailPrairie(g: Graphics, cadre: Cadre, pal: PaletteSol, force: number): void {
   const rand = prng(7717);
-  for (let i = 0; i < Math.round(28 * force); i += 1) {
+
+  for (let i = 0; i < semis(cadre, 60, force); i += 1) {
     const x = cadre.x + rand() * cadre.w;
     const y = cadre.y + rand() * cadre.h;
     const r = 24 + rand() * 60;
     g.poly(flat(blob(x, y, r, r * 0.4, { seed: i * 11 + 3, points: 16, wobble: 0.32 }))).fill({
-      color: rand() > 0.5 ? faceEclairee(pal.clair, 0.4) : ombreBleutee(pal.fond, 0.34),
-      alpha: 0.14,
+      color: rand() > 0.5 ? faceEclairee(pal.clair, 0.45) : ombreBleutee(pal.fond, 0.36),
+      alpha: 0.16,
     });
   }
-  for (let i = 0; i < Math.round(430 * force); i += 1) {
-    const x = cadre.x + rand() * cadre.w;
-    const y = cadre.y + rand() * cadre.h;
-    const h = 5 + rand() * 10;
-    const pente = (rand() - 0.5) * 4;
-    for (let b = -1; b <= 1; b += 1) {
-      g.moveTo(x + b * 1.7, y);
-      g.lineTo(x + b * 2.6 + pente, y - h * (1 - Math.abs(b) * 0.25));
+
+  const touffes = semis(cadre, 4200, force);
+  for (let passe = 0; passe < 2; passe += 1) {
+    for (let i = 0; i < touffes / 2; i += 1) {
+      const x = cadre.x + rand() * cadre.w;
+      const y = cadre.y + rand() * cadre.h;
+      const h = 5 + rand() * 10;
+      const pente = (rand() - 0.5) * 4;
+      for (let b = -1; b <= 1; b += 1) {
+        g.moveTo(x + b * 1.7, y);
+        g.lineTo(x + b * 2.6 + pente, y - h * (1 - Math.abs(b) * 0.25));
+      }
     }
     g.stroke({
-      color: b1(rand) ? faceEclairee(pal.clair, 0.65) : ombreBleutee(pal.sombre, 0.4),
+      color: passe === 0 ? ombreBleutee(pal.sombre, 0.45) : faceEclairee(pal.clair, 0.7),
       width: 1,
-      alpha: 0.32,
+      alpha: passe === 0 ? 0.3 : 0.34,
+      cap: 'round',
     });
   }
-  for (let i = 0; i < Math.round(70 * force); i += 1) {
+
+  for (let i = 0; i < semis(cadre, 340, force); i += 1) {
     const x = cadre.x + rand() * cadre.w;
     const y = cadre.y + rand() * cadre.h;
-    const r = 1.2 + rand() * 1.6;
+    const r = 1.2 + rand() * 1.8;
     g.poly(flat(blob(x, y, r, r, { seed: i * 3 + 2, points: 7, wobble: 0.3 }))).fill({
       color: rand() > 0.4 ? melanger(PALETTE.ocre, LIGHT.chaude, 0.4) : melanger(PALETTE.parchemin, PALETTE.ocre, 0.4),
-      alpha: 0.5,
+      alpha: 0.55,
     });
   }
-}
-
-function b1(rand: () => number): boolean {
-  return rand() > 0.55;
 }
 
 /** Rocher : dalles fracturées, éboulis, lichen jaune. */
 function detailRocher(g: Graphics, cadre: Cadre, pal: PaletteSol, force: number): void {
   const rand = prng(3313);
-  for (let i = 0; i < Math.round(46 * force); i += 1) {
+  for (let i = 0; i < semis(cadre, 90, force); i += 1) {
     const x = cadre.x + rand() * cadre.w;
     const y = cadre.y + rand() * cadre.h;
     const w = 26 + rand() * 80;
@@ -295,7 +358,7 @@ function detailRocher(g: Graphics, cadre: Cadre, pal: PaletteSol, force: number)
     g.stroke({ color: LIGHT.chaude, width: 1.2, alpha: 0.16 });
     g.poly(flat(dalle), true).stroke({ color: assombrir(pal.sombre, 0.4), width: 1.1, alpha: 0.4 });
   }
-  for (let i = 0; i < Math.round(240 * force); i += 1) {
+  for (let i = 0; i < semis(cadre, 1400, force); i += 1) {
     const x = cadre.x + rand() * cadre.w;
     const y = cadre.y + rand() * cadre.h;
     const r = 1 + rand() * 3.4;
@@ -304,7 +367,7 @@ function detailRocher(g: Graphics, cadre: Cadre, pal: PaletteSol, force: number)
       alpha: 0.4,
     });
   }
-  for (let i = 0; i < Math.round(34 * force); i += 1) {
+  for (let i = 0; i < semis(cadre, 120, force); i += 1) {
     const x = cadre.x + rand() * cadre.w;
     const y = cadre.y + rand() * cadre.h;
     const r = 4 + rand() * 12;
@@ -318,7 +381,7 @@ function detailRocher(g: Graphics, cadre: Cadre, pal: PaletteSol, force: number)
 /** Zone humide : flaques à reflet, joncs, vase, mottes de tourbe. */
 function detailHumide(g: Graphics, cadre: Cadre, pal: PaletteSol, force: number): void {
   const rand = prng(9091);
-  for (let i = 0; i < Math.round(24 * force); i += 1) {
+  for (let i = 0; i < semis(cadre, 52, force); i += 1) {
     const x = cadre.x + rand() * cadre.w;
     const y = cadre.y + rand() * cadre.h;
     const r = 18 + rand() * 54;
@@ -341,7 +404,7 @@ function detailHumide(g: Graphics, cadre: Cadre, pal: PaletteSol, force: number)
     }
     g.poly(flat(flaque), true).stroke({ color: assombrir(pal.sombre, 0.35), width: 1.2, alpha: 0.44 });
   }
-  for (let i = 0; i < Math.round(180 * force); i += 1) {
+  for (let i = 0; i < semis(cadre, 900, force); i += 1) {
     const x = cadre.x + rand() * cadre.w;
     const y = cadre.y + rand() * cadre.h;
     const h = 9 + rand() * 20;
@@ -354,7 +417,7 @@ function detailHumide(g: Graphics, cadre: Cadre, pal: PaletteSol, force: number)
       alpha: 0.36,
     });
   }
-  for (let i = 0; i < Math.round(40 * force); i += 1) {
+  for (let i = 0; i < semis(cadre, 160, force); i += 1) {
     const x = cadre.x + rand() * cadre.w;
     const y = cadre.y + rand() * cadre.h;
     const r = 6 + rand() * 16;
@@ -401,7 +464,7 @@ function detailCour(g: Graphics, cadre: Cadre, pal: PaletteSol, force: number): 
     }
   }
   /* sable dans les joints et ornières de charroi */
-  for (let i = 0; i < Math.round(260 * force); i += 1) {
+  for (let i = 0; i < semis(cadre, 1100, force); i += 1) {
     const x = cadre.x + rand() * cadre.w;
     const y = cadre.y + rand() * cadre.h;
     const r = 0.9 + rand() * 2.2;
@@ -429,38 +492,63 @@ const DETAILS: Readonly<Record<Ambiance, (g: Graphics, c: Cadre, p: PaletteSol, 
 };
 
 /**
- * Gravure de la trame hexagonale : un sillon, pas un trait. L'arête tournée
- * vers le soleil prend la lumière chaude, l'arête opposée garde l'ombre froide.
- * La grille reste discrète — on la lit sans qu'elle domine le sol.
+ * Gravure de la trame hexagonale.
+ *
+ * Ce n'est pas un trait posé sur le sol : c'est un **sillon** creusé dedans.
+ * Chaque arête est donc dessinée deux fois, décalée d'un demi-pixel de part et
+ * d'autre — ombre froide du côté qui tourne le dos au soleil, lumière chaude du
+ * côté qui le reçoit. Une arête n'est traitée qu'une seule fois : on ne peint
+ * que les trois arêtes nord-est, est et sud-est de chaque hexagone, plus les
+ * arêtes de bordure du plateau.
  */
 function graverTrame(g: Graphics, geo: Geometrie, pal: PaletteSol): void {
+  /* Arêtes internes portées par chaque hexagone : NE (0), E (1), SE (2). */
+  const propres = [0, 1, 2];
+  const ombre: number[][] = [];
+  const lumiere: number[][] = [];
+
   for (let row = 0; row < HEX_ROWS; row += 1) {
     for (let col = 0; col < HEX_COLS; col += 1) {
       const h: HexCoord = { col, row };
-      const poly = geo.sommets(h, 0.02);
+      const poly = geo.sommets(h, 0);
       const c = geo.local(h);
-      /* légère variation de valeur par case : la trame se devine dans le sol */
+
+      /* variation de valeur par case : la trame se devine avant de se voir */
       const v = valueNoise(col * 0.7, row * 0.7, 16, 331);
-      g.poly(flat(poly)).fill({
-        color: v > 0.5 ? faceEclairee(pal.fond, 0.4) : ombreBleutee(pal.fond, 0.4),
-        alpha: 0.035 + Math.abs(v - 0.5) * 0.05,
+      g.poly(flat(geo.sommets(h, 0.015))).fill({
+        color: v > 0.5 ? faceEclairee(pal.fond, 0.5) : ombreBleutee(pal.fond, 0.5),
+        alpha: 0.035 + Math.abs(v - 0.5) * 0.07,
       });
-      /* creux : arêtes sud-est */
-      for (let i = 0; i < 6; i += 1) {
-        const a = poly[i];
-        const b = poly[(i + 1) % 6];
+
+      const aretes = [...propres];
+      /* les arêtes de bord de plateau n'ont pas de voisin pour les peindre */
+      if (col === 0 && row % 2 === 0) aretes.push(4);
+      if (col === HEX_COLS - 1 && row % 2 === 1) aretes.push(1);
+      if (row === 0) aretes.push(5);
+      if (row === HEX_ROWS - 1) aretes.push(3);
+      for (const e of aretes) {
+        const a = poly[e];
+        const b = poly[(e + 1) % 6];
         const mx = (a.x + b.x) / 2 - c.x;
         const my = (a.y + b.y) / 2 - c.y;
-        const versSoleil = -(mx * LIGHT.toSun.x + my * LIGHT.toSun.y);
-        g.moveTo(a.x, a.y).lineTo(b.x, b.y);
-        if (versSoleil > 0) {
-          g.stroke({ color: ombreBleutee(pal.sombre, 0.85), width: 1.5, alpha: 0.3 });
-        } else {
-          g.stroke({ color: LIGHT.chaude, width: 1.1, alpha: 0.12 });
+        const n = Math.hypot(mx, my) || 1;
+        /* normale sortante, ramenée du côté de l'ombre (sud-est) */
+        let nx = mx / n;
+        let ny = my / n;
+        if (nx * LIGHT.toShadow.x + ny * LIGHT.toShadow.y < 0) {
+          nx = -nx;
+          ny = -ny;
         }
+        ombre.push([a.x + nx * 0.8, a.y + ny * 0.8, b.x + nx * 0.8, b.y + ny * 0.8]);
+        lumiere.push([a.x - nx * 0.8, a.y - ny * 0.8, b.x - nx * 0.8, b.y - ny * 0.8]);
       }
     }
   }
+
+  for (const [x1, y1, x2, y2] of ombre) g.moveTo(x1, y1).lineTo(x2, y2);
+  g.stroke({ color: ombreBleutee(pal.sombre, 0.95), width: 1.5, alpha: 0.34 });
+  for (const [x1, y1, x2, y2] of lumiere) g.moveTo(x1, y1).lineTo(x2, y2);
+  g.stroke({ color: LIGHT.chaude, width: 1.1, alpha: 0.17 });
 }
 
 /* ═════════════════════════ Le champ de bataille ══════════════════════════ */
@@ -518,28 +606,53 @@ export class ChampDeBataille {
     const g = new Graphics();
     racine.addChild(g);
 
-    /* 1 — dégradé de biome, orienté 315° : le fond du champ n'est jamais plat */
+    /* 1 — dégradé de biome. L'angle 45° place la haute lumière au nord-ouest,
+       conformément à la loi n°2 : c'est de là que vient le soleil. */
     g.rect(cadre.x, cadre.y, cadre.w, cadre.h).fill({
       fill: degradeLineaire(
         [
-          { offset: 0, color: melanger(faceEclairee(pal.clair, 0.55), LIGHT.brume, 0.34) },
-          { offset: 0.24, color: faceEclairee(pal.fond, 0.3) },
-          { offset: 0.56, color: pal.fond },
-          { offset: 0.82, color: ombreBleutee(pal.fond, 0.34) },
-          { offset: 1, color: ombreBleutee(pal.sombre, 0.5) },
+          { offset: 0, color: faceEclairee(pal.clair, 0.34) },
+          { offset: 0.26, color: melanger(pal.fond, pal.clair, 0.5) },
+          { offset: 0.55, color: pal.fond },
+          { offset: 0.8, color: ombreBleutee(pal.fond, 0.5) },
+          { offset: 1, color: ombreBleutee(pal.sombre, 0.75) },
         ],
-        118,
+        45,
       ),
     });
 
-    /* 2 — nappes de valeur et lisières douces */
+    /* 2 — nappes de valeur, lisières douces et jeu de lumière */
     nappes(g, cadre, pal, 20250816, force);
+    dapple(g, cadre, pal, force);
 
     /* 3 — matière : le pinceau de terrain de l'atlas, répété sans couture */
     const brosse = this.atlas.terrainBrush(pal.pinceau);
     const motif = new FillPattern({ texture: brosse, repetition: 'repeat' });
     motif.setTransform(new Matrix().scale(0.72, 0.72));
     g.rect(cadre.x, cadre.y, cadre.w, cadre.h).fill({ fill: motif, alpha: pal.matiereAlpha });
+
+    /* 3 bis — occlusion de vallon et nappe de soleil rasant : la surface
+       gagne la profondeur qu'un motif répété ne donne jamais seul. */
+    g.rect(cadre.x, cadre.y, cadre.w, cadre.h).fill({
+      fill: degradeRadial(
+        [
+          { offset: 0, color: LIGHT.chaude, alpha: 0.1 },
+          { offset: 0.5, color: LIGHT.chaude, alpha: 0.035 },
+          { offset: 1, color: LIGHT.chaude, alpha: 0 },
+        ],
+        { x: 0.3, y: 0.24 },
+      ),
+    });
+    g.rect(cadre.x, cadre.y, cadre.w, cadre.h).fill({
+      fill: degradeLineaire(
+        [
+          { offset: 0, color: LIGHT.froide, alpha: 0 },
+          { offset: 0.62, color: LIGHT.froide, alpha: 0.07 },
+          { offset: 1, color: LIGHT.froide, alpha: 0.2 },
+        ],
+        45,
+      ),
+    });
 
     /* 4 — semis de détail propre à l'ambiance */
     const detail = new Graphics();
@@ -554,11 +667,11 @@ export class ChampDeBataille {
 
     /* 6 — perspective atmosphérique : le fond du champ part vers le bleu */
     const voile = new Graphics();
-    voile.rect(cadre.x, cadre.y, cadre.w, cadre.h * 0.62).fill({
+    voile.rect(cadre.x, cadre.y, cadre.w, cadre.h * 0.5).fill({
       fill: degradeLineaire(
         [
-          { offset: 0, color: LIGHT.brume, alpha: 0.34 },
-          { offset: 0.55, color: LIGHT.brume, alpha: 0.12 },
+          { offset: 0, color: LIGHT.brume, alpha: 0.19 },
+          { offset: 0.5, color: LIGHT.brume, alpha: 0.07 },
           { offset: 1, color: LIGHT.brume, alpha: 0 },
         ],
         90,
@@ -568,8 +681,8 @@ export class ChampDeBataille {
     voile.rect(cadre.x, cadre.y, cadre.w, cadre.h).fill({
       fill: degradeRadial([
         { offset: 0, color: LIGHT.ombrePortee, alpha: 0 },
-        { offset: 0.62, color: LIGHT.ombrePortee, alpha: 0.05 },
-        { offset: 1, color: LIGHT.ombrePortee, alpha: 0.28 },
+        { offset: 0.66, color: LIGHT.ombrePortee, alpha: 0.04 },
+        { offset: 1, color: LIGHT.ombrePortee, alpha: 0.2 },
       ]),
     });
     const parch = new FillPattern({ texture: this.atlas.materials.parchemin, repetition: 'repeat' });

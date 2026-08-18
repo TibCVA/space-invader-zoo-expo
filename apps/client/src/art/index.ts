@@ -32,6 +32,7 @@ import type { EcoleSort, EffectKind, EffectOptions, Effet, ParticleTextures } fr
 import type { CreatureRig } from './rig.js';
 import { LIGHT, PALETTE, melanger } from './palette.js';
 import { blob, densifier, filetDore, flat, peindre, perturber, pt } from './shading.js';
+import { appliquerAssetsGeneres } from './assets.js';
 
 export type { CreatureRig } from './rig.js';
 export type { PropKey } from './props.js';
@@ -301,6 +302,12 @@ export async function buildArtAtlas(renderer: Renderer): Promise<ArtAtlas> {
 
   const { textures, pages, ancres } = pack.rendre(renderer);
   for (const [k, v] of ancres) ancresProps.set(k, v);
+
+  // ── images générées, facultatives ─────────────────────────────────────
+  // Si `public/img/manifeste.json` existe, ses bitmaps remplacent les entrées
+  // correspondantes. Sinon, ou en cas d'échec, l'atlas garde sa version
+  // procédurale : le jeu ne dépend jamais d'un asset. Voir docs/05-ASSETS.md.
+  await appliquerAssetsGeneres(textures, pinceaux);
 
   const banniereCache = new Map<string, Texture>();
   const rtSupplementaires: RenderTexture[] = [];

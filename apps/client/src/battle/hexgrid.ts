@@ -21,10 +21,11 @@ import {
   HEX_ROWS,
   directionTo,
   hexCorners,
-  hexKey,
   hexEquals,
+  hexKey,
   hexToPixel,
   clampHex,
+  neighbor,
   pixelToHex,
 } from '@auvergne/engine';
 import type { HexCoord } from '@auvergne/engine';
@@ -39,6 +40,13 @@ import {
 } from '../art/palette.js';
 import { blob, flat } from '../art/shading.js';
 import type { Poly, Pt } from '../art/shading.js';
+
+/**
+ * Arête d'un hexagone touchée par chaque direction du moteur. `hexCorners`
+ * énumère les sommets à partir du nord : arête `i` va du sommet `i` au sommet
+ * `i + 1`. Les directions du moteur sont, elles, indexées depuis l'est.
+ */
+const ARETE_DE_DIRECTION: readonly number[] = [1, 0, 5, 4, 3, 2];
 
 /* ═══════════════════════════════ Géométrie ═══════════════════════════════ */
 
@@ -249,21 +257,57 @@ export class CoucheGrille {
       }
     }
 
-    for (const h of this.etat.atteignables) {
-      const poly = this.geo.sommets(h, 0.1);
-      const pts = flat(poly);
-      const c = this.geo.local(h);
-      const r = this.geo.taille;
-      /* strate 1 : teinte ; strate 2 : cœur plus clair ; strate 3 : granulé */
-      g.poly(pts).fill({ color: melanger(PALETTE.vertHetre, LIGHT.chaude, 0.4), alpha: 0.17 });
-      g.poly(flat(blob(c.x, c.y, r * 0.5, r * 0.44, { seed: hexKey(h) + 3, points: 12, wobble: 0.2 }))).fill({
-        color: LIGHT.chaude,
-        alpha: 0.07,
-      });
-      g.poly(pts, true).stroke({ color: melanger(LIGHT.rim, PALETTE.vertHetre, 0.35), width: 1.2, alpha: 0.5 });
-      /* le liseré doré ne fait pas le tour : il tient les arêtes au sud-est */
-      g.moveTo(poly[2].x, poly[2].y).lineTo(poly[3].x, poly[3].y).lineTo(poly[4].x, poly[4].y);
-      g.stroke({ color: LIGHT.rim, width: 1.4, alpha: LIGHT.rimAlpha });
+    if (this.etat.atteignables.length > 0) {
+      /* La portée est une **nappe**, pas un damier : on teinte l'intérieur très
+         légèrement et l'on ne trace en or que la frontière de la zone. Sur une
+         pile rapide, la moitié du champ est atteignable — un liseré par
+         hexagone noierait le terrain peint. */
+      const dedans = new Set<number>();
+      for (const h of this.etat.atteignables) dedans.add(hexKey(h));
+      /* Le hors-portée s'assombrit d'un cran froid ; la portée, elle, garde le
+         terrain peint intact. Éclaircir la zone atteignable délaverait le sol
+         d'une pile rapide, qui couvre la moitié du champ. */
+      for (let row = 0; row < HEX_ROWS; row += 1) {
+        for (let col = 0; col < HEX_COLS; col += 1) {
+          if (dedans.has(hexKey({ col, row }))) continue;
+          g.poly(flat(this.geo.sommets({ col, row }, 0.005))).fill({
+            color: LIGHT.froide,
+            alpha: 0.2,
+          });
+        }
+      }
+      for (const h of this.etat.atteignables) {
+        const v = ((h.col * 5 + h.row * 11) % 7) / 7;
+        g.poly(flat(this.geo.sommets(h, 0.01))).fill({
+          color: melanger(PALETTE.vertHetre, LIGHT.chaude, 0.5),
+          alpha: 0.025 + v * 0.03,
+        });
+      }
+      /* frontière : uniquement les arêtes qui donnent sur l'extérieur */
+      for (const h of this.etat.atteignables) {
+        const poly = this.geo.sommets(h, 0.01);
+        for (let d = 0; d < 6; d += 1) {
+          const n = neighbor(h, d as 0 | 1 | 2 | 3 | 4 | 5);
+          if (dedans.has(hexKey(n)) && hexEquals(n, clampHex(n))) continue;
+          const e = ARETE_DE_DIRECTION[d];
+          const a = poly[e];
+          const b = poly[(e + 1) % 6];
+          g.moveTo(a.x, a.y).lineTo(b.x, b.y);
+        }
+      }
+      g.stroke({ color: ombreBleutee(PALETTE.vertSapin, 0.8), width: 3.2, alpha: 0.4, cap: 'round' });
+      for (const h of this.etat.atteignables) {
+        const poly = this.geo.sommets(h, 0.01);
+        for (let d = 0; d < 6; d += 1) {
+          const n = neighbor(h, d as 0 | 1 | 2 | 3 | 4 | 5);
+          if (dedans.has(hexKey(n)) && hexEquals(n, clampHex(n))) continue;
+          const e = ARETE_DE_DIRECTION[d];
+          const a = poly[e];
+          const b = poly[(e + 1) % 6];
+          g.moveTo(a.x, a.y).lineTo(b.x, b.y);
+        }
+      }
+      g.stroke({ color: melanger(LIGHT.rim, LIGHT.chaude, 0.3), width: 1.5, alpha: 0.85, cap: 'round' });
     }
 
     if (this.etat.ciblesSort) {

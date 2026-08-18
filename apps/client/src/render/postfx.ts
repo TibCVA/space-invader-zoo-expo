@@ -119,8 +119,8 @@ void main(void)
 
     /* Étalonnage : les basses valeurs bleuissent, les hautes s'ambrent. */
     float l = dot(col, vec3(0.299, 0.587, 0.114));
-    col += vec3(-0.012, 0.004, 0.052) * (1.0 - smoothstep(0.0, 0.55, l));
-    col += vec3(0.062, 0.036, -0.024) * smoothstep(0.42, 1.0, l);
+    col += vec3(-0.004, 0.006, 0.034) * (1.0 - smoothstep(0.0, 0.5, l));
+    col += vec3(0.072, 0.042, -0.022) * smoothstep(0.34, 1.0, l);
     col = clamp(col, 0.0, 1.0);
     col = mix(col, col * col * (3.0 - 2.0 * col), 0.22);
 
@@ -244,8 +244,8 @@ fn mainFragment(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
   }
 
   let l = dot(col, vec3<f32>(0.299, 0.587, 0.114));
-  col = col + vec3<f32>(-0.012, 0.004, 0.052) * (1.0 - smoothstep(0.0, 0.55, l));
-  col = col + vec3<f32>(0.062, 0.036, -0.024) * smoothstep(0.42, 1.0, l);
+  col = col + vec3<f32>(-0.004, 0.006, 0.034) * (1.0 - smoothstep(0.0, 0.5, l));
+  col = col + vec3<f32>(0.072, 0.042, -0.022) * smoothstep(0.34, 1.0, l);
   col = clamp(col, vec3<f32>(0.0), vec3<f32>(1.0));
   col = mix(col, col * col * (vec3<f32>(3.0) - 2.0 * col), 0.22);
 
