@@ -4,10 +4,81 @@
 > Ni photoréalisme, ni caricature. Le repère mental : une page de manuscrit
 > enluminé peinte par un paysagiste du XIXᵉ, puis éclairée comme un jeu moderne.
 
-Tout est **généré** : aucun asset téléchargé. Les outils sont PixiJS 8 (Graphics,
-Mesh, RenderTexture, Filter/GLSL), le canvas 2D pour le pré-rendu, le SVG inline
-pour l'iconographie, et WebAudio pour le son. La qualité vient de la **discipline**,
-pas des assets.
+Tout est **produit par le projet** : aucun asset copié d'une œuvre existante.
+Les outils sont PixiJS 8 (Graphics, Mesh, RenderTexture, Filter/GLSL), le canvas 2D
+pour le pré-rendu, le SVG inline pour l'iconographie, WebAudio pour le son — **et
+la génération d'images quand elle est disponible** (voir §0). La qualité vient de la
+**discipline**, pas de la quantité d'assets.
+
+---
+
+## 0. Génération d'images — directive permanente
+
+> **Règle.** Pour tout ce qui relève du bitmap, de la texture ou du sprite — et
+> chaque fois qu'une maquette de référence aiderait à sculpter un rendu — il faut
+> **utiliser un outil de génération d'images** plutôt que de tout dessiner à la
+> main en vectoriel. Le vectoriel procédural reste le bon choix pour l'interface,
+> les icônes et tout ce qui doit rester net à toutes les échelles ; il est un
+> mauvais choix pour la matière, la peau, l'écorce, la pierre, le feuillage et les
+> visages.
+
+### Disponibilité — état au 18/08/2026
+
+**Aucun outil de génération d'images n'est présent dans la session de travail
+actuelle** (recherche effectuée sous `ImageGen`, `generate_image`, `image_gen`,
+`CreateImage` : aucun résultat). Les sous-agents héritent du même jeu d'outils :
+leur demander d'en appeler un les enverrait dans une impasse.
+
+Cette section n'est donc **pas** applicable aujourd'hui. Elle devient
+**immédiatement contraignante** dès qu'un outil de génération d'images apparaît
+dans la session. Vérifier au début de chaque lot visuel.
+
+### Ce qu'il faudra générer en priorité, dans cet ordre
+
+Classé par écart actuel entre le rendu procédural et la cible AAA :
+
+| Rang | Cible | Pourquoi le vectoriel échoue ici |
+|---|---|---|
+| 1 | **21 portraits de héros** | Un visage peint ne se réduit pas à des aplats vectoriels. C'est aujourd'hui le point le plus faible du jeu, constaté sur capture. |
+| 2 | **Fonds de cité** (Châtellenie, Ermitage, 3 heures × niveaux de construction) | Un tableau en parallaxe demande de la matière et de la profondeur picturale. |
+| 3 | **Textures de terrain** (herbe, aiguilles, roche, tourbe, gravier, eau, neige) | Tuiles répétables sans couture : un modèle d'image les produit bien mieux qu'un bruit fractal. |
+| 4 | **Matières** (granit, écorce, ardoise, cuir, parchemin, fil d'or, cuivre patiné) | Servent de cartes de matière multipliées sur les formes vectorielles. |
+| 5 | **Fond de la page d'accueil** | Une peinture de paysage plutôt que six plans géométriques. |
+| 6 | **Maquettes de référence de créatures** | Non embarquées : elles servent de modèle pour sculpter le rig vectoriel, qui reste animable. |
+| 7 | **Ciels, nuages volumétriques, cartes de brume** | |
+
+### Contraintes non négociables sur les images générées
+
+1. **Style unique.** Chaque appel reprend la formule de la bible, la palette du §2,
+   la lumière à **315°/38°**, la lumière chaude `#FFE9C2` et l'ombre froide
+   `#3A4657`. Une image qui ne respecte pas la direction de lumière est rejetée.
+2. **Rien d'existant.** Aucune invite ne cite une œuvre, une franchise, un studio,
+   un artiste vivant ni une personne réelle. Les portraits sont des personnes
+   imaginaires.
+3. **Les créatures restent gréées.** Une image générée ne remplace jamais un rig
+   animé : elle sert de **référence** pour le redessiner, ou de texture appliquée
+   sur les pièces du rig. Les 8 animations par créature restent obligatoires.
+4. **Budget.** 12 Mo d'images au total dans le dépôt, WebP de qualité 82,
+   empaquetées en atlas, chargées par région et par faction. Le chargement
+   initial doit rester sous 10 s en réseau mobile correct.
+5. **Traçabilité.** Chaque image générée est accompagnée, dans
+   `assets/manifeste.json`, de son invite, de sa graine, de sa destination et de
+   ses dimensions — pour pouvoir la régénérer à l'identique.
+6. **Interface exclue.** Aucun bitmap généré pour les icônes, les cadres, les
+   boutons ni la typographie : ils restent vectoriels, nets à toutes les échelles
+   et recolorables par thème.
+7. **Repli obligatoire.** Si une image manque, le rendu procédural actuel doit
+   continuer de fonctionner. Le jeu ne dépend jamais d'un asset absent.
+
+### Préparation faite dès maintenant
+
+Pour que l'arrivée d'un tel outil ne provoque aucune réécriture :
+
+- `apps/client/src/art/` expose déjà un **atlas indirect** (`atlas.icon(clef)`,
+  `atlas.prop(clef, variante)`, `atlas.terrainBrush(clef)`). Brancher une image
+  revient à changer la source d'une entrée, pas les appelants.
+- Un `assets/manifeste.json` et un chargeur avec repli procédural sont à créer
+  avant la première génération.
 
 ---
 

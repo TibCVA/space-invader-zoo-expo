@@ -35,7 +35,7 @@ Langue visible : **français intégral**. Code et identifiants : anglais.
 | 2 | Aucun `Math.random()` dans `engine`, `content`, `map`, `bots`. Le PRNG est `packages/engine/src/rng.ts`, injecté via `GameState.rng`. |
 | 3 | Toute valeur simulée est un **entier**. Les ratios sont en points de base (BP, /10000). Aucun flottant dans la simulation autoritaire. |
 | 4 | Aucune logique de règles dans un composant React ou un objet PixiJS. Les vues lisent l'état et émettent des `Command`. |
-| 5 | Aucun asset externe : pas de CDN, pas d'image téléchargée, pas de police distante. Tout est généré (vectoriel, procédural, WebAudio) ou installé via npm (`@fontsource/*`). |
+| 5 | Aucun asset **copié** : pas de CDN, pas d'image téléchargée d'une œuvre existante, pas de police distante. Tout est produit par le projet — vectoriel, procédural, WebAudio, **ou image générée par un outil de génération d'images** (voir `docs/01-ART-BIBLE.md` §0) — ou installé via npm (`@fontsource/*`). Les bitmaps générés sont commités dans `assets/` avec leur manifeste, sous un budget de 12 Mo, et le rendu procédural reste le repli si un asset manque. |
 | 6 | Aucun secret dans le dépôt. `RAILWAY_TOKEN`, `DATABASE_URL` viennent de l'environnement. |
 | 7 | Aucun texte visible en anglais. Y compris les messages d'erreur et les info-bulles. |
 | 8 | Le jeu doit rester jouable **sans serveur de base de données** (repli fichier + `localStorage`). |
