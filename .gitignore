@@ -16,6 +16,9 @@ secrets.json
 
 # Local artefacts
 .data/
+# Sorties de simulation : elles se régénèrent par `pnpm sim --sortie`,
+# et un JSON de rapport n'a pas sa place dans l'historique.
+apps/worker/out/
 playwright-report/
 test-results/
 shots/
