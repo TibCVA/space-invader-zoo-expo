@@ -239,6 +239,76 @@ async function releverLaMachine(): Promise<Releve> {
     panne = String(cause).slice(0, 300);
   }
 
+  /* — 5 bis. LE filtre de la carte, celui-la et pas un autre — */
+  /* L'epreuve precedente utilisait un filtre fourni par PixiJS. Or la carte
+     applique le NOTRE, ecrit a la main en GLSL, sur toute la scene. Un
+     programme se compile a la premiere image, pas a la construction : le
+     `try/catch` de `creerPostFx` ne peut donc rien attraper, et un refus du
+     compilateur laisse un ecran vide sans un mot. C'est le seul mecanisme que
+     la carte emploie et que la cite n'emploie pas — et c'est exactement l'ecart
+     observe sur iPhone, carte vide contre cite dessinee. */
+  try {
+    const pixi = await import('pixi.js');
+    const { Application, Container, Graphics, Texture } = pixi;
+    const { creerPostFx } = await import('../render/postfx.js');
+
+    const app = new Application();
+    await app.init({
+      preference: preferenceRendu(),
+      antialias: false,
+      background: 0x101418,
+      resolution: 1,
+      width: 64,
+      height: 64,
+    });
+    app.ticker.stop();
+
+    const filtre = creerPostFx(Texture.WHITE);
+    if (!filtre) {
+      epreuves.push({
+        nom: 'Compiler le filtre de la carte',
+        reussie: false,
+        detail: 'le filtre a refusé de se construire — la carte se dessinerait sans lui',
+      });
+    } else {
+      const scene = new Container();
+      scene.addChild(new Graphics().rect(0, 0, 64, 64).fill(0x6ea24b));
+      scene.filters = [filtre.filtre];
+      app.stage.addChild(scene);
+      app.render();
+
+      const c = document.createElement('canvas');
+      c.width = 64;
+      c.height = 64;
+      const ctx = c.getContext('2d');
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      if (ctx) {
+        ctx.drawImage(app.canvas as CanvasImageSource, 0, 0);
+        const d = ctx.getImageData(32, 32, 1, 1).data;
+        [r, g, b] = [d[0], d[1], d[2]];
+      }
+      /* Le vert doit survivre au filtre. S'il ne reste que le fond de la scene,
+         c'est que le programme n'a rien produit. */
+      const vivant = g > 60 && g > b;
+      epreuves.push({
+        nom: 'Compiler le filtre de la carte',
+        reussie: vivant,
+        detail: vivant
+          ? `le filtre tourne, pixel ${hex(r, g, b)}`
+          : `pixel ${hex(r, g, b)} — le vert a disparu : le programme n'a rien rendu`,
+      });
+    }
+    app.destroy(true, { children: true });
+  } catch (cause) {
+    epreuves.push({
+      nom: 'Compiler le filtre de la carte',
+      reussie: false,
+      detail: `refusé : ${String(cause).slice(0, 160)}`,
+    });
+  }
+
   /* — 5. l'atlas complet, celui dont la carte ne peut pas se passer — */
   /* C'est le seul mécanisme lourd que cette page ne testait pas, et c'est
      précisément celui dont dépendent la carte, les cités et le combat. Sur un
@@ -341,7 +411,9 @@ export function EcranDiagnostic(): ReactElement {
                       ? 'Les formes et les textures passent, mais pas les filtres : la carte d’aventure, qui en applique un sur toute la scène, restera vide alors que les autres écrans s’affichent.'
                       : echecs.some((e) => e.nom.startsWith('Peindre une page'))
                         ? 'Le dessin élémentaire passe, mais pas une page de 2048 px : l’appareil refuse les grandes textures, et la planche d’art ne peut pas être assemblée.'
-                        : 'Tout le dessin élémentaire passe, mais la planche d’art ne se construit pas : c’est elle qui manque à la carte, aux cités et au combat.'}
+                        : echecs.some((e) => e.nom.startsWith('Compiler le filtre'))
+                          ? 'Tout passe, sauf le filtre propre à la carte : c’est lui qui la laisse vide alors que les cités et le combat se dessinent.'
+                          : 'Tout le dessin élémentaire passe, mais la planche d’art ne se construit pas : c’est elle qui manque à la carte, aux cités et au combat.'}
               </p>
             ) : null}
 
