@@ -19,6 +19,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "sim": "pnpm --filter @auvergne/worker sim",
+    "carte": "pnpm --filter @auvergne/worker carte",
     "e2e": "playwright test",
     "shots": "node tools/screenshot.mjs"
   },

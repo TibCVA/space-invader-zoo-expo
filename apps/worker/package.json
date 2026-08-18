@@ -6,6 +6,7 @@
   "scripts": {
     "sim": "tsx src/simulate.ts",
     "balance": "tsx src/balance.ts",
+    "carte": "tsx src/carte.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
