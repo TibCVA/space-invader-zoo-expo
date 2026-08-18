@@ -273,6 +273,15 @@ Par ordre de valeur pour le joueur, et non d'ordre chronologique.
   profil » et le « taux de victoire par position » étaient le même chiffre, et
   un résultat déjà annoncé a dû être retiré. Une mesure qu'on n'a pas éprouvée
   contre son propre biais n'est pas une mesure.
+- **Un correctif mesuré ne se laisse pas défaire en silence.** Le correctif des
+  dégradés obliques — vérifié, chiffré, l'écart-type du sol du champ de bataille
+  passant de 23,1 à 50,0 — s'est retrouvé intégralement annulé dans l'arbre de
+  travail par un agent, sans explication jointe. Il a été rétabli après
+  re-mesure, et la re-mesure a aussi montré ce que l'annulation aurait coûté
+  pour rien : la cité et l'accueil sont inchangés au dixième près (37,8 et 61,2
+  avant comme après), donc aucun dégât collatéral ne la justifiait. Ce qui est
+  committé après mesure fait foi ; un agent qui veut le défaire doit apporter
+  une mesure contraire.
 - **Un test qui ne peut pas échouer ne vaut rien.** Chaque correctif est
   accompagné d'un test qu'on vérifie **en retirant la correction** : s'il reste
   vert, il ne garde rien. Deux des six écrits ce jour-là ont dû être resserrés
