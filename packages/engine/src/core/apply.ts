@@ -55,6 +55,107 @@ import { endTurn, journal, journalFromEvents, visionOf } from './turn.js';
 import { drawTavernOffers } from './fallback-world.js';
 import { formatCost, sameCoord, subResources } from './util.js';
 
+/* ── Suites d'un combat contre la garde d'un lieu ───────────────────────── */
+
+/**
+ * Ce qu'il faut retenir d'un combat **avant** de le résoudre : `resolveCombat­Outcome`
+ * remet `state.combat` à `null`, et l'on ne peut plus rien lire ensuite.
+ */
+interface GardeEnJeu {
+  /** lieu dont la garde était en défense */
+  objet: string;
+  /** héros assaillant */
+  heros: string;
+}
+
+/**
+ * Un combat oppose-t-il un héros à la **garde d'un lieu de carte** ?
+ *
+ * Trois `null` en défense signent le cas : ni joueur, ni héros, ni cité. C'est
+ * la forme exacte que `executeMove` donne au camp adverse quand un héros
+ * arrive sur l'entrée d'un gisement, d'un sceau ou d'un camp gardé.
+ */
+function gardeEnJeu(state: GameState): GardeEnJeu | null {
+  const combat = state.combat;
+  if (!combat || !combat.finished) return null;
+  if (combat.defender.player !== null) return null;
+  if (combat.defender.hero !== null || combat.defender.town !== null) return null;
+  const heros = combat.attacker.hero;
+  if (!heros) return null;
+  const instance = state.heroes[heros];
+  if (!instance) return null;
+
+  /* Le héros se tient sur l'entrée : c'est l'invariant que pose `executeMove`
+     avant d'engager le combat. On préfère l'entrée à la case-ancre, parce
+     qu'un lieu à plusieurs cases ne se prend que par sa porte. */
+  for (const uid of Object.keys(state.objects).sort()) {
+    const obj = state.objects[uid];
+    if (!obj.guard || obj.guard.length === 0) continue;
+    if (sameCoord(obj.entrance, instance.at)) return { objet: uid, heros };
+  }
+  return null;
+}
+
+/**
+ * Rend à un lieu de carte les survivants de sa garde, puis — si elle est
+ * tombée — laisse le vainqueur en prendre possession sur-le-champ.
+ *
+ * **Pourquoi cette fonction existe.** Sans elle, la garde d'un lieu ne
+ * diminuait jamais : `resolveCombatOutcome` sait rendre son armée au
+ * vainqueur, garnir une cité prise et distribuer l'expérience, mais le lieu
+ * de carte, lui, n'apparaît nulle part dans `CombatState` — le camp défenseur
+ * n'y est décrit que par trois `null`. Le gisement se relevait donc intact au
+ * tour suivant, et le suivant, indéfiniment.
+ *
+ * Ce que cela coûtait, mesuré sur vingt parties complètes à quatre bannières :
+ * **zéro gisement, zéro Sceau des Marches, zéro cité gardée pris** — par qui
+ * que ce soit, en douze semaines. Une bataille rapportait de l'expérience et
+ * des dépouilles mais ne prenait rien ; la Couronne était donc inatteignable,
+ * et toutes les parties se réglaient au score de fin de chronique. Le profil
+ * d'IA le plus immobile gagnait trois fois sur quatre, ce qui n'est pas un
+ * défaut de l'IA mais la lecture correcte d'un monde où rien ne se conquiert.
+ *
+ * L'appel à `visitObject` juste après la victoire n'est pas une commodité :
+ * `executeMove` a interrompu la marche pour engager le combat et ne la
+ * reprendra pas, et le héros se tient déjà sur l'entrée — sans cet appel, il
+ * faudrait le faire sortir puis rentrer pour encaisser ce qu'il vient de
+ * gagner.
+ */
+function reglerGarde(
+  state: GameState,
+  world: WorldMap,
+  garde: GardeEnJeu,
+  survivants: ArmyStack[],
+  vainqueur: 0 | 1 | null,
+): GameEvent[] {
+  const obj = state.objects[garde.objet];
+  if (!obj) return [];
+  obj.guard = survivants;
+
+  const events: GameEvent[] = [];
+  if (vainqueur !== 0 || survivants.length > 0) return events;
+
+  const hero = state.heroes[garde.heros];
+  if (!hero || hero.downUntilTurn > state.turn) return events;
+  events.push(...worldModule().visitObject(state, world, hero, obj));
+  return events;
+}
+
+/** Piles encore debout dans un camp, prêtes à être réécrites dans un lieu. */
+function survivantsDe(state: GameState, side: 0 | 1): ArmyStack[] {
+  const combat = state.combat;
+  if (!combat) return [];
+  const out: ArmyStack[] = [];
+  for (const u of combat.units) {
+    /* Les invocations portent un emplacement négatif : elles ne rejoignent
+       jamais la garde d'un lieu, elles se dissipent avec la bataille. */
+    if (u.side !== side || u.slot < 0) continue;
+    if (!u.alive || u.count <= 0) continue;
+    out.push({ creature: u.creature, count: u.count });
+  }
+  return out;
+}
+
 /* ── Résultats ──────────────────────────────────────────────────────────── */
 
 function refuse(state: GameState, error: string): CommandResult {
@@ -652,7 +753,12 @@ export function applyCommand(state: GameState, cmd: Command, world: WorldMap): C
       if (!result.ok) return refuse(state, result.error ?? 'Action de combat refusée.');
       events.push(...result.events);
       if (next.combat && next.combat.finished) {
+        /* Relevé avant résolution : elle efface `state.combat`. */
+        const garde = gardeEnJeu(next);
+        const survivants = garde ? survivantsDe(next, 1) : [];
+        const vainqueur = next.combat.winner;
         events.push(...combatModule().resolveCombatOutcome(next));
+        if (garde) events.push(...reglerGarde(next, world, garde, survivants, vainqueur));
         invalidateWorldCache(world);
         events.push(...worldModule().checkVictory(next));
       }
@@ -662,7 +768,11 @@ export function applyCommand(state: GameState, cmd: Command, world: WorldMap): C
     case 'AutoResolveCombat': {
       if (!next.combat) return refuse(state, 'Aucun combat en cours.');
       events.push(...combatModule().autoResolve(next));
+      const garde = gardeEnJeu(next);
+      const survivants = garde ? survivantsDe(next, 1) : [];
+      const vainqueur = next.combat?.winner ?? null;
       events.push(...combatModule().resolveCombatOutcome(next));
+      if (garde) events.push(...reglerGarde(next, world, garde, survivants, vainqueur));
       invalidateWorldCache(world);
       events.push(...worldModule().checkVictory(next));
       break;

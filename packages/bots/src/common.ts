@@ -349,6 +349,33 @@ const UNKNOWN_CELL_COST = TERRAIN_COST.prairie;
 const SAMPLE_MAX = 40;
 
 /**
+ * Prix du détour, en points de marche, pour une case que la droite traverse
+ * mais qu'un héros ne peut pas fouler : lac, falaise, ravin.
+ *
+ * Ce n'est **pas** l'infini, et c'est tout l'objet de cette constante. La
+ * droite n'est qu'une règle posée sur la carte pour classer des cibles : le
+ * vrai trajet, calculé plus tard par `computePath`, contourne l'obstacle. Lui
+ * donner un coût infini revenait à déclarer inaccessible toute destination
+ * dont la ligne droite frôle un étang — c'est-à-dire, sur une carte du Forez,
+ * à peu près toutes.
+ *
+ * Ce que cela coûtait exactement : `TERRAIN_COST.eau` vaut
+ * `Number.MAX_SAFE_INTEGER`. Un seul échantillon d'eau sur quarante portait la
+ * moyenne à 2 × 10¹⁴, et l'estimation d'un trajet de cent cinquante cases à
+ * 4 × 10¹⁶ — au-delà de `Number.MAX_SAFE_INTEGER`. Or `fallbackHome` retient
+ * la cité de coût *inférieur* à cette borne : aucune ne passait le test, la
+ * fonction rendait `null`, et un héros dépouillé de son armée restait planté
+ * là jusqu'à la fin de la chronique, pendant que sa capitale entassait vingt
+ * mille points de troupes qu'il n'irait jamais chercher. Mesuré : zéro
+ * gisement pris en huit semaines, sur toutes les bannières de toutes les
+ * parties simulées.
+ *
+ * Trois fois le rocher : assez cher pour qu'une route sèche soit toujours
+ * préférée, assez modeste pour qu'un pont ou un gué reste une option.
+ */
+const DETOUR_CELL_COST = TERRAIN_COST.rocher * 3;
+
+/**
  * Estimation bon marché du coût en points de marche entre deux cases.
  *
  * On suit la droite qui relie les deux cases, on échantillonne le terrain
@@ -394,7 +421,11 @@ function cellCost(
   const index = row * world.cols + col;
   if (!p || p.fog[index] === FOG_UNKNOWN) return UNKNOWN_CELL_COST;
   if (!isPassable(world, col, row)) return TERRAIN_COST.rocher * 2;
-  return TERRAIN_COST[terrainAt(world, col, row)];
+  /* Une case franchissable peut tout de même porter un coût sentinelle : un
+     pont sur la Durolle reste de l'eau dans `world.terrain`. On borne donc
+     toujours, plutôt que de faire confiance à la table. */
+  const brut = TERRAIN_COST[terrainAt(world, col, row)];
+  return brut > DETOUR_CELL_COST ? DETOUR_CELL_COST : brut;
 }
 
 /** Nombre de journées de marche estimées pour rallier une case. */

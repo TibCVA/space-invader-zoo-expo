@@ -555,7 +555,9 @@ export function fallbackHome(
   hero: HeroInstance,
 ): MapCoord | null {
   let best: MapCoord | null = null;
-  let bestCost = Number.MAX_SAFE_INTEGER;
+  /* `Infinity` et non `Number.MAX_SAFE_INTEGER` : une estimation saturée doit
+     rester comparable. Rendre `null` ici immobilise le héros pour de bon. */
+  let bestCost = Number.POSITIVE_INFINITY;
   for (const town of view.towns) {
     const cost = travelEstimate(state, world, view.player, hero.at, town.at);
     if (cost < bestCost) {
