@@ -66,6 +66,7 @@ import { CoucheUnites, campsDuCombat, vignettePile, type Camp } from './units.js
 import { BarreInitiative } from './initiative.js';
 import { CarteApercu, construireApercu, enrichirApercu, libelleEffet, type ApercuComplet } from './preview.js';
 import { poserCarteAmarree } from './amarrage.js';
+import { brancherPincement, echelleBornee } from '../pincement.js';
 import { PanneauSorts, couleurEcole, sortConnu, type EntreeSort } from './spells.js';
 import { Fortifications } from './siege.js';
 import { CoucheVfx } from './vfx.js';
@@ -83,6 +84,9 @@ import {
   recit,
   titre,
 } from './parchemin.js';
+
+/** Grossissement maximal du champ au pincement. */
+const ZOOM_COMBAT_MAX = 2.6;
 
 /* ══════════════════════════════ Disposition ══════════════════════════════ */
 
@@ -154,6 +158,12 @@ class VueCombat implements BattleView {
 
   /* — couches — */
   private readonly racine = new Container();
+  /** grossissement courant du champ (1 = plein cadre) */
+  private zoom = 1;
+  /** déplacement du champ sous le grossissement, en pixels écran */
+  private decalage = { x: 0, y: 0 };
+  /** débranchement du pincer-zoomer */
+  private debrancherPince: (() => void) | null = null;
   private readonly fond = new Graphics();
   private readonly board = new Container();
   private readonly plateau = new Container();
@@ -367,7 +377,7 @@ class VueCombat implements BattleView {
     this.plan = gabarit(this.largeur, this.hauteur);
     /* La coquille place le conteneur au centre de la toile : on ramène le
        repère de la vue dans le coin haut-gauche, en pixels écran. */
-    this.racine.position.set(-this.largeur / 2, -this.hauteur / 2);
+    this.appliquerZoom();
     this.container.hitArea = new Rectangle(
       -this.largeur / 2,
       -this.hauteur / 2,
@@ -459,6 +469,8 @@ class VueCombat implements BattleView {
     if (this.surRelache) window.removeEventListener('keyup', this.surRelache);
     this.surTouche = null;
     this.surRelache = null;
+    this.debrancherPince?.();
+    this.debrancherPince = null;
     this.champ.destroy();
     this.marques.destroy();
     this.unites.destroy();
@@ -800,6 +812,10 @@ class VueCombat implements BattleView {
     const carteDepliee = this.carteAmarree && this.carte.estOuverte && !this.carteRepliee;
     this.infoBas.visible =
       this.plan.fiche > 0 && this.hauteurPanneauBas() <= this.plan.bas && !carteDepliee;
+    /* Le rappel des commandes se pose au même endroit que la carte amarrée :
+       dépliée, elle le recouvrait et il n'en dépassait que trois lettres au
+       bord gauche de l'écran. Un texte qu'on ne peut pas lire n'aide personne. */
+    this.aide.visible = !carteDepliee;
     this.infoBas.position.set(marge, this.hauteur - this.hauteurPanneauBas() - this.plan.fiche);
     this.grimoire.container.position.set(
       this.plan.compact ? marge : this.plan.gauche + marge + 8,
@@ -1389,6 +1405,47 @@ class VueCombat implements BattleView {
       this.survol = null;
       this.marques.set({ survol: null, chemin: null });
     });
+
+    /*
+     * Pincer-zoomer, exigence du propriétaire : « il faut aussi pouvoir
+     * zoomer dans les combats sur l'iPhone ». Sur un écran de 390 points, un
+     * hexagone fait une vingtaine de pixels et une pile de créatures guère
+     * plus : viser du pouce est une loterie. Le geste à un doigt reste au
+     * jeu — marcher, frapper — comme sur la carte d'aventure.
+     */
+    const toile = this.deps.app.canvas as HTMLCanvasElement | undefined;
+    if (toile && typeof toile.addEventListener === 'function') {
+      this.debrancherPince = brancherPincement(toile, {
+        surPincement: (g) => {
+          if (this.detruit) return;
+          const { echelle, applique } = echelleBornee(this.zoom, g.facteur, 1, ZOOM_COMBAT_MAX);
+          this.zoom = echelle;
+          const cx = g.centreX - this.largeur / 2;
+          const cy = g.centreY - this.hauteur / 2;
+          this.decalage.x = cx - (cx - this.decalage.x) * applique + g.deplaceX;
+          this.decalage.y = cy - (cy - this.decalage.y) * applique + g.deplaceY;
+          this.appliquerZoom();
+        },
+      });
+    }
+  }
+
+  /**
+   * Grossissement et déplacement du champ. La POSITION de `container`
+   * appartient à la coquille, qui le centre : on ne touche qu'à son échelle,
+   * et le déplacement passe par la racine, en unités locales.
+   */
+  private appliquerZoom(): void {
+    const marge = (taille: number): number => Math.max(0, (taille * (this.zoom - 1)) / 2);
+    const mx = marge(this.largeur);
+    const my = marge(this.hauteur);
+    this.decalage.x = Math.max(-mx, Math.min(mx, this.decalage.x));
+    this.decalage.y = Math.max(-my, Math.min(my, this.decalage.y));
+    this.container.scale.set(this.zoom);
+    this.racine.position.set(
+      -this.largeur / 2 + this.decalage.x / this.zoom,
+      -this.hauteur / 2 + this.decalage.y / this.zoom,
+    );
   }
 
   private local(e: FederatedPointerEvent): { x: number; y: number } {

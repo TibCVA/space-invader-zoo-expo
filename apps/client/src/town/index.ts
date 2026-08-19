@@ -63,6 +63,7 @@ import {
 } from './panorama.js';
 import type { CadreCite } from './panorama.js';
 import { Banniere, Eau, Habitants, Lumieres, Oiseaux } from './vie.js';
+import { brancherPincement, echelleBornee } from '../pincement.js';
 
 /* ═══════════════════════════════ Réglages ════════════════════════════════ */
 
@@ -70,6 +71,9 @@ import { Banniere, Eau, Habitants, Lumieres, Oiseaux } from './vie.js';
 const DERIVE_MAX = 14;
 /** Durée de la levée d'un bâtiment neuf, en millisecondes. */
 const LEVEE_MS = 700;
+/** Grossissement maximal au pincement : au-delà, la peinture se pixellise. */
+const ZOOM_CITE_MAX = 3;
+
 /** Nombre maximal de foyers de fumée simultanés : au-delà, l'image se charge. */
 const FUMEES_MAX = 5;
 
@@ -199,6 +203,12 @@ class TableauCite implements TownView {
    * haut-gauche, en pixels écran.
    */
   private readonly racine = new Container();
+  /** grossissement courant du tableau (1 = plein cadre) */
+  private zoom = 1;
+  /** décalage du tableau sous le grossissement, en pixels */
+  private decalage = { x: 0, y: 0 };
+  /** débranchement du pincer-zoomer */
+  private debrancherPince: (() => void) | null = null;
 
   private readonly fond: FondCite;
   private readonly couchePlaces = new Container();
@@ -296,6 +306,54 @@ class TableauCite implements TownView {
     if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       window.addEventListener('deviceorientation', this.surInclinaison);
     }
+
+    /*
+     * Pincer-zoomer, exigence du propriétaire : « il faut aussi pouvoir
+     * zoomer dans la capitale ». Sur un écran de 390 points, une demeure de
+     * rang 1 fait une trentaine de pixels — on ne joue pas ce qu'on ne voit
+     * pas. Le geste agrandit la RACINE du tableau autour du point pincé ; le
+     * geste à un doigt reste au jeu (choisir un bâtiment, un emplacement).
+     */
+    const toile = deps.app.canvas as HTMLCanvasElement | undefined;
+    if (toile && typeof toile.addEventListener === 'function') {
+      this.debrancherPince = brancherPincement(toile, {
+        surPincement: (g) => {
+          if (this.detruit) return;
+          const { echelle, applique } = echelleBornee(this.zoom, g.facteur, 1, ZOOM_CITE_MAX);
+          this.zoom = echelle;
+          /* Le point pincé ne doit pas glisser sous les doigts : on corrige
+             le décalage du même facteur, autour de ce point. */
+          const cx = g.centreX - this.largeur / 2;
+          const cy = g.centreY - this.hauteur / 2;
+          this.decalage.x = cx - (cx - this.decalage.x) * applique + g.deplaceX;
+          this.decalage.y = cy - (cy - this.decalage.y) * applique + g.deplaceY;
+          this.appliquerZoom();
+        },
+      });
+    }
+  }
+
+  /**
+   * Applique grossissement et déplacement, en bornant le débord.
+   *
+   * La POSITION de `container` appartient à la coquille, qui le centre sur la
+   * toile : on ne la touche pas. Le grossissement passe par son échelle, et
+   * le déplacement par la racine interne — en unités locales, donc divisé
+   * par le grossissement.
+   */
+  private appliquerZoom(): void {
+    /* On ne laisse jamais voir le vide autour du tableau : le débord permis
+       est exactement ce que le grossissement a gagné. */
+    const marge = (taille: number): number => Math.max(0, (taille * (this.zoom - 1)) / 2);
+    const mx = marge(this.largeur);
+    const my = marge(this.hauteur);
+    this.decalage.x = Math.max(-mx, Math.min(mx, this.decalage.x));
+    this.decalage.y = Math.max(-my, Math.min(my, this.decalage.y));
+    this.container.scale.set(this.zoom);
+    this.racine.position.set(
+      -this.largeur / 2 + this.decalage.x / this.zoom,
+      -this.hauteur / 2 + this.decalage.y / this.zoom,
+    );
   }
 
   /* ────────────────────────────── Pilotage ─────────────────────────────── */
@@ -366,7 +424,7 @@ class TableauCite implements TownView {
        sans elle, les bâtiments tombaient à 13 % de la hauteur de la citadelle
        contre 30 % en paysage. */
     this.module = moduleDe(this.cadre.w, this.fond.portrait);
-    this.racine.position.set(-this.largeur / 2, -this.hauteur / 2);
+    this.appliquerZoom();
     this.container.hitArea = new Rectangle(
       -this.largeur / 2,
       -this.hauteur / 2,
@@ -460,6 +518,8 @@ class TableauCite implements TownView {
     this.container.off('pointermove', this.surDeplacement);
     this.container.off('pointertap', this.surClic);
     this.container.off('pointerleave', this.surSortie);
+    this.debrancherPince?.();
+    this.debrancherPince = null;
     this.container.destroy({ children: true });
   }
 
