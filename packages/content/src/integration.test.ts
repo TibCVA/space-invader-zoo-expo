@@ -28,7 +28,10 @@ import {
   mapPack,
   playerIncome,
   stackPower,
+  townFortification,
+  townGrowthBp,
   townIncome,
+  weeklyGrowth,
 } from '@auvergne/engine';
 import { ARTIFACT_LIST, CONTENT_VERSION, CREATURES, FACTIONS, HEROES } from './index.js';
 
@@ -238,5 +241,62 @@ describe('la partie se joue avec ce contenu', () => {
     const verdict = canBuild(state, state.towns[townUid], 'hotel_ville_2');
     expect(verdict.ok).toBe(false);
     expect(verdict.reason).toContain('Salle des comptes');
+  });
+
+  it('la Citadelle donne moitié plus de recrues, le Château le double', () => {
+    /*
+     * La mécanique de croissance de HMM3 qui manquait : là-bas Citadel
+     * multiplie par 1,5 la croissance de BASE des demeures et Castle par 2
+     * (wiki thelazy, « Growth »). Le plafond réel de la cité était de ×1,35 —
+     * une partie longue n'avait aucun moyen de faire grossir ses armées.
+     *
+     * On mesure sur le vrai contenu, sans copier aucun chiffre : la
+     * croissance de référence est celle que le moteur rend AVANT la place
+     * forte, et l'on vérifie les rapports 3/2 puis 2/1.
+     */
+    const state = createGame(makeSetup(4242), world);
+    const town = state.towns[state.players[state.activePlayer].towns[0]];
+    const faction = town.faction;
+    const demeure = `${faction}_demeure_1`;
+    if (!town.built.includes(demeure)) town.built.push(demeure);
+
+    const recrues = (): number => weeklyGrowth(town, 10000)[`${faction}_t1`] ?? 0;
+
+    const nu = recrues();
+    expect(nu).toBeGreaterThan(0);
+
+    town.built.push('palissade', 'rempart', 'tours', 'citadelle');
+    const avecCitadelle = recrues();
+    town.built.push('chateau');
+    const avecChateau = recrues();
+
+    /* La charte et l'agitation entrent dans le même ratio : on compare des
+       ratios de ratios, pas des valeurs absolues. */
+    const bpNu = townGrowthBp({ ...town, built: [demeure] });
+    expect(avecCitadelle).toBe(Math.max(1, Math.trunc((nu * (bpNu + 5000)) / bpNu)));
+    expect(avecChateau).toBe(Math.max(1, Math.trunc((nu * (bpNu + 10000)) / bpNu)));
+    expect(avecChateau).toBeGreaterThan(avecCitadelle);
+    expect(avecCitadelle).toBeGreaterThan(nu);
+  });
+
+  it('la place forte arme ses tours : deux, trois, puis quatre', () => {
+    /* Un Château qui ne défend pas mieux qu'un rempart serait un libellé
+       flatteur. Le noyau lit la chaîne défensive et le champ de siège pose
+       autant de tours qu'elle en arme. */
+    const state = createGame(makeSetup(4242), world);
+    const town = state.towns[state.players[state.activePlayer].towns[0]];
+    town.built = town.built.filter((b) => !['palissade', 'rempart', 'tours'].includes(b));
+
+    expect(townFortification(town).towers).toBe(0);
+    town.built.push('palissade');
+    expect(townFortification(town).towers).toBe(0);
+    town.built.push('rempart');
+    expect(townFortification(town).towers).toBe(1);
+    town.built.push('tours');
+    expect(townFortification(town).towers).toBe(2);
+    town.built.push('citadelle');
+    expect(townFortification(town).towers).toBe(3);
+    town.built.push('chateau');
+    expect(townFortification(town).towers).toBe(4);
   });
 });

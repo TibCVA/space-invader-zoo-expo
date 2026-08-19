@@ -28,11 +28,25 @@ export const SIEGE_WALL_COL = 11;
 export const SIEGE_GATE_ROW = 5;
 /** Colonne du fossé (Châtellenie) ou de la haie vive (Ermitage). */
 export const SIEGE_MOAT_COL = 10;
-/** Positions des deux tours, dans la cour. */
+/**
+ * Positions des tours, dans la cour, **par ordre de construction**.
+ *
+ * La chaîne défensive en arme de plus en plus : deux tours d'angle avec les
+ * Tours de guet, une troisième au-dessus de la porte avec la Citadelle, une
+ * quatrième de flanquement avec le Château. C'est la progression de HMM3 —
+ * le donjon de la Citadelle puis les deux tours du Château tirent à chaque
+ * tour de jeu — et c'est ce qui fait qu'un Château se défend réellement
+ * mieux qu'un simple rempart, au lieu d'être un libellé plus flatteur.
+ */
 export const SIEGE_TOWERS: readonly HexCoord[] = [
   { col: 12, row: 1 },
   { col: 12, row: 9 },
+  { col: 13, row: 5 },
+  { col: 13, row: 3 },
 ];
+
+/** Nombre de tours posées par défaut, sans place forte connue. */
+export const SIEGE_TOWERS_DEFAUT = 2;
 
 /** Lignes couvertes par chacun des trois segments de mur. */
 export const SIEGE_SEGMENT_ROWS: readonly (readonly number[])[] = [
@@ -105,7 +119,11 @@ export function isGateOpen(combat: CombatState): boolean {
  * Installe la place forte. `faction` détermine l'habillage : fossé et pierre de
  * taille pour la Châtellenie, haie vive et mur de racines pour l'Ermitage.
  */
-export function buildSiegeField(combat: CombatState, faction: FactionId): void {
+export function buildSiegeField(
+  combat: CombatState,
+  faction: FactionId,
+  tours: number = SIEGE_TOWERS_DEFAUT,
+): void {
   const obstacles: CombatObstacle[] = [];
   const wallHp = faction === 'granit'
     ? COMBAT_TUNING.wallSegmentHp
@@ -133,7 +151,8 @@ export function buildSiegeField(combat: CombatState, faction: FactionId): void {
     blocksSight: true,
   });
 
-  for (const at of SIEGE_TOWERS) {
+  const posees = Math.max(0, Math.min(SIEGE_TOWERS.length, Math.trunc(tours)));
+  for (const at of SIEGE_TOWERS.slice(0, posees)) {
     obstacles.push({
       at: { col: at.col, row: at.row },
       kind: 'tour',

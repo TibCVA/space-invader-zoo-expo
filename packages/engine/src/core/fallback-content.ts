@@ -621,6 +621,39 @@ function commonBuildings(): BuildingDef[] {
       grants: [{ kind: 'defense', walls: 3, towers: 2, gate: true }, { kind: 'morale', value: 1 }],
       scene: scene(20, 74, 1),
     },
+    {
+      /* Les deux paliers de croissance de HMM3 : +50 % puis +100 % sur la
+         croissance de base des demeures, et une tour de plus à chaque fois. */
+      id: 'citadelle',
+      faction: 'commun',
+      name: 'Citadelle',
+      description: 'Casernes, magasin d’armes : les demeures fournissent moitié plus.',
+      cost: { ecus: 9000, granit: 20, bois: 10 },
+      requires: ['tours'],
+      chain: 'defense',
+      chainLevel: 4,
+      grants: [
+        { kind: 'defense', walls: 3, towers: 3, gate: true },
+        { kind: 'growth_bp', bp: 5000 },
+      ],
+      scene: scene(20, 72, 1),
+    },
+    {
+      id: 'chateau',
+      faction: 'commun',
+      name: 'Château comtal',
+      description: 'Barbacane et garnison permanente : le recrutement double.',
+      cost: { ecus: 15000, granit: 30, bois: 15, fer: 10 },
+      requires: ['citadelle'],
+      chain: 'defense',
+      chainLevel: 5,
+      grants: [
+        { kind: 'defense', walls: 4, towers: 4, gate: true },
+        { kind: 'growth_bp', bp: 5000 },
+        { kind: 'morale', value: 1 },
+      ],
+      scene: scene(20, 70, 1),
+    },
   ];
 }
 

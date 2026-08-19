@@ -260,6 +260,50 @@ const COMMON: readonly BuildingDef[] = [
     ],
     scene: scene(16, 88, 5, 230),
   },
+  {
+    /*
+     * La Citadelle et le Château sont la mécanique de croissance de HMM3 que
+     * la chaîne défensive n'avait pas : là-bas, Citadel multiplie par 1,5 la
+     * croissance de BASE des demeures et Castle par 2 (wiki thelazy,
+     * « Growth » : « Citadel, Castle and Statue of Legion only multiply the
+     * basic growth rate »). Ici les deux paliers ajoutent chacun 5 000 points
+     * de base au ratio de la cité — le Château exigeant la Citadelle, on
+     * arrive bien à ×2 et non à ×1,5 × ×1,5. Sans eux, le plafond réel de
+     * croissance de la cité était de ×1,35, et une partie longue n'avait
+     * aucun moyen de faire grossir ses armées.
+     */
+    id: 'citadelle',
+    faction: 'commun',
+    name: 'Citadelle',
+    description:
+      "Un donjon de commandement au-dessus de la porte, un magasin d'armes, des casernes voûtées et un maître d'armes qui tient registre. La place ne se contente plus de se défendre : elle instruit et elle arme, et les demeures du comté envoient moitié plus de bras.",
+    cost: { ecus: 9000, granit: 20, bois: 10 },
+    requires: ['tours'],
+    chain: 'defense',
+    chainLevel: 4,
+    grants: [
+      { kind: 'defense', walls: 3, towers: 3, gate: true },
+      { kind: 'growth_bp', bp: 5000 },
+    ],
+    scene: scene(16, 88, 5, 245),
+  },
+  {
+    id: 'chateau',
+    faction: 'commun',
+    name: 'Château comtal',
+    description:
+      "Deux tours de flanquement de plus, une barbacane, des souterrains à grain et une garnison permanente qu'on relève tous les quinze jours. Une cité qui porte le château double le recrutement de ses demeures et ne tombe plus par surprise.",
+    cost: { ecus: 15000, granit: 30, bois: 15, fer: 10 },
+    requires: ['citadelle'],
+    chain: 'defense',
+    chainLevel: 5,
+    grants: [
+      { kind: 'defense', walls: 4, towers: 4, gate: true },
+      { kind: 'growth_bp', bp: 5000 },
+      { kind: 'morale', value: 1 },
+    ],
+    scene: scene(16, 88, 5, 260),
+  },
 ];
 
 /* ── Demeures : noms, coûts et bâtiment d'amélioration ───────────────────── */

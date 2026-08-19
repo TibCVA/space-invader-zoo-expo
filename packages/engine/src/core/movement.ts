@@ -18,9 +18,11 @@ import {
   type SkillEffect,
   type Terrain,
   type TownState,
+  type TownUid,
   type WeatherKind,
   type WorldMap,
 } from '../types.js';
+import { townFortification } from './economy.js';
 import { DIAGONAL_DEN, DIAGONAL_NUM, WEATHER_FALLBACK, WEATHER_TERRAIN_PENALTY } from './constants.js';
 import { combatModule, worldModule } from './registry.js';
 import { revealFog } from './fog.js';
@@ -211,9 +213,13 @@ function startCombatWith(
   },
   siege: boolean,
 ): GameEvent[] {
+  /* Le combat ne connaît pas les cités : c'est ici qu'on lit la place forte
+     du défenseur pour savoir combien de tours tireront (Tours de guet 2,
+     Citadelle 3, Château 4). */
+  const place = defender.town ? state.towns[defender.town as TownUid] : undefined;
   const combat = combatModule().startCombat(state, {
     attacker: { player: hero.owner, hero: hero.uid, army: stacksOf(hero.army) },
-    defender,
+    defender: place ? { ...defender, towers: townFortification(place).towers } : defender,
     terrain: terrainAt(world, hero.at.col, hero.at.row),
     region: regionAt(world, hero.at.col, hero.at.row),
     siege,

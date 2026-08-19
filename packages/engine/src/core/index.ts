@@ -123,6 +123,7 @@ export {
   tradeOutcome,
   weeklyGrowth,
   townGrowthBp,
+  townFortification,
   townHasGrant,
   mageGuildLevel,
   stablesBonus,

@@ -525,6 +525,32 @@ export function tradeOutcome(
   return { ok: true, taken, bp };
 }
 
+/**
+ * Place forte d'une cité : le plus haut palier atteint dans la chaîne
+ * défensive. Le champ de bataille de siège lit `towers` pour savoir combien
+ * de tours tirent — un Château défend réellement mieux qu'un rempart.
+ */
+export function townFortification(town: TownState): {
+  walls: number;
+  towers: number;
+  gate: boolean;
+} {
+  let walls = 0;
+  let towers = 0;
+  let gate = false;
+  for (const id of town.built) {
+    const def = content().BUILDINGS[id];
+    if (!def) continue;
+    for (const g of def.grants) {
+      if (g.kind !== 'defense') continue;
+      if (g.walls > walls) walls = g.walls;
+      if (g.towers > towers) towers = g.towers;
+      if (g.gate) gate = true;
+    }
+  }
+  return { walls, towers, gate };
+}
+
 /* ── Croissance hebdomadaire ────────────────────────────────────────────── */
 
 /** Ratio de croissance propre à une cité, en BP (bâtiments et charte). */

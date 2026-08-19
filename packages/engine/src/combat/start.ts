@@ -35,7 +35,12 @@ import {
   updateOathFormations,
 } from './units.js';
 import { buildInitiativeOrder, recomputeMoraleAndFortune } from './order.js';
-import { buildSiegeField, SIEGE_MOAT_COL, SIEGE_WALL_COL } from './siege.js';
+import {
+  buildSiegeField,
+  SIEGE_MOAT_COL,
+  SIEGE_TOWERS_DEFAUT,
+  SIEGE_WALL_COL,
+} from './siege.js';
 import { pushLog } from './log.js';
 
 export interface CombatSideSetup {
@@ -49,6 +54,13 @@ export interface CombatDefenderSetup {
   hero: HeroUid | null;
   town: TownUid | null;
   army: (ArmyStack | null)[];
+  /**
+   * Tours de la place forte qui tirent pendant le siège — deux avec les
+   * Tours de guet, trois avec la Citadelle, quatre avec le Château. Le
+   * combat ne connaît pas les cités : c'est le noyau qui lit la chaîne
+   * défensive (`townFortification`) et la transmet. Absent : le défaut.
+   */
+  towers?: number;
 }
 
 export interface StartCombatParams {
@@ -304,7 +316,11 @@ export function startCombat(state: GameState, params: StartCombatParams): Combat
   };
 
   if (params.siege) {
-    buildSiegeField(combat, armyFaction(params.defender.army));
+    buildSiegeField(
+      combat,
+      armyFaction(params.defender.army),
+      params.defender.towers ?? SIEGE_TOWERS_DEFAUT,
+    );
   } else {
     scatterObstacles(state, combat);
   }

@@ -188,6 +188,8 @@ export interface CombatModulePack {
         hero: HeroUid | null;
         town: TownUid | null;
         army: (ArmyStack | null)[];
+        /** Tours de la place forte qui tirent au siège ; absent : le défaut. */
+        towers?: number;
       };
       terrain: Terrain;
       region: RegionId;
