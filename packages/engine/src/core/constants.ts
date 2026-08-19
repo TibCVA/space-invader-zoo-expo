@@ -36,8 +36,27 @@ export const GARRISON_SLOTS = 7;
 export const MAX_SKILLS = 8;
 export const MAX_LEVEL = 30;
 
-/** Points de marche de base d'un héros (brief §5 : 1800–2200). */
+/**
+ * Points de marche d'un héros sans armée, et budget de référence de
+ * l'outillage de mesure (`pnpm carte`). Avec une armée, le mouvement suit
+ * `MOVEMENT_BY_SPEED` — c'est la pile la plus lente qui donne le pas.
+ */
 export const BASE_MOVEMENT = 1800;
+/**
+ * Mouvement de base selon la vitesse de la pile LA PLUS LENTE de l'armée —
+ * le barème exact de HMM3 (« Movement », wiki thelazy) : 1300 points pour
+ * une armée de vitesse 0, 2000 au-delà de 10. C'est un arbitrage
+ * stratégique entier : enrôler des lourdauds ralentit toute la colonne.
+ */
+export const MOVEMENT_BY_SPEED: readonly number[] = [
+  1300, 1360, 1430, 1500, 1560, 1630, 1700, 1760, 1830, 1900, 1960, 2000,
+];
+/** Mouvement de base pour une vitesse de pile donnée ; armée vide : 1800. */
+export function baseMovementFor(slowestSpeed: number | null): number {
+  if (slowestSpeed === null) return BASE_MOVEMENT;
+  const s = Math.max(0, Math.min(MOVEMENT_BY_SPEED.length - 1, Math.trunc(slowestSpeed)));
+  return MOVEMENT_BY_SPEED[s];
+}
 export const MAX_MOVEMENT = 3200;
 /** Portée de vue de base, en cases. */
 export const BASE_VISION = 7;

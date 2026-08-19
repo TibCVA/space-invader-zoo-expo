@@ -6,9 +6,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { GameState, HeroInstance } from '../types.js';
 import { cloneRng } from '../rng.js';
 import {
-  BASE_MOVEMENT,
   MAX_LEVEL,
+  MOVEMENT_BY_SPEED,
   applyBp,
+  baseMovementFor,
+  content,
   registerContent,
   registerWorldModule,
   resetEngineModules,
@@ -26,7 +28,7 @@ import {
   xpForLevel,
   xpStep,
 } from './leveling.js';
-import { activeEffects, heroStats, skillRank } from './hero-stats.js';
+import { activeEffects, heroStats, skillRank, vitesseLaPlusLente } from './hero-stats.js';
 import { acquireArtifact, artifactEffects, equipArtifact, setProgress } from './artifacts.js';
 import { combineEffectBp } from './common.js';
 
@@ -197,8 +199,11 @@ describe('cumul des effets', () => {
     hero.artifacts = {};
     hero.backpack = [];
 
+    /* Le mouvement de base suit désormais la pile la plus lente (lot 1.5) :
+       l'attendu se DÉRIVE du barème du moteur, jamais d'une copie. */
+    const base = baseMovementFor(vitesseLaPlusLente(hero));
     const withSkillOnly = heroStats(state, hero);
-    expect(withSkillOnly.movementMax).toBe(applyBp(BASE_MOVEMENT + 300, 10800));
+    expect(withSkillOnly.movementMax).toBe(applyBp(base + 300, 10800));
 
     // La Carte du sénéchal : movement_bp 10800 et vision +1.
     hero.backpack.push('carte_du_senechal');
@@ -213,10 +218,47 @@ describe('cumul des effets', () => {
 
     const stats = heroStats(state, hero);
     // Thibaut porte la spécialité « Maître des chemins » : +300 de marche.
-    expect(stats.movementMax).toBe(applyBp(BASE_MOVEMENT + 300 + 200, 11600));
+    expect(stats.movementMax).toBe(applyBp(base + 300 + 200, 11600));
     expect(Number.isInteger(stats.movementMax)).toBe(true);
     expect(Number.isInteger(stats.manaMax)).toBe(true);
     expect(stats.vision).toBe(heroStats(state, hero).vision);
+  });
+
+  it('le pas de la colonne est celui de la pile la plus lente (barème HMM3)', () => {
+    /* Lot 1.5. Trois armées : lente, mixte, rapide — et l'armée vide qui
+       marche au pas du cavalier seul. Les attendus se mesurent en ÉCARTS par
+       rapport à l'armée vide : les bonus plats (spécialité du héros) sont
+       identiques dans les quatre cas et s'annulent, et sans compétence le
+       multiplicateur est neutre. Créatures choisies dans le contenu par leur
+       vitesse, jamais par leur nom. */
+    const { state, hero } = fixture();
+    hero.skills = [];
+    hero.artifacts = {};
+    hero.backpack = [];
+
+    const bestiaire = Object.values(content().CREATURES);
+    const lent = bestiaire.reduce((a, b) => (b.speed < a.speed ? b : a));
+    const rapide = bestiaire.reduce((a, b) => (b.speed > a.speed ? b : a));
+    expect(lent.speed).toBeLessThan(rapide.speed);
+
+    hero.army = [null, null, null, null, null, null, null];
+    const vide = heroStats(state, hero).movementMax;
+
+    hero.army[0] = { creature: lent.id, count: 10 };
+    const lente = heroStats(state, hero).movementMax;
+
+    hero.army[1] = { creature: rapide.id, count: 10 };
+    const mixte = heroStats(state, hero).movementMax;
+
+    hero.army[0] = null;
+    const rapideSeule = heroStats(state, hero).movementMax;
+
+    const table = (v: number): number =>
+      MOVEMENT_BY_SPEED[Math.min(MOVEMENT_BY_SPEED.length - 1, v)];
+    expect(vide - lente).toBe(baseMovementFor(null) - table(lent.speed));
+    expect(mixte, 'le plus lent commande la colonne').toBe(lente);
+    expect(rapideSeule - lente).toBe(table(rapide.speed) - table(lent.speed));
+    expect(rapideSeule).toBeGreaterThan(lente);
   });
 
   it('ajoute les caractéristiques primaires portées et borne moral et fortune', () => {

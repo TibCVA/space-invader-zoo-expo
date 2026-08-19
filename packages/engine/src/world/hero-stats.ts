@@ -33,11 +33,11 @@ import {
   type TownState,
 } from '../types.js';
 import {
-  BASE_MOVEMENT,
   BASE_VISION,
   MAX_MOVEMENT,
   MAX_UNREST,
   applyBp,
+  baseMovementFor,
   clampInt,
   content,
 } from '../core/index.js';
@@ -261,6 +261,19 @@ export interface HeroStats {
   fortune: number;
 }
 
+/** Vitesse de la pile la plus lente de l'armée, `null` si l'armée est vide. */
+export function vitesseLaPlusLente(hero: HeroInstance): number | null {
+  const table = content().CREATURES;
+  let lente: number | null = null;
+  for (const stack of hero.army) {
+    if (!stack || stack.count <= 0) continue;
+    const def = table[stack.creature];
+    if (!def) continue;
+    if (lente === null || def.speed < lente) lente = def.speed;
+  }
+  return lente;
+}
+
 /** Caractéristiques primaires, artefacts compris. */
 export function primaryStats(hero: HeroInstance): Record<PrimaryStat, number> {
   const artifacts = artifactPrimary(hero);
@@ -281,9 +294,12 @@ export function heroStats(state: GameState, hero: HeroInstance): HeroStats {
   const primary = primaryStats(hero);
   const weather = weatherHeroModifiers(state.weather.current);
 
+  /* Le pas de la colonne est celui de la pile la plus lente (barème HMM3,
+     1300-2000) ; les bonus plats et proportionnels s'appliquent par-dessus,
+     inchangés. Un héros sans armée marche au pas du cavalier seul. */
   const movementMax = clampInt(
     applyBp(
-      BASE_MOVEMENT + sumEffect(effects, 'movement'),
+      baseMovementFor(vitesseLaPlusLente(hero)) + sumEffect(effects, 'movement'),
       combineEffectBp(effects, 'movement_bp'),
     ),
     HERO_STATS_TUNING.movementFloor,

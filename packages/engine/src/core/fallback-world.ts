@@ -34,8 +34,8 @@ import {
 } from '../types.js';
 import { nextInt, pickWeighted } from '../rng.js';
 import {
-  BASE_MOVEMENT,
   BASE_VISION,
+  baseMovementFor,
   CLAIM_DURATION_TURNS,
   GABELLE,
   MAX_LEVEL,
@@ -142,9 +142,18 @@ export function heroStats(
     savoir += def.primary.savoir ?? 0;
   }
 
+  /* Même règle que la fiche complète : la pile la plus lente donne le pas. */
+  const creatures = content().CREATURES;
+  let lente: number | null = null;
+  for (const stack of hero.army) {
+    if (!stack || stack.count <= 0) continue;
+    const cdef = creatures[stack.creature];
+    if (!cdef) continue;
+    if (lente === null || cdef.speed < lente) lente = cdef.speed;
+  }
   const movementMax = Math.min(
     MAX_MOVEMENT,
-    applyBp(BASE_MOVEMENT + sumEffect(effects, 'movement'), productBp(effects, 'movement_bp')),
+    applyBp(baseMovementFor(lente) + sumEffect(effects, 'movement'), productBp(effects, 'movement_bp')),
   );
   const vision = Math.max(2, BASE_VISION + sumEffect(effects, 'vision'));
   const manaMax = Math.max(10, applyBp(savoir * 10, productBp(effects, 'mana_max_bp')));
