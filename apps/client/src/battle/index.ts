@@ -65,6 +65,7 @@ import { CoucheGrille, Geometrie, cadrerPlateau } from './hexgrid.js';
 import { CoucheUnites, campsDuCombat, vignettePile, type Camp } from './units.js';
 import { BarreInitiative } from './initiative.js';
 import { CarteApercu, construireApercu, enrichirApercu, libelleEffet, type ApercuComplet } from './preview.js';
+import { poserCarteAmarree } from './amarrage.js';
 import { PanneauSorts, couleurEcole, sortConnu, type EntreeSort } from './spells.js';
 import { Fortifications } from './siege.js';
 import { CoucheVfx } from './vfx.js';
@@ -222,6 +223,8 @@ class VueCombat implements BattleView {
   private bandeChamp = { x: 0, y: 0, w: 1, h: 1 };
   /** en portrait, la carte d'aperçu est un panneau rétractable superposé */
   private carteRepliee = false;
+  /** hauteur réellement montrée de la carte amarrée (rognée si besoin) */
+  private hauteurCarteVisible = 0;
   private cleInfo = '';
   private journalLocal: CombatLogEntry[] = [];
   private desabonner: (() => void) | null = null;
@@ -712,7 +715,11 @@ class VueCombat implements BattleView {
   /** Rectangle écran occupé par la carte, telle qu'on la voit. */
   private zoneCarte(): Rectangle | null {
     if (!this.carte.estOuverte) return null;
-    const h = this.carteAmarree && this.carteRepliee ? this.enteteCarte : this.carte.hauteurCourante;
+    /* Amarrée, la carte peut être rognée : la zone tactile suit ce qu'on
+       voit, sinon la touche du bandeau porterait dans le vide. */
+    const h = this.carteAmarree
+      ? (this.hauteurCarteVisible || this.enteteCarte)
+      : this.carte.hauteurCourante;
     return new Rectangle(this.ancreApercu.x, this.ancreApercu.y, this.carte.largeur, h);
   }
 
@@ -730,21 +737,32 @@ class VueCombat implements BattleView {
      * calée en haut de la bande.
      */
     if (this.carteAmarree) {
-      const visible = this.carteRepliee ? this.enteteCarte : h;
-      const bas = this.hauteur - this.hauteurPanneauBas() - 8;
-      const y = Math.max(this.plan.barre + 8, bas - visible);
-      this.ancreApercu = { x: Math.round((this.largeur - Math.min(w, this.largeur - 16)) / 2), y: Math.round(y) };
-      this.carte.container.position.set(this.ancreApercu.x, this.ancreApercu.y);
+      /* La pose vient de `amarrage.ts`, qui garantit l'invariant : la carte
+         ne recouvre JAMAIS la barre d'actions. Trop haute pour la bande
+         disponible, elle est rognée par le bas — on en voit le haut, le
+         reste glisse sous la barre, qui reste entière et touchable. */
+      const pose = poserCarteAmarree({
+        hauteur: this.hauteur,
+        largeur: this.largeur,
+        barre: this.plan.barre,
+        panneauBas: this.hauteurPanneauBas(),
+        largeurCarte: w,
+        hauteurCarte: h,
+        entete: this.enteteCarte,
+        repliee: this.carteRepliee,
+      });
+      this.ancreApercu = { x: pose.x, y: pose.y };
+      this.carte.container.position.set(pose.x, pose.y);
       this.masqueCarte.clear();
-      if (this.carteRepliee) {
-        /* rétractée : seule la coiffe reste à l'écran, le reste glisse dessous */
+      if (this.carteRepliee || pose.rognee) {
         this.masqueCarte
-          .rect(this.ancreApercu.x - 2, this.ancreApercu.y - 6, w + 4, visible + 6)
+          .rect(pose.x - 2, pose.y - 6, w + 4, pose.hauteurVisible + 6)
           .fill({ color: 0xffffff });
         this.carte.container.mask = this.masqueCarte;
       } else {
         this.carte.container.mask = null;
       }
+      this.hauteurCarteVisible = pose.hauteurVisible;
       return;
     }
     this.carte.container.mask = null;

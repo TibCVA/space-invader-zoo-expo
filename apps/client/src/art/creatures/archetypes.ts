@@ -865,6 +865,36 @@ export interface ReglageAnim {
 }
 
 /**
+ * Temps du geste d'attaque, **la seule source** : les clips ci-dessous les
+ * emploient, et l'animation de combat (`battle/anim.ts`) cale l'impact
+ * dessus au lieu de le deviner.
+ *
+ * L'audit du combat avait mesuré l'écart : l'impact partait à 200 ms quand
+ * l'arme touche à 0,48 × 0,66 = 317 ms — **cent dix-sept millisecondes
+ * avant le contact**, si bien que la victime encaissait avant d'être
+ * frappée, et que la fente de l'attaquant était déjà retombée quand le sang
+ * giclait. Deux chiffres écrits à deux endroits finissent toujours par
+ * diverger : ils n'ont plus qu'un domicile.
+ */
+export const GESTE_ATTAQUE = {
+  /** durée du clip au corps à corps, en secondes */
+  dureeCorpsACorps: 0.66,
+  /** fraction du clip où l'arme touche */
+  chocCorpsACorps: 0.48,
+  /** durée du clip de tir */
+  dureeTir: 0.72,
+  /** fraction du clip où le trait quitte la main */
+  lacherTir: 0.34,
+} as const;
+
+/** Instant du contact au corps à corps, en secondes depuis le début du geste. */
+export const CONTACT_CORPS_A_CORPS =
+  GESTE_ATTAQUE.dureeCorpsACorps * GESTE_ATTAQUE.chocCorpsACorps;
+
+/** Instant où le trait part, en secondes depuis le début du geste. */
+export const LACHER_DU_TRAIT = GESTE_ATTAQUE.dureeTir * GESTE_ATTAQUE.lacherTir;
+
+/**
  * Sept animations pour un bipède. Les noms d'articulations attendus sont
  * `bassin torse tete bras_g bras_d jambe_g jambe_d arme bouclier cape`.
  * Les pistes visant une articulation absente sont ignorées.
@@ -897,14 +927,14 @@ export function clipsBipede(rig: Rig, r: ReglageAnim = {}): void {
   ]);
 
   const attaque = tir
-    ? clip(0.72, false, [
+    ? clip(GESTE_ATTAQUE.dureeTir, false, [
         ...si(rig, 'torse', p('torse', 'rot', [[0, 0], [0.34, -0.1, 'sortie'], [0.52, 0.06, 'choc'], [1, 0, 'doux']])),
         ...si(rig, 'bras_d', p('bras_d', 'rot', [[0, 0], [0.34, 0.34, 'sortie'], [0.5, -0.12, 'choc'], [1, 0, 'doux']])),
         ...si(rig, 'bras_g', p('bras_g', 'rot', [[0, 0], [0.34, -0.14, 'sortie'], [0.52, 0.05, 'choc'], [1, 0, 'doux']])),
         ...si(rig, 'tete', p('tete', 'rot', [[0, 0], [0.3, -0.08], [0.55, 0.04], [1, 0]])),
         ...si(rig, 'arme', p('arme', 'rot', [[0, 0], [0.34, -0.07], [0.52, 0.03, 'choc'], [1, 0]])),
       ])
-    : clip(0.66, false, [
+    : clip(GESTE_ATTAQUE.dureeCorpsACorps, false, [
         ...si(rig, 'bassin', p('bassin', 'x', [[0, 0], [0.3, -3 * A, 'sortie'], [0.48, 9 * A, 'choc'], [1, 0, 'doux']])),
         ...si(rig, 'torse', p('torse', 'rot', [[0, 0], [0.3, -0.24, 'sortie'], [0.48, 0.3, 'choc'], [1, 0, 'doux']])),
         ...si(rig, 'bras_g', p('bras_g', 'rot', [[0, 0], [0.3, -0.9, 'sortie'], [0.48, 1.15, 'choc'], [1, 0, 'doux']])),

@@ -17,6 +17,7 @@
 import { hexDistance, hexLine, hexPath } from '@auvergne/engine';
 import type { CombatLogEntry, CombatState, GameEvent, HexCoord } from '@auvergne/engine';
 import { LIGHT, PALETTE, melanger } from '../art/palette.js';
+import { CONTACT_CORPS_A_CORPS, LACHER_DU_TRAIT } from '../art/creatures/archetypes.js';
 import type { Geometrie } from './hexgrid.js';
 import type { CoucheUnites, PileVue } from './units.js';
 import type { CoucheVfx } from './vfx.js';
@@ -301,9 +302,17 @@ export class FileAnimations {
     let cible = { x: 0, y: 0 };
     let distant = tir;
 
+    /*
+     * L'impact tombe sur le CONTACT du geste, pas sur un compte rond.
+     * Mesuré par l'audit : l'impact partait à 200 ms quand l'arme touche à
+     * 317 ms — la victime encaissait cent dix-sept millisecondes avant
+     * d'être frappée, et la fente de l'attaquant était déjà retombée quand
+     * le sang giclait. Les deux instants viennent maintenant du gréement
+     * (`CONTACT_CORPS_A_CORPS`, `LACHER_DU_TRAIT`), seule source.
+     */
     this.taches.push({
       index,
-      duree: tir ? 0.14 : 0.2,
+      duree: tir ? LACHER_DU_TRAIT : CONTACT_CORPS_A_CORPS,
       debut: () => {
         a = ctx.piles.pile(uidA);
         c = uidC ? ctx.piles.pile(uidC) : null;
@@ -319,16 +328,15 @@ export class FileAnimations {
       },
       pas: (t) => {
         if (!a || distant) return;
-        /* fente : la pile avance d'un tiers de case puis revient */
-        const k = t < 0.55 ? t / 0.55 : 1 - (t - 0.55) / 0.45;
-        const e2 = 1 - Math.pow(1 - k, 2);
+        /* La fente ATTEINT son allonge au contact : c'est là que le coup
+           porte. Le retour se fait ensuite, pendant que la victime encaisse
+           (tâche d'impact) — l'attaquant ne se rétracte plus avant d'avoir
+           touché. */
+        const e2 = 1 - Math.pow(1 - t, 2);
         a.imposerPosition(
           depart.x + (cible.x - depart.x) * 0.3 * e2,
           depart.y + (cible.y - depart.y) * 0.3 * e2,
         );
-      },
-      fin: () => {
-        a?.libre();
       },
     });
 
@@ -366,6 +374,20 @@ export class FileAnimations {
         /* secousse d'écran bornée : elle ponctue, elle ne secoue pas le joueur */
         ctx.vfx.secousse.declencher(Math.min(6.5, 1.4 + degats / 70));
         if (riposte) ctx.vfx.mention(depart.x, depart.y * et - ctx.geo.taille * 1.7, 'Riposte', PALETTE.grenat);
+      },
+      pas: (t) => {
+        /* Le retour de fente : l'attaquant reprend sa place pendant que la
+           victime recule. Sans lui, la pile resterait plantée en avant, ou
+           reviendrait d'un saut au relâchement. */
+        if (!a || distant) return;
+        const e2 = Math.pow(1 - Math.min(1, t / 0.6), 2);
+        a.imposerPosition(
+          depart.x + (cible.x - depart.x) * 0.3 * e2,
+          depart.y + (cible.y - depart.y) * 0.3 * e2,
+        );
+      },
+      fin: () => {
+        a?.libre();
       },
     });
   }
