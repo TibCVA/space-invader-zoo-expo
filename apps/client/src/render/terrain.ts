@@ -186,14 +186,24 @@ function couleurBiome(terrain: number, alt: number, pente: number): number {
       break;
     }
     case TER.lande: {
-      /* Les hautes-chaumes : callune et herbe rase sur la tourbe, un tapis
-         fauve qui rougit à l'automne. Il faut qu'on les reconnaisse de loin
-         et qu'on ne les confonde ni avec la prairie (plus verte, plus basse)
-         ni avec la forte pente (plus brune) : la teinte part du vieil or de
-         l'herbe sèche et se refroidit à peine avec l'altitude, la callune
-         tirant sur le pourpre au sommet. */
-      const bas = melanger(melanger(PALETTE.ocre, PALETTE.vertHetre, 0.36), PALETTE.parcheminOmbre, 0.12);
-      const haut = melanger(melanger(PALETTE.ocre, PALETTE.grenat, 0.22), PALETTE.bleuBrume, 0.14);
+      /*
+       * Les hautes-chaumes : herbe rase et callune sur la tourbe.
+       *
+       * La première version partait de l'ocre (0xc08a3e) à soixante-quatre
+       * pour cent et rendait une nappe orange fluo qui mangeait la carte —
+       * vu sur capture, corrigé sur capture. Une chaume n'est pas un désert :
+       * c'est de l'herbe sèche, donc un vert qui a jauni, pas une terre
+       * cuite. On part donc du vert de hêtre comme la prairie et l'on pousse
+       * l'ocre à peine plus loin qu'elle (0,30 contre 0,18), en fanant le
+       * tout d'une pointe de fougère brune. La callune ne teinte de pourpre
+       * que le haut des crêtes.
+       */
+      const bas = melanger(melanger(PALETTE.vertHetre, PALETTE.ocre, 0.3), PALETTE.brunFougere, 0.2);
+      const haut = melanger(
+        melanger(melanger(PALETTE.vertHetre, PALETTE.ocre, 0.36), PALETTE.grenat, 0.12),
+        PALETTE.bleuBrume,
+        0.1,
+      );
       c = melanger(bas, haut, t);
       break;
     }
