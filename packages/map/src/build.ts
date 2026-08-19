@@ -102,6 +102,12 @@ function normaliseFlags(terrain: Uint8Array, flags: Uint16Array): void {
       if ((f & CELL_BRIDGE) === 0) f &= ~CELL_PASSABLE;
       else f |= CELL_PASSABLE;
       f &= ~CELL_BUILDABLE;
+    } else if (t === T.falaise) {
+      /* La falaise ne se franchit pas, et aucun pont ne la franchit : c'est le
+         relief qui ferme les zones. Le `f |= CELL_PASSABLE` inconditionnel de
+         la branche suivante est précisément ce qui faisait de la carte une
+         esplanade sans un seul goulet. */
+      f &= ~(CELL_PASSABLE | CELL_BRIDGE | CELL_BUILDABLE);
     } else {
       f |= CELL_PASSABLE;
       f &= ~CELL_BRIDGE;
@@ -110,6 +116,115 @@ function normaliseFlags(terrain: Uint8Array, flags: Uint16Array): void {
     else f &= ~CELL_CACHE;
     if (t === T.route || t === T.chemin) f &= ~CELL_BUILDABLE;
     flags[i] = f;
+  }
+}
+
+/**
+ * Aucune terre praticable hors de la composante principale — par la brèche
+ * d'abord, par le scellement en dernier recours.
+ *
+ * Les falaises suivent les pentes réelles du relief, et le relief réel forme
+ * parfois des cuvettes : à leur premier passage elles ont emmuré huit poches
+ * de terre praticable — neuf composantes là où la carte doit en avoir une.
+ * Une poche inaccessible est un piège : le semeur d'objets y déposerait des
+ * trésors que personne ne peut atteindre. Et l'on ne peut pas simplement tout
+ * sceller : les tests l'ont prouvé au premier essai, une ancre historique
+ * (un lieu fixe du Forez) tombait dans une poche, et son entrée devenait une
+ * case bloquée.
+ *
+ * On perce donc : pour chaque poche, la case de falaise qui touche à la fois
+ * la poche et la composante principale redevient du rocher franchissable.
+ * Une brèche dans une barre rocheuse est exactement ce que la montagne
+ * appelle un col — et un col percé dans une falaise est un goulet naturel,
+ * précisément la structure que la carte doit gagner. Si aucune brèche d'une
+ * case n'existe (anneau épais), la poche est scellée en falaise : mieux vaut
+ * un sommet muré qu'un trésor inatteignable.
+ */
+function desenclaver(terrain: Uint8Array, flags: Uint16Array): void {
+  const composante = new Int32Array(CELLS);
+  const file = new Int32Array(CELLS);
+
+  const etiqueter = (): { nombre: number; principale: number } => {
+    composante.fill(-1);
+    let numero = 0;
+    let principale = -1;
+    let meilleureTaille = 0;
+    for (let depart = 0; depart < CELLS; depart++) {
+      if ((flags[depart] & CELL_PASSABLE) === 0 || composante[depart] >= 0) continue;
+      let taille = 0;
+      let tete = 0;
+      let queue = 0;
+      file[queue++] = depart;
+      composante[depart] = numero;
+      while (tete < queue) {
+        const i = file[tete++];
+        taille++;
+        const col = i % COLS;
+        const row = (i / COLS) | 0;
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            if (!dr && !dc) continue;
+            const c = col + dc;
+            const r = row + dr;
+            if (c < 0 || r < 0 || c >= COLS || r >= ROWS) continue;
+            const j = r * COLS + c;
+            if ((flags[j] & CELL_PASSABLE) === 0 || composante[j] >= 0) continue;
+            composante[j] = numero;
+            file[queue++] = j;
+          }
+        }
+      }
+      if (taille > meilleureTaille) {
+        meilleureTaille = taille;
+        principale = numero;
+      }
+      numero++;
+    }
+    return { nombre: numero, principale };
+  };
+
+  /* Chaque tour perce au plus une brèche par poche ; huit poches au premier
+     passage, la boucle converge en une poignée de tours. La borne évite un
+     cas pathologique de devenir une boucle infinie. */
+  for (let tour = 0; tour < 16; tour++) {
+    const { nombre, principale } = etiqueter();
+    if (nombre <= 1) return;
+
+    const percees = new Set<number>();
+    for (let i = 0; i < CELLS; i++) {
+      if (terrain[i] !== T.falaise) continue;
+      let secondaire = -1;
+      let touchePrincipale = false;
+      const col = i % COLS;
+      const row = (i / COLS) | 0;
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (!dr && !dc) continue;
+          const c = col + dc;
+          const r = row + dr;
+          if (c < 0 || r < 0 || c >= COLS || r >= ROWS) continue;
+          const comp = composante[r * COLS + c];
+          if (comp < 0) continue;
+          if (comp === principale) touchePrincipale = true;
+          else secondaire = comp;
+        }
+      }
+      if (touchePrincipale && secondaire >= 0 && !percees.has(secondaire)) {
+        terrain[i] = T.rocher;
+        flags[i] |= CELL_PASSABLE;
+        percees.add(secondaire);
+      }
+    }
+
+    if (percees.size === 0) {
+      /* Plus aucune brèche d'une case : les poches restantes sont scellées. */
+      for (let i = 0; i < CELLS; i++) {
+        if ((flags[i] & CELL_PASSABLE) === 0 || composante[i] === principale) continue;
+        terrain[i] = terrain[i] === T.eau ? T.eau : T.falaise;
+        flags[i] &= ~(CELL_PASSABLE | CELL_BRIDGE | CELL_BUILDABLE);
+      }
+      return;
+    }
   }
 }
 
@@ -137,6 +252,7 @@ export function buildTerrain(): TerrainBuild {
   }
 
   normaliseFlags(terrain, flags);
+  desenclaver(terrain, flags);
   markEdges(terrain, flags);
 
   terrainCache = {

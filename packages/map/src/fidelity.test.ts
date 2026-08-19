@@ -169,7 +169,10 @@ describe('fidélité — passabilité', () => {
       const name = TERRAINS[world.terrain[i]];
       const passable = (world.flags[i] & CELL_PASSABLE) !== 0;
       const bridged = (world.flags[i] & CELL_BRIDGE) !== 0;
-      if (name !== 'eau' && !passable) faults.push(`sec bloqué ${i % COLS},${(i / COLS) | 0}`);
+      if (name === 'falaise' && passable) faults.push(`falaise ouverte ${i % COLS},${(i / COLS) | 0}`);
+      if (name !== 'eau' && name !== 'falaise' && !passable) {
+        faults.push(`sec bloqué ${i % COLS},${(i / COLS) | 0}`);
+      }
       if (name === 'eau' && passable !== bridged) {
         faults.push(`eau incohérente ${i % COLS},${(i / COLS) | 0}`);
       }

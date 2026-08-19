@@ -308,6 +308,7 @@ export const TERRAIN_LABELS: Record<Terrain, string> = {
   humide: 'zone humide',
   rocher: 'chaos rocheux',
   eau: 'cours d’eau',
+  falaise: 'falaise',
 };
 
 export const REGION_LABELS: Record<RegionId, string> = {

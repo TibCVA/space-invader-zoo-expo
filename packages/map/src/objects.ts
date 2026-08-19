@@ -26,6 +26,7 @@
 import {
   CELL_BRIDGE,
   CELL_CACHE,
+  CELL_PASSABLE,
   CELL_EDGE,
   CELL_ROAD,
   RESOURCE_VALUE,
@@ -462,7 +463,11 @@ interface Builder {
 }
 
 function passable(ctx: ObjectContext, i: number): boolean {
-  return TERRAINS[ctx.terrain[i]] !== 'eau';
+  /* Le drapeau fait foi, pas le terrain : il connaît les ponts sur l'eau et
+     les falaises infranchissables. L'ancien test `!== 'eau'` datait du temps
+     où toute terre se traversait — le semeur aurait posé des trésors sur les
+     falaises. */
+  return (ctx.flags[i] & CELL_PASSABLE) !== 0;
 }
 
 function isFree(b: Builder, col: number, row: number): boolean {
@@ -510,6 +515,20 @@ function place(
     data,
   };
   if (options.guard && options.guard.length > 0) obj.guard = options.guard;
+  /*
+   * L'entrée d'un lieu se visite, donc se rejoint. Les sites fixes suivent la
+   * géographie réelle, et la géographie réelle met les belvédères sur les
+   * escarpements : le Belvédère de Pamole est tombé pile sur une case classée
+   * falaise le jour où la falaise est devenue infranchissable. On ne rase pas
+   * l'escarpement — c'est lui qui fait le belvédère — on taille un accès :
+   * la case d'entrée devient du rocher franchissable, comme un sentier
+   * d'aiguille taillé dans la barre.
+   */
+  const ei = idx(obj.entrance.col, obj.entrance.row);
+  if (TERRAINS[b.ctx.terrain[ei]] === 'falaise') {
+    b.ctx.terrain[ei] = TERRAINS.indexOf('rocher');
+    b.ctx.flags[ei] |= CELL_PASSABLE;
+  }
   for (const f of obj.footprint) b.occupied[idx(f.col, f.row)] = 1;
   b.objects.push(obj);
   return obj;

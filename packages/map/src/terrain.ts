@@ -87,8 +87,21 @@ export function distanceToWater(): Uint8Array {
 const ROCK_SLOPE = 20;
 /** Altitude à partir de laquelle une pente forte devient rocher. */
 const ROCK_ALTITUDE = 950;
-/** Pente qui devient rocher quelle que soit l'altitude (barre, falaise). */
+/** Pente qui devient rocher quelle que soit l'altitude (barre rocheuse). */
 const CLIFF_SLOPE = 27;
+/**
+ * Pente au-delà de laquelle la barre devient **falaise**, infranchissable.
+ *
+ * Le rocher se traverse à 200 points ; la falaise ne se traverse pas, et c'est
+ * toute la différence : sans terrain dur, la carte n'avait pas un seul point
+ * d'articulation sur 105 349 cases praticables — une esplanade, là où HMM3
+ * ferme ses zones par du relief et ne laisse que des cols gardés. Le seuil est
+ * choisi sur la distribution mesurée des pentes (maximum 66, 0,37 % des cases
+ * au-delà de 43) : à 38 il ne prend que les vrais escarpements — aiguilles,
+ * gorges de la Durolle — sans jamais fermer un versant entier. Les voies
+ * l'emportent toujours : une route tracée dans la gorge reste une route.
+ */
+const FALAISE_SLOPE = 38;
 /** Pente à partir de laquelle une case est classée « forte pente ». */
 const STEEP_SLOPE = 13;
 /** Pente maximale d'un fond marécageux. */
@@ -135,6 +148,8 @@ export function classifyTerrain(
         code = T.eau;
       } else if (hydro.bog[i] === 1) {
         code = T.humide;
+      } else if (s >= FALAISE_SLOPE) {
+        code = T.falaise;
       } else if (s >= CLIFF_SLOPE || (s >= ROCK_SLOPE && alt >= ROCK_ALTITUDE)) {
         code = T.rocher;
       } else if (s >= STEEP_SLOPE) {

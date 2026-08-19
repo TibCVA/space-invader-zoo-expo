@@ -65,6 +65,21 @@ export const TAILLE: Readonly<Record<MapObjectKind, number>> = {
   ressource: 2.1,
   borne: 2.05,
   obstacle: 1.5,
+  /* Le catalogue de la densification (docs/08-PLAN-AAA.md). Même règle que
+     ci-dessus : au-dessus du décor médian, rangés par importance. */
+  demeure: 3.2,
+  banque: 3.1,
+  monolithe: 2.8,
+  ecole: 2.7,
+  cartographe: 2.6,
+  marche_noir: 2.6,
+  temple: 2.5,
+  moulin: 2.5,
+  garde_frontiere: 2.5,
+  obelisque: 2.4,
+  tente_clef: 2.3,
+  fontaine: 2.2,
+  coffre: 2.05,
 };
 
 /** Objets qui méritent un cartouche de nom dès qu'on est assez près. */

@@ -125,6 +125,9 @@ const TERRAIN_OBSTACLE_COUNT: Record<Terrain, [number, number]> = {
   humide: [3, 5],
   rocher: [5, 8],
   eau: [2, 4],
+  /* On ne se bat jamais SUR une falaise — infranchissable — mais à son pied :
+     un champ éboulé, aussi encombré qu'un chaos rocheux. */
+  falaise: [5, 8],
 };
 
 /**

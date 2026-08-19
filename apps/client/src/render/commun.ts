@@ -14,7 +14,7 @@ import { LIGHT, PALETTE } from '../art/palette.js';
 
 /* ───────────────────────────── Index des terrains ───────────────────────── */
 
-/** Indices des huit terrains du moteur, lus depuis le contrat et non recopiés. */
+/** Indices des terrains du moteur, lus depuis le contrat et non recopiés. */
 export const TER = {
   route: TERRAINS.indexOf('route'),
   chemin: TERRAINS.indexOf('chemin'),
@@ -24,6 +24,7 @@ export const TER = {
   humide: TERRAINS.indexOf('humide'),
   rocher: TERRAINS.indexOf('rocher'),
   eau: TERRAINS.indexOf('eau'),
+  falaise: TERRAINS.indexOf('falaise'),
 } as const;
 
 /** Vrai pour une case portant une voie tracée (chaussée ou chemin). */

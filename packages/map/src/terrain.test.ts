@@ -131,10 +131,14 @@ describe('drapeaux — cohérence avec le terrain', () => {
   it('n’ouvre CELL_PASSABLE que là où l’on peut réellement passer', () => {
     const faults: string[] = [];
     for (let i = 0; i < CELLS; i++) {
-      const isWater = name(i) === 'eau';
       const passable = (field.flags[i] & CELL_PASSABLE) !== 0;
       const bridged = (field.flags[i] & CELL_BRIDGE) !== 0;
-      const ok = isWater ? passable === bridged : passable;
+      /* Trois familles : l'eau se franchit là où un pont la franchit, la
+         falaise ne se franchit jamais, tout le reste se franchit toujours. */
+      const ok =
+        name(i) === 'eau' ? passable === bridged
+        : name(i) === 'falaise' ? !passable
+        : passable;
       if (!ok && faults.length < 12) faults.push(`${i % COLS},${(i / COLS) | 0} (${name(i)})`);
     }
     expect(faults).toEqual([]);

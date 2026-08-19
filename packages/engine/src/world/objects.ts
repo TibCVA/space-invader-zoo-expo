@@ -1409,6 +1409,19 @@ export const OBJECT_KIND_LABELS: Record<MapObject['kind'], string> = {
   source: 'Source',
   obstacle: 'Obstacle',
   quete: 'Doléance',
+  demeure: 'Demeure franche',
+  moulin: 'Moulin',
+  banque: 'Repaire',
+  monolithe: 'Pierre levée',
+  obelisque: 'Montjoie',
+  ecole: 'École',
+  temple: 'Oratoire',
+  fontaine: 'Fontaine aux fées',
+  coffre: 'Coffre',
+  garde_frontiere: 'Poste de péage',
+  tente_clef: 'Bureau des passes',
+  cartographe: 'Cartographe',
+  marche_noir: 'Colporteurs',
 };
 
 /** Une ligne d'inspection, pour l'info-bulle de la carte. */

@@ -20,6 +20,7 @@ export const T = {
   humide: TERRAINS.indexOf('humide'),
   rocher: TERRAINS.indexOf('rocher'),
   eau: TERRAINS.indexOf('eau'),
+  falaise: TERRAINS.indexOf('falaise'),
 } as const;
 
 export function idx(col: number, row: number): number {

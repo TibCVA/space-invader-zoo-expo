@@ -55,6 +55,16 @@ export const TERRAINS = [
   'humide',
   'rocher',
   'eau',
+  /*
+   * Ajouté APRÈS l'eau, jamais avant : les huit premiers indices sont gravés
+   * dans les mondes déjà construits et sauvegardés. La falaise est le relief
+   * qui ferme les zones (docs/08-PLAN-AAA.md, lots 1.8-1.9) — le seul terrain
+   * infranchissable avec l'eau, et sans pont possible. Notre carte n'avait
+   * aucun point d'articulation sur 105 349 cases praticables ; HMM3 relie ses
+   * zones par des cols étroits, et un col n'existe que si quelque chose de
+   * dur le borde.
+   */
+  'falaise',
 ] as const;
 export type Terrain = (typeof TERRAINS)[number];
 
@@ -68,6 +78,7 @@ export const TERRAIN_COST: Record<Terrain, number> = {
   humide: 160,
   rocher: 200,
   eau: Number.MAX_SAFE_INTEGER,
+  falaise: Number.MAX_SAFE_INTEGER,
 };
 
 export const REGIONS = [
@@ -153,7 +164,29 @@ export type MapObjectKind =
   | 'belvedere'
   | 'source'
   | 'obstacle'
-  | 'quete';
+  | 'quete'
+  /*
+   * Le catalogue de la densification (docs/08-PLAN-AAA.md, lot 0.1). Chaque
+   * nature ci-dessous est la transposition d'une famille de HMM3 dont
+   * l'absence était mesurée : zéro recruteur extérieur, zéro objet
+   * d'expérience, zéro moral/chance, une seule banque gardée, zéro
+   * générateur hebdomadaire, zéro monolithe. Les effets sont branchés dans
+   * `world/objects.ts` (lot 1.2) ; un ajout ici sans effet là-bas est un
+   * objet de décor, ce que l'audit interdit.
+   */
+  | 'demeure' // recruteur extérieur : croissance hebdomadaire au propriétaire
+  | 'moulin' // générateur : une ressource au premier visiteur de la semaine
+  | 'banque' // trésor gardé rejouable (crypte, repaire), repeuplé par période
+  | 'monolithe' // téléporteur vers son jumeau, par paire
+  | 'obelisque' // révèle une part du secret de la carte, une fois par bannière
+  | 'ecole' // +1 caractéristique contre écus, une fois par héros
+  | 'temple' // +1 moral pour quelques jours
+  | 'fontaine' // fortune tirée au sort, en bien ou en mal
+  | 'coffre' // écus ou expérience, au choix du visiteur
+  | 'garde_frontiere' // barre un col tant qu'on ne porte pas le laissez-passer
+  | 'tente_clef' // délivre le laissez-passer du garde-frontière assorti
+  | 'cartographe' // vend la révélation d'une région entière
+  | 'marche_noir'; // négoce itinérant à taux défavorable
 
 export interface MapObject {
   uid: ObjectUid;
