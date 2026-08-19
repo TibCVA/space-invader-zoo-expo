@@ -57,6 +57,42 @@ s'accrochent désormais aux TERRASSES réelles de chaque panorama
 à cheval sur les murets ou au bord du vide. Toute retouche du plan de masse
 doit passer par ces zones ; les captures de contrôle sont `shots/masse3`.
 
+## 1 bis. Ce qui a été fait DEPUIS la passation (session Opus 5)
+
+**Le jalon : le jeu est gagnable.** Trois bugs de fond l'en empêchaient, et
+aucun n'était visible sans mesure :
+
+1. **`clonePlayer` perdait `sansCiteDepuis`** (5a9737b). `applyCommand`
+   reclone l'état à chaque commande : le compte des sept jours repartait de
+   zéro plusieurs fois par tour. Une bannière dépouillée de sa dernière cité
+   survivait indéfiniment — donc aucune partie ne pouvait se conclure.
+   `HeroInstance.benedictions` tombait de la même façon (le joueur payait sa
+   visite à l'oratoire et n'en gardait rien). Un test générique compare
+   désormais les **jeux de clefs** de l'état et de son clone : un champ neuf
+   oublié rougira sans qu'on ait pensé à l'écrire.
+2. **L'IA n'avait aucun objectif visant les cités adverses** (7f9c76c) :
+   `expansion` ne compte que les bourgs neutres, `harcelement` court après
+   les héros. Ajout d'un objectif `conquete` (supériorité + âge + curée) et
+   chute de la laisse pour une conquête — un profil prudent (laisse 70 cases)
+   ne pouvait littéralement jamais atteindre l'ennemi sur 256 colonnes.
+3. **Les capitales n'étaient pas publiques** (2821f93, e0f2831). Sonde sur
+   une partie complète : en 858 jours l'IA n'a JAMAIS vu une cité adverse.
+   Chaque bannière choisit pourtant sa capitale sur l'écran de nouvelle
+   partie. Les capitales sont donc connues ; la garnison, non (le test de
+   loyauté a d'ailleurs attrapé une fuite dans ma première version).
+
+**Simulation : 4/4 parties conclues par conquête, 22 à 127 jours, médiane
+11 semaines** (cible ≥ 6) — contre 4/4 au garde-fou à 451 jours avant.
+
+Le reste livré : Citadelle et Château (croissance ×2 de HMM3, et le champ de
+siège arme 2/3/4 tours selon la place forte) ; l'école d'un sort lue au lieu
+d'être devinée (18 fautes sur 32 mesurées puis éliminées) ; l'impact du
+combat calé sur le contact du geste (117 ms d'avance supprimées) ; la scène
+accélérée qui ne passe plus sous la barre de pouce (elle perdait 90 px,
+c'est-à-dire toute la barre d'actions du combat) ; le pincer-zoomer dans la
+capitale et les combats ; les hautes-chaumes et les tourbières (prairie+forêt
+82,3 % → 74,5 %).
+
 ## 2. LA LISTE — par importance pour le feeling HMM3
 
 ### P0 — le cœur du jeu (sans quoi ce n'est pas HMM3)

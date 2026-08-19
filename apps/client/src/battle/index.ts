@@ -672,7 +672,7 @@ class VueCombat implements BattleView {
       this.carte.montrer(this.apercu, this.combat);
     }
     this.placerCarte();
-    this.marques.set({ curseur: { depuis: a.at, vers: c.at } });
+    this.marques.set({ curseur: { depuis: a.at, vers: c.at, tir: distance } });
   }
 
   private cibleSurvolee(): string | null {

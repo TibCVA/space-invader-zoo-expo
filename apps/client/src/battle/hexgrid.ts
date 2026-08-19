@@ -169,8 +169,15 @@ export interface EtatMarques {
   survol: HexCoord | null;
   /** hexagone de la pile active, mis en avant */
   active: HexCoord | null;
-  /** cible d'attaque et case de départ, pour le curseur directionnel */
-  curseur: { depuis: HexCoord; vers: HexCoord } | null;
+  /**
+   * Cible d'attaque et case de départ, pour le curseur directionnel.
+   *
+   * `tir` dit de quelle main le coup part : exigence du propriétaire, « les
+   * coûts d'épée et de flèches visibles ». Dans HMM3 le curseur devient une
+   * épée au contact et une flèche à distance, et c'est ainsi qu'on apprend,
+   * sans lire un manuel, qu'un tireur au corps à corps perd sa volée.
+   */
+  curseur: { depuis: HexCoord; vers: HexCoord; tir?: boolean } | null;
 }
 
 const VIDE: EtatMarques = {
@@ -360,7 +367,12 @@ export class CoucheGrille {
     }
 
     if (this.etat.curseur) {
-      this.peindreCurseur(g, this.etat.curseur.depuis, this.etat.curseur.vers);
+      this.peindreCurseur(
+        g,
+        this.etat.curseur.depuis,
+        this.etat.curseur.vers,
+        this.etat.curseur.tir === true,
+      );
     }
   }
 
@@ -368,7 +380,7 @@ export class CoucheGrille {
    * Curseur d'attaque : une pointe de lance posée sur l'arête frappée, orientée
    * par `directionTo` du moteur. Le joueur voit d'où le coup part.
    */
-  private peindreCurseur(g: Graphics, depuis: HexCoord, vers: HexCoord): void {
+  private peindreCurseur(g: Graphics, depuis: HexCoord, vers: HexCoord, tir: boolean): void {
     const a = this.geo.local(depuis);
     const b = this.geo.local(vers);
     const dx = b.x - a.x;
@@ -403,6 +415,46 @@ export class CoucheGrille {
     g.moveTo(px + ux * r * 0.5, py + uy * r * 0.5)
       .lineTo(px + nx * r * 0.26, py + ny * r * 0.26)
       .stroke({ color: LIGHT.rim, width: 1.1, alpha: LIGHT.rimAlpha + 0.2 });
+
+    /*
+     * L'ÉPÉE ou la FLÈCHE, posée au départ du coup.
+     *
+     * Exigence du propriétaire : « les coûts d'épée et de flèches visibles ».
+     * Dans HMM3 le curseur devient une épée au contact et une flèche à
+     * distance, et c'est ainsi qu'on apprend sans lire un manuel qu'un
+     * tireur pris au corps à corps perd sa volée. Le signe est posé sur la
+     * case de DÉPART — là où le joueur regarde sa propre pile — et non sur
+     * la cible, déjà cernée de grenat.
+     */
+    const sx = a.x + ux * r * 0.42;
+    const sy = a.y + uy * r * 0.42;
+    const or = melanger(PALETTE.ocre, LIGHT.chaude, 0.45);
+    if (tir) {
+      /* Flèche : hampe, empennage à l'arrière, pointe en avant. */
+      g.moveTo(sx - ux * r * 0.34, sy - uy * r * 0.34)
+        .lineTo(sx + ux * r * 0.26, sy + uy * r * 0.26)
+        .stroke({ color: or, width: 2.2, alpha: 0.95, cap: 'round' });
+      const fer: Poly = [
+        { x: sx + ux * r * 0.42, y: sy + uy * r * 0.42 },
+        { x: sx + ux * r * 0.2 + nx * r * 0.12, y: sy + uy * r * 0.2 + ny * r * 0.12 },
+        { x: sx + ux * r * 0.2 - nx * r * 0.12, y: sy + uy * r * 0.2 - ny * r * 0.12 },
+      ];
+      g.poly(flat(fer)).fill({ color: or, alpha: 0.95 });
+      for (const s of [-1, 1]) {
+        g.moveTo(sx - ux * r * 0.34, sy - uy * r * 0.34)
+          .lineTo(sx - ux * r * 0.18 + nx * r * 0.16 * s, sy - uy * r * 0.18 + ny * r * 0.16 * s)
+          .stroke({ color: or, width: 1.6, alpha: 0.8, cap: 'round' });
+      }
+    } else {
+      /* Épée : lame vers la cible, garde en travers, pommeau derrière. */
+      g.moveTo(sx - ux * r * 0.28, sy - uy * r * 0.28)
+        .lineTo(sx + ux * r * 0.4, sy + uy * r * 0.4)
+        .stroke({ color: or, width: 2.6, alpha: 0.95, cap: 'round' });
+      g.moveTo(sx - ux * r * 0.16 + nx * r * 0.16, sy - uy * r * 0.16 + ny * r * 0.16)
+        .lineTo(sx - ux * r * 0.16 - nx * r * 0.16, sy - uy * r * 0.16 - ny * r * 0.16)
+        .stroke({ color: or, width: 2, alpha: 0.9, cap: 'round' });
+      g.circle(sx - ux * r * 0.3, sy - uy * r * 0.3, r * 0.06).fill({ color: or, alpha: 0.9 });
+    }
   }
 
   /** Chemin prévisualisé : perles dorées, une par hexagone, plus l'arrivée. */
