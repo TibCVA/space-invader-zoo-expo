@@ -78,6 +78,9 @@ Règles de style détaillées : `docs/01-ART-BIBLE.md` §0.
 | Trois lieux nommés : col des Sagnes, col Saint-Thomas, Pierre de Pamole (lot 1.7) | **fait** | ancres réelles (Saint-Thomas 45,886 N · 3,754 E · 930 m + route Forez-Auvergne Arconsat→Cervières), cols = postes gardés à 3 cases, Pierre = +1 vaillance gratis une fois par héros ; relief vérifié (selle mesurée, passage de crête) ; `lieux-nommes.test.ts` éprouvé |
 | Mouvement selon la pile la plus lente (lot 1.5) | **fait** | barème HMM3 exact 1300→2000 (`MOVEMENT_BY_SPEED`), bonus inchangés, repli aligné ; test des trois armées en écarts ; duel de validation relancé |
 | Passation à Opus 5 | **écrite** | `docs/09-PASSATION-OPUS.md` — liste hiérarchisée P0/P1/P2, règles de méthode, état vérifié |
+| Citadelle et Château — la croissance ×2 de HMM3 (lot 1.4, part 1) | **fait** | +50 % puis +100 % sur la croissance de base (barème exact du wiki) ; le champ de siège arme 2/3/4 tours selon la place forte ; deux tests sur le contenu réel |
+| École d'un sort lue et non devinée (lot 2.3) | **fait** | 18 fautes sur 32 mesurées puis éliminées ; le moteur inscrit l'école dans chaque entrée de journal |
+| **La partie se gagne enfin** | **corrigé — trois bugs de fond** | (1) `clonePlayer` perdait `sansCiteDepuis` : le compte des sept jours repartait de zéro à chaque commande, une bannière sans cité survivait indéfiniment ; (2) l'IA n'avait aucun objectif visant les cités adverses ; (3) les capitales n'étaient pas publiques, si bien qu'en 858 jours les bannières ne se voyaient jamais. **Simulation : 4/4 parties conclues par conquête, 22 à 127 jours, médiane 11 semaines** (cible ≥ 6) — contre 4/4 au garde-fou à 451 jours sans conclusion avant |
 | Boucles de critique visuelle | partiellement | les sous-agents refonctionnent ; revue par capture appliquée aux cités |
 | Équilibrage par simulation de masse | à faire | l'outil existe (`pnpm sim`, `pnpm balance`), le réglage reste à faire |
 
