@@ -325,10 +325,32 @@ export function rankTargets(
   };
 
   /* — Lieux de carte connus — */
+  /*
+   * L'évaluation fine (`scored` → `daysAway`, quarante échantillons de
+   * terrain) coûtait un tour d'IA entier depuis la densification : sept cents
+   * lieux connus au lieu de deux cents, et le pire tour de début de partie
+   * passait de 333 à 510 ms — au-dessus de la marge du brief. Or le classement
+   * ne garde qu'une liste courte : évaluer finement le sept-centième lieu le
+   * plus lointain n'a jamais changé une décision. On trie donc au vol
+   * d'oiseau, on n'évalue finement que les cent plus proches — et tous les
+   * gros gains, quelle que soit leur distance : une Maison du Trésor à l'autre
+   * bout du pays reste une cible.
+   */
+  const EVALUES_MAX = 100;
+  const GAIN_TOUJOURS = 2000;
+  const candidats: { obj: (typeof view.places)[number]['obj']; gain: ReturnType<typeof placeGain>; d: number }[] = [];
   for (const known of view.places) {
-    const obj = known.obj;
-    const valued = placeGain(state, view, obj, options.maxWeeks);
+    const valued = placeGain(state, view, known.obj, options.maxWeeks);
     if (!valued || valued.gain <= 0) continue;
+    candidats.push({ obj: known.obj, gain: valued, d: cells(hero.at, known.obj.entrance) });
+  }
+  candidats.sort((a, z) => a.d - z.d || a.obj.uid.localeCompare(z.obj.uid));
+  const retenus =
+    candidats.length <= EVALUES_MAX
+      ? candidats
+      : candidats.filter((c, k) => k < EVALUES_MAX || (c.gain?.gain ?? 0) >= GAIN_TOUJOURS);
+  for (const { obj, gain: valued } of retenus) {
+    if (!valued) continue;
     const guard = guardPowerOf(obj.guard);
     // Nous sommes déjà sur l'entrée et la garde tient toujours : la journée
     // d'hier n'a rien donné, insister ne donnera rien de plus. Le héros doit

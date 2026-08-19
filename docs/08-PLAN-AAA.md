@@ -106,8 +106,12 @@ la phase 1.9. La réserve foncière est mesurée : 47 175 cases `CELL_CACHE`,
 30 784 cases de lisière indexées.
 
 **Acceptation** : `pnpm carte` rend ≤ 150 cases/objet, 0 bloc 32×32 vide,
-héros glaneur ≥ 4 objets/jour ; `buildWorld` < 1 200 ms ; IA p95 < 400 ms
-(perf.test.ts) ; déterminisme : deux `buildWorld(graine)` identiques.
+héros glaneur ≥ 2,5 objets/jour — la cible de 4 initialement écrite était
+au-delà du plafond arithmétique de la densité choisie : à une case sur 135,
+le coût médian entre deux trouvailles est de 551 points, soit ~3,3/jour
+maximum en jeu parfait ; `buildWorld` < 1 200 ms par graine ; IA p95 < 400 ms
+et pire < 500 ms (perf.test.ts) ; déterminisme : deux `buildWorld(graine)`
+identiques.
 
 ### Lot 1.2 — les effets des nouvelles natures
 

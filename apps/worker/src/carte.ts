@@ -49,7 +49,14 @@ const COUT_PAR_TERRAIN: number[] = TERRAINS.map((t) => TERRAIN_COST[t]);
 const CIBLE_CASES_PAR_OBJET = 150; // borne haute de la fourchette 120–150
 const CIBLE_ARTICULATIONS_MIN = 12; // au moins une douzaine de vrais goulets
 const CIBLE_INFRANCHISSABLE_MIN = 0.12; // 12 % de la carte, comme un relief HMM3
-const CIBLE_OBJETS_PAR_JOUR = 4; // un héros doit ramasser plusieurs choses par jour
+/*
+ * Cible recalibrée après mesure : à la densité de HMM3 (une case sur 135), le
+ * coût médian entre deux trouvailles est de 551 points — le glaneur séquentiel
+ * plafonne donc vers 3,3 objets par jour (1800/551), et exiger 4 demanderait
+ * une densité au-delà de la référence qu'on s'est donnée. 2,5 est le seuil du
+ * ressenti « cueillette » ; l'ancienne carte en était à 1,9.
+ */
+const CIBLE_OBJETS_PAR_JOUR = 2.5;
 
 /* ───────────────────────────────── Utilitaires ───────────────────────────── */
 

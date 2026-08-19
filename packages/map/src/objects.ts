@@ -788,11 +788,21 @@ export function buildObjects(ctx: ObjectContext, seed: number): ObjectBuild {
   }
 
   /* 8 — Caches, artefacts, gardes errantes et caravanes, tirés de la graine. */
-  const caches = collectCaches(ctx, b, startDist);
+  const routeDist = roadDistanceField(ctx);
+  const caches = collectCaches(ctx, b, startDist, routeDist);
   seedArtifacts(b, rng, caches);
   seedPiles(b, rng, caches);
   seedGuards(b, rng, ctx, startDist);
   seedCaravans(b, rng, ctx);
+
+  /* 8 bis — La densification (docs/08-PLAN-AAA.md, lot 1.1). La carte portait
+     285 objets sur 105 349 cases praticables — un toutes les 370 cases, un
+     héros glaneur omniscient n'en ramassait que 1,9 par journée de marche, et
+     26 % des blocs de 32 × 32 étaient entièrement vides. Une carte de HMM3 de
+     taille comparable en porte un toutes les 120 à 150 cases. Chaque famille
+     ci-dessous transpose une famille de HMM3 dont l'absence était mesurée. */
+  seedDensification(b, rng, ctx, startDist, caches, routeDist);
+  seedCouverture(b, rng, ctx);
 
   /* 9 — Équilibrage économique des départs. */
   const startValues = balanceStarts(b, rng, ctx, caches);
@@ -800,11 +810,55 @@ export function buildObjects(ctx: ObjectContext, seed: number): ObjectBuild {
   return { objects: b.objects, startValues };
 }
 
-/** Cases autorisées pour une cache, groupées par anneau. */
+/** Distance de Tchebychev à la voie la plus proche, plafonnée à 15. */
+function roadDistanceField(ctx: ObjectContext): Uint8Array {
+  const dist = new Uint8Array(CELLS).fill(15);
+  const file = new Int32Array(CELLS);
+  let queue = 0;
+  for (let i = 0; i < CELLS; i++) {
+    if ((ctx.flags[i] & CELL_ROAD) !== 0) {
+      dist[i] = 0;
+      file[queue++] = i;
+    }
+  }
+  let tete = 0;
+  while (tete < queue) {
+    const i = file[tete++];
+    const d = dist[i];
+    if (d >= 15) continue;
+    const col = i % COLS;
+    const row = (i / COLS) | 0;
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (!dr && !dc) continue;
+        const c = col + dc;
+        const r = row + dr;
+        if (c < 0 || r < 0 || c >= COLS || r >= ROWS) continue;
+        const j = r * COLS + c;
+        if (dist[j] <= d + 1) continue;
+        dist[j] = d + 1;
+        file[queue++] = j;
+      }
+    }
+  }
+  return dist;
+}
+
+/**
+ * Cases autorisées pour une cache, groupées par anneau.
+ *
+ * Les caches à moins de six cases d'une voie comptent double : les trésors
+ * d'une carte de HMM3 s'égrènent le long des routes, pas au fond des combes —
+ * c'est ce qui fait qu'une journée de marche est une cueillette et non une
+ * traversée. Mesuré avant le biais : le héros glaneur plafonnait à 2,3 objets
+ * par jour malgré une densité conforme, le coût médian entre deux trouvailles
+ * ne descendant pas sous 650 points.
+ */
 function collectCaches(
   ctx: ObjectContext,
   b: Builder,
   startDist: Uint16Array,
+  routeDist: Uint8Array,
 ): Record<1 | 2 | 3, number[]> {
   const out: Record<1 | 2 | 3, number[]> = { 1: [], 2: [], 3: [] };
   for (let row = 3; row < ROWS - 3; row++) {
@@ -813,7 +867,9 @@ function collectCaches(
       if ((ctx.flags[i] & CELL_CACHE) === 0) continue;
       if (!passable(ctx, i)) continue;
       if (b.occupied[i] === 1) continue;
-      out[ringAt(startDist, col, row)].push(i);
+      const ring = ringAt(startDist, col, row);
+      out[ring].push(i);
+      if (routeDist[i] <= 6) out[ring].push(i);
     }
   }
   return out;
@@ -960,6 +1016,300 @@ function seedCaravans(b: Builder, rng: RngState, ctx: ObjectContext): void {
     }
   }
 }
+
+/* ═══════════ La densification (lot 1.1) ═══════════════════════════════════
+   Douze familles nouvelles, tirées de la graine, placées par anneau de
+   difficulté. Les quantités visent une case praticable sur 150 au plus —
+   la densité d'une carte HMM3 soignée — et le glaneur à quatre objets par
+   journée de marche. Les structures reçoivent leur embranchement de chemin
+   automatiquement (embranchements.ts). ═══════════════════════════════════ */
+
+/** Cases ouvertes — praticables, libres, hors voie — pour poser des bâtis. */
+function openSpots(b: Builder, ctx: ObjectContext, routeDist: Uint8Array, margin = 4): number[] {
+  const spots: number[] = [];
+  for (let row = margin; row < ROWS - margin; row++) {
+    for (let col = margin; col < COLS - margin; col++) {
+      const i = row * COLS + col;
+      if (b.occupied[i] === 1) continue;
+      if (!passable(ctx, i)) continue;
+      if ((ctx.flags[i] & CELL_ROAD) !== 0) continue;
+      /* L'eau pontee est praticable — c'est un pont — mais on ne batit pas
+         dessus, pas plus qu'on n'y pose un coffre. */
+      if (TERRAINS[ctx.terrain[i]] === 'eau') continue;
+      spots.push(i);
+      /* Les bâtis aussi se tiennent près des voies — on ne bâtit pas un
+         moulin au fond d'une combe — sans y être tous : poids double sous
+         six cases, pas une exclusivité. */
+      if (routeDist[i] <= 6) spots.push(i);
+    }
+  }
+  return spots;
+}
+
+/** Pose `count` objets d'une nature sur des cases ouvertes, espacés d'au moins `spacing`. */
+function poserEspaces(
+  b: Builder,
+  rng: RngState,
+  spots: number[],
+  count: number,
+  spacing: number,
+  fabrique: (at: MapCoord, ring: 1 | 2 | 3) => void,
+  startDist: Uint16Array,
+): void {
+  const pris: MapCoord[] = [];
+  let poses = 0;
+  for (const i of spots) {
+    if (poses >= count) break;
+    const col = i % COLS;
+    const row = (i / COLS) | 0;
+    if (b.occupied[i] === 1) continue;
+    let proche = false;
+    for (const t of pris) {
+      if (Math.max(Math.abs(t.col - col), Math.abs(t.row - row)) < spacing) {
+        proche = true;
+        break;
+      }
+    }
+    if (proche) continue;
+    fabrique({ col, row }, ringAt(startDist, col, row));
+    pris.push({ col, row });
+    poses++;
+  }
+}
+
+/** Palier de créature d'une demeure franche, selon l'anneau de difficulté. */
+const DEMEURE_TIERS: Readonly<Record<1 | 2 | 3, number[]>> = {
+  1: [1, 1, 2],
+  2: [2, 3, 3, 4],
+  3: [3, 4, 5],
+};
+
+function seedDensification(
+  b: Builder,
+  rng: RngState,
+  ctx: ObjectContext,
+  startDist: Uint16Array,
+  caches: Record<1 | 2 | 3, number[]>,
+  routeDist: Uint8Array,
+): void {
+  /* — Coffres : 140, cachés sous les couverts, valeur montant avec l'anneau — */
+  const coffres: { ring: 1 | 2 | 3; count: number }[] = [
+    { ring: 1, count: 60 },
+    { ring: 2, count: 50 },
+    { ring: 3, count: 30 },
+  ];
+  for (const entry of coffres) {
+    for (let k = 0; k < entry.count; k++) {
+      const i = takeCache(rng, caches, entry.ring);
+      if (i < 0) continue;
+      place(b, 'coffre', { col: i % COLS, row: (i / COLS) | 0 }, {
+        ecus: (10 + entry.ring * 5 + nextInt(rng, 0, 5)) * 100,
+        savoir: nextInt(rng, 0, 2) === 0 ? 1 : 0,
+      });
+    }
+  }
+
+  /* — Tas supplémentaires : 80 — */
+  const tas: { ring: 1 | 2 | 3; count: number }[] = [
+    { ring: 1, count: 40 },
+    { ring: 2, count: 25 },
+    { ring: 3, count: 15 },
+  ];
+  for (const entry of tas) {
+    for (let k = 0; k < entry.count; k++) {
+      const i = takeCache(rng, caches, entry.ring);
+      if (i < 0) continue;
+      const resource = pickWeighted(rng, PILE_TABLE);
+      place(b, 'ressource', { col: i % COLS, row: (i / COLS) | 0 }, {
+        resource,
+        amount: pileAmount(rng, resource, entry.ring),
+      });
+    }
+  }
+
+  const spots = openSpots(b, ctx, routeDist);
+  shuffle(rng, spots);
+
+  /* — Demeures franches : 90, la famille qui manquait le plus — un recruteur
+       extérieur donne à l'exploration une conséquence militaire. — */
+  poserEspaces(b, rng, spots, 90, 10, (at, ring) => {
+    const tiers = DEMEURE_TIERS[ring];
+    const tier = tiers[nextInt(rng, 0, tiers.length - 1)];
+    const faction: Faction = nextInt(rng, 0, 1) === 0 ? 'granit' : 'ermitage';
+    const creature = `${faction}_t${tier}`;
+    place(
+      b,
+      'demeure',
+      at,
+      { creature, stock: 0, name: NOMS_DEMEURES[tier] ?? 'Demeure franche' },
+      ring >= 2 ? { guard: guardFor(rng, ring, 2) } : {},
+    );
+  }, startDist);
+
+  /* — Gisements supplémentaires : 30, dont les orpaillages qui rendent des
+       écus — l'équivalent des mines d'or, gardés à la mesure du gain. — */
+  poserEspaces(b, rng, spots, 30, 14, (at, ring) => {
+    const orpaillage = ring >= 2 && nextInt(rng, 0, 2) === 0;
+    if (orpaillage) {
+      place(
+        b,
+        'mine',
+        at,
+        { resource: 'ecus', amount: 300 + ring * 60, name: 'Orpaillage' },
+        { guard: guardFor(rng, ring === 3 ? 4 : 3, 3) },
+      );
+    } else {
+      const filon = pickWeighted(rng, PILE_TABLE);
+      place(
+        b,
+        'mine',
+        at,
+        { resource: filon === 'ecus' ? 'fer' : filon, amount: 1 + (ring > 1 ? 1 : 0), name: 'Filon' },
+        { guard: guardFor(rng, ring, ring === 1 ? 2 : 3) },
+      );
+    }
+  }, startDist);
+
+  /* — Repaires gardés : 20 banques, gros gardien, gros butin, repeuplées — */
+  poserEspaces(b, rng, spots, 20, 18, (at, ring) => {
+    const garde = guardFor(rng, ring === 1 ? 2 : ring === 2 ? 3 : 4, 3);
+    place(
+      b,
+      'banque',
+      at,
+      {
+        ecus: (20 + ring * 15 + nextInt(rng, 0, 10)) * 100,
+        resource: pickWeighted(rng, PILE_TABLE),
+        amount: 4 + ring * 3,
+        repop: 4,
+        garde0: garde.map((g) => ({ ...g })),
+        name: NOMS_REPAIRES[nextInt(rng, 0, NOMS_REPAIRES.length - 1)],
+      },
+      { guard: garde },
+    );
+  }, startDist);
+
+  /* — Écoles : 24, temples : 16, fontaines : 14, moulins : 12 — */
+  const matieres = ['vaillance', 'garde', 'mystique', 'savoir'] as const;
+  let ecole = 0;
+  poserEspaces(b, rng, spots, 24, 16, (at) => {
+    place(b, 'ecole', at, { matiere: matieres[ecole++ % matieres.length] });
+  }, startDist);
+  poserEspaces(b, rng, spots, 16, 20, (at) => {
+    place(b, 'temple', at, { name: 'Oratoire' });
+  }, startDist);
+  poserEspaces(b, rng, spots, 14, 20, (at) => {
+    place(b, 'fontaine', at, { name: 'Fontaine aux fées' });
+  }, startDist);
+  poserEspaces(b, rng, spots, 12, 22, (at) => {
+    const resource = pickWeighted(rng, PILE_TABLE);
+    place(b, 'moulin', at, {
+      resource,
+      amount: resource === 'ecus' ? 250 : 4,
+      name: 'Moulin',
+    });
+  }, startDist);
+
+  /* — Pierres levées : 8 paires, jumelées loin l'une de l'autre — */
+  const bornes: MapCoord[] = [];
+  poserEspaces(b, rng, spots, 16, 26, (at) => {
+    bornes.push(at);
+  }, startDist);
+  /* Apparier la plus proche avec la plus lointaine : chaque paire raccourcit
+     vraiment la carte au lieu de relier deux voisines. */
+  bornes.sort((a, z) => a.col + a.row * COLS - (z.col + z.row * COLS));
+  for (let k = 0; k * 2 + 1 < bornes.length; k++) {
+    const a = bornes[k];
+    const z = bornes[bornes.length - 1 - k];
+    const uidA = `O_${String(b.next).padStart(4, '0')}`;
+    const uidZ = `O_${String(b.next + 1).padStart(4, '0')}`;
+    place(b, 'monolithe', a, { jumeau: uidZ, name: 'Pierre levée' });
+    place(b, 'monolithe', z, { jumeau: uidA, name: 'Pierre levée' });
+  }
+
+  /* — Montjoies : 10, cartographes : 3, colporteurs : 4 — */
+  poserEspaces(b, rng, spots, 10, 30, (at) => {
+    place(b, 'obelisque', at, { name: 'Montjoie' });
+  }, startDist);
+  poserEspaces(b, rng, spots, 3, 60, (at) => {
+    const i = at.row * COLS + at.col;
+    place(b, 'cartographe', at, { prix: 1000, region: undefined, name: 'Cartographe', regionIdx: b.ctx.region[i] });
+  }, startDist);
+  poserEspaces(b, rng, spots, 4, 40, (at, ring) => {
+    const rarity: Rarity = ring === 3 ? 'majeur' : 'rare';
+    const pool = ARTIFACT_POOL[rarity];
+    place(b, 'marche_noir', at, {
+      artifact: pool[nextInt(rng, 0, pool.length - 1)],
+      prix: rarity === 'majeur' ? 4000 : 2500,
+      name: 'Colporteurs',
+    });
+  }, startDist);
+}
+
+const NOMS_DEMEURES: Readonly<Record<number, string>> = {
+  1: 'Hameau des journaliers',
+  2: 'Bureau de la gabelle',
+  3: 'Butte de tir',
+  4: 'Atelier des brodeuses',
+  5: 'Soue fortifiée',
+};
+
+const NOMS_REPAIRES = [
+  'Repaire des brigands',
+  'Crypte du vieux prieuré',
+  'Terrier des loups',
+  'Grange aux écorcheurs',
+] as const;
+
+/**
+ * La passe de couverture : aucun bloc de 32 × 32 praticable ne reste vide.
+ *
+ * Les placements par anneau et par cache suivent la géographie, et la
+ * géographie laisse des déserts : 26 % des blocs n'avaient rien. Un joueur
+ * qui traverse mille cases sans rien rencontrer n'explore pas, il marche.
+ * Chaque bloc vide reçoit un ou deux ramassages — le minimum qui change la
+ * traversée en cueillette.
+ */
+function seedCouverture(b: Builder, rng: RngState, ctx: ObjectContext): void {
+  const BLOC = 32;
+  for (let br = 0; br < ROWS; br += BLOC) {
+    for (let bc = 0; bc < COLS; bc += BLOC) {
+      let vide = true;
+      const libres: number[] = [];
+      for (let row = br; row < Math.min(br + BLOC, ROWS); row++) {
+        for (let col = bc; col < Math.min(bc + BLOC, COLS); col++) {
+          const i = row * COLS + col;
+          if (b.occupied[i] === 1) {
+            vide = false;
+            break;
+          }
+          if (
+            passable(ctx, i) &&
+            (ctx.flags[i] & CELL_ROAD) === 0 &&
+            TERRAINS[ctx.terrain[i]] !== 'eau'
+          ) {
+            libres.push(i);
+          }
+        }
+        if (!vide) break;
+      }
+      if (!vide || libres.length < 40) continue;
+      const n = 1 + nextInt(rng, 0, 1);
+      for (let k = 0; k < n && libres.length > 0; k++) {
+        const idx2 = nextInt(rng, 0, libres.length - 1);
+        const i = libres[idx2];
+        libres[idx2] = libres[libres.length - 1];
+        libres.pop();
+        const resource = pickWeighted(rng, PILE_TABLE);
+        place(b, 'ressource', { col: i % COLS, row: (i / COLS) | 0 }, {
+          resource,
+          amount: pileAmount(rng, resource, 2),
+        });
+      }
+    }
+  }
+}
+
 
 /** Écart relatif maximal toléré entre positions de départ, en points de base. */
 const BALANCE_TOLERANCE_BP = 300;
