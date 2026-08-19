@@ -48,7 +48,7 @@ import {
 import type { Archetype, MatieresCite, PaletteBati } from './batiments.js';
 import {
   SPRITE_FACTEUR,
-  TERRAIN_CITE,
+  basePct,
   clefAssetBatiment,
   moduleDe,
   tailleDe as tailleDeMasse,
@@ -481,9 +481,12 @@ class TableauCite implements TownView {
     const catalogue = buildingsOf(this.deps.faction);
 
     /* — Les bâtiments levés, triés du fond vers le premier plan. Une
-       amélioration remplace sa demeure sur la même emprise (`visiblesDe`). — */
+       amélioration remplace sa demeure sur la même emprise (`visiblesDe`) ;
+       l'ordre suit le pied ACCROCHÉ aux terrasses, pas la déclaration. — */
+    const piedY = (d: BuildingDef): number =>
+      basePct(d, this.deps.faction, this.fond.portrait).y;
     const poses = visiblesDe(catalogue, bâtis)
-      .sort((a, b) => a.scene.y - b.scene.y || a.scene.z - b.scene.z);
+      .sort((a, b) => piedY(a) - piedY(b) || a.scene.z - b.scene.z);
 
     for (const def of poses) this.poserBatiment(def);
 
@@ -551,7 +554,7 @@ class TableauCite implements TownView {
       node.addChild(ban.node);
     }
 
-    const base = this.pointContenu(def.scene.x, def.scene.y);
+    const base = this.piedDe(def);
     node.position.set(base.x, base.y);
 
     const noeud: NoeudBati = {
@@ -581,7 +584,7 @@ class TableauCite implements TownView {
     g.label = `place-${def.id}`;
     const taille = this.tailleDe(def);
     dessinerEmplacement(g, this.pal, taille, Math.abs(hashTexte(def.id)));
-    const base = this.pointContenu(def.scene.x, def.scene.y);
+    const base = this.piedDe(def);
     g.position.set(base.x, base.y);
     this.couchePlaces.addChild(g);
     this.places.push({
@@ -606,10 +609,10 @@ class TableauCite implements TownView {
     };
   }
 
-  /** Position déclarée par le contenu, ramenée sur les terrasses peintes. */
-  private pointContenu(xPct: number, yPct: number): { x: number; y: number } {
-    const t = TERRAIN_CITE[this.deps.faction][this.fond.portrait ? 'portrait' : 'paysage'];
-    return this.pointDe(t.x0 + ((t.x1 - t.x0) * xPct) / 100, t.y0 + ((t.y1 - t.y0) * yPct) / 100);
+  /** Pied d'un bâtiment : la déclaration du contenu, accrochée aux terrasses. */
+  private piedDe(def: BuildingDef): { x: number; y: number } {
+    const p = basePct(def, this.deps.faction, this.fond.portrait);
+    return this.pointDe(p.x, p.y);
   }
 
   /** La porte du panorama affiché : la composition portrait a la sienne. */

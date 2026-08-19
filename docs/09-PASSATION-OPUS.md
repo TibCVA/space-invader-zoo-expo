@@ -47,10 +47,15 @@
 | Mouvement selon la pile la plus lente, barème HMM3 exact 1300→2000 | f1adaf3 | `progression.test.ts` |
 | Vague 2 d'images (167 entrées, 9,6 Mo) intégrée, pipeline verrouillé | (Codex) | validateurs + captures |
 
-**Vérification en vol au moment de la passation** : `npx vitest run apps/worker`
-(les 20 duels, ~12 min) relancé après le lot 1.5 — si le résultat n'apparaît
-pas dans un commit suivant, le relancer ; attendu ≥ 17/20 décisives, aucun
-blocage de conquête.
+**Duel de validation du lot 1.5 : VERT** (`apps/worker`, les 20 parties
+passent avec le mouvement à la pile la plus lente — aucun blocage de
+conquête). Plus rien n'est en vol.
+
+**Correctif post-passation (même branche)** : les bâtiments de cité
+s'accrochent désormais aux TERRASSES réelles de chaque panorama
+(`masse.ts#TERRASSES`, `basePct`) — le propriétaire avait vu des bâtiments
+à cheval sur les murets ou au bord du vide. Toute retouche du plan de masse
+doit passer par ces zones ; les captures de contrôle sont `shots/masse3`.
 
 ## 2. LA LISTE — par importance pour le feeling HMM3
 

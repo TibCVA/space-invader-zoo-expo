@@ -27,7 +27,14 @@ import {
   cadrerSource,
 } from './panorama.js';
 import type { CadreCite } from './panorama.js';
-import { SPRITE_FACTEUR, TERRAIN_CITE, moduleDe, tailleDe, visiblesDe } from './masse.js';
+import {
+  SPRITE_FACTEUR,
+  TERRASSES,
+  basePct,
+  moduleDe,
+  tailleDe,
+  visiblesDe,
+} from './masse.js';
 
 const FACTIONS: FactionId[] = ['granit', 'ermitage'];
 
@@ -55,15 +62,16 @@ function toutConstruit(faction: FactionId): { catalogue: BuildingDef[]; visibles
   return { catalogue, visibles: visiblesDe(catalogue, batis) };
 }
 
-/** Emprise du canevas peint d'un bâtiment, en pixels du cadre. */
+/** Emprise du canevas peint d'un bâtiment, en pixels du cadre — le pied
+    passe par `basePct`, exactement comme dans la vue (terrasses comprises). */
 function emprise(
   def: BuildingDef,
   cas: Cas,
   faction: FactionId,
 ): { gauche: number; droite: number; haut: number; bas: number } {
-  const t = TERRAIN_CITE[faction][cas.portrait ? 'portrait' : 'paysage'];
-  const x = cas.cadre.x + (cas.cadre.w * (t.x0 + ((t.x1 - t.x0) * def.scene.x) / 100)) / 100;
-  const y = cas.cadre.y + (cas.cadre.h * (t.y0 + ((t.y1 - t.y0) * def.scene.y) / 100)) / 100;
+  const p = basePct(def, faction, cas.portrait);
+  const x = cas.cadre.x + (cas.cadre.w * p.x) / 100;
+  const y = cas.cadre.y + (cas.cadre.h * p.y) / 100;
   const cote = tailleDe(def, moduleDe(cas.cadre.w, cas.portrait)) * SPRITE_FACTEUR;
   /* Ancre du sprite : (0,5 ; 0,97) — le canevas monte depuis son pied. */
   return { gauche: x - cote / 2, droite: x + cote / 2, haut: y - cote * 0.97, bas: y + cote * 0.03 };
@@ -73,29 +81,63 @@ describe('plan de masse — tout construit couvre les terrasses', () => {
   for (const faction of FACTIONS) {
     for (const cas of CAS) {
       it(`${faction}, ${cas.nom} : au moins 70 % des terrasses sous les bâtiments`, () => {
+        /* La couverture se mesure sur l'UNION DES TERRASSES — les sols où un
+           bâtiment peut réellement se poser — pas sur le rectangle englobant,
+           qui compte murets et falaises comme des espaces à couvrir. */
         const { visibles } = toutConstruit(faction);
-        const t = TERRAIN_CITE[faction][cas.portrait ? 'portrait' : 'paysage'];
-        const bx0 = cas.cadre.x + (cas.cadre.w * t.x0) / 100;
-        const bx1 = cas.cadre.x + (cas.cadre.w * t.x1) / 100;
-        const by0 = cas.cadre.y + (cas.cadre.h * t.y0) / 100;
-        const by1 = cas.cadre.y + (cas.cadre.h * t.y1) / 100;
+        const terrasses = TERRASSES[faction][cas.portrait ? 'portrait' : 'paysage'];
         const NX = 160;
         const NY = 100;
+        const dansTerrasse = new Uint8Array(NX * NY);
+        let total = 0;
+        for (let r = 0; r < NY; r++) {
+          for (let c = 0; c < NX; c++) {
+            const xPct = ((c + 0.5) / NX) * 100;
+            const yPct = ((r + 0.5) / NY) * 100;
+            for (const z of terrasses) {
+              if (xPct >= z.x0 && xPct <= z.x1 && yPct >= z.y0 && yPct <= z.y1) {
+                dansTerrasse[r * NX + c] = 1;
+                total++;
+                break;
+              }
+            }
+          }
+        }
+        expect(total).toBeGreaterThan(0);
         const grille = new Uint8Array(NX * NY);
         for (const def of visibles) {
           const e = emprise(def, cas, faction);
-          const c0 = Math.max(0, Math.floor(((e.gauche - bx0) / (bx1 - bx0)) * NX));
-          const c1 = Math.min(NX - 1, Math.ceil(((e.droite - bx0) / (bx1 - bx0)) * NX));
-          const r0 = Math.max(0, Math.floor(((e.haut - by0) / (by1 - by0)) * NY));
-          const r1 = Math.min(NY - 1, Math.ceil(((e.bas - by0) / (by1 - by0)) * NY));
+          const versPct = (px: number, horizontal: boolean): number =>
+            horizontal
+              ? ((px - cas.cadre.x) / cas.cadre.w) * 100
+              : ((px - cas.cadre.y) / cas.cadre.h) * 100;
+          const c0 = Math.max(0, Math.floor((versPct(e.gauche, true) / 100) * NX));
+          const c1 = Math.min(NX - 1, Math.ceil((versPct(e.droite, true) / 100) * NX));
+          const r0 = Math.max(0, Math.floor((versPct(e.haut, false) / 100) * NY));
+          const r1 = Math.min(NY - 1, Math.ceil((versPct(e.bas, false) / 100) * NY));
           for (let r = r0; r <= r1; r++) {
             for (let c = c0; c <= c1; c++) grille[r * NX + c] = 1;
           }
         }
         let couvertes = 0;
-        for (let i = 0; i < grille.length; i++) couvertes += grille[i];
-        const part = couvertes / grille.length;
+        for (let i = 0; i < grille.length; i++) {
+          if (dansTerrasse[i] === 1 && grille[i] === 1) couvertes++;
+        }
+        const part = couvertes / total;
         expect(part, `couverture ${(part * 100).toFixed(1)} %`).toBeGreaterThanOrEqual(0.7);
+      });
+
+      it(`${faction}, ${cas.nom} : chaque pied de bâtiment est dans une terrasse`, () => {
+        const { visibles } = toutConstruit(faction);
+        const terrasses = TERRASSES[faction][cas.portrait ? 'portrait' : 'paysage'];
+        for (const def of visibles) {
+          const p = basePct(def, faction, cas.portrait);
+          const dedans = terrasses.some(
+            (z) => p.x >= z.x0 && p.x <= z.x1 && p.y >= z.y0 && p.y <= z.y1,
+          );
+          expect(dedans, `${def.id} a le pied hors terrasse (${p.x.toFixed(1)}, ${p.y.toFixed(1)})`)
+            .toBe(true);
+        }
       });
     }
 
