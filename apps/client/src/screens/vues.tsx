@@ -55,6 +55,14 @@ function BarreDeChemin({ preview }: { preview: PathPreview }): ReactElement {
 
 /* ────────────────────────── Carte d'aventure ─────────────────────────────── */
 
+/**
+ * Où la démonstration cadre la caméra : la Maison du Trésor, au centre du
+ * pays. La case est nommée une seule fois, et la légende la lit — elle
+ * annonçait « colonne 145, ligne 113 » longtemps après que la carte eut été
+ * ramenée à 113 colonnes, c'est-à-dire un lieu qui n'existait plus.
+ */
+const CADRAGE_DEMO = { col: 64, row: 50 } as const;
+
 export interface EcranPartieProps {
   state: AppState;
   reducedMotion: boolean;
@@ -79,7 +87,7 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
         reducedMotion,
         quality: 'haute',
         demo,
-        focus: { col: 64, row: 50 },
+        focus: CADRAGE_DEMO,
         onPickCell: (at): void => selectionner({ kind: 'case', at }),
         onPickHero: (uid): void => selectionner({ kind: 'heros', uid }),
         onPickTown: (uid): void => selectionner({ kind: 'cite', uid }),
@@ -101,7 +109,8 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
         game && banniere ? (
           <>
             <strong>{banniere.name}</strong> — semaine {weekOf(game.turn)}, jour {dayOf(game.turn)} ·
-            caméra cadrée sur la Maison du Trésor (colonne 145, ligne 113).
+            caméra cadrée sur la Maison du Trésor (colonne {CADRAGE_DEMO.col}, ligne{' '}
+            {CADRAGE_DEMO.row}).
           </>
         ) : null
       }
