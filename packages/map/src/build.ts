@@ -32,6 +32,7 @@ import {
 } from '@auvergne/engine';
 import { anchorList } from './anchors.js';
 import { buildElevation } from './elevation.js';
+import { tracerEmbranchements } from './embranchements.js';
 import { CELLS, COLS, ROWS, T, idx } from './grid.js';
 import { buildObjects, fixedPlots, type ObjectContext } from './objects.js';
 import { assignRegions } from './regions.js';
@@ -298,6 +299,12 @@ export function buildWorld(seed: number): WorldMap {
 
   const ctx: ObjectContext = { terrain, flags, elevation, slope, region };
   const built = buildObjects(ctx, key);
+
+  /* Chaque lieu qui se visite reçoit son embranchement de chemin jusqu'à la
+     voie la plus proche — exigence du propriétaire, et logique d'un pays
+     habité. Tracé sur les copies du monde : la géographie statique du cache
+     n'en sait rien, les objets changent avec la graine. */
+  tracerEmbranchements(terrain, flags, built.objects);
 
   const objectAt = new Uint32Array(CELLS);
   for (let k = 0; k < built.objects.length; k++) {
