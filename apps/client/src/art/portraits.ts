@@ -148,7 +148,7 @@ const SPECS: Record<string, Spec> = {
   agathe: { age: 27, carrure: 0.62, teint: TEINTS[1], cheveux: ROUX, cheveuxLongueur: 0.95, cheveuxVolume: 0.9, barbe: 0, coiffe: 'aucune', vetement: 0x2f3b2e, col: 0x6b5433, matiere: 'fourrure', pose: -6 },
   roxane: { age: 31, carrure: 0.69, teint: TEINTS[1], cheveux: NOIR, cheveuxLongueur: 0.4, cheveuxVolume: 0.82, barbe: 0, coiffe: 'capuche', vetement: 0x3f4e38, col: 0x6b5433, matiere: 'tissu', pose: 4 },
   jean: { age: 43, carrure: 0.91, teint: TEINTS[3], cheveux: CHATAIN, cheveuxLongueur: 0.7, cheveuxVolume: 0.95, barbe: 0.6, coiffe: 'aucune', vetement: 0x2f3b2e, col: 0x6b5433, matiere: 'fourrure', pose: 3 },
-  adele: { age: 24, carrure: 0.56, teint: TEINTS[4], cheveux: BLOND_CENDRE, cheveuxLongueur: 0.85, cheveuxVolume: 1.2, barbe: 0, coiffe: 'couronne', vetement: 0x4a6138, col: 0x7c8f6b, matiere: 'tissu', pose: -3 },
+  alice: { age: 24, carrure: 0.56, teint: TEINTS[4], cheveux: BLOND_CENDRE, cheveuxLongueur: 0.85, cheveuxVolume: 1.2, barbe: 0, coiffe: 'couronne', vetement: 0x4a6138, col: 0x7c8f6b, matiere: 'tissu', pose: -3 },
   ines: { age: 36, carrure: 0.65, teint: TEINTS[0], cheveux: CHATAIN, cheveuxLongueur: 0.95, cheveuxVolume: 0.9, barbe: 0, coiffe: 'voile', vetement: 0xcfc6b4, col: 0xc9a227, matiere: 'tissu', pose: 6 },
   gustave: { age: 50, carrure: 1, teint: TEINTS[3], cheveux: GRIS, cheveuxLongueur: 0, cheveuxVolume: 0.4, barbe: 0.6, coiffe: 'aucune', vetement: 0x4a4e52, col: 0x6b5433, matiere: 'fourrure', pose: 2 },
   come: { age: 57, carrure: 0.65, teint: TEINTS[4], cheveux: BLANC, cheveuxLongueur: 0.3, cheveuxVolume: 0.6, barbe: 0.82, coiffe: 'aucune', vetement: 0x1b3a2b, col: 0x9fb4c2, matiere: 'tissu', pose: -5 },

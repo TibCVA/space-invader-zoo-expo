@@ -131,7 +131,7 @@ export interface GuardTemplate { ring: 1 | 2 | 3 | 4; tiers: number[]; powerMin:
 `ermitage_t1`…`ermitage_t7` et `ermitage_t1_up`…`ermitage_t7_up`.
 
 **Identifiants de héros** (imposés) : `paul thibaut loic matthieu clotilde caroline
-thomas georges auguste josephine anastasia mathilde agathe roxane jean adele ines
+thomas georges auguste josephine anastasia mathilde agathe roxane jean alice ines
 gustave come lise jules`.
 
 **Écoles de sorts** : 8 sorts par école × 4 écoles = 32. Identifiants

@@ -577,8 +577,8 @@ const ERMITAGE: HeroPortraitSpec[] = [
     ),
   },
   {
-    id: 'adele',
-    name: 'Adèle',
+    id: 'alice',
+    name: 'Alice',
     faction: 'ermitage',
     age: 24,
     shape: 'rond',

@@ -287,6 +287,15 @@ export interface HeroDef {
   title: string; // spécialité affichée
   specialty: HeroSpecialty;
   portrait: string; // clef d'atlas
+  /**
+   * Devise du héros : une phrase qu'il dit lui-même, posée sous son nom.
+   *
+   * Elle n'a aucun effet de jeu — c'est le clin d'œil de la maison. Les
+   * héros du Forez portent les noms des cousins du Lac, et leur devise
+   * reprend un trait qu'on leur connaît, transposé au comté. Facultative :
+   * un héros sans devise s'affiche exactement comme avant.
+   */
+  devise?: string;
   bio: string;
   start: {
     vaillance: number;

@@ -200,13 +200,13 @@
       "sha256": "be612b7880b5926c03d7941dbd34d60b29e99e559dd12874ecda611215deac41"
     },
     {
-      "clef": "portrait_adele",
-      "fichier": "portraits/adele.webp",
+      "clef": "portrait_alice",
+      "fichier": "portraits/alice.webp",
       "categorie": "portrait",
       "largeur": 512,
       "hauteur": 640,
       "octets": 49268,
-      "invite": "Adèle, 24 ans, jeune trouvée de la forêt qui demande aux racines et aux menhirs; petite femme au front large, taches de rousseur, yeux gris-vert, boucles châtain en couronne lâche de fibres de racine, main sur une ronce vivante. Fond doux de futaie, pierre claire et brume. Palette #1B3A2B #7C8F6B #4E8977 #9FB4C2 #CFC6B4 #2F3B2E #6B5433 #C9A227. Portrait de jeu peint à la main, cadrage poitrine 4:5, silhouette lisible à 56 px, personnage européen blanc entièrement fictif sans ressemblance réelle. Enluminure vivante et naturalisme romantique, pigments médiévaux, précision de matière et lumière de jeu moderne, grain de pinceau visible; ni photoréaliste, ni cartoon, ni anime, ni 3D lissée. Source unique nord-ouest 315°/38°, lumière ambre #FFE9C2, ombres bleu-violet #3A4657, liseré vieil or #C9A227. Vêtements crédibles du Forez médiéval, traits naturels non idéalisés. Aucun cadre, texte, chiffre, logo, signature, filigrane, contour noir, objet moderne, couronne, bijou excessif ni personne supplémentaire.",
+      "invite": "Alice, 24 ans, jeune trouvée de la forêt qui demande aux racines et aux menhirs; petite femme au front large, taches de rousseur, yeux gris-vert, boucles châtain en couronne lâche de fibres de racine, main sur une ronce vivante. Fond doux de futaie, pierre claire et brume. Palette #1B3A2B #7C8F6B #4E8977 #9FB4C2 #CFC6B4 #2F3B2E #6B5433 #C9A227. Portrait de jeu peint à la main, cadrage poitrine 4:5, silhouette lisible à 56 px, personnage européen blanc entièrement fictif sans ressemblance réelle. Enluminure vivante et naturalisme romantique, pigments médiévaux, précision de matière et lumière de jeu moderne, grain de pinceau visible; ni photoréaliste, ni cartoon, ni anime, ni 3D lissée. Source unique nord-ouest 315°/38°, lumière ambre #FFE9C2, ombres bleu-violet #3A4657, liseré vieil or #C9A227. Vêtements crédibles du Forez médiéval, traits naturels non idéalisés. Aucun cadre, texte, chiffre, logo, signature, filigrane, contour noir, objet moderne, couronne, bijou excessif ni personne supplémentaire.",
       "graine": "non-exposee-par-imagegen:exec-57f412aa-1755-452d-85ff-33dbaf937657",
       "outil": "ImageGen built-in",
       "generationId": "exec-57f412aa-1755-452d-85ff-33dbaf937657",

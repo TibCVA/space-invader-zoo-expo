@@ -565,6 +565,19 @@ body {
   margin: 0;
 }
 
+/* La devise du héros, sous son nom : sa voix, plus discrète que son titre. */
+.fiche__devise {
+  margin: var(--hmm-space-2) 0 0;
+  padding-left: var(--hmm-space-3);
+  border-left: 2px solid var(--hmm-or-attenue);
+  font-family: var(--hmm-font-recit);
+  font-size: var(--hmm-fs-petit);
+  font-style: italic;
+  line-height: var(--hmm-lh-normal);
+  color: var(--hmm-texte-doux);
+  max-width: 46ch;
+}
+
 .fiche__bio {
   font-family: var(--hmm-font-recit);
   font-size: var(--hmm-fs-base);

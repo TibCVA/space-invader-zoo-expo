@@ -1245,8 +1245,8 @@ const HERO_ROWS: HeroRow[] = [
     stats: [3, 2, 1, 1],
   },
   {
-    id: 'adele',
-    name: 'Adèle',
+    id: 'alice',
+    name: 'Alice',
     faction: 'ermitage',
     cls: 'Prieure',
     title: 'Enfant des Racines',

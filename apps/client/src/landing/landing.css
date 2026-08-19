@@ -1628,6 +1628,19 @@
   color: #5b4a33;
 }
 
+/* La devise du héros : sa voix, en retrait sur le parchemin. Un filet doré à
+   gauche la distingue du récit qui suit, sans en faire un encadré. */
+.hmm-cdx-citation {
+  margin: 10px 0 0;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid rgba(176, 141, 63, 0.55);
+  font-family: var(--acc-font-recit, inherit);
+  font-size: var(--acc-fs-sm);
+  font-style: italic;
+  line-height: 1.5;
+  color: #4a3b28;
+}
+
 .hmm-cdx-stats {
   margin: 8px 0 0;
   display: grid;

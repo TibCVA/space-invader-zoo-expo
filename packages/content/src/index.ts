@@ -210,7 +210,7 @@ const REQUIRED_HERO_IDS: readonly string[] = [
   'agathe',
   'roxane',
   'jean',
-  'adele',
+  'alice',
   'ines',
   'gustave',
   'come',

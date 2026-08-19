@@ -96,6 +96,11 @@ function Identite({ hero }: { hero: HeroInstance }): ReactElement {
           <p className="fiche__classe">
             {def?.class ?? 'Héros'} · {def?.title ?? 'sans titre'}
           </p>
+          {/* La devise du héros, sous son nom : sans effet de jeu, c'est le
+              clin d'œil de la maison. Absente, rien ne s'affiche. */}
+          {def?.devise ? (
+            <p className="fiche__devise">«&#8239;{def.devise}&#8239;»</p>
+          ) : null}
         </div>
         <div className="jeu-colonnes" style={{ justifyContent: 'center' }}>
           <Badge tone="or">Niveau {hero.level}</Badge>

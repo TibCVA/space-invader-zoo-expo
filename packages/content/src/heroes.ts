@@ -3,7 +3,7 @@
  *
  * Identifiants imposés par docs/02-API.md :
  * `paul thibaut loic matthieu clotilde caroline thomas georges auguste
- *  josephine anastasia mathilde agathe roxane jean adele ines gustave come
+ *  josephine anastasia mathilde agathe roxane jean alice ines gustave come
  *  lise jules`.
  *
  * Dix pour la Châtellenie, dix pour l'Ermitage, un neutre (Jules), débloqué
@@ -145,6 +145,8 @@ interface HeroRow {
   spells: string[];
   /** Affinités propres au héros, ajoutées par-dessus le socle de classe. */
   affinities: Partial<Record<SkillId, number>>;
+  /** Devise affichée sous le nom — sans effet de jeu. Voir `HeroDef.devise`. */
+  devise?: string;
   bio: string;
 }
 
@@ -169,6 +171,8 @@ const GRANIT_HEROES: readonly HeroRow[] = [
     ],
     spells: [],
     affinities: { commandement: 92, tactique: 84, seigneurie: 66, logistique: 54 },
+    devise:
+      "J’ai un onguent pour chaque mal et une raison pour chaque débat. On ne m’a jamais pris en défaut sur l’un ni sur l’autre.",
     bio: "Cadet d'une maison de la vallée qui n'avait plus que son cheval et son nom, Paul a fait ses armes en menant les convois de sel entre Le Lac et la Maison du Trésor, à l'âge où d'autres apprenaient encore à tenir la lance. Il a compris très tôt que la cavalerie de montagne ne gagne pas par le choc frontal mais par le moment : cinquante pas d'élan bien choisis valent trois cents mal engagés. Ses bannerets le suivent parce qu'il part toujours le premier et qu'il revient toujours compter les rangs. On lui reproche de parler peu et de sourire moins encore ; ses hommes disent qu'il économise pour la charge.",
   },
   {
@@ -189,6 +193,8 @@ const GRANIT_HEROES: readonly HeroRow[] = [
     ],
     spells: [],
     affinities: { logistique: 94, cartographie: 88, reconnaissance: 62, commerce: 52 },
+    devise:
+      "Je ne mène pas la charge : je rédige le plan qui expliquera pourquoi elle a réussi.",
     bio: "Fils d'un maître de poste de Chabreloche, Thibaut a grandi dans une cour où l'on changeait les attelages six fois par jour et où l'on savait à l'heure près combien de temps mettait une charrette pour monter au col des Sagnes. Nommé sénéchal des chemins par le dernier comte, il a relevé les gués, fait replanter les bornes arrachées et interdit trois raccourcis qui tuaient des mules chaque hiver. Il tient un carnet relié de peau où figurent les ornières, les jours de foire et le nom des cantonniers. Son ambition n'est pas la couronne mais la chaussée : il estime, sans plaisanter tout à fait, que celui qui tient les chemins tient déjà le comté.",
   },
   {
@@ -209,6 +215,8 @@ const GRANIT_HEROES: readonly HeroRow[] = [
     ],
     spells: [],
     affinities: { intendance: 90, diplomatie: 80, commerce: 74, seigneurie: 50 },
+    devise:
+      "J’ai inventé une monnaie que personne n’a jamais vue. Elle vaut déjà trois mules.",
     bio: "Loïc a passé douze ans derrière le comptoir du grenier à sel avant qu'on ne lui confie la gabelle des Marches, et il en a gardé une horreur tranquille des contrôles inutiles. Sa théorie tient en une phrase : un impôt qu'on peut payer rentre, un impôt qu'on ne peut pas payer engendre des contrebandiers et des potences. Il a fait baisser le droit de deux deniers et augmenter la recette d'un cinquième, ce que la Châtellenie n'a jamais complètement digéré. Les villages du Lac le reçoivent sans fourche à la main, ce qui, dans le métier, est une distinction rare.",
   },
   {
@@ -229,6 +237,8 @@ const GRANIT_HEROES: readonly HeroRow[] = [
     ],
     spells: [],
     affinities: { balistique: 94, forges: 82, tactique: 60, resistance: 54 },
+    devise:
+      "J’en ai quarante et un. Le quarante-deuxième est commandé chez le forgeron de Thiers.",
     bio: "Matthieu a d'abord été charpentier de moulins, ce qui consiste à comprendre comment les choses tiennent avant de comprendre comment elles cèdent. Passé au service du comte pour relever les remparts de Cervières, il a fini par se rendre compte qu'il aimait mieux les abattre. Il ne bat jamais un mur au hasard : il fait sonder les assises, repère la reprise mal faite ou le joint que le gel a mangé, et concentre tout dessus. Il a la réputation de prendre une place en trois jours quand un autre en met dix, et l'habitude désagréable de le dire à l'avance.",
   },
   {
@@ -249,6 +259,8 @@ const GRANIT_HEROES: readonly HeroRow[] = [
     ],
     spells: [],
     affinities: { seigneurie: 88, guerison: 76, diplomatie: 66, intendance: 58 },
+    devise:
+      "J’ai fait naître la moitié du comté. L’autre moitié me doit encore des excuses.",
     bio: "Clotilde dirige les ateliers de broderie au fil d'or de Cervières, une maison de quarante femmes qui fournit les bannières de tout le comté et qui, depuis trois générations, ne s'est jamais soumise à un maître extérieur. Elle a pris la tête de la Maison des Grenadières à vingt-six ans, après la grande gelée qui avait emporté sa mère et deux tiers des commandes. Elle mène ses brodeuses comme une compagnie : par métier, par fierté et sans jamais élever la voix. Sur un champ de bataille, elle place ses Grenadières exactement là où la ligne va plier, et la ligne ne plie pas.",
   },
   {
@@ -269,6 +281,8 @@ const GRANIT_HEROES: readonly HeroRow[] = [
     ],
     spells: [],
     affinities: { intendance: 92, commerce: 82, logistique: 62, diplomatie: 56 },
+    devise:
+      "Une coupe, un semis. On ne prend au bois que ce qu’on lui rend.",
     bio: "Caroline a été formée à la chambre des comptes, où l'on apprend que la moitié d'un chantier se gagne avant la première pierre, dans le choix de la carrière et du charroi. Elle négocie le granit à la carrière plutôt qu'au pied du mur, paie les compagnons à la semaine et refuse les devis qu'on lui présente sans détail. Les architectes la détestent la première année et la réclament ensuite. Elle dit volontiers qu'un comté se bâtit comme une grange : d'abord le sol plat, ensuite les murs, et jamais l'inverse.",
   },
   {
@@ -289,6 +303,8 @@ const GRANIT_HEROES: readonly HeroRow[] = [
     ],
     spells: [],
     affinities: { reconnaissance: 88, balistique: 84, tactique: 62, embuscade: 54 },
+    devise:
+      "Franchement, ce col-là, il est propre. On y va tranquille, ça passe.",
     bio: "Thomas a été maître de tir sous la porte des Farges pendant dix-huit ans, ce qui veut dire qu'il a appris à trois cents jeunes gens la différence entre viser et attendre. Il a le regard long des gens qui ont passé leur vie à estimer des distances par-dessus une vallée, et une aversion nette pour les batailles rangées où l'on gaspille les carreaux. Sa méthode est simple : occuper la hauteur, connaître la portée exacte, laisser venir. Il n'a jamais commandé une charge de sa vie et ne s'en excuse pas.",
   },
   {
@@ -374,6 +390,8 @@ const ERMITAGE_HEROES: readonly HeroRow[] = [
     ],
     spells: ['brumes_1'],
     affinities: { occultisme: 94, erudition: 86, resistance: 62, embuscade: 54 },
+    devise:
+      "Montée de la capitale pour trois jours, restée trois ans : on m’avait servi un très bon vin le premier soir.",
     bio: "Anastasia dirige le prieuré haut du col des Sagnes, à neuf cent quatre-vingt-dix mètres, là où la brume monte deux cents jours par an et où l'on apprend à travailler sans voir. Elle a passé sa jeunesse à recopier les traités des Brumes puis dix ans à comprendre qu'ils décrivaient mal ce qu'ils prétendaient enseigner. Sa correction, écrite en marge d'un manuscrit du siècle précédent, coûte aujourd'hui moitié moins de mana que la formule d'origine et dure un jour de plus. Elle parle bas, se déplace sans bruit et considère la clarté comme une commodité surestimée.",
   },
   {
@@ -394,6 +412,8 @@ const ERMITAGE_HEROES: readonly HeroRow[] = [
     ],
     spells: ['sources_3'],
     affinities: { guerison: 94, erudition: 82, pelerinage: 72, occultisme: 60 },
+    devise:
+      "Je monte au col avant l’aube et je redescends avec de quoi nourrir la garnison.",
     bio: "Mathilde tient l'hospice de Notre-Dame de l'Hermitage, où l'on reçoit sans distinction les pèlerins, les blessés des deux bannières et les bergers tombés d'un talus. Elle a établi, année après année, un registre des sources du massif : débit, température, ce qu'elles guérissent et ce qu'elles ne guérissent pas malgré ce qu'on raconte. Ce registre est probablement le document le plus précieux du comté après le Grand Livre, et elle refuse d'en faire copie. Elle ramène des mourants avec une régularité qui inquiète autant qu'elle rassure, et elle est la première à dire qu'il y a une limite.",
   },
   {
@@ -414,6 +434,8 @@ const ERMITAGE_HEROES: readonly HeroRow[] = [
     ],
     spells: [],
     affinities: { reconnaissance: 94, cartographie: 84, sylviculture: 70, embuscade: 62 },
+    devise:
+      "Deux vallées avant le déjeuner. Le messager, lui, arrive après moi.",
     bio: "Agathe élève les hulottes de la clairière depuis l'âge de onze ans, quand on lui a confié une nichée que personne ne voulait nourrir la nuit. Elle chasse au poing, dort dehors la moitié de l'année et connaît le massif par les silhouettes de crête plutôt que par les chemins. Ses relevés servent aux deux factions, ce qui lui vaut une réputation ambiguë et une sécurité relative. Quand une hulotte refuse de partir de son poing, elle annule la sortie sans donner d'explication à personne.",
   },
   {
@@ -434,6 +456,8 @@ const ERMITAGE_HEROES: readonly HeroRow[] = [
     ],
     spells: [],
     affinities: { embuscade: 94, sylviculture: 86, reconnaissance: 68, fortune: 56 },
+    devise:
+      "Six mois à la capitale, six mois au Lac, et le reste de l’année sur la route entre les deux.",
     bio: "Roxane a été braconnière avant d'être assermentée, ce que le prieuré considère comme une formation plutôt que comme un passé. Elle sait à quelle heure un chemin creux est aveugle, combien de temps une colonne met à se retourner et où elle regardera en se retournant. Elle ne livre jamais de bataille rangée si elle peut livrer trois embuscades. Ses hommes marchent en file, ne parlent pas et effacent leurs traces ; on la soupçonne d'avoir traversé deux fois le camp adverse en plein jour sans que personne ne le note.",
   },
   {
@@ -457,8 +481,8 @@ const ERMITAGE_HEROES: readonly HeroRow[] = [
     bio: "Jean est le quatrième de sa famille à tenir le chenil des Brumes, et le premier à avoir renoncé à dresser les loups. Sa méthode consiste à vivre avec eux jusqu'à ce qu'ils l'admettent dans l'ordre de la meute, ce qui lui a coûté deux hivers, un doigt et la moitié de son oreille gauche. Il ne donne pas d'ordres : il se place, et la meute déduit. En bataille, ses loups se dispersent puis se retrouvent sur le flanc adverse avec une coordination que les capitaines de la Châtellenie qualifient poliment de troublante.",
   },
   {
-    id: 'adele',
-    name: 'Adèle',
+    id: 'alice',
+    name: 'Alice',
     faction: 'ermitage',
     cls: 'Prieure',
     title: 'Enfant des Racines',
@@ -474,7 +498,9 @@ const ERMITAGE_HEROES: readonly HeroRow[] = [
     ],
     spells: ['racines_2'],
     affinities: { invocation: 94, occultisme: 84, sylviculture: 70, resistance: 58 },
-    bio: "On a trouvé Adèle enfant dans une souche creuse des Bois Noirs, après trois jours de recherches et un hiver qui aurait dû la tuer, et personne n'a jamais su à qui elle appartenait. Le prieuré l'a élevée ; la forêt, visiblement, l'avait déjà adoptée. Elle appelle les ronces comme on siffle un chien et les menhirs sortent de terre là où elle pose la main, ce qui rend les paysans à la fois reconnaissants et prudents. Elle-même dit qu'elle ne commande rien : elle demande, et il se trouve qu'on lui répond.",
+    devise:
+      "Je n’ai jamais refusé un service à personne. C’est bien mon seul défaut.",
+    bio: "On a trouvé Alice enfant dans une souche creuse des Bois Noirs, après trois jours de recherches et un hiver qui aurait dû la tuer, et personne n'a jamais su à qui elle appartenait. Le prieuré l'a élevée ; la forêt, visiblement, l'avait déjà adoptée. Elle appelle les ronces comme on siffle un chien et les menhirs sortent de terre là où elle pose la main, ce qui rend les paysans à la fois reconnaissants et prudents. Elle-même dit qu'elle ne commande rien : elle demande, et il se trouve qu'on lui répond.",
   },
   {
     id: 'ines',
@@ -614,6 +640,7 @@ function build(): HeroDef[] {
     title: row.title,
     specialty: row.specialty,
     portrait: `portrait_${row.id}`,
+    ...(row.devise ? { devise: row.devise } : {}),
     bio: row.bio,
     start: {
       vaillance: row.stats[0],

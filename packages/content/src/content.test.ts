@@ -56,7 +56,7 @@ describe('effectifs imposés par docs/02-API.md', () => {
   it('les identifiants de héros sont exactement ceux du contrat', () => {
     expect(Object.keys(content.HEROES).sort()).toEqual(
       [
-        'adele',
+        'alice',
         'agathe',
         'anastasia',
         'auguste',

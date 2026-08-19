@@ -46,7 +46,7 @@ function setupFor(players: number, seed = SEED): GameSetup {
   const starts = START_SETS[players as 2 | 3 | 4 | 5][0];
   const ids: PlayerId[] = ['P1', 'P2', 'P3', 'P4', 'P5'];
   const granit = ['paul', 'thibaut', 'loic', 'matthieu', 'clotilde'];
-  const ermitage = ['agathe', 'roxane', 'adele', 'ines', 'lise'];
+  const ermitage = ['agathe', 'roxane', 'alice', 'ines', 'lise'];
   const profiles = BOT_PROFILE_IDS;
   return {
     seed,

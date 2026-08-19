@@ -317,6 +317,8 @@ function NoticeHero({ def }: { def: HeroDef }): ReactElement {
           <p className="hmm-cdx-note">{def.title}</p>
         </div>
       </div>
+      {/* La devise : une phrase que le héros dit lui-même, sous son nom. */}
+      {def.devise ? <p className="hmm-cdx-citation">«&#8239;{def.devise}&#8239;»</p> : null}
       <p className="hmm-cdx-recit">{def.bio}</p>
       <h4 className="hmm-cdx-sous-titre">Caractéristiques de départ</h4>
       <Stats
