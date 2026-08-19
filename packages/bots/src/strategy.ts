@@ -192,10 +192,16 @@ export function planStrategy(
    * de moins rend la suivante plus précieuse, la dernière valant la victoire.
    */
   if (view.enemyTowns.length > 0) {
-    /* Supériorité : notre meilleure armée contre la plus forte garnison vue. */
+    /* Supériorité : notre meilleure armée contre la plus forte garnison
+       CONNUE. Une capitale adverse est un lieu public, sa garnison ne l'est
+       pas : tant qu'on ne la voit pas (`fresh`), on l'estime au calendrier
+       comme le fait le classement des cibles. Lire une garnison cachée
+       serait tricher, et le test de loyauté le voit. */
     let garnisonMax = 0;
     for (const known of view.enemyTowns) {
-      const g = armyPowerOf(known.town.garrison);
+      const g = known.fresh
+        ? armyPowerOf(known.town.garrison)
+        : (known.town.isCapital ? 2200 : 900) * week;
       if (g > garnisonMax) garnisonMax = g;
     }
     const superiorite = ourBest > garnisonMax ? Math.min(14000, (ourBest - garnisonMax) / 40) : 0;

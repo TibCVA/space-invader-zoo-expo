@@ -315,8 +315,25 @@ describe('loyauté : l’IA ne lit que son brouillard', () => {
     for (const place of view.places) {
       expect(fog[place.obj.entrance.row * world.cols + place.obj.entrance.col]).toBeGreaterThan(0);
     }
+    /*
+     * Les capitales sont publiques — chaque bannière choisit la sienne sur
+     * l'écran de nouvelle partie, dans une liste de lieux nommés du Forez :
+     * un joueur humain sait où elles sont avant le premier jour. Toute
+     * AUTRE place doit être explorée pour figurer dans la perception. Et
+     * une capitale connue sans être vue ne livre rien de son intérieur :
+     * c'est ce que garde le test suivant, qui altère ce qui est caché.
+     */
     for (const known of [...view.enemyTowns, ...view.neutralTowns]) {
-      expect(fog[known.town.at.row * world.cols + known.town.at.col]).toBeGreaterThan(0);
+      if (known.town.isCapital) continue;
+      expect(
+        fog[known.town.at.row * world.cols + known.town.at.col],
+        `${known.town.uid} hors brouillard`,
+      ).toBeGreaterThan(0);
+    }
+    for (const known of view.enemyTowns) {
+      if (fog[known.town.at.row * world.cols + known.town.at.col] > 0) continue;
+      expect(known.town.isCapital, `${known.town.uid} : place cachée exposée`).toBe(true);
+      expect(known.fresh, `${known.town.uid} : garnison lue sans la voir`).toBe(false);
     }
     for (const town of view.towns) expect(town.owner).toBe(player);
     expect(view.self.id).toBe(player);
