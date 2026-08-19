@@ -219,13 +219,25 @@ matière dominante ≤ 65 % ; les 12 régions ont des dominantes distinctes deux
 à deux (test) ; routes et départs restent connectés (composante unique côté
 praticable contenant les 5 départs).
 
-### Lot 1.9 — cols et goulets : le réseau
+### Lot 1.9 — cols, goulets et routes secondaires : le réseau
 
 **Périmètre** : `packages/map/src/roads.ts`, `hydrography.ts` (gués).
 
 Avec les falaises de 1.8 : chaque frontière de région se réduit à 1 à 3
 passages de ≤ 4 cases (cols, ponts, gués), gardés par 1.3. Le réseau viaire
 gagne 2 rocades pour porter les cycles de 3 à ≥ 6.
+
+**Exigence du propriétaire (19/08)** : *« tous les lieux d'intérêt (actifs)
+doivent être disposés de manière logique et rattachés à une route secondaire
+reliée soit à la route principale en jaune, soit à une autre route
+secondaire. »* Concrètement : après le semis des objets, chaque lieu actif
+reçoit un **embranchement de chemin** (terrain `chemin`, le ton gris-ocre des
+voies secondaires) tracé de son entrée jusqu'à la voie la plus proche —
+grande chaussée ou chemin déjà tracé. Le tracé suit le moindre coût du
+relief, comme les voies existantes ; deux lieux proches partagent leur
+embranchement dès qu'il se rejoint. Aucun lieu actif n'est un point isolé
+dans les bois : c'est à la fois la lisibilité demandée et la logique d'un
+pays habité — on ne bâtit pas un moulin sans son chemin.
 
 **Acceptation** : `pnpm carte` — points d'articulation ≥ 12 ; toujours une
 seule composante praticable ; entre chaque paire de capitales, ≥ 2 itinéraires
@@ -305,6 +317,20 @@ La carte d'aperçu ne recouvre plus jamais la barre d'actions (six boutons
 tappables ≥ 44 pt) ; pincer-zoomer + glisser + double-tape sur carte, cité,
 combat ; bornes de zoom par scène ; recadrage des bâtiments sur le panorama
 portrait (positions % dédiées au cadrage portrait — défaut vu sur capture).
+
+**Exigence du propriétaire (19/08), qui élargit ce lot au plan de masse** :
+*« les bâtiments doivent être disposés de manière logique dans tous les
+espaces, si bien que quand on a tout construit, l'ensemble de la cité est
+recouverte par des bâtiments à la bonne taille — et non de petits bâtiments
+qui ne recouvrent qu'une partie. »* Le plan de masse (`scene.x/y/scale` de
+`packages/content/src/buildings.ts`) doit donc être recomposé pour que
+l'arbre de construction COMPLET occupe les terrasses du panorama : emprises
+réparties sur toute la surface bâtissable, échelles montant avec le rang
+(une demeure de rang 7 et un capitole dominent, les rangs 1-2 tiennent les
+faubourgs), aucun chevauchement, aucune terrasse vide en fin de partie.
+Critère : sur la capture « tout construit » (les ~35 bâtiments d'une
+faction), la part de terrasse bâtissable couverte par les emprises ≥ 70 %,
+mesurée au masque des terrasses du panorama ; et aucun bâtiment sur un à-pic.
 
 **Acceptation** : capture iPhone du combat — les six boutons visibles avec la
 carte d'aperçu ouverte ; cibles tactiles mesurées ≥ 44 pt ; trace de montage
