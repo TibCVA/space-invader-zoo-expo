@@ -505,8 +505,30 @@ body {
   .jeu-racine--avec-pouce .jeu-page {
     padding-bottom: calc(var(--hmm-touch-ample) + var(--hmm-space-10) + var(--hmm-safe-bas));
   }
+  /*
+   * La scène accélérée doit s'arrêter AU-DESSUS de la barre de pouce, comme
+   * les pages de données le font déjà.
+   *
+   * La barre est `position: fixed; bottom: 0` : sans cette réserve, la toile
+   * courait sous elle et la scène perdait ses quatre-vingt-dix derniers
+   * pixels — c'est-à-dire, au combat, **toute la barre des six actions**,
+   * dessinée dans le bas de la toile. Mesuré par sonde : la toile faisait
+   * 778 px de haut et la barre d'actions occupait 704 à 778, exactement la
+   * bande masquée par la barre de pouce. Un combat dont on ne peut plus
+   * toucher les actions n'est pas jouable ; la carte d'aventure et la cité
+   * y perdaient de la même façon leur bas d'écran.
+   *
+   * `.jeu-scene__toile` est en `inset: 0` : son bloc conteneur est la boîte
+   * de rembourrage de `.jeu-scene`, si bien que ce `padding-bottom` réduit
+   * réellement la toile — et donc la hauteur que la scène Pixi reçoit.
+   */
+  .jeu-racine--avec-pouce .jeu-scene {
+    padding-bottom: calc(var(--hmm-touch-ample) + var(--hmm-space-2) + var(--hmm-safe-bas));
+  }
+  /* La légende se pose désormais dans la boîte réduite : plus besoin de la
+     remonter de la hauteur de la barre, elle la doublerait. */
   .jeu-racine--avec-pouce .jeu-scene__legende {
-    bottom: calc(var(--hmm-touch-ample) + var(--hmm-space-4) + var(--hmm-safe-bas));
+    bottom: var(--hmm-space-4);
   }
 }
 
