@@ -57,7 +57,7 @@ Règles de style détaillées : `docs/01-ART-BIBLE.md` §0.
 | Page d'accueil | **fait** | fond peint natif en paysage et en portrait ; les 8 défauts procéduraux tombent avec la scène qu'ils affectaient |
 | Coquille client (routage, état, sauvegarde auto, écrans) | **fait** | 21 routes, 0 erreur console |
 | Déploiement Railway | **fait** | 43 images servies, PostgreSQL connecté, CSP stricte conservée |
-| Images générées (43, 4,19 Mo) | **fait** | 43 clefs sur 43 valides ; portraits et accueil raccordés |
+| Images générées — vague 2 (167, 9,6 Mo / 12) | **fait et vu en jeu** | 40 bâtiments, 56 décors, 15 icônes, 7 jetons, 6 panoramas portrait ; validateurs verts, 703 tests, captures `shots/wave2` sans erreur console ; 28 planches + 28 rendus de créature en référence non embarquée |
 | Blocage Chrome / Edge (`unsafe-eval`) | **corrigé** | vérifié sous la vraie CSP du serveur |
 | Gel du chargement à 30 % sous la CSP (worker `blob:`) | **corrigé** | 6 gels sur 6 avant, 0 sur 6 après — voir §1 quinquies |
 | Carte et cité vides sur iPhone | **corrigé, marge inconnue** | confirmé sur l'appareil, en production ; reste à relever la trace de montage pour savoir si cela passe confortablement ou de justesse (§1 quinquies) |
@@ -67,7 +67,7 @@ Règles de style détaillées : `docs/01-ART-BIBLE.md` §0.
 | Rendu du combat | **fait, à corriger** | le sol a perdu 19,0 de luminance et 4,0 points de saturation depuis que les dégradés peignent : rampes de `field.ts` à ré-étalonner (§2.3) ; vide de 35 % en portrait |
 | IA + parties complètes | **fait** | 20 parties IA contre IA jouées ; 0 commande refusée au rejeu ; réflexion médiane 154 ms, p95 219 ms (budget 400) |
 | Conquête des lieux gardés | **corrigé** | voir §1 ter — c'était le défaut le plus grave du projet |
-| Écrans de cité (2 tableaux en parallaxe) | **en cours** | panorama, porte, emplacements et survol en place ; **les bâtiments bâtis sont des blocs gris plats**, à reprendre |
+| Écrans de cité (2 tableaux en parallaxe) | **transformé** | les bâtiments bâtis sont des peintures distinctes posées dans le panorama (vague 2, intégration Codex vérifiée par capture) ; en portrait l'iPhone reçoit son propre panorama plein écran — reste à recaler les positions % des bâtiments sur le cadrage portrait (plan AAA lot 2.5) |
 | Multijoueur asynchrone | **fait et jouable** | parcours complet vérifié dans un vrai navigateur, deux contextes, contre le vrai serveur (voir §1 quater) |
 | Boucles de critique visuelle | partiellement | les sous-agents refonctionnent ; revue par capture appliquée aux cités |
 | Équilibrage par simulation de masse | à faire | l'outil existe (`pnpm sim`, `pnpm balance`), le réglage reste à faire |
@@ -291,9 +291,10 @@ sur deux tirages du même code : 0,01 point. Le gain vaut mille fois le bruit.
 
 ## 2. Suite
 
-Par ordre de valeur pour le joueur, et non d'ordre chronologique. Les quatre
-premiers points sortent de la contre-vérification adverse du 18/08 au soir et
-sont **chiffrés** ; ils se traitent dans cet ordre, un changement à la fois.
+**Le plan d'exécution complet vit dans `docs/08-PLAN-AAA.md`** — douze audits
+mesurés, trois phases, des lots à périmètres disjoints avec critères
+d'acceptation chiffrés. La liste ci-dessous reste l'ordre local des correctifs
+de rendu déjà instruits ; à périmètre égal, `docs/08` fait foi.
 
 1. **Le soleil de l'atlas est à 90° de celui du sol — bloquant.**
    `degradeSurface` (`art/shading.ts:419`) oriente son dégradé à **135°**,
