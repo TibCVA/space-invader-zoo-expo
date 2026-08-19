@@ -18,9 +18,12 @@
    s'éprouve en le défaisant (bascule python ciblée, jamais `git checkout`).
 4. **Toute insertion d'appels RNG dans `buildObjects` décale tout l'aval.**
    Après quoi : `cd apps/worker && npx tsx src/carte.ts` — cibles : une case
-   praticable sur ≤ 150, 0 bloc 32×32 vide, glaneur ≥ 2,5/j, composante
-   praticable unique, ≥ 12 points d'articulation — puis
+   praticable sur **35 à 50**, 0 bloc **14 × 14** vide, glaneur ≥ 2,5/j,
+   composante praticable unique, ≥ 12 points d'articulation — puis
    `npx vitest run packages/map`.
+   **Se méfier de toute constante qui est une longueur en cases** : depuis que
+   la carte fait 113 × 184, une distance écrite en dur porte deux fois plus
+   loin qu'avant. Les demander en fraction de `COLS`/`ROWS`/`CELLS`.
 5. **Les sous-agents et workflows sont morts** (allocation d'usage épuisée) :
    travailler en ligne, séquentiellement.
 6. Captures : `node tools/screenshot.mjs <scènes> --dir shots/<nom>` (construit,
@@ -93,6 +96,53 @@ c'est-à-dire toute la barre d'actions du combat) ; le pincer-zoomer dans la
 capitale et les combats ; les hautes-chaumes et les tourbières (prairie+forêt
 82,3 % → 74,5 %).
 
+## 1 ter. La carte ramenée à la taille d'une XL de HMM3
+
+Demandé par le propriétaire : « je veux la taille max de HMM3 mais pas plus ».
+La carte passe de **256 × 416** (106 496 cases, cinq fois une XL) à
+**113 × 184 = 20 792**, l'aire d'une XL de 144 × 144, en gardant la forme du
+Forez au rapport 1:1,64. La case vaut **109 m** au lieu de 48.
+
+**La leçon générale, à retenir avant de toucher quoi que ce soit :** rétrécir
+la grille sans toucher aux coûts de marche double la portée de toute distance
+écrite en cases. Le semis, les routes, les régions, les ancrages, le relief,
+l'hydrographie, le bruit fractal, les tests et jusqu'aux réglages de l'IA
+parlaient tous en cases sans le dire. Chaque constante a dû être relue en se
+demandant « est-ce une longueur ou une valeur ? ».
+
+Ce que la nouvelle échelle a fait apparaître, et qui était faux avant :
+
+| Défaut | Ce qui le cachait |
+|---|---|
+| `computeSlope` divisait par 96 m, écrit en dur, sans lien avec `CELL_SIZE_M` | La case faisait vraiment 48 m |
+| L'équilibrage des départs comparait cinq sommes globales (recouvrement 100 % à son horizon d'une semaine) | Les départs étaient trop éloignés pour se recouvrir |
+| La Renaudie, 55 % plus pauvre dans son propre arrière-pays : son pays est à 69 % de prairie et toutes les familles tirées sur cache exigeaient le couvert | L'horizon global masquait l'écart |
+| La densité visée, « un objet toutes les 120 à 150 cases », impliquait qu'une XL entière n'en porte que 154 ; le décompte famille par famille en donne 400 à 620 | Le seuil compensait exactement l'excès de surface |
+| Longueurs d'onde du bruit : une octave de 88 cases sur une carte large de 113 | Sur 256 de large, elle en couvrait le tiers |
+| Rayon de raccord des cotes d'ancrage : 3 cases, soit 327 m d'esplanade plate autour de chaque lieu nommé | 144 m, imperceptible |
+| Objets posés sur des tabliers de pont, emprises de bourg à cheval sur une rivière, comblement effaçant un pont | Les cours d'eau ne passaient pas là |
+| La Scierie d'Arconsat gardée à quatre cases de sa ville, murant la sortie au premier jour | Elle était plus loin |
+
+**État mesuré** (`cd apps/worker && npx tsx src/carte.ts`) : 20 792 cases,
+20 135 praticables, **520 lieux — une case sur 39**, glaneur **4,2 par journée
+de marche**, 0 bloc de 14 × 14 vide sur 104, composante praticable unique,
+les cinq départs à moins de 4 % de valeur accessible les uns des autres.
+Terrain : prairie 36,3 %, forêt 31,6 %, pente 10,3 %, lande 5,7 %, rocher
+2,2 %, falaise 1,1 %.
+
+**Suite complète : 782 tests, 57 fichiers, 0 échec.** Les seuils des tests
+exprimés en cases sont devenus des parts de la grille, de sorte qu'ils
+suivront le prochain changement d'échelle au lieu de le masquer. Le témoin
+des ancrages est passé de la colonne et de la ligne — qui décrivaient une
+grille disparue — à la latitude et la longitude.
+
+**Ce qui a EMPIRÉ et qu'il faut traiter (voir P0.4 ci-dessous) :** les points
+d'articulation tombent de 14 à **4** pour une cible de 12. Ce n'est pas une
+régression du semis : les 14 d'avant étaient un artefact de la pente
+surestimée d'un facteur 2,27, qui fabriquait des barres rocheuses partout.
+La mesure corrigée dit la vérité — **le relief ne ferme pas les zones**, et
+c'est exactement le chantier déjà inscrit au plan.
+
 ## 2. LA LISTE — par importance pour le feeling HMM3
 
 ### P0 — le cœur du jeu (sans quoi ce n'est pas HMM3)
@@ -130,10 +180,31 @@ conteneur racine, bornée, avec recentrage. La cité est déjà recomposée
 `plan-de-masse.test.ts` et les captures).
 
 **P0.4 — Lots 1.8 + 1.9 ensemble : le relief ferme, les cols ouvrent.**
-`packages/map/src/terrain.ts`, `roads.ts`, `elevation.ts`.
+**C'est désormais le premier chantier de la liste** : à la taille d'une XL,
+la carte n'a plus que **4 points d'articulation** pour une cible de 12, et
+**3,2 % d'infranchissable** (eau 2,44 % + falaise 1,06 %) pour une cible de
+12 %. Une carte de HMM3 sans goulet n'a pas de front : on la traverse en
+diagonale sans jamais rien devoir forcer.
+
+*Note d'échelle, à lire avant de commencer.* La distribution des pentes a
+changé de sens : elle se mesure maintenant sur les 218 m qui séparent
+réellement deux cases. Mesuré sur la graine de démonstration, il reste au
+-dessus de 18° 2,4 % de la carte, au-dessus de 13° 7,0 %, au-dessus de 11°
+11,0 %. Autrement dit **on ne peut pas atteindre 12 % d'infranchissable en
+abaissant seulement `FALAISE_SLOPE`** : il faudrait le descendre vers 11°,
+soit sous `CLIFF_SLOPE` (17) et sous `ROCK_SLOPE` (13), ce qui avalerait les
+classes `rocher` et `pente`. La voie qui ressemble à HMM3 est de rendre
+**`rocher` infranchissable** — le « Rock » de HMM3 l'est, sa « Rough » ne
+l'est pas — ce qui donne 2,2 % + 1,1 % + 2,4 % ≈ 5,7 % et ouvre la porte aux
+6 % du lot. Attention, ce n'est pas un changement d'une ligne : `rocher` sert
+aussi de marqueur de **col percé** (`build.ts`, la passe qui rouvre les poches
+isolées en transformant une falaise en rocher franchissable), il est dans
+`CELL_CACHE`, il porte des objets, et l'entrée d'un belvédère y est convertie.
+Il faut un terrain distinct pour le passage taillé.
+
 1.8 : hautes-chaumes en lande rase (> 1 150 m), tourbières étendues autour
-des sagnes, falaises sur les barres — **≥ 6 % d'infranchissable total**
-(aujourd'hui ~1,5 % : eau 1,08 % + falaise 0,39 %) ; dominante par région
+des sagnes, falaises sur les barres — **≥ 6 % d'infranchissable total** ;
+dominante par région
 ≤ 65 % ; les 12 régions distinctes deux à deux. 1.9 : chaque frontière de
 zone franchie par 1 à 3 passages seulement (cols, ponts, gués) — les postes
 du lot 1.3 se caleront d'eux-mêmes sur les transitions d'anneau des voies —
