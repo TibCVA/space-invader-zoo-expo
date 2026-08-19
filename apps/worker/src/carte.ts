@@ -15,7 +15,27 @@
  * et de son générateur de cartes, et non d'une impression :
  *
  *   - une carte HMM3 de taille comparable porte **un objet interactif toutes les
- *     120 à 150 cases praticables** ; nous en étions à une toutes les 370 ;
+ *     35 à 50 cases praticables**. Ce seuil a été corrigé le jour où la carte
+ *     est passée à la taille d'une XL de HMM3 : il disait auparavant « 120 à
+ *     150 », et cette valeur était fausse. Le calcul le montre — une XL fait
+ *     144 × 144 = 20 736 cases, donc « une toutes les 135 » voudrait dire
+ *     qu'une XL entière ne porte que 154 lieux, alors qu'il faut déjà en
+ *     compter, à la main et sans rien inventer : 8 à 10 villes, 40 à 50
+ *     gisements (chaque joueur veut sa scierie, sa carrière et sa mine d'or,
+ *     et les mines précieuses se disputent), 25 à 35 habitats extérieurs,
+ *     20 à 40 repaires gardés, 25 à 50 artefacts, 40 à 80 coffres, 70 à 120
+ *     lieux de service et de voyage (moulins, fontaines, pierres de savoir,
+ *     tavernes, une quinzaine d'obélisques pour le puzzle, les paires de
+ *     monolithes, les garnisons) et de 150 à 250 tas de ressources, qui sont
+ *     de loin la famille la plus nombreuse. Le total tombe entre 400 et 620
+ *     lieux, soit une case sur 33 à 52.
+ *
+ *     Pourquoi l'erreur est restée invisible si longtemps : la carte faisait
+ *     alors 106 496 cases, cinq fois une XL. Viser « une toutes les 135 » y
+ *     donnait 851 lieux — un nombre absolu juste pour une XL, étalé sur cinq
+ *     fois trop de terre. Le seuil compensait exactement l'excès de surface,
+ *     et les deux erreurs se sont masquées l'une l'autre jusqu'à ce que la
+ *     carte soit ramenée à sa taille ;
  *   - HMM3 découpe la surface en **zones reliées par des liaisons étroites et
  *     gardées** — la règle de son générateur dit littéralement que les liaisons
  *     larges ne sont jamais gardées, parce qu'une liaison large ne se tient pas.
@@ -46,7 +66,7 @@ const COUT_PAR_TERRAIN: number[] = TERRAINS.map((t) => TERRAIN_COST[t]);
 
 /* ─────────────────────────────── Seuils HMM3 ─────────────────────────────── */
 
-const CIBLE_CASES_PAR_OBJET = 150; // borne haute de la fourchette 120–150
+const CIBLE_CASES_PAR_OBJET = 50; // borne haute de la fourchette 35–50
 const CIBLE_ARTICULATIONS_MIN = 12; // au moins une douzaine de vrais goulets
 const CIBLE_INFRANCHISSABLE_MIN = 0.12; // 12 % de la carte, comme un relief HMM3
 /*
@@ -298,26 +318,36 @@ function mesurer(graine: number): Rapport {
   const distances: number[] = [];
   for (let i = 0; i < n; i++) if (praticable[i] && dist[i] >= 0) distances.push(dist[i]);
 
-  /* Blocs de 32×32 sans le moindre objet : la mesure du « on marche mille cases
-     sans rien rencontrer ». */
-  const PAS = 32;
+  /* Blocs sans le moindre objet : la mesure du « on marche mille cases sans
+     rien rencontrer ».
+
+     Le bloc valait 32 cases de côté quand la carte en faisait 256 × 416 ; à la
+     taille d'une XL il ne découpait plus que 24 blocs de 5 % de la carte
+     chacun et ne repérait plus rien. Il suit donc le pas du semis.
+
+     Un bloc n'est retenu que s'il a de quoi être un désert : la moitié de sa
+     surface praticable. Sans ce plancher, les lisières comptaient — la
+     dernière colonne d'une carte de 113 fait une case de large — et une
+     échancrure de quatorze cases au bord de la carte était rapportée comme un
+     désert au même titre qu'un canton entier. Le semeur de couverture applique
+     le même raisonnement avec son plancher de quarante cases libres ; les deux
+     mesures parlaient de deux choses différentes et se contredisaient. */
+  const PAS = 14;
+  const PLANCHER_BLOC = (PAS * PAS) / 2;
   let blocsVides = 0;
   let blocsTotal = 0;
   for (let br = 0; br < rows; br += PAS) {
     for (let bc = 0; bc < cols; bc += PAS) {
-      let praticableDansBloc = false;
+      let praticablesDansBloc = 0;
       let objetDansBloc = false;
-      for (let r = br; r < Math.min(br + PAS, rows) && !objetDansBloc; r++) {
+      for (let r = br; r < Math.min(br + PAS, rows); r++) {
         for (let c = bc; c < Math.min(bc + PAS, cols); c++) {
           const i = r * cols + c;
-          if (praticable[i]) praticableDansBloc = true;
-          if (occupe[i]) {
-            objetDansBloc = true;
-            break;
-          }
+          if (praticable[i]) praticablesDansBloc++;
+          if (occupe[i]) objetDansBloc = true;
         }
       }
-      if (!praticableDansBloc) continue;
+      if (praticablesDansBloc < PLANCHER_BLOC) continue;
       blocsTotal++;
       if (!objetDansBloc) blocsVides++;
     }
@@ -476,7 +506,7 @@ function imprimer(r: Rapport): void {
   ligne('médiane', `${r.distanceMediane.toFixed(0)} cases`);
   ligne('9ᵉ décile', `${r.distanceP90.toFixed(0)} cases`);
   ligne('pire cas', `${r.distanceMax.toFixed(0)} cases`);
-  ligne('blocs 32×32 sans aucun objet', `${String(r.blocsVides)} / ${String(r.blocsTotal)}`, '0');
+  ligne('blocs 14×14 sans aucun objet', `${String(r.blocsVides)} / ${String(r.blocsTotal)}`, '0');
 
   console.log('\n▸ Le héros glaneur — jeu parfait, omniscient, sans combat');
   for (const g of r.glanage) {
@@ -502,8 +532,10 @@ function imprimer(r: Rapport): void {
     '≥ 20 postes');
 
   console.log('\n▸ Rappel — pourquoi ces cibles');
-  console.log('  Un objet toutes les 120 à 150 cases : densité d’une carte HMM3 de');
-  console.log('  taille comparable. Des points d’articulation : HMM3 relie ses zones par');
+  console.log('  Un objet toutes les 35 à 50 cases : densité d’une carte HMM3 de');
+  console.log('  taille comparable, recomptée famille par famille sur une XL de');
+  console.log('  144 × 144 (400 à 620 lieux). Des points d’articulation : HMM3 relie');
+  console.log('  ses zones par');
   console.log('  des liaisons étroites et gardées, et son générateur pose en règle que');
   console.log('  les liaisons larges ne sont jamais gardées. Un garde qui ne déborde pas');
   console.log('  de sa case d’entrée ne bloque rien : le calcul de chemin l’ignore.');

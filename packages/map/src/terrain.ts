@@ -38,7 +38,7 @@ const MOISTURE_SEED = 0x48756d69;
 const CANOPY_SEED = 0x466f7265 ^ 0x5a5a5a5a;
 
 /** Distance à l'eau au-delà de laquelle l'influence hydrique est nulle. */
-export const WATER_INFLUENCE = 14;
+export const WATER_INFLUENCE = 6;
 
 export interface TerrainField {
   terrain: Uint8Array;

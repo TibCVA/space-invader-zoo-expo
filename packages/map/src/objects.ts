@@ -88,31 +88,31 @@ interface SealSite {
 const SEAL_SITES: readonly SealSite[] = [
   {
     seal: 'hautes_futaies',
-    at: c(82, 146),
+    at: c(36, 65),
     label: 'Sceau des Hautes-Futaies',
     lore: "Une pierre levée sous les plus vieux sapins des futaies de Viscomtat. On dit qu'elle marque la limite que les bûcherons ne franchissaient jamais.",
   },
   {
     seal: 'farges',
-    at: c(222, 132),
+    at: c(98, 58),
     label: 'Sceau des Farges',
     lore: "Scellé dans le linteau d'une forge abandonnée, en contrebas de la porte des Farges. Le fer y garde encore la chaleur des comtes.",
   },
   {
     seal: 'pamole',
-    at: c(80, 276),
+    at: c(35, 122),
     label: 'Sceau de Pamole',
     lore: "Gravé à même la Pierre Pamole, face au levant. Par temps clair, on voit d'ici la moitié du Forez.",
   },
   {
     seal: 'hermitage',
-    at: c(131, 242),
+    at: c(58, 107),
     label: "Sceau de l'Hermitage",
     lore: "Déposé dans la niche du vallon de l'Hermitage, entre la source et les cellules de pèlerins.",
   },
   {
     seal: 'brumes',
-    at: c(160, 158),
+    at: c(71, 70),
     label: 'Sceau des Brumes',
     lore: 'Au cœur des Bois Noirs, là où la brume ne se lève pas avant midi. Les veneurs prétendent que la pierre change de place.',
   },
@@ -129,44 +129,44 @@ interface SiteSpec {
 
 /** Bornes armoriées : le réseau de déplacement tardif (document maître §8.3). */
 const BORNE_SITES: readonly SiteSpec[] = [
-  { key: 'borne_arconsat', kind: 'borne', at: c(112, 58), label: "Borne des Hauts d'Arconsat", clear: 1 },
-  { key: 'borne_tresor', kind: 'borne', at: c(133, 110), label: 'Borne du Trésor', clear: 1 },
-  { key: 'borne_cervieres', kind: 'borne', at: c(208, 132), label: 'Borne de Cervières', clear: 1 },
-  { key: 'borne_viscomtat', kind: 'borne', at: c(72, 158), label: 'Borne des Futaies', clear: 1 },
-  { key: 'borne_noiretable', kind: 'borne', at: c(180, 196), label: 'Borne de Noirétable', clear: 1 },
-  { key: 'borne_bois_noirs', kind: 'borne', at: c(150, 150), label: 'Borne des Bois Noirs', clear: 1 },
-  { key: 'borne_hermitage', kind: 'borne', at: c(102, 262), label: "Borne de l'Hermitage", clear: 1 },
-  { key: 'borne_vollore', kind: 'borne', at: c(66, 276), label: 'Borne de Vollore', clear: 1 },
-  { key: 'borne_renaudie', kind: 'borne', at: c(126, 362), label: 'Borne de la Marche', clear: 1 },
+  { key: 'borne_arconsat', kind: 'borne', at: c(49, 26), label: "Borne des Hauts d'Arconsat", clear: 1 },
+  { key: 'borne_tresor', kind: 'borne', at: c(59, 49), label: 'Borne du Trésor', clear: 1 },
+  { key: 'borne_cervieres', kind: 'borne', at: c(92, 58), label: 'Borne de Cervières', clear: 1 },
+  { key: 'borne_viscomtat', kind: 'borne', at: c(32, 70), label: 'Borne des Futaies', clear: 1 },
+  { key: 'borne_noiretable', kind: 'borne', at: c(79, 87), label: 'Borne de Noirétable', clear: 1 },
+  { key: 'borne_bois_noirs', kind: 'borne', at: c(66, 66), label: 'Borne des Bois Noirs', clear: 1 },
+  { key: 'borne_hermitage', kind: 'borne', at: c(45, 116), label: "Borne de l'Hermitage", clear: 1 },
+  { key: 'borne_vollore', kind: 'borne', at: c(29, 122), label: 'Borne de Vollore', clear: 1 },
+  { key: 'borne_renaudie', kind: 'borne', at: c(56, 160), label: 'Borne de la Marche', clear: 1 },
 ];
 
 const VIEWPOINT_SITES: readonly SiteSpec[] = [
-  { key: 'belvedere_pamole', kind: 'belvedere', at: c(83, 273), label: 'Belvédère de Pamole', clear: 1 },
-  { key: 'belvedere_cervieres', kind: 'belvedere', at: c(218, 112), label: 'Belvédère de Cervières', clear: 1 },
-  { key: 'belvedere_bois_noirs', kind: 'belvedere', at: c(168, 132), label: 'Belvédère des Bois Noirs', clear: 1 },
-  { key: 'belvedere_arconsat', kind: 'belvedere', at: c(124, 18), label: "Belvédère d'Arconsat", clear: 1 },
+  { key: 'belvedere_pamole', kind: 'belvedere', at: c(37, 121), label: 'Belvédère de Pamole', clear: 1 },
+  { key: 'belvedere_cervieres', kind: 'belvedere', at: c(96, 50), label: 'Belvédère de Cervières', clear: 1 },
+  { key: 'belvedere_bois_noirs', kind: 'belvedere', at: c(74, 58), label: 'Belvédère des Bois Noirs', clear: 1 },
+  { key: 'belvedere_arconsat', kind: 'belvedere', at: c(55, 8), label: "Belvédère d'Arconsat", clear: 1 },
 ];
 
 const SHRINE_SITES: readonly SiteSpec[] = [
-  { key: 'sanctuaire_hermitage', kind: 'sanctuaire', at: c(122, 254), label: "Chapelle de l'Hermitage", clear: 1 },
-  { key: 'sanctuaire_peyrotine', kind: 'sanctuaire', at: c(143, 236), label: 'Croix de la Peyrotine', clear: 1 },
-  { key: 'sanctuaire_vollore', kind: 'sanctuaire', at: c(58, 258), label: 'Chapelle des Carriers', clear: 1 },
-  { key: 'sanctuaire_farges', kind: 'sanctuaire', at: c(211, 124), label: 'Oratoire des Farges', clear: 1 },
-  { key: 'source_durolle', kind: 'source', at: c(118, 103), label: 'Source de la Durolle', clear: 1 },
-  { key: 'source_sagnes', kind: 'source', at: c(99, 109), label: 'Fontaine des Sagnes', clear: 1 },
-  { key: 'source_anzon', kind: 'source', at: c(196, 175), label: "Source de l'Anzon", clear: 1 },
-  { key: 'source_credogne', kind: 'source', at: c(129, 371), label: 'Source de la Credogne', clear: 1 },
+  { key: 'sanctuaire_hermitage', kind: 'sanctuaire', at: c(54, 112), label: "Chapelle de l'Hermitage", clear: 1 },
+  { key: 'sanctuaire_peyrotine', kind: 'sanctuaire', at: c(63, 104), label: 'Croix de la Peyrotine', clear: 1 },
+  { key: 'sanctuaire_vollore', kind: 'sanctuaire', at: c(26, 114), label: 'Chapelle des Carriers', clear: 1 },
+  { key: 'sanctuaire_farges', kind: 'sanctuaire', at: c(93, 55), label: 'Oratoire des Farges', clear: 1 },
+  { key: 'source_durolle', kind: 'source', at: c(52, 46), label: 'Source de la Durolle', clear: 1 },
+  { key: 'source_sagnes', kind: 'source', at: c(44, 48), label: 'Fontaine des Sagnes', clear: 1 },
+  { key: 'source_anzon', kind: 'source', at: c(87, 77), label: "Source de l'Anzon", clear: 1 },
+  { key: 'source_credogne', kind: 'source', at: c(57, 164), label: 'Source de la Credogne', clear: 1 },
 ];
 
 const INN_SITES: readonly SiteSpec[] = [
-  { key: 'auberge_chabreloche', kind: 'auberge', at: c(94, 52), label: 'Relais de Chabreloche', clear: 1 },
-  { key: 'auberge_arconsat', kind: 'auberge', at: c(114, 28), label: "Auberge d'Arconsat", clear: 1 },
-  { key: 'auberge_cervieres', kind: 'auberge', at: c(210, 122), label: 'Auberge des Bannières', clear: 1 },
-  { key: 'auberge_noiretable', kind: 'auberge', at: c(198, 192), label: 'Auberge du Carrefour', clear: 1 },
-  { key: 'auberge_viscomtat', kind: 'auberge', at: c(61, 167), label: 'Auberge des Futaies', clear: 1 },
-  { key: 'auberge_renaudie', kind: 'auberge', at: c(135, 376), label: 'Auberge de la Marche', clear: 1 },
-  { key: 'auberge_tresor', kind: 'auberge', at: c(148, 117), label: 'Hostellerie du Trésor', clear: 1 },
-  { key: 'auberge_vollore', kind: 'auberge', at: c(58, 266), label: 'Auberge de Vollore', clear: 1 },
+  { key: 'auberge_chabreloche', kind: 'auberge', at: c(41, 23), label: 'Relais de Chabreloche', clear: 1 },
+  { key: 'auberge_arconsat', kind: 'auberge', at: c(50, 12), label: "Auberge d'Arconsat", clear: 1 },
+  { key: 'auberge_cervieres', kind: 'auberge', at: c(93, 54), label: 'Auberge des Bannières', clear: 1 },
+  { key: 'auberge_noiretable', kind: 'auberge', at: c(87, 85), label: 'Auberge du Carrefour', clear: 1 },
+  { key: 'auberge_viscomtat', kind: 'auberge', at: c(27, 74), label: 'Auberge des Futaies', clear: 1 },
+  { key: 'auberge_renaudie', kind: 'auberge', at: c(60, 166), label: 'Auberge de la Marche', clear: 1 },
+  { key: 'auberge_tresor', kind: 'auberge', at: c(65, 52), label: 'Hostellerie du Trésor', clear: 1 },
+  { key: 'auberge_vollore', kind: 'auberge', at: c(26, 118), label: 'Auberge de Vollore', clear: 1 },
 ];
 
 interface MineSpec {
@@ -189,43 +189,43 @@ interface MineSpec {
  */
 const MINE_SITES: readonly MineSpec[] = [
   // Hauts d'Arconsat
-  { key: 'scierie_arconsat', at: c(124, 32), resource: 'bois', amount: 2, label: "Scierie d'Arconsat", ring: 1 },
-  { key: 'carriere_arconsat', at: c(108, 18), resource: 'granit', amount: 2, label: 'Carrière des Hauts', ring: 1 },
-  { key: 'peage_arconsat', at: c(128, 42), resource: 'ecus', amount: 350, label: 'Péage des Hauts', ring: 1 },
+  { key: 'scierie_arconsat', at: c(55, 14), resource: 'bois', amount: 2, label: "Scierie d'Arconsat", ring: 1 },
+  { key: 'carriere_arconsat', at: c(48, 8), resource: 'granit', amount: 2, label: 'Carrière des Hauts', ring: 1 },
+  { key: 'peage_arconsat', at: c(56, 19), resource: 'ecus', amount: 350, label: 'Péage des Hauts', ring: 1 },
   // Futaies de Viscomtat
-  { key: 'scierie_viscomtat', at: c(48, 158), resource: 'bois', amount: 2, label: 'Scierie des Futaies', ring: 1 },
-  { key: 'carriere_viscomtat', at: c(44, 178), resource: 'granit', amount: 2, label: 'Carrière de la Faye', ring: 1 },
-  { key: 'peage_viscomtat', at: c(52, 150), resource: 'ecus', amount: 350, label: 'Péage des Futaies', ring: 1 },
-  { key: 'essence_viscomtat', at: c(68, 176), resource: 'essence', amount: 1, label: 'Brûlerie des Futaies', ring: 2 },
+  { key: 'scierie_viscomtat', at: c(21, 70), resource: 'bois', amount: 2, label: 'Scierie des Futaies', ring: 1 },
+  { key: 'carriere_viscomtat', at: c(19, 79), resource: 'granit', amount: 2, label: 'Carrière de la Faye', ring: 1 },
+  { key: 'peage_viscomtat', at: c(23, 66), resource: 'ecus', amount: 350, label: 'Péage des Futaies', ring: 1 },
+  { key: 'essence_viscomtat', at: c(30, 78), resource: 'essence', amount: 1, label: 'Brûlerie des Futaies', ring: 2 },
   // Châtellenie de Cervières
-  { key: 'scierie_cervieres', at: c(222, 108), resource: 'bois', amount: 2, label: 'Scierie de Bise', ring: 1 },
-  { key: 'carriere_cervieres', at: c(226, 128), resource: 'granit', amount: 2, label: 'Carrière des Farges', ring: 1 },
-  { key: 'peage_cervieres', at: c(220, 140), resource: 'ecus', amount: 350, label: 'Péage de Cervières', ring: 1 },
-  { key: 'fildor_cervieres', at: c(208, 126), resource: 'filDor', amount: 1, label: 'Atelier des Grenadières', ring: 2 },
+  { key: 'scierie_cervieres', at: c(98, 48), resource: 'bois', amount: 2, label: 'Scierie de Bise', ring: 1 },
+  { key: 'carriere_cervieres', at: c(100, 57), resource: 'granit', amount: 2, label: 'Carrière des Farges', ring: 1 },
+  { key: 'peage_cervieres', at: c(97, 62), resource: 'ecus', amount: 350, label: 'Péage de Cervières', ring: 1 },
+  { key: 'fildor_cervieres', at: c(92, 56), resource: 'filDor', amount: 1, label: 'Atelier des Grenadières', ring: 2 },
   // Pays de Noirétable
-  { key: 'scierie_noiretable', at: c(192, 198), resource: 'bois', amount: 2, label: 'Scierie du Carrefour', ring: 1 },
-  { key: 'carriere_noiretable', at: c(212, 180), resource: 'granit', amount: 2, label: 'Carrière du Lignon', ring: 1 },
-  { key: 'peage_noiretable', at: c(196, 206), resource: 'ecus', amount: 350, label: 'Péage de Noirétable', ring: 1 },
-  { key: 'fer_noiretable', at: c(208, 204), resource: 'fer', amount: 2, label: 'Minière de Noirétable', ring: 2 },
+  { key: 'scierie_noiretable', at: c(85, 88), resource: 'bois', amount: 2, label: 'Scierie du Carrefour', ring: 1 },
+  { key: 'carriere_noiretable', at: c(94, 80), resource: 'granit', amount: 2, label: 'Carrière du Lignon', ring: 1 },
+  { key: 'peage_noiretable', at: c(87, 91), resource: 'ecus', amount: 350, label: 'Péage de Noirétable', ring: 1 },
+  { key: 'fer_noiretable', at: c(92, 90), resource: 'fer', amount: 2, label: 'Minière de Noirétable', ring: 2 },
   // Marche de La Renaudie
-  { key: 'scierie_renaudie', at: c(124, 364), resource: 'bois', amount: 2, label: 'Scierie de la Marche', ring: 1 },
-  { key: 'carriere_renaudie', at: c(144, 386), resource: 'granit', amount: 2, label: 'Carrière de la Renaudie', ring: 1 },
-  { key: 'peage_renaudie', at: c(120, 388), resource: 'ecus', amount: 350, label: 'Péage de la Marche', ring: 1 },
-  { key: 'fer_renaudie', at: c(146, 368), resource: 'fer', amount: 2, label: 'Minière de la Credogne', ring: 1 },
-  { key: 'bois_renaudie', at: c(108, 356), resource: 'bois', amount: 2, label: 'Coupe des moulins', ring: 1 },
+  { key: 'scierie_renaudie', at: c(55, 161), resource: 'bois', amount: 2, label: 'Scierie de la Marche', ring: 1 },
+  { key: 'carriere_renaudie', at: c(64, 171), resource: 'granit', amount: 2, label: 'Carrière de la Renaudie', ring: 1 },
+  { key: 'peage_renaudie', at: c(53, 172), resource: 'ecus', amount: 350, label: 'Péage de la Marche', ring: 1 },
+  { key: 'fer_renaudie', at: c(64, 163), resource: 'fer', amount: 2, label: 'Minière de la Credogne', ring: 1 },
+  { key: 'bois_renaudie', at: c(48, 157), resource: 'bois', amount: 2, label: 'Coupe des moulins', ring: 1 },
   // Vallée de la Durolle et centre
-  { key: 'bois_durolle', at: c(70, 50), resource: 'bois', amount: 2, label: 'Coupe de la Durolle', ring: 2 },
-  { key: 'peage_chabreloche', at: c(86, 44), resource: 'ecus', amount: 350, label: 'Péage de Chabreloche', ring: 2 },
-  { key: 'sel_lac', at: c(118, 98), resource: 'sel', amount: 2, label: 'Saline du Lac', ring: 2 },
-  { key: 'sel_tresor', at: c(152, 124), resource: 'sel', amount: 2, label: 'Grenier à sel du Trésor', ring: 3 },
-  { key: 'fer_bois_noirs', at: c(162, 144), resource: 'fer', amount: 2, label: 'Minière des Bois Noirs', ring: 3 },
-  { key: 'essence_bois_noirs', at: c(146, 164), resource: 'essence', amount: 1, label: 'Brûlerie des Bois Noirs', ring: 3 },
-  { key: 'fildor_bise', at: c(230, 116), resource: 'filDor', amount: 1, label: 'Filature de Bise', ring: 2 },
-  { key: 'granit_pamole', at: c(76, 282), resource: 'granit', amount: 2, label: 'Carrière de Pamole', ring: 2 },
-  { key: 'essence_hermitage', at: c(118, 244), resource: 'essence', amount: 1, label: "Brûlerie de l'Hermitage", ring: 2 },
-  { key: 'fer_peyrotine', at: c(150, 232), resource: 'fer', amount: 2, label: 'Minière de la Peyrotine', ring: 2 },
-  { key: 'granit_vollore', at: c(50, 258), resource: 'granit', amount: 2, label: 'Carrière de Vollore', ring: 1 },
-  { key: 'bois_vollore', at: c(64, 250), resource: 'bois', amount: 2, label: 'Coupe de Vollore', ring: 1 },
+  { key: 'bois_durolle', at: c(31, 22), resource: 'bois', amount: 2, label: 'Coupe de la Durolle', ring: 2 },
+  { key: 'peage_chabreloche', at: c(38, 19), resource: 'ecus', amount: 350, label: 'Péage de Chabreloche', ring: 2 },
+  { key: 'sel_lac', at: c(52, 43), resource: 'sel', amount: 2, label: 'Saline du Lac', ring: 2 },
+  { key: 'sel_tresor', at: c(67, 55), resource: 'sel', amount: 2, label: 'Grenier à sel du Trésor', ring: 3 },
+  { key: 'fer_bois_noirs', at: c(72, 64), resource: 'fer', amount: 2, label: 'Minière des Bois Noirs', ring: 3 },
+  { key: 'essence_bois_noirs', at: c(64, 73), resource: 'essence', amount: 1, label: 'Brûlerie des Bois Noirs', ring: 3 },
+  { key: 'fildor_bise', at: c(102, 51), resource: 'filDor', amount: 1, label: 'Filature de Bise', ring: 2 },
+  { key: 'granit_pamole', at: c(34, 125), resource: 'granit', amount: 2, label: 'Carrière de Pamole', ring: 2 },
+  { key: 'essence_hermitage', at: c(52, 108), resource: 'essence', amount: 1, label: "Brûlerie de l'Hermitage", ring: 2 },
+  { key: 'fer_peyrotine', at: c(66, 103), resource: 'fer', amount: 2, label: 'Minière de la Peyrotine', ring: 2 },
+  { key: 'granit_vollore', at: c(22, 114), resource: 'granit', amount: 2, label: 'Carrière de Vollore', ring: 1 },
+  { key: 'bois_vollore', at: c(28, 111), resource: 'bois', amount: 2, label: 'Coupe de Vollore', ring: 1 },
 ];
 
 /**
@@ -244,7 +244,7 @@ const FIXED_ARTIFACTS: readonly {
 }[] = [
   {
     key: 'clef_tresor',
-    at: c(152, 116),
+    at: c(67, 51),
     artifact: 'clef_de_la_maison_du_tresor',
     rarity: 'relique',
     label: 'la Clef de la Maison du Trésor',
@@ -253,16 +253,16 @@ const FIXED_ARTIFACTS: readonly {
 
 /** Sites du Chemin du Trésor et bornes-témoins, purement narratifs. */
 const QUEST_SITES: readonly SiteSpec[] = [
-  { key: 'quete_chabreloche', kind: 'quete', at: c(88, 54), label: 'Doléance de Chabreloche', clear: 1 },
-  { key: 'quete_lac', kind: 'quete', at: c(114, 92), label: 'Doléance du Lac', clear: 1 },
-  { key: 'quete_vollore', kind: 'quete', at: c(52, 268), label: 'Doléance de Vollore', clear: 1 },
-  { key: 'quete_hermitage', kind: 'quete', at: c(128, 254), label: "Doléance de l'Hermitage", clear: 1 },
-  { key: 'quete_cervieres', kind: 'quete', at: c(216, 124), label: 'Doléance de Cervières', clear: 1 },
-  { key: 'quete_noiretable', kind: 'quete', at: c(204, 194), label: 'Doléance de Noirétable', clear: 1 },
-  { key: 'quete_viscomtat', kind: 'quete', at: c(54, 169), label: 'Doléance de Viscomtat', clear: 1 },
-  { key: 'quete_renaudie', kind: 'quete', at: c(130, 382), label: 'Doléance de la Marche', clear: 1 },
-  { key: 'quete_arconsat', kind: 'quete', at: c(120, 30), label: "Doléance d'Arconsat", clear: 1 },
-  { key: 'quete_tresor', kind: 'quete', at: c(140, 108), label: 'Le Grand Livre', clear: 1 },
+  { key: 'quete_chabreloche', kind: 'quete', at: c(39, 24), label: 'Doléance de Chabreloche', clear: 1 },
+  { key: 'quete_lac', kind: 'quete', at: c(50, 41), label: 'Doléance du Lac', clear: 1 },
+  { key: 'quete_vollore', kind: 'quete', at: c(23, 119), label: 'Doléance de Vollore', clear: 1 },
+  { key: 'quete_hermitage', kind: 'quete', at: c(56, 112), label: "Doléance de l'Hermitage", clear: 1 },
+  { key: 'quete_cervieres', kind: 'quete', at: c(95, 55), label: 'Doléance de Cervières', clear: 1 },
+  { key: 'quete_noiretable', kind: 'quete', at: c(90, 86), label: 'Doléance de Noirétable', clear: 1 },
+  { key: 'quete_viscomtat', kind: 'quete', at: c(24, 75), label: 'Doléance de Viscomtat', clear: 1 },
+  { key: 'quete_renaudie', kind: 'quete', at: c(57, 169), label: 'Doléance de la Marche', clear: 1 },
+  { key: 'quete_arconsat', kind: 'quete', at: c(53, 13), label: "Doléance d'Arconsat", clear: 1 },
+  { key: 'quete_tresor', kind: 'quete', at: c(62, 48), label: 'Le Grand Livre', clear: 1 },
 ];
 
 /**
@@ -591,15 +591,42 @@ function ringAt(startDist: Uint16Array, col: number, row: number): 1 | 2 | 3 {
   const mt = anchorCell('maison_tresor');
   const dTresor = Math.max(Math.abs(mt.col - col), Math.abs(mt.row - row));
   const d = startDist[row * COLS + col];
-  if (d <= 26) return 1;
-  if (dTresor <= 34) return 3;
-  return d <= 58 ? 2 : 3;
+  if (d <= 11) return 1;
+  if (dTresor <= 15) return 3;
+  return d <= 26 ? 2 : 3;
 }
 
 /* ── Champ de coût (équilibrage des départs) ────────────────────────────── */
 
 /** Budget de marche d'une semaine d'exploration, en points. */
 export const WEEK_BUDGET = 12000;
+
+/**
+ * Horizon d'équilibrage des départs, en points de marche.
+ *
+ * Ce n'est pas une semaine, et il a fallu le mesurer pour s'en apercevoir.
+ * L'équilibrage compare ce que chaque départ a **pour lui** ; il lui faut donc
+ * un horizon où les cinq voisinages se partagent la carte au lieu de se
+ * recouvrir. À 12 000 points sur une carte à la taille d'une XL de HMM3,
+ * chaque départ atteint de 69 % à 99 % de la surface praticable et **100 %**
+ * des cases atteintes le sont par au moins deux départs : les cinq sommes
+ * comparées sont la même somme globale, aucun tas posé pour le plus pauvre ne
+ * creuse l'écart, et les dix-huit passes vidaient leur quota — 540 tas de
+ * compensation sur 1 307 objets.
+ *
+ * Mesure des recouvrements, cinq départs, graine de démonstration :
+ *
+ *     12 000 pts (7 j)  69–99 % de la carte chacun   recouvrement 100 %
+ *      9 000 pts (5 j)  50–84 %                      recouvrement  95 %
+ *      6 000 pts (3 j)  30–41 %                      recouvrement  56 %
+ *      4 500 pts (2 j½) 19–25 %                      recouvrement  27 %
+ *      3 000 pts (2 j)  10–12 %                      recouvrement   7 %
+ *
+ * 4 500 est le point où les cinq voisinages pavent la carte : cinq fois un
+ * cinquième, un quart de recouvrement aux frontières. C'est l'arrière-pays
+ * propre d'un départ, et c'est cela qu'on équilibre.
+ */
+export const BALANCE_BUDGET = 4500;
 
 function terrainCostOf(code: number): number {
   return TERRAIN_COST[TERRAINS[code] ?? 'prairie'];
@@ -688,15 +715,22 @@ export function objectValue(obj: MapObject): number {
 /**
  * Valeur accessible depuis un départ : somme des valeurs, escomptées par la
  * distance restante dans le budget et par la puissance de la garde.
+ *
+ * `budget` doit être celui qui a servi à construire `field` — l'escompte est
+ * la part de budget qui reste une fois la case atteinte.
  */
-export function accessibleValue(objects: readonly MapObject[], field: Int32Array): number {
+export function accessibleValue(
+  objects: readonly MapObject[],
+  field: Int32Array,
+  budget: number = WEEK_BUDGET,
+): number {
   let total = 0;
   for (const obj of objects) {
     const raw = objectValue(obj);
     if (raw <= 0) continue;
     const cost = field[idx(obj.entrance.col, obj.entrance.row)];
-    if (cost >= WEEK_BUDGET) continue;
-    const reach = Math.trunc(((WEEK_BUDGET - cost) * 10000) / WEEK_BUDGET);
+    if (cost >= budget) continue;
+    const reach = Math.trunc(((budget - cost) * 10000) / budget);
     const power = guardPower(obj.guard);
     const risk = Math.max(2000, 10000 - Math.trunc(power / 2));
     total += Math.trunc((raw * reach * risk) / 100000000);
@@ -929,15 +963,61 @@ function collectCaches(
   routeDist: Uint8Array,
 ): Record<1 | 2 | 3, number[]> {
   const out: Record<1 | 2 | 3, number[]> = { 1: [], 2: [], 3: [] };
-  for (let row = 3; row < ROWS - 3; row++) {
-    for (let col = 3; col < COLS - 3; col++) {
-      const i = row * COLS + col;
-      if ((ctx.flags[i] & CELL_CACHE) === 0) continue;
-      if (!passable(ctx, i)) continue;
-      if (b.occupied[i] === 1) continue;
-      const ring = ringAt(startDist, col, row);
-      out[ring].push(i);
-      if (routeDist[i] <= 6) out[ring].push(i);
+
+  /*
+   * Le couvert d'abord — puis un plancher par canton, parce qu'un pays sans
+   * arbre n'est pas un pays sans trésor.
+   *
+   * Mesuré sur la carte à la taille d'une XL : l'arrière-pays de La Renaudie
+   * est à 69 % de prairie et à 6 % de forêt, quand les quatre autres départs
+   * ont de 20 % à 42 % de bois. Comme toutes les familles tirées sur cache
+   * exigeaient le couvert, la plaine du sud se retrouvait à 29 tas et 3
+   * coffres contre 86 à 121 tas et 20 à 58 coffres ailleurs — 122 lieux en
+   * tout contre 197 à 283. Le départ était 55 % plus pauvre que le plus riche
+   * dans son propre arrière-pays, et l'équilibrage n'y pouvait rien : il
+   * n'avait plus une seule case où poser.
+   *
+   * On balaie donc par cantons de `BLOC_CACHE` cases : le couvert fournit ce
+   * qu'il peut, et là où il ne fournit pas son compte on complète en terrain
+   * ouvert. HMM3 sème ses tas de bois et ses tas d'or à découvert sur la
+   * plaine ; exiger l'ombre était un parti pris d'ambiance, qui devenait une
+   * famine dès que l'ambiance changeait.
+   */
+  const BLOC_CACHE = 14;
+  const PLANCHER = 10;
+  for (let br = 3; br < ROWS - 3; br += BLOC_CACHE) {
+    for (let bc = 3; bc < COLS - 3; bc += BLOC_CACHE) {
+      const couvert: number[] = [];
+      const ouvert: number[] = [];
+      const rMax = Math.min(br + BLOC_CACHE, ROWS - 3);
+      const cMax = Math.min(bc + BLOC_CACHE, COLS - 3);
+      for (let row = br; row < rMax; row++) {
+        for (let col = bc; col < cMax; col++) {
+          const i = row * COLS + col;
+          if (!passable(ctx, i)) continue;
+          if (b.occupied[i] === 1) continue;
+          if ((ctx.flags[i] & CELL_ROAD) !== 0) continue;
+          if ((ctx.flags[i] & CELL_CACHE) !== 0) couvert.push(i);
+          else ouvert.push(i);
+        }
+      }
+      const retenues = couvert;
+      // Complément en terrain ouvert, pris à pas régulier pour ne pas
+      // agglutiner le rattrapage dans un coin du canton.
+      if (retenues.length < PLANCHER && ouvert.length > 0) {
+        const manque = Math.min(PLANCHER - retenues.length, ouvert.length);
+        const pas = Math.max(1, Math.floor(ouvert.length / manque));
+        for (let k = 0, pris = 0; k < ouvert.length && pris < manque; k += pas, pris++) {
+          retenues.push(ouvert[k]);
+        }
+      }
+      for (const i of retenues) {
+        const col = i % COLS;
+        const row = (i / COLS) | 0;
+        const ring = ringAt(startDist, col, row);
+        out[ring].push(i);
+        if (routeDist[i] <= 6) out[ring].push(i);
+      }
     }
   }
   return out;
@@ -958,9 +1038,9 @@ function takeCache(rng: RngState, caches: Record<1 | 2 | 3, number[]>, ring: 1 |
 
 function seedArtifacts(b: Builder, rng: RngState, caches: Record<1 | 2 | 3, number[]>): void {
   const plan: { ring: 1 | 2 | 3; count: number }[] = [
-    { ring: 1, count: 4 },
-    { ring: 2, count: 6 },
-    { ring: 3, count: 5 },
+    { ring: 1, count: 3 },
+    { ring: 2, count: 5 },
+    { ring: 3, count: 4 },
   ];
   for (const entry of plan) {
     for (let k = 0; k < entry.count; k++) {
@@ -979,9 +1059,9 @@ function seedArtifacts(b: Builder, rng: RngState, caches: Record<1 | 2 | 3, numb
 
 function seedPiles(b: Builder, rng: RngState, caches: Record<1 | 2 | 3, number[]>): void {
   const plan: { ring: 1 | 2 | 3; count: number }[] = [
-    { ring: 1, count: 34 },
-    { ring: 2, count: 30 },
-    { ring: 3, count: 22 },
+    { ring: 1, count: 19 },
+    { ring: 2, count: 17 },
+    { ring: 3, count: 12 },
   ];
   for (const entry of plan) {
     for (let k = 0; k < entry.count; k++) {
@@ -1031,7 +1111,7 @@ function seedGuards(
       const i = row * COLS + col;
       if (b.occupied[i] === 1) continue;
       if (!passable(ctx, i)) continue;
-      if (startDist[i] < 14) continue;
+      if (startDist[i] < 6) continue;
       const onRoad = (ctx.flags[i] & CELL_ROAD) !== 0;
       if (onRoad) {
         /* Transition d'anneau : un voisin de voie est d'un anneau différent. */
@@ -1071,7 +1151,7 @@ function seedGuards(
     if (posts >= 30) break;
     const col = i % COLS;
     const row = (i / COLS) | 0;
-    if (!espace(col, row, 12)) continue;
+    if (!espace(col, row, 5)) continue;
     /* Le poste est fort comme le PLUS RUDE de ses deux côtés : on paie la
        zone où l'on entre, pas celle d'où l'on vient. */
     let ring = ringAt(startDist, col, row);
@@ -1104,7 +1184,7 @@ function seedGuards(
     if (posts + placed >= 54) break;
     const col = i % COLS;
     const row = (i / COLS) | 0;
-    if (!espace(col, row, 9)) continue;
+    if (!espace(col, row, 4)) continue;
     const ring = ringAt(startDist, col, row);
     const obj = place(b, 'garde', { col, row }, { ring }, { guard: guardFor(rng, ring, 3) });
     if (obj) {
@@ -1230,11 +1310,11 @@ function seedDensification(
   caches: Record<1 | 2 | 3, number[]>,
   routeDist: Uint8Array,
 ): void {
-  /* — Coffres : 140, cachés sous les couverts, valeur montant avec l'anneau — */
+  /* — Coffres : 58, cachés sous les couverts, valeur montant avec l'anneau — */
   const coffres: { ring: 1 | 2 | 3; count: number }[] = [
-    { ring: 1, count: 60 },
-    { ring: 2, count: 50 },
-    { ring: 3, count: 30 },
+    { ring: 1, count: 25 },
+    { ring: 2, count: 21 },
+    { ring: 3, count: 12 },
   ];
   for (const entry of coffres) {
     for (let k = 0; k < entry.count; k++) {
@@ -1248,20 +1328,20 @@ function seedDensification(
   }
 
   /*
-   * — Tas supplémentaires : 150 —
+   * — Tas supplémentaires : 62 —
    *
-   * Ils étaient 80. L'arrivée des hautes-chaumes et des tourbières a
-   * redistribué les terrains : les semeurs répartissent mieux, si bien que
-   * moins de blocs de 32 × 32 restaient vides et que le rattrapage de
-   * `seedCouverture` avait moins à faire. La carte est tombée de 842 à 776
-   * lieux et le glaneur de 2,7 à 2,3 prises par journée — sous sa cible.
-   * On rend donc à la main ce que la meilleure répartition a fait gagner
-   * ailleurs, sans toucher au reste du semis.
+   * Le compte a suivi la carte. Il était de 80, puis de 150 quand l'arrivée
+   * des hautes-chaumes et des tourbières a mieux réparti le semis et fait
+   * tomber le glaneur sous sa cible. La carte ramenée à la taille d'une XL de
+   * HMM3 rend cette surenchère absurde : sur 20 266 cases praticables, les
+   * anciens comptes donnaient un lieu toutes les 16 cases, deux à trois fois
+   * la densité d'une XL. Chaque famille a donc été reposée sur le décompte
+   * d'une vraie XL, et non divisée en bloc.
    */
   const tas: { ring: 1 | 2 | 3; count: number }[] = [
-    { ring: 1, count: 70 },
-    { ring: 2, count: 50 },
-    { ring: 3, count: 30 },
+    { ring: 1, count: 28 },
+    { ring: 2, count: 21 },
+    { ring: 3, count: 13 },
   ];
   for (const entry of tas) {
     for (let k = 0; k < entry.count; k++) {
@@ -1278,9 +1358,9 @@ function seedDensification(
   const spots = openSpots(b, ctx, routeDist);
   shuffle(rng, spots);
 
-  /* — Demeures franches : 90, la famille qui manquait le plus — un recruteur
-       extérieur donne à l'exploration une conséquence militaire. — */
-  poserEspaces(b, rng, spots, 90, 10, (at, ring) => {
+  /* — Demeures franches : 32, le compte d'habitats extérieurs d'une XL — un
+       recruteur extérieur donne à l'exploration une conséquence militaire. — */
+  poserEspaces(b, rng, spots, 32, 10, (at, ring) => {
     const tiers = DEMEURE_TIERS[ring];
     const tier = tiers[nextInt(rng, 0, tiers.length - 1)];
     const faction: Faction = nextInt(rng, 0, 1) === 0 ? 'granit' : 'ermitage';
@@ -1294,9 +1374,11 @@ function seedDensification(
     );
   }, startDist);
 
-  /* — Gisements supplémentaires : 30, dont les orpaillages qui rendent des
-       écus — l'équivalent des mines d'or, gardés à la mesure du gain. — */
-  poserEspaces(b, rng, spots, 30, 14, (at, ring) => {
+  /* — Gisements supplémentaires : 14, dont les orpaillages qui rendent des
+       écus — l'équivalent des mines d'or, gardés à la mesure du gain. Avec les
+       gisements nommés, la carte en porte une quarantaine, le compte d'une
+       XL où chaque joueur veut sa scierie, sa carrière et sa mine d'or. — */
+  poserEspaces(b, rng, spots, 14, 14, (at, ring) => {
     const orpaillage = ring >= 2 && nextInt(rng, 0, 2) === 0;
     if (orpaillage) {
       place(
@@ -1318,8 +1400,8 @@ function seedDensification(
     }
   }, startDist);
 
-  /* — Repaires gardés : 20 banques, gros gardien, gros butin, repeuplées — */
-  poserEspaces(b, rng, spots, 20, 18, (at, ring) => {
+  /* — Repaires gardés : 12 banques, gros gardien, gros butin, repeuplées — */
+  poserEspaces(b, rng, spots, 12, 18, (at, ring) => {
     const garde = guardFor(rng, ring === 1 ? 2 : ring === 2 ? 3 : 4, 3);
     place(
       b,
@@ -1337,19 +1419,19 @@ function seedDensification(
     );
   }, startDist);
 
-  /* — Écoles : 24, temples : 16, fontaines : 14, moulins : 12 — */
+  /* — Écoles : 10, temples : 8, fontaines : 7, moulins : 8 — */
   const matieres = ['vaillance', 'garde', 'mystique', 'savoir'] as const;
   let ecole = 0;
-  poserEspaces(b, rng, spots, 24, 16, (at) => {
+  poserEspaces(b, rng, spots, 10, 16, (at) => {
     place(b, 'ecole', at, { matiere: matieres[ecole++ % matieres.length] });
   }, startDist);
-  poserEspaces(b, rng, spots, 16, 20, (at) => {
+  poserEspaces(b, rng, spots, 8, 20, (at) => {
     place(b, 'temple', at, { name: 'Oratoire' });
   }, startDist);
-  poserEspaces(b, rng, spots, 14, 20, (at) => {
+  poserEspaces(b, rng, spots, 7, 20, (at) => {
     place(b, 'fontaine', at, { name: 'Fontaine aux fées' });
   }, startDist);
-  poserEspaces(b, rng, spots, 12, 22, (at) => {
+  poserEspaces(b, rng, spots, 8, 22, (at) => {
     const resource = pickWeighted(rng, PILE_TABLE);
     place(b, 'moulin', at, {
       resource,
@@ -1358,9 +1440,9 @@ function seedDensification(
     });
   }, startDist);
 
-  /* — Pierres levées : 8 paires, jumelées loin l'une de l'autre — */
+  /* — Pierres levées : 6 paires, jumelées loin l'une de l'autre — */
   const bornes: MapCoord[] = [];
-  poserEspaces(b, rng, spots, 16, 26, (at) => {
+  poserEspaces(b, rng, spots, 12, 26, (at) => {
     bornes.push(at);
   }, startDist);
   /* Apparier la plus proche avec la plus lointaine : chaque paire raccourcit
@@ -1410,16 +1492,19 @@ const NOMS_REPAIRES = [
 ] as const;
 
 /**
- * La passe de couverture : aucun bloc de 32 × 32 praticable ne reste vide.
+ * La passe de couverture : aucun bloc de 14 × 14 praticable ne reste vide.
  *
  * Les placements par anneau et par cache suivent la géographie, et la
  * géographie laisse des déserts : 26 % des blocs n'avaient rien. Un joueur
  * qui traverse mille cases sans rien rencontrer n'explore pas, il marche.
  * Chaque bloc vide reçoit un ou deux ramassages — le minimum qui change la
  * traversée en cueillette.
+ *
+ * Le bloc valait 32 cases de côté quand la carte en faisait 256 × 416 ; il
+ * suit l'échelle, sans quoi le filet ne retient plus rien.
  */
 function seedCouverture(b: Builder, rng: RngState, ctx: ObjectContext): void {
-  const BLOC = 32;
+  const BLOC = 14;
   for (let br = 0; br < ROWS; br += BLOC) {
     for (let bc = 0; bc < COLS; bc += BLOC) {
       let vide = true;
@@ -1472,17 +1557,28 @@ function balanceStarts(
 ): Record<StartKey, number> {
   const fields = new Map<StartKey, Int32Array>();
   for (const key of START_KEYS) {
-    fields.set(key, costFieldFrom(ctx, START_POSITIONS[key].at, WEEK_BUDGET));
+    fields.set(key, costFieldFrom(ctx, START_POSITIONS[key].at, BALANCE_BUDGET));
   }
 
-  // Cases de compensation candidates, triées par proximité de chaque départ.
+  /*
+   * Cases de compensation candidates : l'arrière-pays propre de chaque départ,
+   * trié par proximité. L'horizon `BALANCE_BUDGET` rend déjà les voisinages
+   * presque disjoints ; on écarte en plus la frange où un rival arrive à
+   * moins d'un tiers de coût de plus, pour que chaque tas posé creuse l'écart
+   * dans le bon sens plutôt que d'enrichir les deux voisins à la fois.
+   */
   const candidates = new Map<StartKey, number[]>();
   for (const key of START_KEYS) {
     const field = fields.get(key) as Int32Array;
+    const rivaux = START_KEYS.filter((k) => k !== key).map((k) => fields.get(k) as Int32Array);
     const list: number[] = [];
     for (const ring of [1, 2, 3] as (1 | 2 | 3)[]) {
       for (const i of caches[ring]) {
-        if (field[i] < Math.trunc((WEEK_BUDGET * 3) / 5)) list.push(i);
+        if (field[i] >= Math.trunc((BALANCE_BUDGET * 3) / 5)) continue;
+        let plusProcheRival = BALANCE_BUDGET;
+        for (const autre of rivaux) if (autre[i] < plusProcheRival) plusProcheRival = autre[i];
+        if (plusProcheRival < Math.trunc((field[i] * 4) / 3)) continue;
+        list.push(i);
       }
     }
     list.sort((x, y) => field[x] - field[y] || x - y);
@@ -1493,7 +1589,7 @@ function balanceStarts(
   for (let pass = 0; pass < BALANCE_PASSES; pass++) {
     let max = 0;
     for (const key of START_KEYS) {
-      const v = accessibleValue(b.objects, fields.get(key) as Int32Array);
+      const v = accessibleValue(b.objects, fields.get(key) as Int32Array, BALANCE_BUDGET);
       values[key] = v;
       if (v > max) max = v;
     }
@@ -1516,7 +1612,7 @@ function balanceStarts(
   }
 
   for (const key of START_KEYS) {
-    values[key] = accessibleValue(b.objects, fields.get(key) as Int32Array);
+    values[key] = accessibleValue(b.objects, fields.get(key) as Int32Array, BALANCE_BUDGET);
   }
   return values;
 }
@@ -1546,8 +1642,8 @@ function addCompensation(
     const col = i % COLS;
     const row = (i / COLS) | 0;
     const cost = field[i];
-    if (cost >= WEEK_BUDGET) continue;
-    const reach = Math.trunc(((WEEK_BUDGET - cost) * 10000) / WEEK_BUDGET);
+    if (cost >= BALANCE_BUDGET) continue;
+    const reach = Math.trunc(((BALANCE_BUDGET - cost) * 10000) / BALANCE_BUDGET);
     if (reach <= 0) continue;
 
     // Valeur faciale nécessaire pour apporter le reste après escompte.

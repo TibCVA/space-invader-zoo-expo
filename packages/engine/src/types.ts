@@ -118,9 +118,29 @@ export interface MapCoord {
   row: number;
 }
 
-/** Grille logique : 256 colonnes × 416 lignes, ~48 m par case. */
-export const MAP_COLS = 256;
-export const MAP_ROWS = 416;
+/**
+ * Grille logique : 113 colonnes × 184 lignes, ~108 m par case.
+ *
+ * **La carte fait exactement l'aire d'une « très grande » de HMM3.** Elle
+ * mesurait auparavant 256 × 416 = 106 496 cases, soit 5,1 fois une XL
+ * (144 × 144 = 20 736) : le propriétaire l'a jouée et l'a trouvée trop
+ * grande, et la mesure lui donnait raison. Un héros parcourt une vingtaine
+ * de cases par jour ; sur 416 lignes il lui fallait une vingtaine de
+ * journées pour descendre la carte, là où l'on en traverse une de HMM3 en
+ * une dizaine. Chaque journée de marche ne décidait de rien.
+ *
+ * 113 × 184 = 20 792 cases — l'aire d'une XL à trois cents cases près — en
+ * gardant la FORME du Forez : l'emprise réelle (12 243 m × 20 102 m) est
+ * une fois et demie plus haute que large, et la plaquer sur un carré de
+ * 144 × 144 aurait écrasé le pays. La case passe de 48 à 108 mètres.
+ *
+ * Tout ce qui dépend de ces deux nombres s'y adapte seul : la projection
+ * Lambert-93 (`projection.ts`) calcule la taille de case à partir d'eux, et
+ * les ancrages géographiques sont posés depuis leur latitude et leur
+ * longitude, jamais depuis une colonne écrite à la main.
+ */
+export const MAP_COLS = 113;
+export const MAP_ROWS = 184;
 export const BLOCK_SIZE = 32;
 
 /**

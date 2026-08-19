@@ -80,6 +80,7 @@ export type { ForestKind, TerrainField } from './terrain.js';
 
 export {
   WEEK_BUDGET,
+  BALANCE_BUDGET,
   accessibleValue,
   buildObjects,
   costFieldFrom,
