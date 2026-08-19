@@ -4,6 +4,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { PUBLIC_SPECS } from './wave2_asset_specs.mjs';
 
 const root = process.cwd();
 const imageRoot = join(root, 'apps', 'client', 'public', 'img');
@@ -94,7 +95,17 @@ function sha256(path) {
   return createHash('sha256').update(readFileSync(path)).digest('hex');
 }
 
-function makeEntry({ clef, fichier, categorie, largeur, hauteur, invite, generationId, repetable }) {
+function makeEntry({
+  clef,
+  fichier,
+  categorie,
+  largeur,
+  hauteur,
+  invite,
+  generationId,
+  generationIdExtractionAlpha,
+  repetable,
+}) {
   const absolute = join(imageRoot, ...fichier.split('/'));
   return {
     clef,
@@ -109,6 +120,7 @@ function makeEntry({ clef, fichier, categorie, largeur, hauteur, invite, generat
     graine: `non-exposee-par-imagegen:${generationId}`,
     outil: 'ImageGen built-in',
     generationId,
+    ...(generationIdExtractionAlpha ? { generationIdExtractionAlpha } : {}),
     sha256: sha256(absolute),
   };
 }
@@ -172,8 +184,27 @@ for (const [clef, fichier, largeur, hauteur, brief, generationId] of landing) {
   }));
 }
 
+const wave2Trace = JSON.parse(
+  readFileSync(join(root, 'docs', 'reference', 'IMAGEGEN-WAVE2-TRACE.json'), 'utf8'),
+);
+const wave2ByKey = new Map(wave2Trace.entrees.map((entry) => [entry.clef, entry]));
+for (const spec of PUBLIC_SPECS) {
+  const trace = wave2ByKey.get(spec.key);
+  if (!trace) throw new Error(`trace ImageGen vague 2 absente : ${spec.key}`);
+  entries.push(makeEntry({
+    clef: spec.key,
+    fichier: spec.file,
+    categorie: spec.category,
+    largeur: spec.width,
+    hauteur: spec.height,
+    invite: spec.prompt,
+    generationId: trace.generationId,
+    generationIdExtractionAlpha: trace.generationIdExtractionAlpha,
+  }));
+}
+
 const manifest = {
-  version: '1.0.0-imagegen-2026-08-18',
+  version: '2.0.0-imagegen-2026-08-19',
   budgetOctets: 12 * 1024 * 1024,
   noteInvite:
     "Le champ invite contient l’invite canonique de régénération, normalisée à partir de l’appel initial et conservant toutes ses contraintes matérielles. L’ordre et les espaces exacts de l’appel interactif initial ne sont pas exposés comme métadonnée par l’outil intégré.",

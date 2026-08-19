@@ -31,6 +31,8 @@ export const HEURES: readonly TownHour[] = ['aube', 'midi', 'crepuscule'];
 /** Dimensions natives d'un panorama de cité. */
 export const PANO_LARGEUR = 2048;
 export const PANO_HAUTEUR = 1152;
+export const PANO_PORTRAIT_LARGEUR = 1152;
+export const PANO_PORTRAIT_HAUTEUR = 2048;
 
 /**
  * Étalonnage d'une heure. `teinte` multiplie les bâtiments posés par-dessus le
@@ -97,12 +99,28 @@ export interface CadreCite {
  * comblant les bandes.
  */
 export function cadrerPanorama(largeur: number, hauteur: number, marge = 1.03): CadreCite {
-  const couvre = Math.max(largeur / PANO_LARGEUR, hauteur / PANO_HAUTEUR);
-  const contient = Math.min(largeur / PANO_LARGEUR, hauteur / PANO_HAUTEUR);
+  return cadrerSource(largeur, hauteur, PANO_LARGEUR, PANO_HAUTEUR, marge);
+}
+
+/** Cadre d'une source arbitraire, utilisé par les compositions mobiles 9:16. */
+export function cadrerSource(
+  largeur: number,
+  hauteur: number,
+  sourceLargeur: number,
+  sourceHauteur: number,
+  marge = 1.03,
+): CadreCite {
+  const couvre = Math.max(largeur / sourceLargeur, hauteur / sourceHauteur);
+  const contient = Math.min(largeur / sourceLargeur, hauteur / sourceHauteur);
   const echelle = (couvre / contient > 1.8 ? contient : couvre) * marge;
-  const w = PANO_LARGEUR * echelle;
-  const h = PANO_HAUTEUR * echelle;
+  const w = sourceLargeur * echelle;
+  const h = sourceHauteur * echelle;
   return { x: (largeur - w) / 2, y: (hauteur - h) / 2, w, h };
+}
+
+/** Le ratio portrait natif prend le relais dès que l'écran est franchement vertical. */
+export function preferePanoramaPortrait(largeur: number, hauteur: number): boolean {
+  return hauteur > largeur * 1.12;
 }
 
 /** Convertit une position de contenu (pourcentages 0–100) en pixels du cadre. */
@@ -167,10 +185,14 @@ export function phaseDeLHeure(heure: TownHour): number {
 export class FondCite {
   readonly container = new Container();
 
-  /** Vrai quand les trois heures peintes sont disponibles. */
-  readonly peint: boolean;
+  /** Vrai quand le triptyque actuellement affiché est peint. */
+  get peint(): boolean {
+    return this.spritesActifs.length === 3;
+  }
 
-  private readonly sprites: Sprite[] = [];
+  private readonly spritesPaysage: Sprite[] = [];
+  private readonly spritesPortrait: Sprite[] = [];
+  private spritesActifs: Sprite[] = [];
   private readonly repli = new Graphics();
   private readonly grade = new Graphics();
   private cadre: CadreCite = { x: 0, y: 0, w: 1, h: 1 };
@@ -182,21 +204,33 @@ export class FondCite {
   ) {
     this.container.label = 'fond-cite';
 
-    const clefs = HEURES.map((h) => `cite_${faction}_${h}`);
-    this.peint = clefs.every((c) => atlas.hasIcon(c));
+    const clefsPaysage = HEURES.map((h) => `cite_${faction}_${h}`);
+    const clefsPortrait = HEURES.map((h) => `cite_${faction}_${h}_portrait`);
 
     /* Le repli est monté dans tous les cas : il bouche les bandes laissées par
        un ajustement complet et sert de fond si les images manquent. */
     this.container.addChild(this.repli);
 
-    if (this.peint) {
-      for (const clef of clefs) {
+    if (clefsPaysage.every((c) => atlas.hasIcon(c))) {
+      for (const clef of clefsPaysage) {
         const s = new Sprite(atlas.icon(clef) as Texture);
         s.label = clef;
-        this.sprites.push(s);
+        this.spritesPaysage.push(s);
         this.container.addChild(s);
       }
     }
+    if (clefsPortrait.every((c) => atlas.hasIcon(c))) {
+      for (const clef of clefsPortrait) {
+        const s = new Sprite(atlas.icon(clef) as Texture);
+        s.label = clef;
+        s.visible = false;
+        this.spritesPortrait.push(s);
+        this.container.addChild(s);
+      }
+    }
+    this.spritesActifs = this.spritesPaysage.length === 3
+      ? this.spritesPaysage
+      : this.spritesPortrait;
 
     this.container.addChild(this.grade);
     this.setPhase(1);
@@ -204,12 +238,27 @@ export class FondCite {
 
   /** Place le fond et renvoie le cadre du tableau. */
   disposer(largeur: number, hauteur: number): CadreCite {
-    this.cadre = cadrerPanorama(largeur, hauteur);
-    for (const s of this.sprites) {
+    const portrait =
+      (preferePanoramaPortrait(largeur, hauteur) && this.spritesPortrait.length === 3)
+      || (this.spritesPaysage.length !== 3 && this.spritesPortrait.length === 3);
+    const prochains = portrait
+      ? this.spritesPortrait
+      : this.spritesPaysage.length === 3
+        ? this.spritesPaysage
+        : this.spritesPortrait;
+    this.spritesActifs = prochains;
+    for (const s of [...this.spritesPaysage, ...this.spritesPortrait]) {
+      s.visible = prochains.includes(s);
+    }
+    this.cadre = portrait
+      ? cadrerSource(largeur, hauteur, PANO_PORTRAIT_LARGEUR, PANO_PORTRAIT_HAUTEUR)
+      : cadrerPanorama(largeur, hauteur);
+    for (const s of this.spritesActifs) {
       s.position.set(this.cadre.x, this.cadre.y);
       s.width = this.cadre.w;
       s.height = this.cadre.h;
     }
+    this.appliquerOpacites();
     this.peindreRepli(largeur, hauteur);
     this.peindreGrade(largeur, hauteur);
     return this.cadre;
@@ -218,13 +267,16 @@ export class FondCite {
   /** `phase` : 0 aube, 1 midi, 2 crépuscule ; les valeurs entre deux sont fondues. */
   setPhase(phase: number): void {
     this.phase = Math.max(0, Math.min(2, phase));
-    if (this.sprites.length === 3) {
-      /* Empilement : l'aube est opaque, les deux autres se révèlent par-dessus. */
-      this.sprites[0].alpha = 1;
-      this.sprites[1].alpha = Math.min(1, this.phase);
-      this.sprites[2].alpha = Math.max(0, this.phase - 1);
-    }
+    this.appliquerOpacites();
     this.peindreGrade(this.cadre.w, this.cadre.h);
+  }
+
+  private appliquerOpacites(): void {
+    if (this.spritesActifs.length !== 3) return;
+    /* Empilement : l'aube est opaque, les deux autres se révèlent par-dessus. */
+    this.spritesActifs[0].alpha = 1;
+    this.spritesActifs[1].alpha = Math.min(1, this.phase);
+    this.spritesActifs[2].alpha = Math.max(0, this.phase - 1);
   }
 
   destroy(): void {

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 
 from PIL import Image
@@ -32,6 +33,9 @@ def main() -> None:
         total += size
         if size != entry.get("octets"):
             errors.append(f"byte count: {entry['fichier']} ({size} != {entry.get('octets')})")
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        if digest != entry.get("sha256"):
+            errors.append(f"sha256: {entry['fichier']} ({digest} != {entry.get('sha256')})")
         with Image.open(path) as image:
             expected = (entry["largeur"], entry["hauteur"])
             if image.format != "WEBP":
@@ -40,6 +44,11 @@ def main() -> None:
                 errors.append(f"dimensions: {entry['fichier']} ({image.size} != {expected})")
             if image.mode not in {"RGB", "RGBA"}:
                 errors.append(f"mode: {entry['fichier']} ({image.mode})")
+            if entry["categorie"] == "prop":
+                if image.mode != "RGBA":
+                    errors.append(f"alpha mode: {entry['fichier']} ({image.mode})")
+                elif image.getchannel("A").getextrema()[0] >= 255:
+                    errors.append(f"opaque alpha: {entry['fichier']}")
 
     budget = manifest["budgetOctets"]
     if total > budget:

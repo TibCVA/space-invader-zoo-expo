@@ -28,7 +28,7 @@
  * `TownViewCallbacks` et ne calcule ni coût, ni revenu, ni condition.
  */
 
-import { Container, FederatedPointerEvent, Graphics, Rectangle, Text, TextStyle, Texture } from 'pixi.js';
+import { Container, FederatedPointerEvent, Graphics, Rectangle, Sprite, Text, TextStyle, Texture } from 'pixi.js';
 import type { BuildingDef, BuildingId, TownState } from '@auvergne/engine';
 import { dayOf } from '@auvergne/engine';
 import { BUILDINGS, buildingsOf } from '@auvergne/content';
@@ -145,6 +145,8 @@ interface NoeudBati {
   archetype: Archetype;
   node: Container;
   corps: Graphics;
+  /** Peinture ImageGen facultative ; le corps procédural reste le repli. */
+  sprite: Sprite | null;
   lisere: Graphics;
   lumieres: Lumieres;
   bannieres: Banniere[];
@@ -159,6 +161,16 @@ interface NoeudBati {
   cheminees: { x: number; y: number; force: number }[];
   /** avancement de la levée, de 0 à 1 ; 1 = bâtiment en place */
   levee: number;
+}
+
+/**
+ * Clef du manifeste pour un bâtiment réellement posé.
+ *
+ * Les améliorations partagent l'emprise de leur demeure et n'ont pas de
+ * bitmap dans la vague 2 : elles conservent donc leur dessin procédural.
+ */
+export function clefAssetBatiment(id: BuildingId): string | null {
+  return id.includes('_amelioration_') ? null : `bati_${id}`;
 }
 
 /** Un emplacement libre, cliquable. */
@@ -506,11 +518,25 @@ class TableauCite implements TownView {
     const archetype = archetypeDe(def);
     const dessin = dessinerBatiment(corps, this.mat, this.pal, archetype, taille, graine);
 
+    const clefAsset = clefAssetBatiment(def.id);
+    const sprite = clefAsset && this.deps.atlas.hasIcon(clefAsset)
+      ? new Sprite(this.deps.atlas.icon(clefAsset) as Texture)
+      : null;
+    if (sprite) {
+      sprite.label = clefAsset!;
+      sprite.anchor.set(0.5, 0.97);
+      /* Le WebP est un canevas carré dont l'occupation encode déjà l'échelle
+         relative des rangs. Le module fixe sa taille dans le panorama. */
+      sprite.width = taille * 1.7;
+      sprite.height = taille * 1.7;
+      sprite.eventMode = 'none';
+    }
+
     dessinerLisere(lisere, dessin.emprise.hw * 1.16, dessin.emprise.hd * 1.16, dessin.hauteur);
 
     const lumieres = new Lumieres(dessin.fenetres, graine);
     const bannieres: Banniere[] = [];
-    node.addChild(lisere, corps, lumieres.node);
+    node.addChild(lisere, sprite ?? corps, lumieres.node);
     for (const b of dessin.bannieres) {
       const ban = new Banniere(this.pal, b.taille, graine + Math.round(b.x));
       ban.node.position.set(b.x + Math.max(1.5, taille * 0.012), b.y + taille * 0.02);
@@ -527,6 +553,7 @@ class TableauCite implements TownView {
       archetype,
       node,
       corps,
+      sprite,
       lisere,
       lumieres,
       bannieres,
