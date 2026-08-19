@@ -136,6 +136,24 @@ suivront le prochain changement d'échelle au lieu de le masquer. Le témoin
 des ancrages est passé de la colonne et de la ligne — qui décrivaient une
 grille disparue — à la latitude et la longitude.
 
+**Un gel de partie découvert au passage, et corrigé.** `endTurn` désignait le
+joueur suivant AVANT de faire passer le jour, alors que c'est au passage du
+jour que les maisons s'éteignent (règle des sept jours sans cité). Le suivant
+pouvait donc être mort avant d'avoir joué — et poser une bannière morte comme
+joueur actif fige la partie pour tout le monde : le moteur refuse alors toute
+commande, `EndTurn` compris, y compris celui qu'un harnais force à sa place.
+Deux parties sur quatre gelées, aux tours 34 et 48. Le défaut est ancien ;
+c'est la nouvelle échelle qui l'a rendu fréquent, les conquêtes y aboutissant
+bien plus vite. Test dédié dans `passation-tour.test.ts`, éprouvé en le
+défaisant — la coïncidence ne se rencontre pas en jouant, il faut la monter.
+
+**Simulation à cinq bannières après correctif** : 4/4 décidées, 0 partie
+enlisée, 0 commande refusée au rejeu, durée moyenne 217 jours. Le duel à deux
+du harnais conclut en 108 à 161 jours, expert 16/20. **Mais aucune des
+parties à cinq n'achève une conquête** : elles se règlent au classement
+d'observation du harnais. C'est un sujet d'équilibrage et d'IA, pas d'échelle
+— à noter pour la suite.
+
 **Ce qui a EMPIRÉ et qu'il faut traiter (voir P0.4 ci-dessous) :** les points
 d'articulation tombent de 14 à **4** pour une cible de 12. Ce n'est pas une
 régression du semis : les 14 d'avant étaient un artefact de la pente
