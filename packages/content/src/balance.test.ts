@@ -462,15 +462,37 @@ describe('coûts de construction', () => {
     }
   });
 
-  it('les positions de scène ne se superposent pas dans une même cité', () => {
+  it('deux bâtiments qui coexistent au tableau ne partagent jamais une emprise', () => {
+    /* Le plan de masse EMPILE à dessein ce qui se remplace à l'écran : les
+       niveaux d'une même chaîne (hôtel de ville, guilde, chaîne défensive)
+       montent sur la même emprise, et une amélioration agrandit sa demeure
+       sur place. L'invariant qui reste : deux bâtiments qui peuvent être
+       peints ENSEMBLE ne se disputent pas la place. */
+    const paire = (a: string, b: string): boolean =>
+      a.replace('_amelioration_', '_demeure_') === b ||
+      b.replace('_amelioration_', '_demeure_') === a;
     for (const faction of ['granit', 'ermitage'] as const) {
-      const seen = new Map<string, string>();
+      const parEmprise = new Map<string, (typeof BUILDING_LIST)[number][]>();
       for (const def of BUILDING_LIST) {
         if (def.faction !== faction && def.faction !== 'commun') continue;
         const key = `${def.scene.x}:${def.scene.y}`;
-        const previous = seen.get(key);
-        expect(previous, `${def.id} occupe la place de ${previous ?? ''}`).toBeUndefined();
-        seen.set(key, def.id);
+        const groupe = parEmprise.get(key) ?? [];
+        groupe.push(def);
+        parEmprise.set(key, groupe);
+      }
+      /* Les chaînes-échelles : chaque niveau remplace le précédent sur le
+         même édifice. Les demeures, elles, sont sept bâtiments distincts. */
+      const echelles = new Set(['hotel_ville', 'guilde', 'defense']);
+      for (const [key, groupe] of parEmprise) {
+        if (groupe.length < 2) continue;
+        const chaines = new Set(groupe.map((d) => d.chain ?? d.id));
+        const memeEchelle = chaines.size === 1 && echelles.has(groupe[0].chain ?? '');
+        const demeureEtSonAtelier =
+          groupe.length === 2 && paire(groupe[0].id, groupe[1].id);
+        expect(
+          memeEchelle || demeureEtSonAtelier,
+          `${groupe.map((d) => d.id).join(' + ')} se disputent l'emprise ${key}`,
+        ).toBe(true);
       }
     }
   });

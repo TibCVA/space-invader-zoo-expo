@@ -217,30 +217,49 @@ function anastasia(): HeroInstance {
 
 /* ──────────────────────────────── Cités ─────────────────────────────────── */
 
-/** Bâtiments de Cervières : capitale à ~70 %, telle que la demande la revue. */
+/**
+ * Bâtiments de Cervières : capitale ACHEVÉE — tout ce que la Châtellenie peut
+ * bâtir. C'est l'état que juge l'exigence du propriétaire (« quand on a tout
+ * construit, l'ensemble de la cité est recouverte de bâtiments à la bonne
+ * taille ») et celui que les captures de revue regardent. Noirétable reste en
+ * chantier pour montrer les emplacements libres.
+ */
 const BATIS_CERVIERES: string[] = [
   'hotel_ville_1',
   'hotel_ville_2',
+  'hotel_ville_3',
   'taverne',
   'marche',
   'halle_sel',
+  'caravanserail',
   'forge',
   'ecuries',
   'capitaine',
   'guilde_1',
   'guilde_2',
   'guilde_3',
+  'guilde_4',
+  'guilde_5',
   'palissade',
   'rempart',
+  'tours',
   'granit_demeure_1',
   'granit_amelioration_1',
   'granit_demeure_2',
+  'granit_amelioration_2',
   'granit_demeure_3',
   'granit_amelioration_3',
   'granit_demeure_4',
+  'granit_amelioration_4',
   'granit_demeure_5',
+  'granit_amelioration_5',
+  'granit_demeure_6',
+  'granit_amelioration_6',
+  'granit_demeure_7',
+  'granit_amelioration_7',
   'granit_atelier_fildor',
   'granit_porte_farges',
+  'granit_capitole',
 ];
 
 const BATIS_NOIRETABLE: string[] = [
@@ -255,24 +274,45 @@ const BATIS_NOIRETABLE: string[] = [
   'granit_demeure_3',
 ];
 
+/** L'Hermitage achevé lui aussi : l'autre panorama se juge au complet. */
 const BATIS_HERMITAGE: string[] = [
   'hotel_ville_1',
   'hotel_ville_2',
+  'hotel_ville_3',
   'taverne',
   'marche',
+  'halle_sel',
+  'caravanserail',
+  'forge',
+  'ecuries',
+  'capitaine',
   'guilde_1',
   'guilde_2',
   'guilde_3',
+  'guilde_4',
+  'guilde_5',
   'palissade',
   'rempart',
+  'tours',
   'ermitage_demeure_1',
   'ermitage_amelioration_1',
   'ermitage_demeure_2',
+  'ermitage_amelioration_2',
   'ermitage_demeure_3',
+  'ermitage_amelioration_3',
   'ermitage_demeure_4',
+  'ermitage_amelioration_4',
+  'ermitage_demeure_5',
+  'ermitage_amelioration_5',
+  'ermitage_demeure_6',
+  'ermitage_amelioration_6',
+  'ermitage_demeure_7',
+  'ermitage_amelioration_7',
   'ermitage_source',
   'ermitage_scriptorium',
   'ermitage_clairiere',
+  'ermitage_mur_racines',
+  'ermitage_capitole',
 ];
 
 function cite(

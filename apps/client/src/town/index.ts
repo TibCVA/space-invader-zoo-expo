@@ -47,6 +47,14 @@ import {
 } from './batiments.js';
 import type { Archetype, MatieresCite, PaletteBati } from './batiments.js';
 import {
+  SPRITE_FACTEUR,
+  TERRAIN_CITE,
+  clefAssetBatiment,
+  moduleDe,
+  tailleDe as tailleDeMasse,
+  visiblesDe,
+} from './masse.js';
+import {
   FondCite,
   etalonnageInterpole,
   phaseDeLHeure,
@@ -91,21 +99,20 @@ const MATIERE_NATIVE = 192;
  */
 interface AncrageCite {
   porte: { x: number; y: number; largeur: number };
+  /** La même porte sur la composition portrait — une autre peinture. */
+  portePortrait: { x: number; y: number; largeur: number };
   eau: readonly [number, number, number, number][];
   allees: readonly [number, number, number, number][];
-  /**
-   * Recadrage du repère du contenu sur la zone constructible du panorama.
-   * `packages/content` reste la source de vérité du placement — il donne
-   * l'ordre, l'écharpe et les voisinages ; ce rectangle ne fait que poser son
-   * repère 0–100 sur les terrasses réellement peintes, pour qu'aucun bâtiment
-   * ne se retrouve dans le vide de la vallée.
-   */
-  terrain: { x0: number; x1: number; y0: number; y1: number };
 }
 
+/* Le recadrage du repère 0–100 du contenu sur les terrasses réellement
+   peintes vit dans `masse.ts` (`TERRAIN_CITE`), par faction ET par
+   orientation, aux côtés du module et de la perspective : la vue et le test
+   de couverture lisent la même géométrie. */
 const ANCRAGES: Readonly<Record<'granit' | 'ermitage', AncrageCite>> = {
   granit: {
     porte: { x: 48.5, y: 88, largeur: 13 },
+    portePortrait: { x: 52, y: 66, largeur: 14 },
     eau: [[16, 33, 24, 46]],
     allees: [
       [30, 84, 44, 82],
@@ -115,10 +122,10 @@ const ANCRAGES: Readonly<Record<'granit' | 'ermitage', AncrageCite>> = {
       [22, 76, 32, 79],
       [48, 58, 58, 55],
     ],
-    terrain: { x0: 16, x1: 80, y0: 15, y1: 86 },
   },
   ermitage: {
     porte: { x: 50, y: 93, largeur: 13 },
+    portePortrait: { x: 52, y: 66, largeur: 14 },
     eau: [
       [62, 40, 56, 74],
       [56, 74, 52, 96],
@@ -132,7 +139,6 @@ const ANCRAGES: Readonly<Record<'granit' | 'ermitage', AncrageCite>> = {
       [36, 56, 46, 53],
       [70, 82, 80, 78],
     ],
-    terrain: { x0: 13, x1: 84, y0: 24, y1: 90 },
   },
 };
 
@@ -169,9 +175,7 @@ interface NoeudBati {
  * Les améliorations partagent l'emprise de leur demeure et n'ont pas de
  * bitmap dans la vague 2 : elles conservent donc leur dessin procédural.
  */
-export function clefAssetBatiment(id: BuildingId): string | null {
-  return id.includes('_amelioration_') ? null : `bati_${id}`;
-}
+export { clefAssetBatiment };
 
 /** Un emplacement libre, cliquable. */
 interface NoeudPlace {
@@ -357,12 +361,11 @@ class TableauCite implements TownView {
     this.largeur = Math.max(1, width);
     this.hauteur = Math.max(1, height);
     this.cadre = this.fond.disposer(this.largeur, this.hauteur);
-    /* Calé sur les toits **peints** du panorama : à 1920 px de large, une
-       maison de la Châtellenie couvre entre 110 et 130 px. Le module valait
-       0,066, ce qui donnait des bâtiments de 170 px — une demeure de rang 1
-       plus imposante que le corps de logis voisin, et l'échelle de la cité
-       n'était plus lisible. */
-    this.module = this.cadre.w * 0.05;
+    /* Le module vit dans `masse.ts`, avec sa majoration portrait : le cadre
+       vertical est étroit et la citadelle y occupe moitié moins du cadre —
+       sans elle, les bâtiments tombaient à 13 % de la hauteur de la citadelle
+       contre 30 % en paysage. */
+    this.module = moduleDe(this.cadre.w, this.fond.portrait);
     this.racine.position.set(-this.largeur / 2, -this.hauteur / 2);
     this.container.hitArea = new Rectangle(
       -this.largeur / 2,
@@ -477,9 +480,9 @@ class TableauCite implements TownView {
     const bâtis = new Set<string>(town?.built ?? []);
     const catalogue = buildingsOf(this.deps.faction);
 
-    /* — Les bâtiments levés, triés du fond vers le premier plan — */
-    const poses = catalogue
-      .filter((d) => bâtis.has(d.id))
+    /* — Les bâtiments levés, triés du fond vers le premier plan. Une
+       amélioration remplace sa demeure sur la même emprise (`visiblesDe`). — */
+    const poses = visiblesDe(catalogue, bâtis)
       .sort((a, b) => a.scene.y - b.scene.y || a.scene.z - b.scene.z);
 
     for (const def of poses) this.poserBatiment(def);
@@ -527,8 +530,8 @@ class TableauCite implements TownView {
       sprite.anchor.set(0.5, 0.97);
       /* Le WebP est un canevas carré dont l'occupation encode déjà l'échelle
          relative des rangs. Le module fixe sa taille dans le panorama. */
-      sprite.width = taille * 1.7;
-      sprite.height = taille * 1.7;
+      sprite.width = taille * SPRITE_FACTEUR;
+      sprite.height = taille * SPRITE_FACTEUR;
       sprite.eventMode = 'none';
     }
 
@@ -589,8 +592,7 @@ class TableauCite implements TownView {
 
   /** Module de base × échelle déclarée × raccourci de perspective. */
   private tailleDe(def: BuildingDef): number {
-    const perspective = 0.78 + (def.scene.y / 100) * 0.42;
-    return this.module * (def.scene.scale / 100) * perspective;
+    return tailleDeMasse(def, this.module);
   }
 
   private pointDe(xPct: number, yPct: number): { x: number; y: number } {
@@ -602,8 +604,13 @@ class TableauCite implements TownView {
 
   /** Position déclarée par le contenu, ramenée sur les terrasses peintes. */
   private pointContenu(xPct: number, yPct: number): { x: number; y: number } {
-    const t = this.ancrage.terrain;
+    const t = TERRAIN_CITE[this.deps.faction][this.fond.portrait ? 'portrait' : 'paysage'];
     return this.pointDe(t.x0 + ((t.x1 - t.x0) * xPct) / 100, t.y0 + ((t.y1 - t.y0) * yPct) / 100);
+  }
+
+  /** La porte du panorama affiché : la composition portrait a la sienne. */
+  private porteActive(): { x: number; y: number; largeur: number } {
+    return this.fond.portrait ? this.ancrage.portePortrait : this.ancrage.porte;
   }
 
   /* ── La porte : le seul chemin de retour vers la carte ── */
@@ -611,7 +618,7 @@ class TableauCite implements TownView {
   private peindrePorte(): void {
     const g = this.gPorte;
     g.clear();
-    const p = this.ancrage.porte;
+    const p = this.porteActive();
     const c = this.pointDe(p.x, p.y);
     const w = (this.cadre.w * p.largeur) / 100;
     const h = w * 0.62;
@@ -857,7 +864,7 @@ class TableauCite implements TownView {
     const dx = this.parallaxe.x * DERIVE_MAX;
     const dy = this.parallaxe.y * DERIVE_MAX * 0.5;
 
-    const porte = this.ancrage.porte;
+    const porte = this.porteActive();
     const c = this.pointDe(porte.x, porte.y);
     const pw = (this.cadre.w * porte.largeur) / 100;
     const px = c.x + dx * 0.16;

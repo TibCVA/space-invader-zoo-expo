@@ -41,7 +41,7 @@ const COMMON: readonly BuildingDef[] = [
     chain: 'hotel_ville',
     chainLevel: 1,
     grants: [{ kind: 'income', resource: 'ecus', amount: 500 }],
-    scene: scene(50, 66, 2, 102),
+    scene: scene(54, 56, 3, 175),
   },
   {
     id: 'hotel_ville_2',
@@ -54,7 +54,7 @@ const COMMON: readonly BuildingDef[] = [
     chain: 'hotel_ville',
     chainLevel: 2,
     grants: [{ kind: 'income', resource: 'ecus', amount: 500 }],
-    scene: scene(50, 63, 2, 108),
+    scene: scene(54, 56, 3, 190),
   },
   {
     id: 'hotel_ville_3',
@@ -70,7 +70,7 @@ const COMMON: readonly BuildingDef[] = [
       { kind: 'income', resource: 'ecus', amount: 1000 },
       { kind: 'morale', value: 1 },
     ],
-    scene: scene(50, 60, 3, 115),
+    scene: scene(54, 56, 3, 205),
   },
   {
     id: 'taverne',
@@ -81,7 +81,7 @@ const COMMON: readonly BuildingDef[] = [
     cost: { ecus: 700, bois: 6 },
     requires: [],
     grants: [{ kind: 'tavern' }, { kind: 'morale', value: 1 }],
-    scene: scene(30, 76, 1, 95),
+    scene: scene(36, 80, 5, 150),
   },
   {
     id: 'marche',
@@ -92,7 +92,7 @@ const COMMON: readonly BuildingDef[] = [
     cost: { ecus: 1200, bois: 8 },
     requires: [],
     grants: [{ kind: 'market' }],
-    scene: scene(39, 78, 1, 95),
+    scene: scene(52, 78, 4, 155),
   },
   {
     id: 'halle_sel',
@@ -103,7 +103,7 @@ const COMMON: readonly BuildingDef[] = [
     cost: { ecus: 1800, bois: 6, granit: 6 },
     requires: ['marche'],
     grants: [{ kind: 'income', resource: 'sel', amount: 2 }],
-    scene: scene(46, 80, 1, 92),
+    scene: scene(66, 72, 4, 145),
   },
   {
     id: 'caravanserail',
@@ -118,7 +118,7 @@ const COMMON: readonly BuildingDef[] = [
       { kind: 'income', resource: 'sel', amount: 1 },
       { kind: 'special', key: 'caravanserail' },
     ],
-    scene: scene(24, 72, 1, 92),
+    scene: scene(8, 76, 4, 150),
   },
   {
     id: 'capitaine',
@@ -129,7 +129,7 @@ const COMMON: readonly BuildingDef[] = [
     cost: { ecus: 1400, bois: 6, fer: 3 },
     requires: ['taverne'],
     grants: [{ kind: 'special', key: 'capitaine_de_place' }, { kind: 'morale', value: 1 }],
-    scene: scene(34, 68, 2, 90),
+    scene: scene(38, 52, 3, 145),
   },
   {
     id: 'forge',
@@ -140,7 +140,7 @@ const COMMON: readonly BuildingDef[] = [
     cost: { ecus: 1500, fer: 5 },
     requires: [],
     grants: [{ kind: 'blacksmith' }],
-    scene: scene(57, 72, 2, 98),
+    scene: scene(78, 66, 4, 155),
   },
   {
     id: 'ecuries',
@@ -151,7 +151,7 @@ const COMMON: readonly BuildingDef[] = [
     cost: { ecus: 2000, bois: 10 },
     requires: ['taverne'],
     grants: [{ kind: 'stables', movement: 350 }],
-    scene: scene(66, 76, 1, 95),
+    scene: scene(90, 80, 5, 150),
   },
   {
     id: 'guilde_1',
@@ -164,7 +164,7 @@ const COMMON: readonly BuildingDef[] = [
     chain: 'guilde',
     chainLevel: 1,
     grants: [{ kind: 'mage_guild', level: 1 }, { kind: 'mana', amount: 2 }],
-    scene: scene(73, 60, 3, 95),
+    scene: scene(80, 34, 2, 175),
   },
   {
     id: 'guilde_2',
@@ -177,7 +177,7 @@ const COMMON: readonly BuildingDef[] = [
     chain: 'guilde',
     chainLevel: 2,
     grants: [{ kind: 'mage_guild', level: 2 }],
-    scene: scene(73, 57, 3, 102),
+    scene: scene(80, 34, 2, 185),
   },
   {
     id: 'guilde_3',
@@ -190,7 +190,7 @@ const COMMON: readonly BuildingDef[] = [
     chain: 'guilde',
     chainLevel: 3,
     grants: [{ kind: 'mage_guild', level: 3 }, { kind: 'mana', amount: 2 }],
-    scene: scene(73, 54, 3, 108),
+    scene: scene(80, 34, 2, 195),
   },
   {
     id: 'guilde_4',
@@ -203,7 +203,7 @@ const COMMON: readonly BuildingDef[] = [
     chain: 'guilde',
     chainLevel: 4,
     grants: [{ kind: 'mage_guild', level: 4 }],
-    scene: scene(74, 51, 4, 114),
+    scene: scene(80, 34, 2, 205),
   },
   {
     id: 'guilde_5',
@@ -216,7 +216,7 @@ const COMMON: readonly BuildingDef[] = [
     chain: 'guilde',
     chainLevel: 5,
     grants: [{ kind: 'mage_guild', level: 5 }, { kind: 'mana', amount: 4 }],
-    scene: scene(74, 48, 4, 120),
+    scene: scene(80, 34, 2, 215),
   },
   {
     id: 'palissade',
@@ -229,7 +229,7 @@ const COMMON: readonly BuildingDef[] = [
     chain: 'defense',
     chainLevel: 1,
     grants: [{ kind: 'defense', walls: 1, towers: 0, gate: true }],
-    scene: scene(18, 84, 0, 100),
+    scene: scene(16, 88, 5, 200),
   },
   {
     id: 'rempart',
@@ -242,7 +242,7 @@ const COMMON: readonly BuildingDef[] = [
     chain: 'defense',
     chainLevel: 2,
     grants: [{ kind: 'defense', walls: 2, towers: 1, gate: true }],
-    scene: scene(18, 82, 0, 106),
+    scene: scene(16, 88, 5, 215),
   },
   {
     id: 'tours',
@@ -258,7 +258,7 @@ const COMMON: readonly BuildingDef[] = [
       { kind: 'defense', walls: 3, towers: 2, gate: true },
       { kind: 'morale', value: 1 },
     ],
-    scene: scene(18, 79, 1, 110),
+    scene: scene(16, 88, 5, 230),
   },
 ];
 
@@ -428,7 +428,7 @@ const GRANIT_SPECIALS: readonly BuildingDef[] = [
     cost: { ecus: 2600, bois: 8, fer: 4 },
     requires: ['marche'],
     grants: [{ kind: 'income', resource: 'filDor', amount: 2 }],
-    scene: scene(62, 64, 2, 92),
+    scene: scene(68, 58, 3, 145),
   },
   {
     id: 'granit_porte_farges',
@@ -442,7 +442,7 @@ const GRANIT_SPECIALS: readonly BuildingDef[] = [
       { kind: 'defense', walls: 3, towers: 2, gate: true },
       { kind: 'special', key: 'porte_farges' },
     ],
-    scene: scene(12, 86, 1, 115),
+    scene: scene(76, 90, 5, 215),
   },
   {
     id: 'granit_capitole',
@@ -458,7 +458,7 @@ const GRANIT_SPECIALS: readonly BuildingDef[] = [
       { kind: 'income', resource: 'ecus', amount: 500 },
       { kind: 'special', key: 'serment_des_comtes' },
     ],
-    scene: scene(50, 26, 5, 130),
+    scene: scene(42, 14, 0, 250),
   },
 ];
 
@@ -472,7 +472,7 @@ const ERMITAGE_SPECIALS: readonly BuildingDef[] = [
     cost: { ecus: 1900, granit: 8, essence: 5 },
     requires: [],
     grants: [{ kind: 'mana', amount: 4 }, { kind: 'morale', value: 1 }],
-    scene: scene(44, 84, 1, 88),
+    scene: scene(24, 48, 3, 135),
   },
   {
     id: 'ermitage_scriptorium',
@@ -483,7 +483,7 @@ const ERMITAGE_SPECIALS: readonly BuildingDef[] = [
     cost: { ecus: 2200, bois: 8, essence: 4 },
     requires: ['guilde_1'],
     grants: [{ kind: 'mana', amount: 3 }, { kind: 'special', key: 'scriptorium' }],
-    scene: scene(76, 63, 3, 95),
+    scene: scene(68, 58, 3, 150),
   },
   {
     id: 'ermitage_clairiere',
@@ -497,7 +497,7 @@ const ERMITAGE_SPECIALS: readonly BuildingDef[] = [
       { kind: 'income', resource: 'essence', amount: 2 },
       { kind: 'income', resource: 'ecus', amount: 150 },
     ],
-    scene: scene(26, 70, 1, 92),
+    scene: scene(52, 40, 2, 150),
   },
   {
     id: 'ermitage_mur_racines',
@@ -511,7 +511,7 @@ const ERMITAGE_SPECIALS: readonly BuildingDef[] = [
       { kind: 'defense', walls: 3, towers: 2, gate: true },
       { kind: 'special', key: 'mur_de_racines' },
     ],
-    scene: scene(12, 86, 1, 115),
+    scene: scene(76, 90, 5, 215),
   },
   {
     id: 'ermitage_capitole',
@@ -527,7 +527,7 @@ const ERMITAGE_SPECIALS: readonly BuildingDef[] = [
       { kind: 'income', resource: 'essence', amount: 2 },
       { kind: 'special', key: 'coeur_des_bois_noirs' },
     ],
-    scene: scene(50, 26, 5, 130),
+    scene: scene(42, 14, 0, 250),
   },
 ];
 
@@ -536,16 +536,35 @@ const ERMITAGE_SPECIALS: readonly BuildingDef[] = [
 /** Majoration du coût d'un bâtiment d'amélioration, en points de base. */
 const UPGRADE_BUILDING_BP = 12000;
 
-/** Position des sept demeures sur le tableau de cité. */
-const DWELLING_SCENE: readonly [number, number, number, number][] = [
-  [10, 74, 1, 85],
-  [20, 66, 1, 88],
-  [31, 60, 2, 92],
-  [42, 54, 2, 96],
-  [55, 49, 3, 102],
-  [68, 43, 3, 110],
-  [82, 35, 4, 122],
-];
+/**
+ * Position des sept demeures sur le tableau de cité, par faction.
+ *
+ * L'écharpe monte du quartier de la porte vers le faîte, mais chaque faction
+ * a son propre semis : l'Ermitage possède deux lieux de plus (source,
+ * clairière) que la Châtellenie (atelier), et les demeures des étages hauts
+ * se décalent pour que, tout construit, chaque terrasse du panorama porte
+ * son bâtiment — l'exigence du propriétaire.
+ */
+const DWELLING_SCENE: Readonly<Record<FactionId, readonly [number, number, number, number][]>> = {
+  granit: [
+    [24, 70, 4, 130],
+    [42, 66, 4, 135],
+    [12, 56, 3, 140],
+    [88, 54, 3, 150],
+    [24, 44, 2, 160],
+    [44, 30, 1, 172],
+    [62, 24, 1, 185],
+  ],
+  ermitage: [
+    [24, 70, 4, 130],
+    [42, 66, 4, 135],
+    [12, 56, 3, 140],
+    [88, 54, 3, 150],
+    [16, 38, 2, 160],
+    [34, 30, 1, 172],
+    [62, 24, 1, 185],
+  ],
+};
 
 function dwellingsFor(faction: FactionId, rows: readonly DwellingRow[]): BuildingDef[] {
   const out: BuildingDef[] = [];
@@ -558,7 +577,7 @@ function dwellingsFor(faction: FactionId, rows: readonly DwellingRow[]): Buildin
     const upgraded = creatureIdOf(faction, tier, true);
     const def = CREATURES[creature];
     const upDef = CREATURES[upgraded];
-    const [x, y, z, s] = DWELLING_SCENE[i];
+    const [x, y, z, s] = DWELLING_SCENE[faction][i];
 
     const requires: BuildingId[] = [];
     if (i > 0) requires.push(`${faction}_demeure_${tier - 1}`);
@@ -590,7 +609,10 @@ function dwellingsFor(faction: FactionId, rows: readonly DwellingRow[]): Buildin
       chain: 'ameliorations',
       chainLevel: tier,
       grants: [{ kind: 'upgrade', from: creature, to: upgraded }] as BuildingGrant[],
-      scene: scene(Math.min(96, x + 7), Math.max(4, y - 6), z, Math.max(60, s - 18)),
+      /* L'amélioration ne pose pas un cabanon à côté : elle agrandit la
+         demeure sur place — même emprise, un cran d'échelle — et la vue
+         retire la demeure de base quand son amélioration est levée. */
+      scene: scene(x, y, z, s + 12),
     });
   }
   return out;

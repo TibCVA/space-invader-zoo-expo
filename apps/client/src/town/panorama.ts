@@ -236,11 +236,15 @@ export class FondCite {
     this.setPhase(1);
   }
 
+  /** Vrai quand le panorama affiché est la composition portrait. */
+  portrait = false;
+
   /** Place le fond et renvoie le cadre du tableau. */
   disposer(largeur: number, hauteur: number): CadreCite {
     const portrait =
       (preferePanoramaPortrait(largeur, hauteur) && this.spritesPortrait.length === 3)
       || (this.spritesPaysage.length !== 3 && this.spritesPortrait.length === 3);
+    this.portrait = portrait;
     const prochains = portrait
       ? this.spritesPortrait
       : this.spritesPaysage.length === 3
