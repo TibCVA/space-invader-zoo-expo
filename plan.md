@@ -68,7 +68,13 @@ Règles de style détaillées : `docs/01-ART-BIBLE.md` §0.
 | IA + parties complètes | **fait** | 20 parties IA contre IA jouées ; 0 commande refusée au rejeu ; réflexion médiane 154 ms, p95 219 ms (budget 400) |
 | Conquête des lieux gardés | **corrigé** | voir §1 ter — c'était le défaut le plus grave du projet |
 | Écrans de cité (2 tableaux en parallaxe) | **transformé** | les bâtiments bâtis sont des peintures distinctes posées dans le panorama (vague 2, intégration Codex vérifiée par capture) ; en portrait l'iPhone reçoit son propre panorama plein écran — reste à recaler les positions % des bâtiments sur le cadrage portrait (plan AAA lot 2.5) |
+| Plan de masse de la cité — tout construit couvre toutes les terrasses (exigence du propriétaire, lot 2.5) | **à refaire** | la première tentative par sous-agents est morte sur l'allocation d'usage (deux agents en échec, aucun résultat) puis le recyclage du conteneur a effacé leur travail non commité — à reprendre en ligne, par captures |
 | Multijoueur asynchrone | **fait et jouable** | parcours complet vérifié dans un vrai navigateur, deux contextes, contre le vrai serveur (voir §1 quater) |
+| Victoire unique — capturer tous les châteaux (plan AAA lot 1.6) | **fait** | règle des 7 jours sans cité ; 17/20 duels décisifs en 578 s ; le garde-fou du harnais rend un classement d'observation, dit comme tel |
+| Treize natures d'objet branchées au moteur (lot 1.2) | **fait** | demeures, banques, écoles, moulins, monolithes appariés, obélisques, cartographes, marché noir… chacun avec son effet réel et son test (`lieux.test.ts`) |
+| Densification de la carte (lot 1.1) | **fait** | 841 objets, une case praticable sur 125 (cible ≤ 150), 0 bloc 32×32 vide, glaneur omniscient 2,8 objet/j (cible ≥ 2,5, plafond arithmétique ~3,3) — `pnpm carte` |
+| Embranchements — chaque lieu actif rattaché au réseau des voies | **fait** | exigence littérale du propriétaire : 94/94 lieux sur voie (24/94 avant), soudure des îlots, respect des empreintes ; `embranchements.test.ts`, éprouvé en le défaisant |
+| Des gardes qui gardent (lot 1.3) | **fait** | 30 postes à empreinte de 3 cases sur les voies aux transitions d'anneau : 10/10 itinéraires optimaux entre capitales croisent un garde (0/10 à l'audit), refuser tout combat coûte +4 % sans emmurer personne, force par anneau 2 400 → 7 300 ; 9 tests sur 5 graines, éprouvés en défaisant la pose |
 | Boucles de critique visuelle | partiellement | les sous-agents refonctionnent ; revue par capture appliquée aux cités |
 | Équilibrage par simulation de masse | à faire | l'outil existe (`pnpm sim`, `pnpm balance`), le réglage reste à faire |
 

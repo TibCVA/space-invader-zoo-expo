@@ -29,35 +29,55 @@ import { TIER_POWER } from './objects.js';
 const GRAINE = 20250816;
 const CELLS = COLS * ROWS;
 
-const w = buildWorld(GRAINE);
-const gardes = w.objects.filter((o) => o.kind === 'garde');
-const postes = gardes.filter((o) => o.data['poste'] === true);
-
-/* La règle du moteur (`buildStaticBlocked`) : toute case d'empreinte est
-   bloquée pour la marche, sauf l'entrée. Le test marche comme le moteur. */
-const bloque = new Uint8Array(CELLS);
-for (const o of w.objects) {
-  const e = o.entrance.row * COLS + o.entrance.col;
-  for (const f of o.footprint) {
-    const i = f.row * COLS + f.col;
-    if (i !== e) bloque[i] = 1;
-  }
-}
-const gardeEntree = new Uint8Array(CELLS);
-for (const o of gardes) gardeEntree[o.entrance.row * COLS + o.entrance.col] = 1;
-
 /** Coût de marche par indice de terrain, dérivé du contrat (jamais recopié). */
 const COUT: readonly number[] = TERRAINS.map((t) => {
   const c = TERRAIN_COST[t];
   return Number.isFinite(c) && c <= 10_000 ? c : 0;
 });
 
+interface Atlas {
+  w: ReturnType<typeof buildWorld>;
+  gardes: ReturnType<typeof buildWorld>['objects'];
+  postes: ReturnType<typeof buildWorld>['objects'];
+  villes: ReturnType<typeof buildWorld>['objects'];
+  /** Empreintes bloquées sauf entrées — la règle du moteur (`buildStaticBlocked`). */
+  bloque: Uint8Array;
+  gardeEntree: Uint8Array;
+}
+
+function preparer(graine: number): Atlas {
+  const w = buildWorld(graine);
+  const gardes = w.objects.filter((o) => o.kind === 'garde');
+  const bloque = new Uint8Array(CELLS);
+  for (const o of w.objects) {
+    const e = o.entrance.row * COLS + o.entrance.col;
+    for (const f of o.footprint) {
+      const i = f.row * COLS + f.col;
+      if (i !== e) bloque[i] = 1;
+    }
+  }
+  const gardeEntree = new Uint8Array(CELLS);
+  for (const o of gardes) gardeEntree[o.entrance.row * COLS + o.entrance.col] = 1;
+  return {
+    w,
+    gardes,
+    postes: gardes.filter((o) => o.data['poste'] === true),
+    villes: w.objects.filter((o) => o.kind === 'ville'),
+    bloque,
+    gardeEntree,
+  };
+}
+
 /**
  * Dijkstra aux règles du moteur : coûts de terrain, diagonale ×141/100,
  * empreintes bloquées sauf entrées. `eviteGardes` interdit en plus les
  * entrées de gardes — le trajet d'un héros qui refuse tout combat.
  */
-function marche(src: number, eviteGardes: boolean): { dist: Int32Array; parent: Int32Array } {
+function marche(
+  a: Atlas,
+  src: number,
+  eviteGardes: boolean,
+): { dist: Int32Array; parent: Int32Array } {
   const dist = new Int32Array(CELLS).fill(-1);
   const parent = new Int32Array(CELLS).fill(-1);
   const regle = new Uint8Array(CELLS);
@@ -78,9 +98,9 @@ function marche(src: number, eviteGardes: boolean): { dist: Int32Array; parent: 
         const r = row + dr;
         if (c < 0 || r < 0 || c >= COLS || r >= ROWS) continue;
         const j = r * COLS + c;
-        if ((w.flags[j] & CELL_PASSABLE) === 0 || bloque[j] === 1) continue;
-        if (eviteGardes && gardeEntree[j] === 1) continue;
-        let pas = COUT[w.terrain[j]] || TERRAIN_COST.chemin;
+        if ((a.w.flags[j] & CELL_PASSABLE) === 0 || a.bloque[j] === 1) continue;
+        if (eviteGardes && a.gardeEntree[j] === 1) continue;
+        let pas = COUT[a.w.terrain[j]] || TERRAIN_COST.chemin;
         if (dc && dr) pas = Math.trunc((pas * 141) / 100);
         const nd = d0 + pas;
         if (dist[j] >= 0 && dist[j] <= nd) continue;
@@ -92,6 +112,35 @@ function marche(src: number, eviteGardes: boolean): { dist: Int32Array; parent: 
   }
   return { dist, parent };
 }
+
+/** Itinéraires optimaux entre capitales : combien croisent une garde ? */
+function croisements(a: Atlas): { croisent: number; paires: number; inatteignables: number } {
+  let croisent = 0;
+  let paires = 0;
+  let inatteignables = 0;
+  for (let i = 0; i < a.villes.length; i++) {
+    const sa = a.villes[i].entrance.row * COLS + a.villes[i].entrance.col;
+    const { dist, parent } = marche(a, sa, false);
+    for (let z = i + 1; z < a.villes.length; z++) {
+      const sz = a.villes[z].entrance.row * COLS + a.villes[z].entrance.col;
+      paires++;
+      if (dist[sz] <= 0) {
+        inatteignables++;
+        continue;
+      }
+      for (let c = sz; c >= 0 && c !== sa; c = parent[c]) {
+        if (a.gardeEntree[c] === 1) {
+          croisent++;
+          break;
+        }
+      }
+    }
+  }
+  return { croisent, paires, inatteignables };
+}
+
+const A = preparer(GRAINE);
+const { w, gardes, postes } = A;
 
 describe('gardes — les postes tiennent les voies', () => {
   it('la compagnie des postes existe et se tient sur la voie', () => {
@@ -126,26 +175,10 @@ describe('gardes — les postes tiennent les voies', () => {
   it('au moins six des dix itinéraires optimaux entre capitales croisent un garde', () => {
     /* L'audit mesurait 0/10 ; la carte corrigée en mesure 10/10 (1 à 5 gardes
        par trajet). Le seuil du plan laisse de la marge aux graines futures. */
-    const villes = w.objects.filter((o) => o.kind === 'ville');
-    expect(villes.length).toBe(5);
-    let croisent = 0;
-    let paires = 0;
-    for (let a = 0; a < villes.length; a++) {
-      const sa = villes[a].entrance.row * COLS + villes[a].entrance.col;
-      const { dist, parent } = marche(sa, false);
-      for (let z = a + 1; z < villes.length; z++) {
-        const sz = villes[z].entrance.row * COLS + villes[z].entrance.col;
-        paires++;
-        expect(dist[sz], `${villes[a].uid} → ${villes[z].uid} : inatteignable`).toBeGreaterThan(0);
-        for (let i = sz; i >= 0 && i !== sa; i = parent[i]) {
-          if (gardeEntree[i] === 1) {
-            croisent++;
-            break;
-          }
-        }
-      }
-    }
+    expect(A.villes.length).toBe(5);
+    const { croisent, paires, inatteignables } = croisements(A);
     expect(paires).toBe(10);
+    expect(inatteignables, 'des capitales coupées du monde').toBe(0);
     expect(croisent, `${String(croisent)} itinéraires sur ${String(paires)}`).toBeGreaterThanOrEqual(
       6,
     );
@@ -155,16 +188,15 @@ describe('gardes — les postes tiennent les voies', () => {
     /* Les flancs ferment le contournement immédiat sans emmurer personne :
        c'est la différence entre un péage et un mur. Mesuré : +4 % de marche
        en moyenne pour éviter toutes les entrées de gardes. */
-    const villes = w.objects.filter((o) => o.kind === 'ville');
     let coutLibre = 0;
     let coutEvite = 0;
-    for (let a = 0; a < villes.length; a++) {
-      const sa = villes[a].entrance.row * COLS + villes[a].entrance.col;
-      const libre = marche(sa, false).dist;
-      const evite = marche(sa, true).dist;
-      for (let z = a + 1; z < villes.length; z++) {
-        const sz = villes[z].entrance.row * COLS + villes[z].entrance.col;
-        expect(evite[sz], `${villes[a].uid} → ${villes[z].uid} : emmuré par les gardes`)
+    for (let a = 0; a < A.villes.length; a++) {
+      const sa = A.villes[a].entrance.row * COLS + A.villes[a].entrance.col;
+      const libre = marche(A, sa, false).dist;
+      const evite = marche(A, sa, true).dist;
+      for (let z = a + 1; z < A.villes.length; z++) {
+        const sz = A.villes[z].entrance.row * COLS + A.villes[z].entrance.col;
+        expect(evite[sz], `${A.villes[a].uid} → ${A.villes[z].uid} : emmuré par les gardes`)
           .toBeGreaterThan(0);
         coutLibre += libre[sz];
         coutEvite += evite[sz];
@@ -206,5 +238,26 @@ describe('gardes — les postes tiennent les voies', () => {
       compares++;
     }
     expect(compares).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('gardes — la propriété tient sur cinq graines', () => {
+  /* Le plan exige un échantillon : la structure — des postes complets qui
+     jalonnent les itinéraires sans jamais emmurer — doit venir du semeur, pas
+     d'un hasard de la graine de démonstration. Mesuré : 8 à 10 croisements
+     sur 10 selon la graine, toujours 30 postes à trois cases, zéro emmuré.
+     La graine de démonstration est déjà couverte en détail ci-dessus. */
+  it.each([7, 1234, 987654, 42424242])('graine %d', (graine) => {
+    const a = preparer(graine);
+    expect(a.postes.length).toBeGreaterThanOrEqual(20);
+    for (const p of a.postes) {
+      expect(p.footprint.length, `${p.uid} : empreinte incomplète`).toBe(3);
+    }
+    const { croisent, paires, inatteignables } = croisements(a);
+    expect(paires).toBe(10);
+    expect(inatteignables, 'des capitales coupées du monde').toBe(0);
+    expect(croisent, `${String(croisent)} itinéraires sur ${String(paires)}`).toBeGreaterThanOrEqual(
+      6,
+    );
   });
 });
