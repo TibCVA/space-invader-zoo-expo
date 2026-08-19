@@ -236,6 +236,14 @@ export function activeEffects(state: GameState, hero: HeroInstance): SkillEffect
   out.push(...artifactEffects(hero));
   out.push(...specialtyEffects(hero));
   out.push(...buildingEffects(state, hero));
+  /* Les bénédictions de visite — oratoires, fontaines — encore en cours. Les
+     expirées sont ignorées ici et balayées au changement de jour : la lecture
+     ne mute jamais l'état, c'est la règle de toutes les fiches. */
+  if (hero.benedictions) {
+    for (const b of hero.benedictions) {
+      if (state.turn <= b.jusquau) out.push({ kind: b.kind, value: b.value });
+    }
+  }
   return out;
 }
 

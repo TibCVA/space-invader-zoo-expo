@@ -359,6 +359,22 @@ export interface HeroInstance {
   downUntilTurn: number;
   pendingLevelUp: { choices: [SkillOffer, SkillOffer]; primary: PrimaryStat } | null;
   path: MapCoord[] | null;
+  /**
+   * Bénédictions temporaires gagnées en visitant la carte — l'oratoire donne
+   * du moral, la fontaine aux fées de la fortune, en bien ou en mal. Chacune
+   * expire à un jour donné et disparaît d'elle-même. Optionnel pour que les
+   * sauvegardes antérieures se chargent telles quelles.
+   */
+  benedictions?: BenedictionDeVisite[];
+}
+
+export interface BenedictionDeVisite {
+  kind: 'morale' | 'fortune';
+  value: number;
+  /** Dernier jour où la bénédiction agit (state.turn inclus). */
+  jusquau: number;
+  /** Lieu d'origine, pour interdire le cumul du même oratoire. */
+  source: ObjectUid;
 }
 
 export interface SkillOffer {

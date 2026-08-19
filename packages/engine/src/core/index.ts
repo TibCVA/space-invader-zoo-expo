@@ -117,6 +117,7 @@ export {
   applyBuildingGrants,
   addToArmy,
   armyPower,
+  armySlotsFree,
   countInTown,
   marketBp,
   tradeOutcome,

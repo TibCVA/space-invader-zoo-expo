@@ -17,7 +17,9 @@
  * Tous les tirages passent par `state.rng`. Aucune valeur n'est flottante.
  */
 import {
+  REGIONS,
   RESOURCE_KEYS,
+  dayOf,
   weekOf,
   type ArtifactId,
   type Charter,
@@ -28,6 +30,7 @@ import {
   type MapCoord,
   type MapObject,
   type PlayerId,
+  type PrimaryStat,
   type ResourceKey,
   type Resources,
   type SealId,
@@ -42,7 +45,11 @@ import {
   chebyshev,
   clampInt,
   content,
+  addToArmy,
+  armySlotsFree,
+  invalidateWorldCache,
   isExplored,
+  recruitCost,
   revealFog,
   sameCoord,
 } from '../core/index.js';
@@ -134,6 +141,27 @@ export const OBJECT_TUNING = {
   innRumourReveal: 5,
   /** Clef de comptabilité des rumeurs. */
   innLedgerKey: 'auberge.rumeur',
+
+  /* — Le catalogue de la densification (docs/08-PLAN-AAA.md, lot 1.2) —
+     Valeurs transposées de HMM3 : coffre 1 000-2 000 écus ou l'expérience
+     équivalente moins un tiers, école +1 caractéristique pour 1 000 écus une
+     fois par héros, oratoire +1 moral une semaine, fontaine -1..+3 de fortune
+     jusqu'au dimanche, moulin au premier visiteur de la semaine. */
+  /** Prix d'une leçon d'école. */
+  ecolePrix: 1000,
+  /** Durée d'une bénédiction d'oratoire, en jours. */
+  oratoireJours: 7,
+  /** Expérience d'un coffre quand il porte du savoir plutôt que des écus. */
+  coffreXpParEcu: { num: 2, den: 3 } as const,
+  /** Expérience accordée pour une banque vidée. */
+  xpBanque: 600,
+  /** Portée révélée par un montjoie autour de la Maison du Trésor. */
+  obelisqueReveal: 8,
+  /** Prix par défaut du cartographe. */
+  cartographePrix: 1000,
+  /** Clefs de comptabilité. */
+  moulinLedgerKey: 'moulin.usage',
+  laissezPasserLedgerKey: 'laissezpasser',
 
   /* — Villages et chartes — */
   /** Réputation gagnée en prenant un village sans le piller. */
@@ -695,6 +723,32 @@ export function visitObject(
       return visitQuest(state, hero, live);
     case 'garde':
       return visitGuard(state, hero, live);
+    case 'coffre':
+      return visitCoffre(state, hero, live);
+    case 'ecole':
+      return visitEcole(state, hero, live);
+    case 'temple':
+      return visitOratoire(state, hero, live);
+    case 'fontaine':
+      return visitFontaine(state, hero, live);
+    case 'moulin':
+      return visitMoulin(state, hero, live);
+    case 'demeure':
+      return visitDemeure(state, hero, live);
+    case 'banque':
+      return visitBanque(state, hero, live);
+    case 'monolithe':
+      return visitMonolithe(state, world, hero, live);
+    case 'obelisque':
+      return visitObelisque(state, world, hero, live);
+    case 'tente_clef':
+      return visitTenteClef(state, hero, live);
+    case 'garde_frontiere':
+      return visitGardeFrontiere(state, world, hero, live);
+    case 'cartographe':
+      return visitCartographe(state, world, hero, live);
+    case 'marche_noir':
+      return visitMarcheNoir(state, hero, live);
     case 'obstacle':
     default:
       return [notice(owner, 'Il n’y a rien à prendre ici, seulement du vent et des pierres.', 'info')];
@@ -1387,6 +1441,497 @@ function visitGuard(state: GameState, hero: HeroInstance, obj: MapObject): GameE
     events.push(visited(hero, obj, `parole_${result.outcome.kind}`));
   }
   return events;
+}
+
+/* ═══════════ Le catalogue de la densification (lot 1.2) ═══════════════════
+   Chaque nature ajoutée au contrat en 0.1 reçoit ici son effet réel — un objet
+   sans effet est du décor, ce que l'audit interdit. Les valeurs viennent de
+   HMM3, transposées aux ressources du Forez. ═══════════════════════════════ */
+
+/* — Coffres — */
+
+function visitCoffre(state: GameState, hero: HeroInstance, obj: MapObject): GameEvent[] {
+  if (obj.spent) return [];
+  obj.spent = true;
+  markVisited(obj, hero.owner);
+  const ecus = dataInt(obj, 'ecus', 1000);
+  /* Le choix or-ou-savoir de HMM3 est tranché à la graine (`data.savoir`), le
+     temps qu'un vrai dialogue de choix existe côté client : un tiers des
+     coffres portent du savoir. La conversion suit HMM3 — l'expérience vaut
+     les deux tiers des écus. */
+  if (dataInt(obj, 'savoir', 0) === 1) {
+    const xp = Math.trunc((ecus * OBJECT_TUNING.coffreXpParEcu.num) / OBJECT_TUNING.coffreXpParEcu.den);
+    return [
+      notice(
+        hero.owner,
+        `Un coffre cerclé de fer sous les fougères. Dedans, ni or ni argent : des lettres, des cartes, ` +
+          `un carnet de comptes qui en dit long. ${heroName(hero)} y passe la soirée.`,
+        'info',
+      ),
+      ...grantXp(state, hero, xp),
+      visited(hero, obj, 'coffre_savoir'),
+    ];
+  }
+  return [
+    ...giveResources(state, hero.owner, { ecus }, 'coffre'),
+    notice(
+      hero.owner,
+      `Un coffre cerclé de fer sous les fougères : ${String(ecus)} écus que personne ne réclamera.`,
+      'info',
+    ),
+    visited(hero, obj, 'coffre_ecus'),
+  ];
+}
+
+/* — Écoles — */
+
+function visitEcole(state: GameState, hero: HeroInstance, obj: MapObject): GameEvent[] {
+  const eleves = dataBag(obj, 'eleves');
+  const matiere = (dataString(obj, 'matiere') ?? 'vaillance') as PrimaryStat;
+  if (eleves[hero.uid] === true) {
+    return [
+      notice(hero.owner, `${heroName(hero)} a déjà suivi la leçon de ${objectName(obj, "l'école")}.`, 'info'),
+      visited(hero, obj, 'ecole_deja'),
+    ];
+  }
+  const prix = dataInt(obj, 'prix', OBJECT_TUNING.ecolePrix);
+  if (!canPay(state, hero.owner, { ecus: prix })) {
+    return [
+      notice(
+        hero.owner,
+        `Le maître de ${objectName(obj, "l'école")} demande ${String(prix)} écus pour sa leçon. ` +
+          `Le trésor n'y suffit pas aujourd'hui.`,
+        'warn',
+      ),
+    ];
+  }
+  eleves[hero.uid] = true;
+  markVisited(obj, hero.owner);
+  hero[matiere] += 1;
+  return [
+    ...giveResources(state, hero.owner, { ecus: -prix }, 'ecole'),
+    notice(
+      hero.owner,
+      `${heroName(hero)} paie ${String(prix)} écus et suit la leçon : ` +
+        `+1 en ${matiere}. Certaines choses ne s'apprennent qu'une fois.`,
+      'info',
+    ),
+    visited(hero, obj, 'ecole_lecon'),
+  ];
+}
+
+/* — Oratoires — */
+
+/** Pose une bénédiction en purgeant les expirées et le doublon du même lieu. */
+function poserBenediction(
+  state: GameState,
+  hero: HeroInstance,
+  b: { kind: 'morale' | 'fortune'; value: number; jusquau: number; source: string },
+): void {
+  const gardees = (hero.benedictions ?? []).filter(
+    (x) => state.turn <= x.jusquau && x.source !== b.source,
+  );
+  gardees.push(b);
+  hero.benedictions = gardees;
+}
+
+function visitOratoire(state: GameState, hero: HeroInstance, obj: MapObject): GameEvent[] {
+  markVisited(obj, hero.owner);
+  poserBenediction(state, hero, {
+    kind: 'morale',
+    value: 1,
+    jusquau: state.turn + OBJECT_TUNING.oratoireJours - 1,
+    source: obj.uid,
+  });
+  return [
+    notice(
+      hero.owner,
+      `Une chandelle brûle dans ${objectName(obj, "l'oratoire")}. La troupe se découvre, quelqu'un entonne ` +
+        `un cantique faux mais sincère : +1 de moral pour ${numberWord(OBJECT_TUNING.oratoireJours)} jours.`,
+      'info',
+    ),
+    visited(hero, obj, 'oratoire'),
+  ];
+}
+
+/* — Fontaines aux fées — */
+
+function visitFontaine(state: GameState, hero: HeroInstance, obj: MapObject): GameEvent[] {
+  const key = `fontaine.usage.${obj.uid}`;
+  if (dailyUsesLeft(state, key, hero.uid, 1) <= 0) {
+    return [
+      notice(hero.owner, `Les fées de ${objectName(obj, 'la fontaine')} ont déjà répondu aujourd'hui.`, 'info'),
+    ];
+  }
+  consumeDailyUsage(state, key, hero.uid);
+  markVisited(obj, hero.owner);
+  /* HMM3 tire la fortune entre -1 et +3 ; le zéro n'existe pas — les fées
+     répondent toujours quelque chose. */
+  let valeur = nextInt(state.rng, -1, 3);
+  if (valeur === 0) valeur = 1;
+  const finDeSemaine = state.turn + (8 - dayOf(state.turn));
+  poserBenediction(state, hero, {
+    kind: 'fortune',
+    value: valeur,
+    jusquau: finDeSemaine,
+    source: obj.uid,
+  });
+  return [
+    notice(
+      hero.owner,
+      valeur > 0
+        ? `${heroName(hero)} jette une pièce dans ${objectName(obj, 'la fontaine')} ; l'eau frissonne dans le ` +
+          `bon sens. Fortune +${String(valeur)} jusqu'au dimanche.`
+        : `L'eau de ${objectName(obj, 'la fontaine')} se trouble : les fées sont contrariées. ` +
+          `Fortune ${String(valeur)} jusqu'au dimanche.`,
+      valeur > 0 ? 'info' : 'warn',
+    ),
+    visited(hero, obj, 'fontaine'),
+  ];
+}
+
+/* — Moulins — */
+
+function visitMoulin(state: GameState, hero: HeroInstance, obj: MapObject): GameEvent[] {
+  const key = `${OBJECT_TUNING.moulinLedgerKey}.${obj.uid}`;
+  if (weeklyUsesLeft(state, key, 'roue', 1) <= 0) {
+    return [
+      notice(
+        hero.owner,
+        `La roue de ${objectName(obj, 'ce moulin')} a déjà donné sa mouture de la semaine.`,
+        'info',
+      ),
+      visited(hero, obj, 'moulin_vide'),
+    ];
+  }
+  consumeWeeklyUsage(state, key, 'roue');
+  markVisited(obj, hero.owner);
+  const resource = (dataString(obj, 'resource') ?? 'ecus') as ResourceKey;
+  const amount = dataInt(obj, 'amount', 250);
+  return [
+    ...giveResources(state, hero.owner, { [resource]: amount } as Partial<Resources>, 'moulin'),
+    notice(
+      hero.owner,
+      `Le meunier de ${objectName(obj, 'ce moulin')} règle sa dîme de la semaine au premier passé : ` +
+        `${describeDelta({ [resource]: amount } as Partial<Resources>)}.`,
+      'info',
+    ),
+    visited(hero, obj, 'moulin'),
+  ];
+}
+
+/* — Demeures franches — */
+
+function visitDemeure(state: GameState, hero: HeroInstance, obj: MapObject): GameEvent[] {
+  const creature = dataString(obj, 'creature');
+  const def = creature ? content().CREATURES[creature] : undefined;
+  if (!creature || !def) {
+    return [notice(hero.owner, `${objectName(obj, 'La demeure')} est abandonnée depuis des années.`, 'info')];
+  }
+  const events: GameEvent[] = [];
+  if (obj.owner !== hero.owner) {
+    obj.owner = hero.owner;
+    events.push(
+      notice(
+        hero.owner,
+        `${objectName(obj, 'La demeure')} passe sous votre bannière : ses ${def.namePlural} ` +
+          `viendront grossir vos rangs chaque semaine.`,
+        'info',
+      ),
+    );
+  }
+  markVisited(obj, hero.owner);
+  const stock = dataInt(obj, 'stock', 0);
+  if (stock <= 0) {
+    events.push(notice(hero.owner, `Personne à enrôler cette semaine : la relève grandit encore.`, 'info'));
+    events.push(visited(hero, obj, 'demeure_vide'));
+    return events;
+  }
+  /* On enrôle tout ce que le trésor peut payer et que l'armée peut loger. */
+  let possibles = stock;
+  while (possibles > 0 && !canPay(state, hero.owner, recruitCost(creature, possibles))) possibles--;
+  if (possibles <= 0 || !armySlotsFree(hero.army, creature)) {
+    events.push(
+      notice(
+        hero.owner,
+        possibles <= 0
+          ? `${String(stock)} ${stock > 1 ? def.namePlural : def.name} attendent, mais le trésor ne suit pas.`
+          : `${String(stock)} ${stock > 1 ? def.namePlural : def.name} attendent, mais l'armée n'a plus un rang de libre.`,
+        'warn',
+      ),
+    );
+    events.push(visited(hero, obj, 'demeure_pleine'));
+    return events;
+  }
+  const cost = recruitCost(creature, possibles);
+  const negatif: Partial<Resources> = {};
+  for (const [k, v] of Object.entries(cost)) negatif[k as ResourceKey] = -(v ?? 0);
+  addToArmy(hero.army, creature, possibles);
+  obj.data.stock = stock - possibles;
+  events.push(...giveResources(state, hero.owner, negatif, 'demeure'));
+  events.push(
+    notice(
+      hero.owner,
+      `${String(possibles)} ${possibles > 1 ? def.namePlural : def.name} rejoignent ${heroName(hero)} ` +
+        `contre ${describeDelta(cost)}.`,
+      'info',
+    ),
+  );
+  events.push(...grantXp(state, hero, 0));
+  events.push(visited(hero, obj, 'demeure_enrolement'));
+  return events;
+}
+
+/* — Banques (repaires gardés) — */
+
+function visitBanque(state: GameState, hero: HeroInstance, obj: MapObject): GameEvent[] {
+  if (obj.spent) {
+    return [
+      notice(hero.owner, `${objectName(obj, 'Le repaire')} a été vidé ; la vermine reviendra.`, 'info'),
+      visited(hero, obj, 'banque_vide'),
+    ];
+  }
+  obj.spent = true;
+  markVisited(obj, hero.owner);
+  /* La garde a été battue en amont par le flux des lieux gardés. Le butin est
+     à la mesure du danger ; la vermine repeuplera le repaire (tour de jeu). */
+  obj.data.reposeA = weekOf(state.turn) + dataInt(obj, 'repop', 4);
+  const delta: Partial<Resources> = { ecus: dataInt(obj, 'ecus', 2000) };
+  const resource = dataString(obj, 'resource') as ResourceKey | null;
+  if (resource) delta[resource] = dataInt(obj, 'amount', 0);
+  const events: GameEvent[] = [
+    ...giveResources(state, hero.owner, delta, 'banque'),
+    notice(
+      hero.owner,
+      `Le repaire est nettoyé jusqu'au dernier recoin : ${describeDelta(delta)}. ` +
+        `Ces murs ne resteront pas vides longtemps.`,
+      'info',
+    ),
+    ...grantXp(state, hero, OBJECT_TUNING.xpBanque),
+    visited(hero, obj, 'banque_videe'),
+  ];
+  const artifact = dataString(obj, 'artifact') as ArtifactId | null;
+  if (artifact) events.push(...acquireArtifact(state, hero, artifact));
+  return events;
+}
+
+/* — Pierres levées (monolithes) — */
+
+function visitMonolithe(
+  state: GameState,
+  world: WorldMap,
+  hero: HeroInstance,
+  obj: MapObject,
+): GameEvent[] {
+  markVisited(obj, hero.owner);
+  const jumeauUid = dataString(obj, 'jumeau');
+  const jumeau = jumeauUid ? (state.objects[jumeauUid] ?? null) : null;
+  if (!jumeau) {
+    return [
+      notice(hero.owner, `${objectName(obj, 'La pierre levée')} est muette : sa jumelle est perdue.`, 'warn'),
+    ];
+  }
+  hero.at = { col: jumeau.entrance.col, row: jumeau.entrance.row };
+  hero.path = null;
+  markVisited(jumeau, hero.owner);
+  revealFog(state, world, hero.owner, hero.at, heroStats(state, hero).vision);
+  return [
+    notice(
+      hero.owner,
+      `${heroName(hero)} pose la main sur ${objectName(obj, 'la pierre levée')} — un froid de gouffre, un pas, ` +
+        `et le pays a changé autour de la jumelle.`,
+      'info',
+    ),
+    /* Le contrat d'événements n'a pas de téléportation : un déplacement d'un
+       seul pas, au coût nul, dit exactement ce que la vue doit savoir. */
+    { type: 'HeroMoved', hero: hero.uid, path: [{ col: hero.at.col, row: hero.at.row }], costSpent: 0 },
+    visited(hero, obj, 'monolithe'),
+  ];
+}
+
+/* — Montjoies (obélisques) — */
+
+function visitObelisque(
+  state: GameState,
+  world: WorldMap,
+  hero: HeroInstance,
+  obj: MapObject,
+): GameEvent[] {
+  const lecteurs = dataBag(obj, 'lecteurs');
+  if (lecteurs[hero.owner] === true) {
+    return [
+      notice(hero.owner, `Votre maison a déjà relevé les marques de ${objectName(obj, 'ce montjoie')}.`, 'info'),
+      visited(hero, obj, 'montjoie_deja'),
+    ];
+  }
+  lecteurs[hero.owner] = true;
+  markVisited(obj, hero.owner);
+  const tresor = allObjects(state).find((o) => o.kind === 'maison_tresor');
+  if (tresor) {
+    revealFog(state, world, hero.owner, tresor.at, OBJECT_TUNING.obelisqueReveal);
+  }
+  const tous = allObjects(state).filter((o) => o.kind === 'obelisque');
+  const lus = tous.filter((o) => dataBag(o, 'lecteurs')[hero.owner] === true).length;
+  return [
+    notice(
+      hero.owner,
+      `Les marques du montjoie s'assemblent : ${String(lus)} sur ${String(tous.length)} relevées. ` +
+        `Chacune éclaire un peu mieux les alentours de la Maison du Trésor.`,
+      'info',
+    ),
+    visited(hero, obj, 'montjoie'),
+  ];
+}
+
+/* — Bureaux des passes et postes de péage — */
+
+function visitTenteClef(state: GameState, hero: HeroInstance, obj: MapObject): GameEvent[] {
+  const couleur = dataString(obj, 'couleur') ?? 'grenat';
+  const key = `${OBJECT_TUNING.laissezPasserLedgerKey}.${couleur}.${hero.owner}`;
+  markVisited(obj, hero.owner);
+  if (ledgerInt(state, key, 0) === 1) {
+    return [
+      notice(hero.owner, `Votre maison porte déjà le laissez-passer ${couleur}.`, 'info'),
+      visited(hero, obj, 'passe_deja'),
+    ];
+  }
+  setLedgerInt(state, key, 1);
+  return [
+    notice(
+      hero.owner,
+      `Le scribe du bureau appose son sceau : votre maison porte désormais le laissez-passer ` +
+        `${couleur}. Les postes de péage de cette couleur s'ouvriront.`,
+      'info',
+    ),
+    visited(hero, obj, 'passe_obtenu'),
+  ];
+}
+
+function visitGardeFrontiere(
+  state: GameState,
+  world: WorldMap,
+  hero: HeroInstance,
+  obj: MapObject,
+): GameEvent[] {
+  const couleur = dataString(obj, 'couleur') ?? 'grenat';
+  const key = `${OBJECT_TUNING.laissezPasserLedgerKey}.${couleur}.${hero.owner}`;
+  if (obj.spent) {
+    return [notice(hero.owner, `Le poste est ouvert : la barrière pend sur son montant.`, 'info')];
+  }
+  if (ledgerInt(state, key, 0) !== 1) {
+    return [
+      notice(
+        hero.owner,
+        `Le poste de péage barre le col : « laissez-passer ${couleur}, ou demi-tour ». ` +
+          `Le bureau des passes de cette couleur se trouve quelque part sur la carte.`,
+        'warn',
+      ),
+      visited(hero, obj, 'peage_refus'),
+    ];
+  }
+  obj.spent = true;
+  /* La barrière tombe : l'empreinte ne bloque plus que sa case d'entrée, et le
+     calcul de chemin doit le réapprendre immédiatement. */
+  obj.footprint = [{ col: obj.entrance.col, row: obj.entrance.row }];
+  invalidateWorldCache(world);
+  markVisited(obj, hero.owner);
+  return [
+    notice(
+      hero.owner,
+      `Le garde examine le sceau ${couleur}, rend le pli, et lève la barrière. Le col est ouvert — ` +
+        `pour tout le monde, désormais.`,
+      'info',
+    ),
+    visited(hero, obj, 'peage_ouvert'),
+  ];
+}
+
+/* — Cartographes — */
+
+function visitCartographe(
+  state: GameState,
+  world: WorldMap,
+  hero: HeroInstance,
+  obj: MapObject,
+): GameEvent[] {
+  const clients = dataBag(obj, 'clients');
+  if (clients[hero.owner] === true) {
+    return [
+      notice(hero.owner, `Vous possédez déjà les cartes de ${objectName(obj, 'ce cartographe')}.`, 'info'),
+      visited(hero, obj, 'cartographe_deja'),
+    ];
+  }
+  const prix = dataInt(obj, 'prix', OBJECT_TUNING.cartographePrix);
+  if (!canPay(state, hero.owner, { ecus: prix })) {
+    return [
+      notice(
+        hero.owner,
+        `Le cartographe déroule ses planches : ${String(prix)} écus la région, pas un de moins.`,
+        'warn',
+      ),
+    ];
+  }
+  const regionNom = dataString(obj, 'region');
+  const regionIdx = regionNom ? (REGIONS as readonly string[]).indexOf(regionNom) : world.region[obj.at.row * world.cols + obj.at.col];
+  clients[hero.owner] = true;
+  markVisited(obj, hero.owner);
+  const p = state.players[hero.owner];
+  let revelees = 0;
+  if (p) {
+    for (let i = 0; i < world.region.length; i++) {
+      if (world.region[i] !== regionIdx) continue;
+      if (p.fog[i] < 1) {
+        p.fog[i] = 1;
+        revelees++;
+      }
+    }
+  }
+  return [
+    ...giveResources(state, hero.owner, { ecus: -prix }, 'cartographe'),
+    notice(
+      hero.owner,
+      `${String(prix)} écus changent de main, et les planches aussi : ${String(revelees)} lieues de pays ` +
+        `s'inscrivent sur vos cartes.`,
+      'info',
+    ),
+    { type: 'FogRevealed', player: hero.owner, cells: [] },
+    visited(hero, obj, 'cartographe_achat'),
+  ];
+}
+
+/* — Colporteurs (marché noir) — */
+
+function visitMarcheNoir(state: GameState, hero: HeroInstance, obj: MapObject): GameEvent[] {
+  if (obj.spent) {
+    return [
+      notice(hero.owner, `Les colporteurs n'ont plus rien sous le bât — repassez une autre semaine.`, 'info'),
+      visited(hero, obj, 'colporteurs_vides'),
+    ];
+  }
+  const artifact = dataString(obj, 'artifact') as ArtifactId | null;
+  const prix = dataInt(obj, 'prix', 2500);
+  if (!artifact) {
+    obj.spent = true;
+    return [notice(hero.owner, `Les colporteurs ne vendent que des rubans aujourd'hui.`, 'info')];
+  }
+  if (!canPay(state, hero.owner, { ecus: prix })) {
+    return [
+      notice(
+        hero.owner,
+        `Sous la toile du bât, un objet qu'on ne montre pas au marché : ${String(prix)} écus, sans reçu.`,
+        'warn',
+      ),
+      visited(hero, obj, 'colporteurs_trop_cher'),
+    ];
+  }
+  obj.spent = true;
+  markVisited(obj, hero.owner);
+  return [
+    ...giveResources(state, hero.owner, { ecus: -prix }, 'marche_noir'),
+    ...acquireArtifact(state, hero, artifact),
+    notice(hero.owner, `Affaire conclue à voix basse : ${String(prix)} écus, sans reçu ni regret.`, 'info'),
+    visited(hero, obj, 'colporteurs_achat'),
+  ];
 }
 
 /* ── Lecture ────────────────────────────────────────────────────────────── */

@@ -158,6 +158,7 @@ export function advanceDay(state: GameState, world: WorldMap): GameEvent[] {
     growthBp = weekEventGrowthBp(key);
     events.push(...applyWeeklyGrowth(state, growthBp));
     refreshTaverns(state);
+    events.push(...renouvelerLieux(state));
   }
 
   // 3. Revenus, gabelle, entretien.
@@ -174,6 +175,50 @@ export function advanceDay(state: GameState, world: WorldMap): GameEvent[] {
 
   journalFromEvents(state, events);
   return events;
+}
+
+/**
+ * Le renouveau hebdomadaire des lieux de la carte.
+ *
+ * Deux natures vivent au rythme des semaines, comme dans HMM3 :
+ *  - la **demeure franche** engrange sa croissance — les recrues s'accumulent
+ *    tant que personne ne vient les enrôler, c'est ce qui donne une raison de
+ *    repasser ;
+ *  - le **repaire** vidé se repeuple après son délai : sa garde revient et son
+ *    butin avec, ce qui fait des banques une rente de bravoure, pas un
+ *    ramassage unique.
+ */
+function renouvelerLieux(state: GameState): GameEvent[] {
+  const events: GameEvent[] = [];
+  const semaine = weekOf(state.turn);
+  for (const uid of Object.keys(state.objects)) {
+    const obj = state.objects[uid];
+    if (obj.kind === 'demeure') {
+      const creature = typeof obj.data.creature === 'string' ? obj.data.creature : null;
+      const def = creature ? contentCreature(creature) : null;
+      if (!def) continue;
+      const stock = typeof obj.data.stock === 'number' ? obj.data.stock : 0;
+      /* Plafond à quatre semaines de croissance : une demeure oubliée ne
+         devient pas une armée gratuite qui attend le premier passant. */
+      obj.data.stock = Math.min(stock + def.growth, def.growth * 4);
+    } else if (obj.kind === 'banque' && obj.spent) {
+      const reposeA = typeof obj.data.reposeA === 'number' ? obj.data.reposeA : Infinity;
+      if (semaine >= reposeA) {
+        obj.spent = false;
+        delete obj.data.reposeA;
+        const garde = obj.data.garde0;
+        if (Array.isArray(garde)) {
+          obj.guard = (garde as { creature: string; count: number }[]).map((g) => ({ ...g }));
+        }
+      }
+    }
+  }
+  return events;
+}
+
+function contentCreature(id: string): { growth: number } | null {
+  const def = content().CREATURES[id];
+  return def ?? null;
 }
 
 /** Croissance hebdomadaire des demeures, jour 1 de chaque semaine. */
