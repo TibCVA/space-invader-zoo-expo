@@ -1247,11 +1247,21 @@ function seedDensification(
     }
   }
 
-  /* — Tas supplémentaires : 80 — */
+  /*
+   * — Tas supplémentaires : 150 —
+   *
+   * Ils étaient 80. L'arrivée des hautes-chaumes et des tourbières a
+   * redistribué les terrains : les semeurs répartissent mieux, si bien que
+   * moins de blocs de 32 × 32 restaient vides et que le rattrapage de
+   * `seedCouverture` avait moins à faire. La carte est tombée de 842 à 776
+   * lieux et le glaneur de 2,7 à 2,3 prises par journée — sous sa cible.
+   * On rend donc à la main ce que la meilleure répartition a fait gagner
+   * ailleurs, sans toucher au reste du semis.
+   */
   const tas: { ring: 1 | 2 | 3; count: number }[] = [
-    { ring: 1, count: 40 },
-    { ring: 2, count: 25 },
-    { ring: 3, count: 15 },
+    { ring: 1, count: 70 },
+    { ring: 2, count: 50 },
+    { ring: 3, count: 30 },
   ];
   for (const entry of tas) {
     for (let k = 0; k < entry.count; k++) {

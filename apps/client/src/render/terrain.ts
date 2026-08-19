@@ -185,6 +185,18 @@ function couleurBiome(terrain: number, alt: number, pente: number): number {
       c = melanger(bas, haut, t);
       break;
     }
+    case TER.lande: {
+      /* Les hautes-chaumes : callune et herbe rase sur la tourbe, un tapis
+         fauve qui rougit à l'automne. Il faut qu'on les reconnaisse de loin
+         et qu'on ne les confonde ni avec la prairie (plus verte, plus basse)
+         ni avec la forte pente (plus brune) : la teinte part du vieil or de
+         l'herbe sèche et se refroidit à peine avec l'altitude, la callune
+         tirant sur le pourpre au sommet. */
+      const bas = melanger(melanger(PALETTE.ocre, PALETTE.vertHetre, 0.36), PALETTE.parcheminOmbre, 0.12);
+      const haut = melanger(melanger(PALETTE.ocre, PALETTE.grenat, 0.22), PALETTE.bleuBrume, 0.14);
+      c = melanger(bas, haut, t);
+      break;
+    }
     case TER.humide: {
       const tourbe = melanger(PALETTE.mousseSombre, PALETTE.brunFougere, 0.44);
       c = melanger(tourbe, PALETTE.bleuProfond, 0.1 + t * 0.1);

@@ -223,6 +223,17 @@ export class SemisProps {
             choix = r < 0.78 ? 'rocher' : 'souche';
             break;
           }
+          case TER.lande: {
+            /* Une chaume est rase par définition : pas un arbre, mais des
+               blocs erratiques, des touffes de callune et les murets de
+               pierre sèche des jasseries. La densité tient le milieu entre
+               la prairie et la forte pente — assez pour qu'on lise le
+               relief, jamais assez pour boucher l'horizon. */
+            chance = 0.14;
+            const r = alea(col, row, 241);
+            choix = r < 0.46 ? 'rocher' : r < 0.74 ? 'buisson' : r < 0.9 ? 'muret' : 'fougere';
+            break;
+          }
           case TER.humide: {
             chance = 0.16;
             const r = alea(col, row, 233);

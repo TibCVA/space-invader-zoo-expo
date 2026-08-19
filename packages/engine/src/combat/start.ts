@@ -136,6 +136,8 @@ const TERRAIN_OBSTACLE_COUNT: Record<Terrain, [number, number]> = {
   pente: [3, 6],
   humide: [3, 5],
   rocher: [5, 8],
+  /* Lande rase : quelques touffes de callune, un bloc erratique. */
+  lande: [2, 4],
   eau: [2, 4],
   /* On ne se bat jamais SUR une falaise — infranchissable — mais à son pied :
      un champ éboulé, aussi encombré qu'un chaos rocheux. */

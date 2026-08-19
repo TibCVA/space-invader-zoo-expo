@@ -56,10 +56,10 @@ describe('clonage — aucun champ ne se perd en route', () => {
     hero.benedictions = [{ kind: 'fortune', value: 1, jusquau: 12, source: 'fontaine' }];
 
     const clone = cloneState(state);
-    for (const id of Object.keys(state.players)) {
+    for (const id of Object.keys(state.players) as (keyof typeof state.players)[]) {
       const avant = Object.keys(state.players[id]).sort();
       const apres = Object.keys(clone.players[id]).sort();
-      expect(apres, `joueur ${id}`).toEqual(avant);
+      expect(apres, `joueur ${String(id)}`).toEqual(avant);
     }
     for (const uid of Object.keys(state.heroes)) {
       const avant = Object.keys(state.heroes[uid]).sort();

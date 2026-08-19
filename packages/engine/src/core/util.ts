@@ -305,6 +305,7 @@ export const TERRAIN_LABELS: Record<Terrain, string> = {
   prairie: 'prairie',
   foret: 'forêt',
   pente: 'forte pente',
+  lande: 'lande rase',
   humide: 'zone humide',
   rocher: 'chaos rocheux',
   eau: 'cours d’eau',

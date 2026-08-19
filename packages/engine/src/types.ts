@@ -65,6 +65,20 @@ export const TERRAINS = [
    * dur le borde.
    */
   'falaise',
+  /*
+   * Les hautes-chaumes du Forez : au-dessus de onze cent cinquante mètres,
+   * l'arbre renonce et il ne reste que la lande rase, la callune et le vent.
+   * Ajoutée pour la même raison que la falaise, et à la fin pour la même
+   * raison : les indices sont gravés dans les mondes sauvegardés.
+   *
+   * Son office est de casser un duopole mesuré : prairie et forêt couvraient
+   * à elles deux 82 % de la carte, si bien qu'un versant ressemblait à tous
+   * les autres et qu'aucune région ne se reconnaissait à sa matière. La
+   * lande se marche — plus lentement qu'une prairie, plus vite qu'une
+   * pente — et elle est vraie : c'est le paysage de Pierre-sur-Haute et des
+   * Bois Noirs.
+   */
+  'lande',
 ] as const;
 export type Terrain = (typeof TERRAINS)[number];
 
@@ -77,6 +91,8 @@ export const TERRAIN_COST: Record<Terrain, number> = {
   pente: 145,
   humide: 160,
   rocher: 200,
+  /* La lande se marche : herbe rase et tourbe, entre la prairie et la pente. */
+  lande: 135,
   eau: Number.MAX_SAFE_INTEGER,
   falaise: Number.MAX_SAFE_INTEGER,
 };

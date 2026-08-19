@@ -25,6 +25,7 @@ export const TER = {
   rocher: TERRAINS.indexOf('rocher'),
   eau: TERRAINS.indexOf('eau'),
   falaise: TERRAINS.indexOf('falaise'),
+  lande: TERRAINS.indexOf('lande'),
 } as const;
 
 /** Vrai pour une case portant une voie tracée (chaussée ou chemin). */

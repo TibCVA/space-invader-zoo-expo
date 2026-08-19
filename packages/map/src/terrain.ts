@@ -102,6 +102,26 @@ const CLIFF_SLOPE = 27;
  * l'emportent toujours : une route tracée dans la gorge reste une route.
  */
 const FALAISE_SLOPE = 38;
+/**
+ * Altitude où l'arbre renonce : au-dessus, les hautes-chaumes.
+ *
+ * Le Forez porte sur ses crêtes une lande rase de callune et de myrtille,
+ * sans un arbre debout. Le seuil se lit sur l'hypsométrie DE NOTRE MODÈLE,
+ * pas sur les mètres du monde réel : le champ d'élévation va de 474 à
+ * 1 263 m — médiane 851, neuvième décile 993 — là où Pierre-sur-Haute
+ * culmine réellement à 1 634. Poser la limite aux 1 150 m réels ne prenait
+ * que 0,2 % des cases, un liseré invisible. À mille mètres, on prend les
+ * neuf pour cent les plus hauts, ce qui est bien la part des hautes-chaumes
+ * dans le massif — et ce sont les bonnes cases : les crêtes des Bois Noirs,
+ * l'Hermitage, Pamole.
+ *
+ * C'est aussi ce qui casse un duopole mesuré : prairie et forêt couvraient
+ * 82 % de la carte, si bien qu'un versant ressemblait à tous les autres et
+ * qu'aucune région ne se reconnaissait à sa matière.
+ */
+const MOOR_ALTITUDE = 1000;
+/** Pente au-delà de laquelle la chaume cède la place à la roche. */
+const MOOR_MAX_SLOPE = 20;
 /** Pente à partir de laquelle une case est classée « forte pente ». */
 const STEEP_SLOPE = 13;
 /** Pente maximale d'un fond marécageux. */
@@ -110,6 +130,28 @@ const MARSH_SLOPE = 6;
 const MARSH_MOISTURE = 152;
 /** Pente maximale d'une case constructible. */
 const BUILDABLE_SLOPE = 10;
+
+/**
+ * Altitude à partir de laquelle l'eau ne s'en va plus : les tourbières.
+ *
+ * Une sagne est une tourbière — le mot le dit — et elles se forment sur les
+ * replats mal drainés des hauteurs, là où la pluie stagne sur un socle
+ * imperméable. Le seuil d'humidité y baisse donc : ce qui serait une prairie
+ * à six cents mètres est une tourbière à mille. Sans cette règle, la région
+ * du Lac des Sagnes n'avait pas plus d'eau au sol que les futaies de
+ * Viscomtat, et son nom ne voulait rien dire.
+ */
+const BOG_ALTITUDE = 900;
+/** Pente au-delà de laquelle l'eau s'écoule, même en altitude. */
+const BOG_MAX_SLOPE = 8;
+/** Humidité exigée d'un replat d'altitude pour devenir tourbière. */
+const BOG_MOISTURE = 132;
+
+/** Seuil d'humidité au-delà duquel un fond plat devient zone humide. */
+function seuilTourbiere(alt: number, slope: number): number {
+  if (alt >= BOG_ALTITUDE && slope <= BOG_MAX_SLOPE) return BOG_MOISTURE;
+  return MARSH_MOISTURE;
+}
 
 /** Classe les biomes et lève les drapeaux de case. */
 export function classifyTerrain(
@@ -152,9 +194,15 @@ export function classifyTerrain(
         code = T.falaise;
       } else if (s >= CLIFF_SLOPE || (s >= ROCK_SLOPE && alt >= ROCK_ALTITUDE)) {
         code = T.rocher;
+      } else if (alt >= MOOR_ALTITUDE && s < MOOR_MAX_SLOPE) {
+        /* Les hautes-chaumes : au-dessus de la limite de l'arbre, ce qui
+           n'est ni roche ni tourbière est de la lande rase. Elle passe AVANT
+           la forte pente parce qu'une croupe de crête à quinze degrés est une
+           chaume, pas un versant boisé. */
+        code = T.lande;
       } else if (s >= STEEP_SLOPE) {
         code = T.pente;
-      } else if (s <= MARSH_SLOPE && wet >= MARSH_MOISTURE) {
+      } else if (s <= MARSH_SLOPE && wet >= seuilTourbiere(alt, s)) {
         code = T.humide;
       } else {
         let wood = Math.trunc(fractalNoise(col, row, CANOPY_SEED, CANOPY_OCTAVES) / 2);
@@ -177,10 +225,23 @@ export function classifyTerrain(
       if (code !== T.eau) f |= CELL_PASSABLE;
       if (bridged) f |= CELL_BRIDGE | CELL_PASSABLE;
       if (r !== 0) f |= CELL_ROAD;
-      if (code === T.foret || code === T.rocher || code === T.humide) f |= CELL_CACHE;
+      /* Ce qui peut abriter quelque chose : le couvert des bois, le chaos
+         rocheux, les gouilles d'une tourbière — et la lande, qui n'a pas
+         d'arbre mais ses blocs erratiques, ses murets de pierre sèche et ses
+         cairns de berger. Sans elle, les sept pour cent de hautes-chaumes
+         devenaient un désert d'objets et le glaneur perdait deux dixièmes de
+         prise par journée de marche. */
+      if (code === T.foret || code === T.rocher || code === T.humide || code === T.lande) {
+        f |= CELL_CACHE;
+      }
+      /* On bâtit sur l'herbe, sous le couvert — et sur la chaume : les
+         hautes-chaumes du Forez portent les jasseries, ces burons d'estive
+         où l'on montait faire la fourme tout l'été. Les en exclure retirait
+         soixante-six lieux à la carte et faisait tomber le glaneur sous sa
+         cible, pour un pays qui a toujours été habité l'été. */
       if (
         s <= BUILDABLE_SLOPE &&
-        (code === T.prairie || code === T.foret) &&
+        (code === T.prairie || code === T.foret || code === T.lande) &&
         r === 0 &&
         dw >= 2
       ) {
