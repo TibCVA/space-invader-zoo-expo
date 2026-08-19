@@ -41,6 +41,7 @@ export type ObjectiveKind =
   | 'sceaux' // lever les Sceaux des Marches
   | 'tresor' // forcer la Maison du Trésor et tenir la proclamation
   | 'harcelement' // frapper les héros et les gisements adverses
+  | 'conquete' // marcher sur les cités adverses : la seule façon de gagner
   | 'defense'; // rappeler les héros, garnisonner, fortifier
 
 /** Pondérations de la fonction d'évaluation, en points de base. */
@@ -220,6 +221,7 @@ const PRUDENT: BotProfile = {
       sceaux: 6500,
       tresor: 6000,
       harcelement: 3000,
+      conquete: 7000,
       defense: 12000,
     },
     sealFromWeek: 5,
@@ -289,6 +291,7 @@ const EQUILIBRE: BotProfile = {
       sceaux: 9500,
       tresor: 8000,
       harcelement: 6000,
+      conquete: 10000,
       defense: 7000,
     },
     sealFromWeek: 3,
@@ -358,6 +361,7 @@ const AGRESSIF: BotProfile = {
       sceaux: 11000,
       tresor: 10000,
       harcelement: 13000,
+      conquete: 14000,
       defense: 3500,
     },
     sealFromWeek: 2,
@@ -428,6 +432,7 @@ const EXPERT: BotProfile = {
       sceaux: 12500,
       tresor: 12000,
       harcelement: 8000,
+      conquete: 13000,
       defense: 8000,
     },
     sealFromWeek: 2,

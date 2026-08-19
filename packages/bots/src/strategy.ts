@@ -52,6 +52,7 @@ const OBJECTIVES: readonly ObjectiveKind[] = [
   'developpement',
   'expansion',
   'harcelement',
+  'conquete',
   'sceaux',
   'tresor',
 ];
@@ -62,6 +63,7 @@ const REASONS: Readonly<Record<ObjectiveKind, string>> = {
   sceaux: 'lever les Sceaux des Marches',
   tresor: 'forcer la Maison du Trésor et tenir la proclamation',
   harcelement: 'harceler les bannières adverses',
+  conquete: 'marcher sur les cités adverses et finir la guerre',
   defense: 'rappeler les héros et tenir les places',
 };
 
@@ -127,6 +129,7 @@ export function planStrategy(
     sceaux: 0,
     tresor: 0,
     harcelement: 0,
+    conquete: 0,
     defense: 0,
   };
 
@@ -169,6 +172,38 @@ export function planStrategy(
   }
   if (prey > 0) {
     scores.harcelement = bp(Math.min(18000, 3000 + Math.trunc(prey / 3)), bias.harcelement);
+  }
+
+  /*
+   * — Conquête : la seule façon de gagner —
+   *
+   * La partie ne se gagne qu'en prenant TOUS les châteaux adverses. Or aucun
+   * objectif ne visait les cités adverses : `expansion` ne compte que les
+   * bourgs neutres et `harcelement` court après les héros. Mesuré : sur
+   * quatre parties simulées, les quatre atteignaient le garde-fou du harnais
+   * à quatre cent cinquante et un jours sans conquête achevée — dont une où
+   * le meneur, onze fois plus fort et maître de cinq cités sur six, n'a
+   * jamais marché sur la dernière. Une partie qu'on ne peut pas finir n'est
+   * pas une partie.
+   *
+   * Trois forces poussent à la conquête, et la troisième est décisive :
+   * la supériorité militaire visible, l'âge de la partie — on ne bâtit pas
+   * éternellement — et surtout la proximité de la fin : chaque cité adverse
+   * de moins rend la suivante plus précieuse, la dernière valant la victoire.
+   */
+  if (view.enemyTowns.length > 0) {
+    /* Supériorité : notre meilleure armée contre la plus forte garnison vue. */
+    let garnisonMax = 0;
+    for (const known of view.enemyTowns) {
+      const g = armyPowerOf(known.town.garrison);
+      if (g > garnisonMax) garnisonMax = g;
+    }
+    const superiorite = ourBest > garnisonMax ? Math.min(14000, (ourBest - garnisonMax) / 40) : 0;
+    /* L'âge : après deux mois, un développement de plus ne gagne rien. */
+    const age = Math.min(12000, Math.max(0, week - 4) * 1400);
+    /* La curée : moins il reste de cités adverses connues, plus elles valent. */
+    const curee = view.enemyTowns.length <= 2 ? 20000 - view.enemyTowns.length * 4000 : 0;
+    scores.conquete = bp(3000 + Math.trunc(superiorite) + age + curee, bias.conquete);
   }
 
   /* — Défense : la pression visible, et rien d'autre — */

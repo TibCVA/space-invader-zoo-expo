@@ -281,6 +281,11 @@ function objectiveBonusBp(kind: TargetKind, objective: ObjectiveKind): number {
         : kind === 'gisement'
           ? 13000
           : 9000;
+    /* La conquête ne regarde qu'une chose : les cités adverses. Tout le
+       reste — glaner, fortifier, courir après un éclaireur — est du temps
+       que l'ennemi met à profit pour se refaire. */
+    case 'conquete':
+      return kind === 'cite' ? 34000 : kind === 'heros' ? 13000 : 6000;
     case 'defense':
       return kind === 'repli' ? 30000 : kind === 'heros' ? 12000 : 7000;
     case 'developpement':
@@ -320,7 +325,17 @@ export function rankTargets(
   const push = (target: Target): void => {
     const key = `${target.at.col},${target.at.row}`;
     if (options.claimed.has(key)) return;
-    if (leash > 0 && cells(target.at, home) > leash && target.kind !== 'repli') return;
+    /*
+     * La laisse tient le héros près de sa capitale — sauf quand il part
+     * finir la guerre. Sur une carte de deux cent cinquante-six colonnes,
+     * une capitale adverse est à plus de deux cents cases : un profil à
+     * laisse courte (70 cases pour le prudent, 130 pour l'équilibré) ne
+     * pouvait littéralement JAMAIS marcher sur l'ennemi, donc jamais
+     * gagner, puisque la victoire ne s'obtient plus qu'en prenant les
+     * châteaux. Un repli et une conquête ignorent la laisse.
+     */
+    const horsLaisse = target.kind === 'repli' || (target.kind === 'cite' && options.objective === 'conquete');
+    if (leash > 0 && !horsLaisse && cells(target.at, home) > leash) return;
     out.push(target);
   };
 
@@ -420,7 +435,21 @@ export function rankTargets(
           object: null,
           town: known.town.uid,
           enemyHero: null,
-          gain: GAIN.citeAdverse + (known.town.isCapital ? 6000 : 0),
+          /*
+           * Une cité adverse ne vaut pas son butin : elle vaut ce qu'elle
+           * rapproche de la fin. Tant que l'ennemi en tient une demi-douzaine,
+           * c'est une place de plus ; quand il n'en tient plus qu'une ou deux,
+           * c'est la partie. Sans cette échelle, le meneur d'une simulation —
+           * onze fois plus fort, maître de cinq cités sur six — préférait
+           * indéfiniment ramasser des tas de bois à vingt jours de marche de
+           * la victoire.
+           */
+          gain:
+            GAIN.citeAdverse +
+            (known.town.isCapital ? 6000 : 0) +
+            (view.enemyTowns.length <= 3
+              ? Math.trunc(GAIN.citeAdverse * (4 - view.enemyTowns.length))
+              : 0),
           guard: known.fresh
             ? armyPowerOf(known.town.garrison) + garrisonHeroPower(state, known.town.garrisonHero)
             : estimateGarrison(state, known.town.isCapital),
