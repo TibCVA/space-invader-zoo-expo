@@ -114,6 +114,20 @@ export function cloneHero(h: HeroInstance): HeroInstance {
         }
       : null,
     path: h.path ? cloneCoords(h.path) : null,
+    /* Même oubli que `sansCiteDepuis` : les bénédictions de visite — le moral
+       de l'oratoire, la fortune de la fontaine aux fées — ne survivaient à
+       aucune commande, puisque `applyCommand` reclone l'état. Le joueur
+       payait sa visite et n'en gardait rien. */
+    ...(h.benedictions
+      ? {
+          benedictions: h.benedictions.map((b) => ({
+            kind: b.kind,
+            value: b.value,
+            jusquau: b.jusquau,
+            source: b.source,
+          })),
+        }
+      : {}),
   };
 }
 
@@ -165,6 +179,17 @@ export function clonePlayer(p: PlayerState): PlayerState {
   };
   if (p.aiProfile !== undefined) out.aiProfile = p.aiProfile;
   if (p.defeatedAtTurn !== undefined) out.defeatedAtTurn = p.defeatedAtTurn;
+  /*
+   * Le jour où la maison a perdu sa dernière cité. Ce champ était OUBLIÉ ici,
+   * et le clonage recopie champ par champ : `applyCommand` clone l'état à
+   * chaque commande, si bien que le compte des sept jours repartait de zéro
+   * plusieurs fois par tour et n'arrivait jamais à son terme. Mesuré : une
+   * bannière dépouillée de sa dernière cité survivait indéfiniment — dix-neuf
+   * jours sans cité, toujours vivante, `sansCiteDepuis` toujours indéfini —
+   * donc AUCUNE partie ne pouvait se conclure, la victoire étant la prise de
+   * tous les châteaux adverses.
+   */
+  if (p.sansCiteDepuis !== undefined) out.sansCiteDepuis = p.sansCiteDepuis;
   return out;
 }
 
