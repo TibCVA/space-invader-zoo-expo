@@ -10,10 +10,11 @@ sept ressources et cinquante-six variantes de décor. `manifeste.json` porte les
 dimensions, tailles, invites canoniques de régénération, identifiants de
 génération et empreintes SHA-256.
 
-La vague 2 fournit en plus **28 planches de référence de créatures** hors bundle
-client dans `docs/reference/creatures/`. Elles servent à resculpter les rigs
-procéduraux ; elles ne doivent jamais remplacer les créatures animées par de
-simples images.
+La vague 2 fournit en plus **56 références de créatures** hors bundle client
+dans `docs/reference/creatures/` : 28 planches quatre vues et 28 rendus
+individuels haute définition dans `renders/`. Elles servent ensemble à
+resculpter les rigs procéduraux ; elles ne doivent jamais remplacer les
+créatures animées par de simples images.
 
 Chaque entrée valide remplace la texture correspondante de l'atlas. Une entrée
 absente ou invalide est ignorée et le rendu procédural reste affiché : ne jamais
