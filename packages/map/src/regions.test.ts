@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { REGIONS, type RegionId } from '@auvergne/engine';
 import { FOREZ_ANCHORS } from './anchors.js';
 import { buildTerrain } from './build.js';
-import { CELLS, COLS, idx } from './grid.js';
+import { CELLS, COLS, ROWS, idx } from './grid.js';
 import { REGION_LABELS, regionOf } from './regions.js';
 import { START_KEYS, START_POSITIONS } from './starts.js';
 
@@ -28,9 +28,14 @@ describe('régions', () => {
   it('donne à chacune une surface crédible', () => {
     for (const id of REGIONS) {
       // La clairière de la Maison du Trésor est volontairement minuscule.
-      const floor = id === 'maison_tresor' ? 500 : 3000;
+      /* Des surfaces, donc des parts de la grille : elles valaient 500 et
+         3 000 cases sur les 106 496 d'alors, soit 0,47 % et 2,8 %. */
+      const floor =
+        id === 'maison_tresor'
+          ? Math.trunc((CELLS * 47) / 10000)
+          : Math.trunc((CELLS * 28) / 1000);
       expect(counts[id], id).toBeGreaterThan(floor);
-      expect(counts[id], id).toBeLessThan(20000);
+      expect(counts[id], id).toBeLessThan(Math.trunc((CELLS * 188) / 1000));
     }
     let total = 0;
     for (const id of REGIONS) total += counts[id];
@@ -79,7 +84,7 @@ describe('régions', () => {
   });
 
   it('trace un vrai corridor marchand', () => {
-    expect(counts.grande_chaussee).toBeGreaterThan(3000);
+    expect(counts.grande_chaussee).toBeGreaterThan(Math.trunc((CELLS * 28) / 1000));
     // Le corridor doit traverser la carte du nord au sud.
     let minRow = Number.MAX_SAFE_INTEGER;
     let maxRow = -1;
@@ -90,7 +95,7 @@ describe('régions', () => {
       if (row > maxRow) maxRow = row;
     }
     expect(minRow).toBeLessThan(5);
-    expect(maxRow).toBeGreaterThan(410);
+    expect(maxRow).toBeGreaterThan(ROWS - 6);
   });
 
   it('forme des régions d’un seul tenant à peu près compactes', () => {
@@ -136,7 +141,7 @@ describe('régions', () => {
       expect(best[id] * 100, id).toBeGreaterThan(counts[id] * 45);
     }
     // Le ruban marchand doit tout de même garder de longs tronçons continus.
-    expect(best.grande_chaussee).toBeGreaterThan(1200);
+    expect(best.grande_chaussee).toBeGreaterThan(Math.trunc((CELLS * 113) / 10000));
   });
 
   it('respecte la géographie : est, ouest, nord et sud', () => {

@@ -48,7 +48,9 @@ describe('hydrographie — la Durolle', () => {
       if (other.key === 'durolle') continue;
       expect(def.depth).toBeGreaterThanOrEqual(other.depth);
     }
-    expect(course.length).toBeGreaterThan(120);
+    /* Une longueur de polyligne, en cases : elle suit la largeur de la grille,
+       divisée par 2,26 quand la carte est passée à la taille d'une XL. */
+    expect(course.length).toBeGreaterThan(Math.trunc(ROWS / 4));
   });
 
   it('reçoit des affluents', () => {
@@ -100,7 +102,9 @@ describe('hydrographie — champ', () => {
   it('marque de l’eau sans noyer la carte', () => {
     let water = 0;
     for (let i = 0; i < CELLS; i++) if (hydro.water[i] === 1) water++;
-    expect(water).toBeGreaterThan(700);
+    /* Des comptes de cases, donc proportionnels à la surface de la grille. La
+       borne haute l'était déjà ; la borne basse était écrite en dur. */
+    expect(water * 1000).toBeGreaterThan(CELLS * 6);
     expect(water * 100).toBeLessThan(CELLS * 3);
   });
 
@@ -140,7 +144,8 @@ describe('hydrographie — sagnes', () => {
   it('remplit un disque de cases humides', () => {
     let bog = 0;
     for (let i = 0; i < CELLS; i++) if (hydro.bog[i] === 1) bog++;
-    expect(bog).toBeGreaterThan(200);
+    /* Idem : une surface, exprimée en part de la grille. */
+    expect(bog * 1000).toBeGreaterThan(CELLS * 2);
   });
 
   it('ne crée aucun grand plan d’eau au hameau du Lac', () => {

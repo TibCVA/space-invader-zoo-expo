@@ -216,8 +216,18 @@ describe('fidélité — accès à la Maison du Trésor', () => {
         expect(path, `${key} : itinéraire ${r + 1} introuvable`).not.toBeNull();
         const route = path as MapCoord[];
         routes.push(route);
-        // On n'use que le corps de l'itinéraire : les extrémités sont imposées.
-        for (let k = 8; k < route.length - 8; k++) {
+        /*
+         * On n'use que le corps de l'itinéraire : les extrémités sont
+         * imposées. La marge est une **part** du trajet, pas un nombre de
+         * cases. Fixée à 8, elle laissait libres seize cases sur les trente
+         * qui séparent Cervières de la Maison du Trésor à la taille d'une XL
+         * de HMM3 — plus de la moitié du chemin restait ouverte, les trois
+         * itinéraires repassaient par là et la mesure de diversité ne mesurait
+         * plus rien. Un huitième reproduit exactement l'ancienne marge sur
+         * l'ancienne carte, où le même trajet faisait soixante-huit cases.
+         */
+        const marge = Math.max(2, Math.trunc(route.length / 8));
+        for (let k = marge; k < route.length - marge; k++) {
           used[idx(route[k].col, route[k].row)] = 1;
         }
       }

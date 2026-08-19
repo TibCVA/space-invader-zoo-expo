@@ -69,13 +69,46 @@ export interface Plot {
 }
 
 /** Emprise 2 × 2 d'une cité : la case d'ancrage et ses trois voisines nord-est. */
-function townFootprint(at: MapCoord): MapCoord[] {
-  return [
-    { col: at.col, row: at.row },
-    { col: at.col + 1, row: at.row },
-    { col: at.col, row: at.row - 1 },
-    { col: at.col + 1, row: at.row - 1 },
+/**
+ * L'emprise carrée d'une place forte, deux cases sur deux, appuyée sur son
+ * ancrage.
+ *
+ * Elle se posait toujours au nord-est de l'ancrage. Quand la carte a pris la
+ * taille d'une XL de HMM3, les cours d'eau reprojetés sont passés sous
+ * certaines places : un quart de bourg se retrouvait dans la rivière, et le
+ * comblement qui suivait effaçait le lit ou le pont. On choisit désormais le
+ * quadrant qui tombe au sec — une ville se bâtit sur la rive, ce qui est
+ * exactement ce qu'ont fait les vraies. L'ordre d'essai est fixe, donc le
+ * résultat reste identique au bit près d'une machine à l'autre.
+ */
+function townFootprint(at: MapCoord, ctx?: ObjectContext): MapCoord[] {
+  const quadrants: readonly (readonly [number, number])[] = [
+    [0, -1],
+    [-1, -1],
+    [0, 0],
+    [-1, 0],
   ];
+  const cases = (dc: number, dr: number): MapCoord[] => [
+    { col: at.col + dc, row: at.row + dr },
+    { col: at.col + dc + 1, row: at.row + dr },
+    { col: at.col + dc, row: at.row + dr + 1 },
+    { col: at.col + dc + 1, row: at.row + dr + 1 },
+  ];
+  if (ctx) {
+    for (const [dc, dr] of quadrants) {
+      const bloc = cases(dc, dr);
+      const bon = bloc.every(
+        (f) =>
+          f.col >= 0 &&
+          f.row >= 0 &&
+          f.col < COLS &&
+          f.row < ROWS &&
+          TERRAINS[ctx.terrain[idx(f.col, f.row)]] !== 'eau',
+      );
+      if (bon) return bloc;
+    }
+  }
+  return cases(0, -1);
 }
 
 interface SealSite {
@@ -476,7 +509,42 @@ function isFree(b: Builder, col: number, row: number): boolean {
   if (col < 1 || row < 1 || col >= COLS - 1 || row >= ROWS - 1) return false;
   const i = idx(col, row);
   if (b.occupied[i] === 1) return false;
+  /*
+   * Jamais sur un pont. Le drapeau de franchissement dit vrai — c'est bien là
+   * qu'on passe — mais un tablier n'est pas un terrain : le poser sous un lieu
+   * met un objet au milieu de l'eau, et l'occuper peut couper l'unique
+   * franchissement d'une rivière. Mesuré après le changement d'échelle, quand
+   * les cours d'eau reprojetés ont fait glisser un pont sous la Doléance du
+   * Lac : le lieu s'est retrouvé sur une case d'eau.
+   */
+  if ((b.ctx.flags[i] & CELL_BRIDGE) !== 0) return false;
   return passable(b.ctx, i);
+}
+
+/**
+ * Dégagement exigé autour d'une capitale, en cases.
+ *
+ * Une bannière ne doit pas trouver un gardien sur son pas de porte au premier
+ * jour : les abords immédiats se parcourent sans combattre. Le semis le
+ * respectait par la seule vertu des distances, et cette vertu s'est perdue
+ * quand la carte a rétréci — un poste s'est retrouvé à quatre cases
+ * d'Arconsat. La règle est donc écrite plutôt que supposée.
+ *
+ * La règle ne vaut que pour le semis tiré au sort. Les lieux de la géographie
+ * — les Sceaux des Marches, les cols, la scierie et la carrière que chaque
+ * départ doit avoir sous la main — sont posés avec `fixe`, et gardés de plein
+ * droit : ils sont voisins par dessein, et c'est précisément ce voisinage qui
+ * fait la première semaine d'une partie de HMM3.
+ */
+const DEGAGEMENT_CAPITALE = 5;
+
+function tropPresDUneCapitale(at: MapCoord): boolean {
+  for (const key of START_KEYS) {
+    const sp = START_POSITIONS[key].at;
+    const d = Math.max(Math.abs(at.col - sp.col), Math.abs(at.row - sp.row));
+    if (d <= DEGAGEMENT_CAPITALE) return true;
+  }
+  return false;
 }
 
 /** Cherche en spirale la première case libre et franchissable autour de `at`. */
@@ -500,12 +568,30 @@ function place(
   kind: MapObjectKind,
   at: MapCoord,
   data: Record<string, unknown>,
-  options: { footprint?: MapCoord[]; guard?: ArmyStack[] } = {},
+  options: { footprint?: MapCoord[]; guard?: ArmyStack[]; fixe?: boolean } = {},
 ): MapObject | null {
-  const footprint = options.footprint ?? [{ col: at.col, row: at.row }];
-  for (const f of footprint) {
+  const brut = options.footprint ?? [{ col: at.col, row: at.row }];
+  for (const f of brut) {
     if (f.col < 0 || f.row < 0 || f.col >= COLS || f.row >= ROWS) return null;
     if (b.occupied[idx(f.col, f.row)] === 1) return null;
+  }
+  /*
+   * Une emprise s'arrête à la berge. Les empreintes bâties sont des formes
+   * fixes posées sur un ancrage ; quand un cours d'eau reprojeté passe sous
+   * l'une d'elles, la case d'eau se retrouvait bâtie — et le comblement qui
+   * suivait effaçait la rivière ou, pire, le pont. On retire donc les cases
+   * d'eau de l'emprise plutôt que l'eau de la carte. L'entrée est conservée
+   * quoi qu'il arrive : c'est par elle qu'on visite le lieu, et elle est
+   * rendue franchissable plus bas.
+   */
+  const entree = idx(at.col, at.row);
+  const footprint = brut.filter((f) => {
+    const i = idx(f.col, f.row);
+    return i === entree || TERRAINS[b.ctx.terrain[i]] !== 'eau';
+  });
+  if (footprint.length === 0) return null;
+  if (!options.fixe && options.guard && options.guard.length > 0 && tropPresDUneCapitale(at)) {
+    return null;
   }
   const obj: MapObject = {
     uid: `O_${String(b.next++).padStart(4, '0')}`,
@@ -765,7 +851,7 @@ export function buildObjects(ctx: ObjectContext, seed: number): ObjectBuild {
       capital: true,
       start: key,
       region: sp.region,
-    }, { footprint: townFootprint(sp.at) });
+    }, { footprint: townFootprint(sp.at, ctx) });
   }
 
   /* 2 — Centres neutres capturables. */
@@ -776,7 +862,7 @@ export function buildObjects(ctx: ObjectContext, seed: number): ObjectBuild {
       'village',
       at,
       { townUid: n.townUid, name: n.name, capital: false, region: n.region, vocation: n.vocation },
-      { footprint: townFootprint(at), guard: guardFor(rng, 2, 3) },
+      { footprint: townFootprint(at, ctx), guard: guardFor(rng, 2, 3), fixe: true },
     );
   }
 
@@ -790,7 +876,7 @@ export function buildObjects(ctx: ObjectContext, seed: number): ObjectBuild {
       name: 'Maison du Trésor',
       lore: "Ancien poste de contrôle du sel, à la limite des pays de gabelle. Le Grand Livre y est scellé depuis la mort du dernier comte.",
     },
-    { footprint: townFootprint(mt), guard: treasureGuard(rng) },
+    { footprint: townFootprint(mt, ctx), guard: treasureGuard(rng), fixe: true },
   );
 
   /* 4 — Les cinq Sceaux des Marches. */
@@ -798,6 +884,7 @@ export function buildObjects(ctx: ObjectContext, seed: number): ObjectBuild {
     const at = snap(b, s.at, 4) ?? s.at;
     place(b, 'sceau', at, { seal: s.seal, name: s.label, lore: s.lore }, {
       guard: guardFor(rng, 3, 4),
+      fixe: true,
     });
   }
 
@@ -850,6 +937,7 @@ export function buildObjects(ctx: ObjectContext, seed: number): ObjectBuild {
       {
         guard: guardFor(rng, ring, 3),
         footprint: [{ col: at.col, row: at.row }, ...flancsDe(b, ctx, at.col, at.row)],
+        fixe: true,
       },
     );
   }
@@ -872,7 +960,7 @@ export function buildObjects(ctx: ObjectContext, seed: number): ObjectBuild {
       'artefact',
       at,
       { artifact: a.artifact, rarity: a.rarity, name: a.label, fixed: true },
-      { guard: guardFor(rng, 3, 4) },
+      { guard: guardFor(rng, 3, 4), fixe: true },
     );
   }
 
@@ -880,12 +968,23 @@ export function buildObjects(ctx: ObjectContext, seed: number): ObjectBuild {
   for (const m of MINE_SITES) {
     const at = snap(b, m.at, 5);
     if (!at) continue;
+    /*
+     * Un gisement posé sur le pas de la porte d'une capitale se prend sans
+     * combattre. C'est la règle de HMM3 : les deux mines voisines de la ville
+     * de départ sont acquises au premier tour, elles nourrissent la première
+     * semaine au lieu de la bloquer. La Scierie d'Arconsat s'est retrouvée à
+     * quatre cases de sa ville quand la carte a pris la taille d'une XL — avec
+     * sa garde, elle murait la sortie.
+     */
+    const auPasDeLaPorte = tropPresDUneCapitale(at);
     place(
       b,
       'mine',
       at,
       { resource: m.resource, amount: m.amount, name: m.label },
-      { guard: guardFor(rng, m.ring, m.ring === 1 ? 2 : 3) },
+      auPasDeLaPorte
+        ? { fixe: true }
+        : { guard: guardFor(rng, m.ring, m.ring === 1 ? 2 : 3), fixe: true },
     );
   }
 

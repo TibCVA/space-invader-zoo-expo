@@ -30,7 +30,14 @@ export interface RiverDef {
   kind: 'riviere' | 'ruisseau';
   /** Profondeur d'entaille de la vallée, en mètres. */
   depth: number;
-  /** Demi-largeur de la vallée creusée, en cases. */
+  /**
+   * Demi-largeur de la vallée creusée, **en cases**.
+   *
+   * Une grandeur de la grille, remise à l'échelle avec la carte : une vallée
+   * large de neuf cases de part et d'autre du lit, sur une carte de 113 de
+   * large, aurait fait de la Durolle un canyon couvrant un sixième du pays.
+   * `depth`, au-dessus, est en mètres et ne bouge pas.
+   */
   valley: number;
   /** Polyligne amont → aval, en cases. */
   points: readonly MapCoord[];
@@ -46,7 +53,7 @@ export const RIVERS: readonly RiverDef[] = [
     label: 'la Durolle',
     kind: 'riviere',
     depth: 78,
-    valley: 9,
+    valley: 4,
     points: [
       c(51, 45),
       c(50, 42),
@@ -74,7 +81,7 @@ export const RIVERS: readonly RiverDef[] = [
     label: 'le ruisseau des Sagnes',
     kind: 'ruisseau',
     depth: 34,
-    valley: 5,
+    valley: 2,
     points: [c(45, 50), c(46, 47), c(47, 44), c(48, 41), c(49, 38)],
   },
   {
@@ -82,7 +89,7 @@ export const RIVERS: readonly RiverDef[] = [
     label: "le ruisseau d'Arconsat",
     kind: 'ruisseau',
     depth: 40,
-    valley: 6,
+    valley: 3,
     points: [c(52, 12), c(50, 15), c(49, 18), c(46, 21), c(44, 23), c(42, 24)],
   },
   {
@@ -90,7 +97,7 @@ export const RIVERS: readonly RiverDef[] = [
     label: 'le ruisseau de Palladuc',
     kind: 'ruisseau',
     depth: 36,
-    valley: 5,
+    valley: 2,
     points: [c(26, 5), c(25, 9), c(25, 13), c(25, 16), c(25, 19)],
   },
   {
@@ -98,7 +105,7 @@ export const RIVERS: readonly RiverDef[] = [
     label: 'le ruisseau de la Combe Noire',
     kind: 'ruisseau',
     depth: 38,
-    valley: 5,
+    valley: 2,
     points: [c(62, 41), c(58, 40), c(55, 40), c(53, 41), c(50, 42)],
   },
   {
@@ -106,7 +113,7 @@ export const RIVERS: readonly RiverDef[] = [
     label: 'le ruisseau des Futaies',
     kind: 'ruisseau',
     depth: 44,
-    valley: 7,
+    valley: 3,
     points: [
       c(33, 65),
       c(30, 68),
@@ -124,7 +131,7 @@ export const RIVERS: readonly RiverDef[] = [
     label: 'le ruisseau de la Faye',
     kind: 'ruisseau',
     depth: 30,
-    valley: 4,
+    valley: 2,
     points: [c(35, 80), c(31, 80), c(26, 78), c(23, 77), c(21, 76)],
   },
   {
@@ -132,7 +139,7 @@ export const RIVERS: readonly RiverDef[] = [
     label: 'le ruisseau de Vollore',
     kind: 'ruisseau',
     depth: 42,
-    valley: 6,
+    valley: 3,
     points: [c(27, 118), c(22, 119), c(17, 122), c(11, 124), c(6, 126), c(0, 129)],
   },
   {
@@ -140,7 +147,7 @@ export const RIVERS: readonly RiverDef[] = [
     label: 'le ruisseau de Pamole',
     kind: 'ruisseau',
     depth: 40,
-    valley: 6,
+    valley: 3,
     points: [c(37, 125), c(33, 128), c(27, 131), c(21, 133), c(15, 135), c(9, 138), c(0, 140)],
   },
   {
@@ -148,7 +155,7 @@ export const RIVERS: readonly RiverDef[] = [
     label: 'la Credogne',
     kind: 'riviere',
     depth: 62,
-    valley: 8,
+    valley: 4,
     points: [
       c(56, 165),
       c(52, 162),
@@ -168,7 +175,7 @@ export const RIVERS: readonly RiverDef[] = [
     label: 'le ruisseau de la Marche',
     kind: 'ruisseau',
     depth: 34,
-    valley: 5,
+    valley: 2,
     points: [c(60, 170), c(56, 174), c(53, 178), c(49, 182), c(48, 183)],
   },
   {
@@ -176,7 +183,7 @@ export const RIVERS: readonly RiverDef[] = [
     label: "l'Anzon",
     kind: 'riviere',
     depth: 66,
-    valley: 8,
+    valley: 4,
     points: [
       c(86, 78),
       c(87, 83),
@@ -198,7 +205,7 @@ export const RIVERS: readonly RiverDef[] = [
     label: 'le ruisseau de la Peyrotine',
     kind: 'ruisseau',
     depth: 46,
-    valley: 7,
+    valley: 3,
     points: [
       c(58, 109),
       c(63, 113),
@@ -216,7 +223,7 @@ export const RIVERS: readonly RiverDef[] = [
     label: 'le ruisseau des Farges',
     kind: 'ruisseau',
     depth: 44,
-    valley: 6,
+    valley: 3,
     points: [c(92, 49), c(95, 51), c(99, 54), c(104, 57), c(108, 61), c(111, 66), c(112, 69)],
   },
   {
@@ -224,7 +231,7 @@ export const RIVERS: readonly RiverDef[] = [
     label: 'le ruisseau des Hautes Sagnes',
     kind: 'ruisseau',
     depth: 36,
-    valley: 5,
+    valley: 2,
     points: [c(73, 27), c(78, 23), c(83, 19), c(88, 15), c(94, 12), c(99, 8), c(104, 4), c(108, 0)],
   },
 ];

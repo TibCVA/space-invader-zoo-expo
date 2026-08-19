@@ -84,11 +84,11 @@ export function distanceToWater(): Uint8Array {
 /* ── Seuils ─────────────────────────────────────────────────────────────── */
 
 /** Pente à partir de laquelle la roche affleure en altitude. */
-const ROCK_SLOPE = 20;
+const ROCK_SLOPE = 13;
 /** Altitude à partir de laquelle une pente forte devient rocher. */
 const ROCK_ALTITUDE = 950;
 /** Pente qui devient rocher quelle que soit l'altitude (barre rocheuse). */
-const CLIFF_SLOPE = 27;
+const CLIFF_SLOPE = 17;
 /**
  * Pente au-delà de laquelle la barre devient **falaise**, infranchissable.
  *
@@ -101,7 +101,7 @@ const CLIFF_SLOPE = 27;
  * gorges de la Durolle — sans jamais fermer un versant entier. Les voies
  * l'emportent toujours : une route tracée dans la gorge reste une route.
  */
-const FALAISE_SLOPE = 38;
+const FALAISE_SLOPE = 22;
 /**
  * Altitude où l'arbre renonce : au-dessus, les hautes-chaumes.
  *
@@ -121,15 +121,15 @@ const FALAISE_SLOPE = 38;
  */
 const MOOR_ALTITUDE = 1000;
 /** Pente au-delà de laquelle la chaume cède la place à la roche. */
-const MOOR_MAX_SLOPE = 20;
+const MOOR_MAX_SLOPE = 14;
 /** Pente à partir de laquelle une case est classée « forte pente ». */
-const STEEP_SLOPE = 13;
+export const STEEP_SLOPE = 9;
 /** Pente maximale d'un fond marécageux. */
-const MARSH_SLOPE = 6;
+const MARSH_SLOPE = 4;
 /** Humidité au-delà de laquelle un fond plat devient zone humide. */
 const MARSH_MOISTURE = 152;
 /** Pente maximale d'une case constructible. */
-const BUILDABLE_SLOPE = 10;
+const BUILDABLE_SLOPE = 7;
 
 /**
  * Altitude à partir de laquelle l'eau ne s'en va plus : les tourbières.
@@ -143,7 +143,7 @@ const BUILDABLE_SLOPE = 10;
  */
 const BOG_ALTITUDE = 900;
 /** Pente au-delà de laquelle l'eau s'écoule, même en altitude. */
-const BOG_MAX_SLOPE = 8;
+const BOG_MAX_SLOPE = 5;
 /** Humidité exigée d'un replat d'altitude pour devenir tourbière. */
 const BOG_MOISTURE = 132;
 
@@ -208,7 +208,7 @@ export function classifyTerrain(
         let wood = Math.trunc(fractalNoise(col, row, CANOPY_SEED, CANOPY_OCTAVES) / 2);
         wood += Math.trunc((alt - 740) / 7);
         if (dw < 5) wood -= (5 - dw) * 12;
-        if (s >= 18) wood -= 24;
+        if (s >= 12) wood -= 24;
         if (wet >= 140) wood -= 18;
         code = wood > 14 ? T.foret : T.prairie;
       }

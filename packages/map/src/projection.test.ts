@@ -3,6 +3,7 @@ import { MAP_COLS, MAP_ROWS } from '@auvergne/engine';
 import {
   BOUNDS,
   CELL_HEIGHT_M,
+  CELL_SIZE_M,
   CELL_WIDTH_M,
   MAP_HEIGHT_M,
   MAP_WIDTH_M,
@@ -30,11 +31,24 @@ describe('projection — emprise', () => {
     expect(MAP_HEIGHT_M).toBeLessThan(20200);
   });
 
-  it('donne des cases d’environ 48 mètres', () => {
-    expect(CELL_WIDTH_M).toBeGreaterThan(47);
-    expect(CELL_WIDTH_M).toBeLessThan(49);
-    expect(CELL_HEIGHT_M).toBeGreaterThan(47);
-    expect(CELL_HEIGHT_M).toBeLessThan(49);
+  it('donne des cases d’environ 109 mètres, et presque carrées', () => {
+    expect(CELL_WIDTH_M).toBeGreaterThan(107);
+    expect(CELL_WIDTH_M).toBeLessThan(110);
+    expect(CELL_HEIGHT_M).toBeGreaterThan(108);
+    expect(CELL_HEIGHT_M).toBeLessThan(111);
+  });
+
+  /*
+   * L'isotropie est ce que le calcul de pente suppose : il divise une
+   * dénivelée par `CELL_SIZE_M`, la même valeur dans les deux directions. Le
+   * jour où la grille cessera d'être à peu près carrée, ce test tombera avant
+   * que le terrain ne se déforme en silence.
+   */
+  it('reste isotrope à 1 % près, ce que la pente suppose', () => {
+    const ecart = Math.abs(CELL_HEIGHT_M - CELL_WIDTH_M) / CELL_WIDTH_M;
+    expect(ecart).toBeLessThan(0.01);
+    expect(CELL_SIZE_M).toBeGreaterThanOrEqual(Math.floor(CELL_WIDTH_M));
+    expect(CELL_SIZE_M).toBeLessThanOrEqual(Math.ceil(CELL_HEIGHT_M));
   });
 });
 
@@ -64,14 +78,15 @@ describe('projection — Lambert-93', () => {
 
 describe('projection — grille', () => {
   it('fait l’aller-retour case → WGS84 → case', () => {
+    // Les quatre coins, le centre, et trois ancrages — tirés de la grille
+    // courante plutôt que recopiés, pour que l'échantillon suive l'échelle.
     const samples = [
       { col: 0, row: 0 },
-      { col: 255, row: 0 },
-      { col: 0, row: 415 },
-      { col: 255, row: 415 },
-      { col: 145, row: 113 },
-      { col: 58, row: 165 },
-      { col: 214, row: 119 },
+      { col: MAP_COLS - 1, row: 0 },
+      { col: 0, row: MAP_ROWS - 1 },
+      { col: MAP_COLS - 1, row: MAP_ROWS - 1 },
+      { col: (MAP_COLS >> 1), row: (MAP_ROWS >> 1) },
+      ...FOREZ_ANCHORS.slice(0, 3).map((a) => ({ col: a.col, row: a.row })),
     ];
     for (const s of samples) {
       const ll = cellToLatLon(s.col, s.row);

@@ -1,9 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { REGIONS, type StartKey } from '@auvergne/engine';
+import { MAP_ROWS, REGIONS, type StartKey } from '@auvergne/engine';
 import { anchorCell } from './anchors.js';
 import { NEUTRAL_CENTERS, START_KEYS, START_POSITIONS, START_SETS } from './starts.js';
 
 const ALL: StartKey[] = ['arconsat', 'viscomtat', 'cervieres', 'noiretable', 'renaudie'];
+
+/*
+ * Écarts minimaux entre capitales, en cases de Tchebychev.
+ *
+ * Ils sont exprimés en fraction de la hauteur de la carte plutôt qu'en cases,
+ * parce que ce qu'on veut garantir est une part du pays et non un nombre : que
+ * deux bannières ne se touchent pas au premier jour. Écrits en dur — 60 et 80
+ * sur une carte haute de 416 — ils exigeaient, à la taille d'une XL de HMM3,
+ * le tiers et près de la moitié de la hauteur du monde entre deux voisins, ce
+ * qu'aucun placement à cinq ne peut tenir. Les fractions reprennent exactement
+ * l'intention d'origine : 416 / 7 ≈ 59 et 416 / 5 ≈ 83.
+ */
+const ECART_MIN = Math.trunc(MAP_ROWS / 7);
+const ECART_OPPOSE = Math.trunc(MAP_ROWS / 5);
 
 describe('positions de départ', () => {
   it('publie exactement les cinq clefs du brief', () => {
@@ -43,7 +57,7 @@ describe('positions de départ', () => {
         const a = START_POSITIONS[ALL[i]].at;
         const b = START_POSITIONS[ALL[j]].at;
         const d = Math.max(Math.abs(a.col - b.col), Math.abs(a.row - b.row));
-        expect(d, `${ALL[i]} / ${ALL[j]}`).toBeGreaterThan(60);
+        expect(d, `${ALL[i]} / ${ALL[j]}`).toBeGreaterThan(ECART_MIN);
       }
     }
   });
@@ -98,7 +112,7 @@ describe('combinaisons équilibrées', () => {
             const a = START_POSITIONS[set[i]].at;
             const b = START_POSITIONS[set[j]].at;
             const d = Math.max(Math.abs(a.col - b.col), Math.abs(a.row - b.row));
-            expect(d, `${set[i]} / ${set[j]}`).toBeGreaterThan(60);
+            expect(d, `${set[i]} / ${set[j]}`).toBeGreaterThan(ECART_MIN);
           }
         }
       }
@@ -110,7 +124,7 @@ describe('combinaisons équilibrées', () => {
       const a = START_POSITIONS[set[0]].at;
       const b = START_POSITIONS[set[1]].at;
       const d = Math.max(Math.abs(a.col - b.col), Math.abs(a.row - b.row));
-      expect(d, set.join(' / ')).toBeGreaterThan(80);
+      expect(d, set.join(' / ')).toBeGreaterThan(ECART_OPPOSE);
     }
   });
 });

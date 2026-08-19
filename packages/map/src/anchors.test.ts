@@ -9,30 +9,58 @@ import {
   anchorList,
   type AnchorKey,
 } from './anchors.js';
+import { latLonToCell } from './projection.js';
 
-/** Table du brief §7, recopiée telle quelle pour servir de témoin. */
-const BRIEF: Record<string, { col: number; row: number; alt: number }> = {
-  arconsat: { col: 117, row: 25, alt: 700 },
-  chabreloche: { col: 90, row: 48, alt: 780 },
-  le_lac: { col: 111, row: 95, alt: 900 },
-  col_sagnes: { col: 100, row: 113, alt: 990 },
-  maison_tresor: { col: 145, row: 113, alt: 950 },
-  cervieres: { col: 214, row: 119, alt: 880 },
-  viscomtat: { col: 58, row: 165, alt: 700 },
-  noiretable: { col: 202, row: 189, alt: 720 },
-  hermitage: { col: 125, row: 250, alt: 1110 },
-  vollore: { col: 55, row: 264, alt: 940 },
-  renaudie: { col: 132, row: 378, alt: 800 },
+/**
+ * Table du brief §7, recopiée telle quelle pour servir de témoin.
+ *
+ * Le témoin est la **latitude, la longitude et l'altitude** — pas la colonne
+ * ni la ligne. Le brief donnait bien un couple (col, row) pour chacun des onze
+ * ancrages, mais il l'avait calculé pour une grille de 256 × 416 : ces
+ * nombres-là ne décrivent pas un lieu, ils décrivent où ce lieu tombait dans
+ * une grille qui n'existe plus. Le jour où la carte est passée à la taille
+ * d'une XL de HMM3, les recopier aurait fait échouer le test pour la seule
+ * raison qu'il mesurait la grille au lieu de mesurer le Forez.
+ *
+ * Le test vérifie donc que chaque ancrage tombe sur la case où sa
+ * latitude et sa longitude le projettent — ce qui vaut à toute échelle, et
+ * qui attrape en plus une faute que l'ancienne table ne voyait pas : un
+ * ancrage déplacé à la main sans que ses coordonnées géographiques suivent.
+ */
+const BRIEF: Record<string, { lat: number; lon: number; alt: number }> = {
+  arconsat: { lat: 45.88972, lon: 3.71389, alt: 700 },
+  chabreloche: { lat: 45.87972, lon: 3.6975, alt: 780 },
+  le_lac: { lat: 45.85937, lon: 3.70981, alt: 900 },
+  col_sagnes: { lat: 45.8517, lon: 3.7032, alt: 990 },
+  col_st_thomas: { lat: 45.88609, lon: 3.754218, alt: 930 },
+  maison_tresor: { lat: 45.8515024, lon: 3.7307805, alt: 950 },
+  cervieres: { lat: 45.84861, lon: 3.77306, alt: 880 },
+  viscomtat: { lat: 45.82917, lon: 3.67694, alt: 700 },
+  noiretable: { lat: 45.81806, lon: 3.76556, alt: 720 },
+  hermitage: { lat: 45.7917, lon: 3.71756, alt: 1110 },
+  vollore: { lat: 45.785833, lon: 3.674444, alt: 940 },
+  renaudie: { lat: 45.7361, lon: 3.7211, alt: 800 },
 };
 
 describe('ancrages', () => {
-  it('reprend exactement les onze ancrages du brief', () => {
+  it('reprend exactement les ancrages canoniques du brief', () => {
     for (const [key, want] of Object.entries(BRIEF)) {
       const a = anchor(key as AnchorKey);
-      expect(a.col, `${key}.col`).toBe(want.col);
-      expect(a.row, `${key}.row`).toBe(want.row);
+      expect(a.lat, `${key}.lat`).toBe(want.lat);
+      expect(a.lon, `${key}.lon`).toBe(want.lon);
       expect(a.alt, `${key}.alt`).toBe(want.alt);
       expect(a.canonical).toBe(true);
+    }
+    // Le brief ne connaît que ces ancrages-là comme canoniques.
+    const canoniques = FOREZ_ANCHORS.filter((a) => a.canonical).map((a) => a.key);
+    expect(canoniques.sort()).toEqual(Object.keys(BRIEF).sort());
+  });
+
+  it('pose chaque ancrage sur la case où le projette sa position réelle', () => {
+    for (const a of FOREZ_ANCHORS) {
+      const projete = latLonToCell(a.lat, a.lon);
+      expect(Math.abs(a.col - projete.col), `${a.key}.col`).toBeLessThanOrEqual(1);
+      expect(Math.abs(a.row - projete.row), `${a.key}.row`).toBeLessThanOrEqual(1);
     }
   });
 

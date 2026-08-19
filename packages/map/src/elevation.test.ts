@@ -43,26 +43,35 @@ describe('altitude — cotes connues', () => {
   });
 
   it('descend vers le nord-ouest, où la Durolle quitte l’emprise', () => {
-    // Le coin nord-ouest est le point bas de l'emprise.
-    let northWest = 0;
-    let count = 0;
-    for (let row = 20; row < 40; row++) {
-      for (let col = 0; col < 16; col++) {
-        northWest += h(col, row);
-        count++;
+    /*
+     * Les deux fenêtres sont exprimées en fractions de la grille, pas en cases.
+     * Elles l'étaient en cases, et prélevaient les colonnes 140 à 180 — au-delà
+     * du bord d'une carte large de 113, où la lecture repart sur la ligne
+     * suivante et mesure n'importe quoi. Le seuil, lui, est en mètres : c'est
+     * une dénivelée réelle du Forez, elle ne dépend pas de la finesse de la
+     * grille et ne bouge pas.
+     */
+    const moyenne = (col0: number, col1: number, row0: number, row1: number): number => {
+      let somme = 0;
+      let n = 0;
+      for (let row = row0; row < row1; row++) {
+        for (let col = col0; col < col1; col++) {
+          somme += h(col, row);
+          n++;
+        }
       }
-    }
-    northWest = Math.trunc(northWest / count);
+      return Math.trunc(somme / n);
+    };
 
-    let core = 0;
-    count = 0;
-    for (let row = 130; row < 170; row++) {
-      for (let col = 140; col < 180; col++) {
-        core += h(col, row);
-        count++;
-      }
-    }
-    core = Math.trunc(core / count);
+    // Coin nord-ouest : le point bas de l'emprise, où la Durolle s'en va.
+    const northWest = moyenne(0, Math.trunc(COLS / 16), Math.trunc(ROWS / 20), Math.trunc(ROWS / 10));
+    // Cœur du massif, au sud-est : les Bois Noirs et le plateau.
+    const core = moyenne(
+      Math.trunc((COLS * 5) / 9),
+      Math.trunc((COLS * 7) / 9),
+      Math.trunc((ROWS * 5) / 16),
+      Math.trunc((ROWS * 7) / 16),
+    );
 
     expect(core - northWest).toBeGreaterThan(300);
   });
@@ -148,11 +157,21 @@ describe('pente', () => {
     let steep = 0;
     let gentle = 0;
     for (let i = 0; i < CELLS; i++) {
-      if (field.slope[i] >= 20) steep++;
-      if (field.slope[i] <= 4) gentle++;
+      if (field.slope[i] >= 12) steep++;
+      if (field.slope[i] <= 3) gentle++;
     }
-    expect(steep).toBeGreaterThan(1000);
-    expect(gentle).toBeGreaterThan(10000);
+    /*
+     * Deux changements ici, et le second explique le premier. Les comptes sont
+     * devenus des parts de la grille, qui a été divisée par 5,12. Et les deux
+     * degrés-témoins ont baissé — 20° et 4° deviennent 12° et 3° — parce que
+     * la pente elle-même a changé de sens : elle se mesure désormais sur les
+     * 218 m qui séparent vraiment deux cases, et non sur les 96 m d'une grille
+     * cinq fois plus fine. Un même versant du Forez rend un angle plus doux
+     * quand on l'échantillonne de plus loin ; c'est la montagne qui est
+     * inchangée, pas le nombre.
+     */
+    expect(steep).toBeGreaterThan(Math.trunc(CELLS / 40));
+    expect(gentle).toBeGreaterThan(Math.trunc(CELLS / 10));
   });
 });
 

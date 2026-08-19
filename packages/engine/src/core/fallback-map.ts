@@ -320,8 +320,8 @@ function classify(seed: number): Draft {
       const wet = valueNoise(col, row, 23, seed ^ 0x1177, 100);
       const wood = valueNoise(col, row, 31, seed ^ 0x4423, 100);
       let t: number;
-      if (s >= 34 && h > 1000) t = T.rocher;
-      else if (s >= 22) t = T.pente;
+      if (s >= 19 && h > 1000) t = T.rocher;
+      else if (s >= 13) t = T.pente;
       else if (h > 1040 && wet > 40) t = T.humide;
       else if (wood > -10 && h > 620) t = T.foret;
       else if (wet > 55) t = T.humide;

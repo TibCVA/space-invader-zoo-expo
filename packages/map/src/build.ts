@@ -80,10 +80,22 @@ function clearPlot(
   }
 }
 
-/** Force une case à être franchissable : réservé aux entrées et emprises bâties. */
+/**
+ * Force une case à être franchissable : réservé aux entrées et emprises bâties.
+ *
+ * Un franchissement fait exception. Le pont est déjà franchissable, et combler
+ * son tablier rendait une case de prairie qui portait toujours le drapeau de
+ * voie : un chemin passant sur de l'herbe au milieu d'une rivière. Le cas est
+ * apparu quand les cours d'eau reprojetés à la taille d'une XL de HMM3 sont
+ * passés sous des emprises bâties. On laisse donc l'eau et le pont en place.
+ */
 function forceWalkable(terrain: Uint8Array, flags: Uint16Array, col: number, row: number): void {
   if (col < 0 || row < 0 || col >= COLS || row >= ROWS) return;
   const i = row * COLS + col;
+  if ((flags[i] & CELL_BRIDGE) !== 0) {
+    flags[i] |= CELL_PASSABLE;
+    return;
+  }
   if (terrain[i] === T.eau) terrain[i] = T.prairie;
   flags[i] |= CELL_PASSABLE;
 }

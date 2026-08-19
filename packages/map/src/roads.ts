@@ -287,10 +287,24 @@ interface Tracer {
   heap: IntHeap;
 }
 
+/**
+ * Poids du carré de la pente dans le coût d'un pas de tracé.
+ *
+ * Le terme est quadratique en degrés, ce qui le rend très sensible à l'échelle
+ * à laquelle la pente est mesurée. Depuis que le gradient se prend sur les
+ * 218 m qui séparent réellement deux cases, et non sur 96 m, un même versant
+ * rend un angle 2,27 fois plus petit — et son carré cinq fois plus petit. Le
+ * tracé ne contournait plus les raides : la part des itinéraires plus doux que
+ * leur corde était tombée de 90 % à 81 %. Le facteur rend au terme le poids
+ * qu'il avait, sans toucher aux deux autres, qui sont invariants : le coût de
+ * dénivelée se somme sur la montée totale, et le coût de base sur la distance.
+ */
+const PENTE_POIDS = 5;
+
 function stepCost(t: Tracer, from: number, to: number, diagonal: boolean): number {
   let cost = STEP_BASE;
   const s = t.slope[to];
-  cost += Math.trunc((s * s) / 2);
+  cost += Math.trunc((s * s * PENTE_POIDS) / 2);
   const dh = t.elevation[to] - t.elevation[from];
   cost += (dh < 0 ? -dh : dh) * 11;
   if (t.water[to] === 1) cost += t.crossing[to] === 1 ? CROSSING_COST : WATER_COST;

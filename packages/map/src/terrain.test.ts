@@ -10,10 +10,11 @@ import {
   TERRAIN_COST,
   type Terrain,
 } from '@auvergne/engine';
+import { anchorCell } from './anchors.js';
 import { buildTerrain } from './build.js';
 import { CELLS, COLS, ROWS, idx } from './grid.js';
 import { buildHydrography } from './hydrography.js';
-import { FOREST_LABELS, distanceToWater, forestKindAt } from './terrain.js';
+import { FOREST_LABELS, STEEP_SLOPE, distanceToWater, forestKindAt } from './terrain.js';
 
 const field = buildTerrain();
 const hydro = buildHydrography();
@@ -50,9 +51,18 @@ describe('biomes — répartition', () => {
   });
 
   it('ne pave pas la carte de routes', () => {
-    expect((counts.route + counts.chemin) * 100).toBeLessThan(CELLS * 5);
-    expect(counts.route).toBeGreaterThan(300);
-    expect(counts.chemin).toBeGreaterThan(700);
+    /*
+     * Les voies sont larges d'une case ; leur longueur suit la carte (÷ 2,26)
+     * mais la surface suit son aire (÷ 5,12). Le même réseau — celui qui relie
+     * les mêmes lieux, car la géographie n'a pas changé — occupe donc une part
+     * deux fois plus grande d'une carte deux fois plus petite : 5,3 % contre
+     * 2,4 %. Ce n'est pas un pavage, c'est de l'arithmétique. La borne monte
+     * à 8 %, ce que porte une XL de HMM3, et garde son sens : la voie reste
+     * l'exception, jamais le fond de carte.
+     */
+    expect((counts.route + counts.chemin) * 100).toBeLessThan(CELLS * 8);
+    expect(counts.route * 1000).toBeGreaterThan(CELLS * 6);
+    expect(counts.chemin * 1000).toBeGreaterThan(CELLS * 20);
   });
 });
 
@@ -83,8 +93,11 @@ describe('biomes — logique altitudinale', () => {
       sum += field.slope[i];
       n++;
     }
-    expect(n).toBeGreaterThan(500);
-    expect(Math.trunc(sum / n)).toBeGreaterThanOrEqual(13);
+    expect(n).toBeGreaterThan(Math.trunc(CELLS / 50));
+    /* La moyenne doit atteindre le seuil qui définit la forte pente — c'est
+       la même constante, pas un nombre recopié : elle a suivi le passage à
+       une case de 109 m, où un gradient se mesure sur 218 m et non sur 96. */
+    expect(Math.trunc(sum / n)).toBeGreaterThanOrEqual(STEEP_SLOPE);
   });
 
   it('met la prairie dans les fonds : plus plate que la moyenne', () => {
@@ -101,8 +114,14 @@ describe('biomes — logique altitudinale', () => {
   });
 
   it('distingue sapinière, hêtraie-sapinière et hêtraie', () => {
-    expect(forestKindAt(field.elevation, 154, 151)).toBe('sapiniere');
-    expect(forestKindAt(field.elevation, 117, 25)).toBe('hetraie');
+    /* Les deux témoins sont nommés, pas numérotés : le sommet des Bois Noirs
+       porte la sapinière d'altitude, Arconsat la hêtraie de piémont. Ils
+       étaient donnés en cases de l'ancienne grille — (154, 151) et (117, 25) —
+       et désignaient depuis le changement d'échelle deux points quelconques. */
+    const boisNoirs = anchorCell('bois_noirs');
+    const arconsat = anchorCell('arconsat');
+    expect(forestKindAt(field.elevation, boisNoirs.col, boisNoirs.row)).toBe('sapiniere');
+    expect(forestKindAt(field.elevation, arconsat.col, arconsat.row)).toBe('hetraie');
     const kinds = new Set<string>();
     for (let i = 0; i < CELLS; i += 37) {
       if (name(i) !== 'foret') continue;
@@ -122,7 +141,8 @@ describe('biomes — logique altitudinale', () => {
       bog++;
       if (name(i) === 'humide' || name(i) === 'prairie') wet++;
     }
-    expect(bog).toBeGreaterThan(100);
+    /* Une surface, donc une part de la grille. */
+    expect(bog * 1000).toBeGreaterThan(CELLS * 2);
     expect(wet * 100).toBeGreaterThan(bog * 85);
   });
 });

@@ -37,7 +37,8 @@ describe('voies — tracé', () => {
     const a = course[0];
     const b = course[course.length - 1];
     const straight = Math.max(Math.abs(b.col - a.col), Math.abs(b.row - a.row));
-    expect(course.length).toBeGreaterThan(straight + 8);
+    /* Le détour minimal est une longueur, en cases : il suit l'échelle. */
+    expect(course.length).toBeGreaterThan(straight + 4);
   });
 
   it('suit les pentes faibles : moins raide que la ligne droite', () => {
@@ -65,7 +66,9 @@ describe('voies — la Grande Chaussée des Marchands', () => {
   const chaussee = roads.chausseeCourse;
 
   it('court du nord au sud, d’une bordure à l’autre', () => {
-    expect(chaussee.length).toBeGreaterThan(400);
+    /* La chaussée court d'une bordure à l'autre : au moins la hauteur de la
+       carte, et un peu plus puisqu'elle serpente. */
+    expect(chaussee.length).toBeGreaterThan(ROWS);
     expect(chaussee[0].row).toBe(0);
     expect(chaussee[chaussee.length - 1].row).toBe(ROWS - 1);
   });
@@ -88,7 +91,7 @@ describe('voies — la Grande Chaussée des Marchands', () => {
   it('reste minoritaire en surface : c’est un corridor, pas un damier', () => {
     let major = 0;
     for (let i = 0; i < CELLS; i++) if (roads.road[i] === ROAD_MAJOR) major++;
-    expect(major).toBeGreaterThan(500);
+    expect(major * 1000).toBeGreaterThan(CELLS * 4);
     expect(major * 100).toBeLessThan(CELLS * 2);
   });
 });
@@ -188,8 +191,8 @@ describe('voies — intégration au terrain', () => {
         expect(field.flags[i] & CELL_ROAD).not.toBe(0);
       }
     }
-    expect(route).toBeGreaterThan(300);
-    expect(chemin).toBeGreaterThan(800);
+    expect(route * 1000).toBeGreaterThan(CELLS * 6);
+    expect(chemin * 1000).toBeGreaterThan(CELLS * 20);
   });
 
   it('rend franchissable toute voie posée sur l’eau', () => {
@@ -203,6 +206,6 @@ describe('voies — intégration au terrain', () => {
   it('distingue bien les chemins des grandes chaussées', () => {
     let path = 0;
     for (let i = 0; i < CELLS; i++) if (roads.road[i] === ROAD_PATH) path++;
-    expect(path).toBeGreaterThan(800);
+    expect(path * 1000).toBeGreaterThan(CELLS * 20);
   });
 });

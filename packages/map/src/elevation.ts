@@ -25,6 +25,7 @@ import { FOREZ_ANCHORS } from './anchors.js';
 import { CELLS, COLS, ROWS, distToSegment2, idx, isqrt, slopeDegrees } from './grid.js';
 import { SAGNES, buildHydrography } from './hydrography.js';
 import { RELIEF_OCTAVES, fractalNoise } from './noise.js';
+import { CELL_SIZE_M } from './projection.js';
 
 /** Altitude minimale admise sur l'emprise, en mètres. */
 export const MIN_ALTITUDE = 460;
@@ -152,9 +153,16 @@ function allSpots(): Spot[] {
 interface RidgeNode {
   col: number;
   row: number;
-  /** Rehaussement au faîte, en mètres. */
+  /** Rehaussement au faîte, en mètres — une grandeur du terrain, pas de la grille. */
   amp: number;
-  /** Demi-largeur d'influence, en cases. */
+  /**
+   * Demi-largeur d'influence, **en cases**.
+   *
+   * Donc une grandeur de la grille : elle a suivi le passage à la taille d'une
+   * XL de HMM3. Une crête large de treize cases sur une carte de 113 aurait
+   * couvert le quart de la largeur du pays au lieu du vingtième, et la ligne
+   * de partage des eaux aurait cessé d'être une ligne.
+   */
   width: number;
 }
 
@@ -185,44 +193,44 @@ const RIDGES: readonly RidgeDef[] = [
     key: 'partage',
     label: 'la ligne de partage des eaux',
     nodes: [
-      r(150, 0, 45, 13),
-      r(146, 40, 52, 13),
-      r(140, 72, 54, 12),
-      r(132, 96, 48, 11),
-      r(128, 112, 42, 10),
-      r(140, 130, 52, 11),
-      r(154, 151, 64, 13),
-      r(158, 175, 58, 12),
-      r(150, 200, 50, 11),
-      r(138, 225, 46, 11),
-      r(125, 250, 52, 11),
-      r(112, 268, 44, 10),
-      r(100, 285, 38, 10),
-      r(108, 310, 34, 10),
-      r(120, 340, 32, 9),
-      r(132, 378, 28, 9),
-      r(140, 415, 26, 9),
+      r(66, 0, 45, 6),
+      r(64, 18, 52, 6),
+      r(62, 32, 54, 5),
+      r(58, 42, 48, 5),
+      r(56, 50, 42, 4),
+      r(62, 58, 52, 5),
+      r(68, 67, 64, 6),
+      r(70, 77, 58, 5),
+      r(66, 88, 50, 5),
+      r(61, 100, 46, 5),
+      r(55, 111, 52, 5),
+      r(49, 119, 44, 4),
+      r(44, 126, 38, 4),
+      r(48, 137, 34, 4),
+      r(53, 150, 32, 4),
+      r(58, 167, 28, 4),
+      r(62, 183, 26, 4),
     ],
   },
   {
     key: 'pamole',
     label: 'la crête de Pamole',
-    nodes: [r(58, 252, 34, 9), r(70, 264, 44, 10), r(80, 276, 56, 11), r(94, 292, 38, 9)],
+    nodes: [r(26, 111, 34, 4), r(31, 117, 44, 4), r(35, 122, 56, 5), r(41, 129, 38, 4)],
   },
   {
     key: 'cervieres',
     label: 'la crête de Cervières',
-    nodes: [r(185, 140, 34, 9), r(205, 128, 38, 10), r(222, 120, 30, 9), r(240, 116, 22, 8)],
+    nodes: [r(82, 62, 34, 4), r(90, 57, 38, 4), r(98, 53, 30, 4), r(106, 51, 22, 4)],
   },
   {
     key: 'arconsat',
     label: "la crête d'Arconsat",
-    nodes: [r(100, 10, 26, 9), r(117, 25, 34, 10), r(128, 45, 30, 9), r(134, 70, 28, 9)],
+    nodes: [r(44, 4, 26, 4), r(52, 11, 34, 4), r(56, 20, 30, 4), r(59, 31, 28, 4)],
   },
   {
     key: 'futaies',
     label: 'la crête des Hautes-Futaies',
-    nodes: [r(75, 140, 30, 9), r(82, 165, 28, 9), r(78, 195, 24, 9)],
+    nodes: [r(33, 62, 30, 4), r(36, 73, 28, 4), r(34, 86, 24, 4)],
   },
 ];
 
@@ -352,7 +360,29 @@ function addRoughness(elevation: Int16Array): void {
 }
 
 /** Largeur du raccord entre la cuvette d'une sagne et le versant, en cases. */
-const BOG_APRON = 4;
+/**
+ * Raccord d'une sagne à son versant, en cases — donc à l'échelle de la grille.
+ * Il valait 4 quand la carte faisait 256 × 416.
+ */
+const BOG_APRON = 2;
+
+/**
+ * Cases portant un ancrage, pour que les passes tardives ne les défassent pas.
+ *
+ * `pinAnchors` promet la cote exacte de chaque lieu nommé, et trois passes
+ * tournaient après lui sans le savoir. Mesuré : la Sagne du Lac, une fois
+ * ramenée à l'échelle, tombait à deux cases du hameau du Lac et l'aplatissait
+ * avec elle — 859 m au lieu des 900 relevés. Un marais se forme autour d'un
+ * lieu habité, il ne l'avale pas.
+ */
+let anchorCellsCache: Set<number> | null = null;
+function anchorCells(): Set<number> {
+  if (!anchorCellsCache) {
+    anchorCellsCache = new Set<number>();
+    for (const a of FOREZ_ANCHORS) anchorCellsCache.add(idx(a.col, a.row));
+  }
+  return anchorCellsCache;
+}
 
 /**
  * Creuse les sagnes en cuvettes plates.
@@ -363,6 +393,7 @@ const BOG_APRON = 4;
  * sur quatre cases vers le relief environnant.
  */
 function flattenBogs(elevation: Int16Array): void {
+  const fixes = anchorCells();
   for (const bog of SAGNES) {
     const radius = bog.radius;
     let level = 0;
@@ -399,6 +430,7 @@ function flattenBogs(elevation: Int16Array): void {
         const row = bog.at.row + dr;
         if (col < 0 || row < 0 || col >= COLS || row >= ROWS) continue;
         const i = row * COLS + col;
+        if (fixes.has(i)) continue;
         const d = isqrt(d2);
         if (d <= radius) {
           elevation[i] = level;
@@ -421,6 +453,7 @@ function flattenBogs(elevation: Int16Array): void {
  */
 function enforceDownhill(elevation: Int16Array): void {
   const hydro = buildHydrography();
+  const fixes = anchorCells();
   for (let pass = 0; pass < 8; pass++) {
     let changed = false;
     for (const course of hydro.courses) {
@@ -428,6 +461,10 @@ function enforceDownhill(elevation: Int16Array): void {
       let previous = elevation[idx(course[0].col, course[0].row)];
       for (let k = 1; k < course.length; k++) {
         const i = idx(course[k].col, course[k].row);
+        if (fixes.has(i)) {
+          previous = elevation[i];
+          continue;
+        }
         if (elevation[i] > previous) {
           elevation[i] = previous;
           changed = true;
@@ -439,8 +476,15 @@ function enforceDownhill(elevation: Int16Array): void {
   }
 }
 
-/** Rayon de raccord du rétablissement des cotes d'ancrage, en cases. */
-const PIN_RADIUS = 3;
+/**
+ * Rayon de raccord du rétablissement des cotes d'ancrage, en cases.
+ *
+ * Il valait 3 sur une case de 48 m, soit 144 m de raccord. Laissé tel quel sur
+ * une case de 109 m, il étalait 327 m de terrain rigoureusement plat autour de
+ * chaque lieu nommé : le Col des Sagnes présentait cinq cases à 990 m avant de
+ * consentir à descendre, et n'était plus une selle mais une esplanade.
+ */
+const PIN_RADIUS = 1;
 
 function pinAnchors(elevation: Int16Array): void {
   for (const a of FOREZ_ANCHORS) {
@@ -474,6 +518,18 @@ function clampField(elevation: Int16Array): void {
  * Pente en degrés entiers (0..90), calculée par différences centrées sur
  * 96 mètres (deux cases) et convertie sans trigonométrie flottante.
  */
+/**
+ * Longueur au sol séparant les deux cases comparées par le gradient, en mètres.
+ *
+ * Le gradient est pris entre la case ouest et la case est : deux cases d'écart,
+ * donc deux largeurs de case. Cette longueur était écrite en dur à 96 — deux
+ * fois les 48 m d'alors — et ne suivait pas `CELL_SIZE_M`. À la taille d'une XL
+ * de HMM3 la case vaut 109 m : toutes les pentes étaient surestimées d'un
+ * facteur 2,27, la carte passait à 23 % de versants raides et 7 % de rochers
+ * contre 12 % et 2,4 % pour le même relief.
+ */
+const SPAN_M = 2 * CELL_SIZE_M;
+
 export function computeSlope(elevation: Int16Array): Uint8Array {
   const slope = new Uint8Array(CELLS);
   for (let row = 0; row < ROWS; row++) {
@@ -486,7 +542,7 @@ export function computeSlope(elevation: Int16Array): Uint8Array {
       const gx = elevation[base + east] - elevation[base + west];
       const gy = elevation[down + col] - elevation[up + col];
       const g = isqrt(gx * gx + gy * gy);
-      slope[base + col] = slopeDegrees(g, 96);
+      slope[base + col] = slopeDegrees(g, SPAN_M);
     }
   }
   return slope;
