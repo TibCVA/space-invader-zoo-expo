@@ -288,9 +288,11 @@ export function fixedPlots(): Plot[] {
 /**
  * Puissance indicative d'une créature par rang, servant à calibrer les gardes.
  * Elle n'engage pas les valeurs finales de `@auvergne/content` : elle ne sert
- * qu'à répartir les effectifs entre anneaux de difficulté.
+ * qu'à répartir les effectifs entre anneaux de difficulté. Exportée pour que
+ * les tests mesurent la force des gardes avec LE barème du semeur, jamais une
+ * copie.
  */
-const TIER_POWER: readonly number[] = [0, 10, 32, 85, 190, 420, 900, 2100];
+export const TIER_POWER: readonly number[] = [0, 10, 32, 85, 190, 420, 900, 2100];
 
 /** Rangs autorisés et fourchette de puissance, par anneau (document §20.2). */
 const RING_TABLE: Readonly<

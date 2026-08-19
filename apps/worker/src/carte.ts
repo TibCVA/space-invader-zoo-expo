@@ -496,8 +496,10 @@ function imprimer(r: Rapport): void {
   ligne('composantes praticables', String(r.composantes));
   ligne('points d’articulation', String(r.articulations), `≥ ${String(CIBLE_ARTICULATIONS_MIN)}`);
   ligne('gardes posés', String(r.gardes));
-  ligne('gardes qui bloquent vraiment', `${String(r.gardesBloquants)} / ${String(r.gardes)}`,
-    'tous');
+  /* Seule la compagnie des POSTES doit bloquer : les errantes protègent les
+     trésors des lisières, pas les passages — leur case d'entrée suffit. */
+  ligne('postes qui bloquent vraiment', `${String(r.gardesBloquants)} / ${String(r.gardes)}`,
+    '≥ 20 postes');
 
   console.log('\n▸ Rappel — pourquoi ces cibles');
   console.log('  Un objet toutes les 120 à 150 cases : densité d’une carte HMM3 de');
