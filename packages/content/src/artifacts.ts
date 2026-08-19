@@ -510,8 +510,11 @@ const RELIQUES: readonly Row[] = [
     lore: "Une ramure de douze cors, tombée d'elle-même au bord du bassin le jour de la grande gelée et jamais ramassée par personne d'autre qu'une prieure. L'eau s'y accroche encore en gouttes qui ne sèchent pas. Ce qu'elle touche cesse de pourrir.",
   },
   {
+    /* L'identifiant reste `pierre_de_pamole` (sauvegardes) ; le nom affiché
+       distingue l'éclat portable de la Pierre elle-même, dressée depuis le
+       lot 1.7 sur son sommet, qui donne +1 de vaillance à qui la touche. */
     id: 'pierre_de_pamole',
-    name: 'Pierre de Pamole',
+    name: 'Éclat de Pamole',
     slot: 'relique',
     rarity: 'relique',
     effects: [
