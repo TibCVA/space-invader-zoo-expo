@@ -28,6 +28,7 @@ import {
   applyCommand,
   armyPower,
   createGame,
+  standings,
   weekOf,
   type BuildingId,
   type FactionId,
@@ -156,7 +157,7 @@ export const DEFAULT_OPTIONS: GameOptions = {
   players: 2,
   profiles: ['expert', 'prudent'],
   duration: 'standard',
-  victory: 'couronne',
+  victory: 'derniere_banniere',
   rotation: 0,
   fast: false,
   maxTurns: 900,
@@ -378,16 +379,34 @@ export function simulateGame(partial: Partial<GameOptions> = {}): GameOutcome {
     };
   });
 
-  const winnerBanner = banners.find((b) => b.id === state.winner) ?? null;
+  /*
+   * Depuis le mode unique, une partie ne s'achève que par la prise du dernier
+   * château : au garde-fou de tours, il peut n'y avoir aucun vainqueur de
+   * JEU. Le harnais, lui, doit quand même départager les profils — c'est sa
+   * raison d'être — donc il classe au score d'observation ce que le jeu n'a
+   * pas tranché, et le dit dans la raison plutôt que de le maquiller en
+   * victoire.
+   */
+  let reportedWinner = state.winner;
+  let reportedReason = state.endReason ?? 'Partie interrompue.';
+  if (state.phase !== 'termine') {
+    const table = standings(state).filter((row) => state.players[row.player]?.alive);
+    const best = table[0] ?? null;
+    reportedWinner = best ? best.player : null;
+    reportedReason = best
+      ? `Garde-fou du harnais : classement d'observation, ${best.player} en tête sans conquête achevée.`
+      : 'Garde-fou du harnais : aucune bannière à classer.';
+  }
+  const winnerBanner = banners.find((b) => b.id === reportedWinner) ?? null;
 
   return {
     seed: options.seed,
     players: setup.players.length,
     duration: options.duration,
     victory: options.victory,
-    winner: state.winner,
+    winner: reportedWinner,
     winnerProfile: winnerBanner ? winnerBanner.profile : null,
-    reason: state.endReason ?? 'Partie interrompue.',
+    reason: reportedReason,
     turns: state.turn,
     weeks: weekOf(state.turn),
     banners,

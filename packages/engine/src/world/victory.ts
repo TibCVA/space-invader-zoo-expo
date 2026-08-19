@@ -35,7 +35,6 @@ import {
 } from '../core/index.js';
 import {
   alivePlayers,
-  joinFr,
   ledgerInt,
   ledgerString,
   notice,
@@ -89,11 +88,25 @@ export const VICTORY_TUNING = {
 
 /* ── Élimination ────────────────────────────────────────────────────────── */
 
-/** Vrai si la bannière n'a plus ni cité ni héros : elle est hors de la partie. */
+/** Jours de grâce d'une bannière sans cité avant que sa maison s'éteigne. */
+export const JOURS_SANS_CITE = 7;
+
+/**
+ * Vrai si la bannière est hors de la partie.
+ *
+ * Deux façons de s'éteindre : ne plus avoir ni cité ni héros — il ne reste
+ * rien à jouer — ou rester **sept jours sans cité**, même avec des héros en
+ * campagne. C'est la règle de HMM3, et elle sert le mode unique de la partie :
+ * la victoire est la prise de tous les châteaux adverses, un héros errant ne
+ * doit pas pouvoir prolonger indéfiniment une partie déjà conclue.
+ */
 export function isEliminated(state: GameState, player: PlayerId): boolean {
   const p = state.players[player];
   if (!p) return true;
   if (p.towns.length > 0) return false;
+  if (p.sansCiteDepuis !== undefined && state.turn - p.sansCiteDepuis >= JOURS_SANS_CITE) {
+    return true;
+  }
   for (const uid of p.heroes) {
     if (state.heroes[uid]) return false;
   }
@@ -408,7 +421,26 @@ export function checkVictory(state: GameState): GameEvent[] {
   if (state.phase === 'termine') return events;
   const config = gameConfig(state);
 
-  // 1. Éliminations.
+  // 1. Le compte des sept jours : perdre sa dernière cité ouvre un sursis.
+  for (const id of state.turnOrder) {
+    const p = state.players[id];
+    if (!p || !p.alive) continue;
+    if (p.towns.length === 0 && p.sansCiteDepuis === undefined) {
+      p.sansCiteDepuis = state.turn;
+      events.push(
+        notice(
+          null,
+          `${p.name} n’a plus une seule cité. Sa maison a ${numberWord(JOURS_SANS_CITE)} jours pour en reprendre une, ou s’éteindre.`,
+          'warn',
+        ),
+      );
+    } else if (p.towns.length > 0 && p.sansCiteDepuis !== undefined) {
+      delete p.sansCiteDepuis;
+      events.push(notice(null, `${p.name} relève une cité : sa maison respire.`, 'info'));
+    }
+  }
+
+  // 2. Éliminations.
   for (const id of state.turnOrder) {
     const p = state.players[id];
     if (!p || !p.alive) continue;
@@ -443,17 +475,10 @@ export function checkVictory(state: GameState): GameEvent[] {
   // 2. Proclamation de la Maison du Trésor (annoncée dans tous les modes).
   const claimed = tickClaim(state, events);
   if (claimed && state.claim) {
-    if (config.victory === 'couronne') {
-      return [
-        ...events,
-        ...endGame(
-          state,
-          state.claim.by,
-          'La proclamation a tenu ses trois semaines : la Couronne du Forez est acquise.',
-        ),
-      ];
-    }
-    // Hors mode Couronne, la proclamation aboutie vaut prestige, pas victoire.
+    /* La proclamation aboutie vaut prestige, jamais victoire : le seul mode de
+       la partie est la prise de tous les châteaux adverses. L'ancien mode
+       Couronne s'arrêtait ici ; la mesure montrait qu'on pouvait ainsi gagner
+       sans conquérir, et c'est précisément ce qui est retiré. */
     const p = state.players[state.claim.by];
     if (p && ledgerString(state, `${VICTORY_TUNING.ledgerClaimKey}.honore`) !== state.claim.by) {
       p.reputation += 5;
@@ -469,36 +494,16 @@ export function checkVictory(state: GameState): GameEvent[] {
     }
   }
 
-  // 3. Maître des Marches.
-  const master = updateMasterHold(state, events);
-  if (config.victory === 'maitre_marches' && master) {
-    return [
-      ...events,
-      ...endGame(
-        state,
-        master,
-        `Maître des Marches : ${numberWord(VICTORY_TUNING.masterCenters)} centres majeurs tenus deux rondes durant.`,
-      ),
-    ];
-  }
+  // 4. Le Maître des Marches reste un titre de prestige, jamais une fin.
+  updateMasterHold(state, events);
 
-  // 4. Terme de la chronique.
-  if (weekOf(state.turn) > config.maxWeeks) {
-    const table = standings(state).filter((row) => state.players[row.player]?.alive);
-    const best = table[0] ?? null;
-    const detail =
-      table.length > 0
-        ? joinFr(table.map((row) => `${playerName(state, row.player)} ${row.total}`))
-        : '';
-    return [
-      ...events,
-      ...endGame(
-        state,
-        best ? best.player : null,
-        `Fin de la chronique des ${config.maxWeeks} semaines. Décompte final : ${detail}.`,
-      ),
-    ];
-  }
+  /* Il n'y a plus de terme de chronique : une partie ne s'achève que par la
+     prise du dernier château adverse. Vingt parties mesurées se réglaient
+     toutes au score des semaines écoulées, et le profil le plus immobile en
+     gagnait quinze — un monde où l'on gagnait sans conquérir. `maxWeeks`
+     subsiste dans la configuration comme information de rythme, plus comme
+     couperet. */
+  void config;
 
   return events;
 }

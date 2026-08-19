@@ -406,12 +406,63 @@ describe('victoire', () => {
     }
     expect(announcements).toEqual([14, 7, 3, 1]);
 
-    // Au jour d'échéance, la Couronne tombe.
+    // Au jour d'échéance, la proclamation vaut prestige — jamais victoire.
+    // Le seul mode de la partie est la prise de tous les châteaux adverses ;
+    // la mesure a montré ce que valait un monde où l'on gagnait sans conquérir.
+    const reputationAvant = state.players.P1.reputation;
     state.turn = 3 + CLAIM_DURATION_TURNS;
     const ending = checkVictory(state);
+    expect(state.phase).toBe('aventure');
+    expect(state.winner ?? null).toBeNull();
+    expect(ending.some((e) => e.type === 'GameEnded')).toBe(false);
+    expect(state.players.P1.reputation).toBeGreaterThan(reputationAvant);
+  });
+
+  it('laisse sept jours à une maison sans cité, puis l’éteint — même avec un héros', () => {
+    const { state } = fixture();
+    // P2 perd toutes ses cités mais garde ses héros en campagne.
+    for (const uid of state.players.P2.towns) {
+      state.towns[uid].owner = null;
+    }
+    state.players.P2.towns = [];
+    expect(state.players.P2.heroes.length).toBeGreaterThan(0);
+
+    state.turn = 20;
+    let events = checkVictory(state);
+    expect(state.players.P2.sansCiteDepuis).toBe(20);
+    expect(state.players.P2.alive).toBe(true);
+    expect(events.some((e) => e.type === 'PlayerDefeated')).toBe(false);
+
+    // Sixième jour : la maison tient encore.
+    state.turn = 26;
+    events = checkVictory(state);
+    expect(state.players.P2.alive).toBe(true);
+
+    // Septième jour : la maison s'éteint, héros ou pas — et P1 l'emporte.
+    state.turn = 27;
+    events = checkVictory(state);
+    expect(events.some((e) => e.type === 'PlayerDefeated')).toBe(true);
+    expect(state.players.P2.alive).toBe(false);
     expect(state.phase).toBe('termine');
     expect(state.winner).toBe('P1');
-    expect(ending.some((e) => e.type === 'GameEnded')).toBe(true);
+  });
+
+  it('efface le sursis dès que la maison reprend une cité', () => {
+    const { state } = fixture();
+    const villes = [...state.players.P2.towns];
+    for (const uid of villes) state.towns[uid].owner = null;
+    state.players.P2.towns = [];
+    state.turn = 30;
+    checkVictory(state);
+    expect(state.players.P2.sansCiteDepuis).toBe(30);
+
+    // Reconquête au cinquième jour : le compteur disparaît.
+    state.players.P2.towns = [villes[0]];
+    state.towns[villes[0]].owner = 'P2';
+    state.turn = 34;
+    checkVictory(state);
+    expect(state.players.P2.sansCiteDepuis).toBeUndefined();
+    expect(state.players.P2.alive).toBe(true);
   });
 
   it('rompt la proclamation dès que la Maison du Trésor change de main', () => {

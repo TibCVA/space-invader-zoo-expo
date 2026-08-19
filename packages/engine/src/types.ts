@@ -512,6 +512,13 @@ export interface PlayerState {
   buildQueue: { town: TownUid; building: BuildingId }[];
   tavernOffers: HeroId[];
   defeatedAtTurn?: number;
+  /**
+   * Jour où la bannière a perdu sa dernière cité, effacé dès qu'elle en
+   * reprend une. Règle des sept jours de HMM3 : sans cité, il reste sept
+   * jours pour en reprendre une, héros ou pas — sinon la maison s'éteint.
+   * Optionnel pour que les sauvegardes antérieures se chargent telles quelles.
+   */
+  sansCiteDepuis?: number;
 }
 
 /* ─────────────────────────────── Météo ──────────────────────────────────── */

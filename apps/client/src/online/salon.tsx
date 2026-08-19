@@ -636,7 +636,7 @@ export function EcranSalon({ code }: EcranSalonProps): ReactElement {
                 </div>
                 <div>
                   <dt>Victoire</dt>
-                  <dd>{VICTOIRES.find((v) => v.id === salon.victoire)?.name ?? salon.victoire}</dd>
+                  <dd>{VICTOIRES.find((v) => v.id === salon.victoire)?.name ?? VICTOIRES[0].name}</dd>
                 </div>
                 <div>
                   <dt>Ouverte le</dt>

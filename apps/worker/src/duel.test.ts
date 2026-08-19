@@ -45,7 +45,17 @@ function runDuel(): DuelResult {
       // La rotation échange les sièges, les départs et les factions.
       rotation: i,
       duration: 'eclair',
-      victory: 'couronne',
+      victory: 'derniere_banniere',
+      /*
+       * Depuis le mode unique, une partie ne s'achève que par la prise du
+       * dernier château : plus de couperet de chronique à la semaine 8. Sans
+       * borne propre au harnais, les vingt parties couraient chacune jusqu'au
+       * garde-fou de 900 tours — 451 jours de jeu — et le duel passait de
+       * trois à vingt-sept minutes, au-delà de son propre délai. 320 tours de
+       * bot font 160 jours à deux bannières : de quoi conclure une conquête,
+       * et le classement d'observation du harnais départage le reste.
+       */
+      maxTurns: 320,
       fast: true,
     });
     result.games.push(game);

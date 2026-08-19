@@ -33,27 +33,16 @@ export const DUREES: readonly { id: DureePartie; name: string; text: string }[] 
   { id: 'saga', name: 'Saga', text: 'Cinquante-deux semaines. Grandes armées, longues rancunes.' },
 ];
 
-/** Les quatre conditions de victoire, dites comme dans l'assistant. */
+/**
+ * La seule condition de victoire de la partie. Le type `VictoirePartie` garde
+ * ses quatre valeurs pour relire les salons et sauvegardes créés avant le
+ * mode unique ; les trois anciennes sont affichées comme la dernière bannière.
+ */
 export const VICTOIRES: readonly { id: VictoirePartie; name: string; text: string }[] = [
-  {
-    id: 'couronne',
-    name: 'La Couronne du Forez',
-    text: 'Réunir trois Sceaux des Marches, ouvrir la Maison du Trésor, puis tenir le site trois semaines.',
-  },
   {
     id: 'derniere_banniere',
     name: 'La dernière bannière',
-    text: 'Rester la seule maison debout. Aucune sortie honorable.',
-  },
-  {
-    id: 'maitre_marches',
-    name: 'Maître des Marches',
-    text: 'Tenir simultanément les cinq Sceaux des Marches, sans siège final.',
-  },
-  {
-    id: 'chronique',
-    name: 'Chronique',
-    text: 'Au terme du calendrier, la maison la mieux pourvue l’emporte.',
+    text: "Prendre tous les châteaux adverses. Sans cité pendant sept jours, une maison s'éteint — héros ou pas.",
   },
 ];
 

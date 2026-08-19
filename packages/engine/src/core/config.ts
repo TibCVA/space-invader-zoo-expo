@@ -38,12 +38,22 @@ export function gameConfig(state: GameState): GameConfig {
   const duration = DURATIONS.includes(parts[2] as GameConfig['duration'])
     ? (parts[2] as GameConfig['duration'])
     : 'standard';
-  const victory = VICTORIES.includes(parts[3] as GameConfig['victory'])
-    ? (parts[3] as GameConfig['victory'])
-    : 'couronne';
+  /*
+   * Un seul mode de victoire : prendre tous les châteaux adverses — la
+   * dernière bannière debout. La demande est explicite (« pas besoin d'autre
+   * mode »), et la mesure lui donnait raison : sur vingt parties, toutes se
+   * réglaient au score de fin de chronique et le profil d'IA le plus immobile
+   * l'emportait quinze fois — la lecture correcte d'un monde où gagner ne
+   * demandait pas de conquérir.
+   *
+   * Le jeton de mode reste dans l'identifiant de partie pour que les
+   * sauvegardes anciennes se chargent telles quelles ; il n'est simplement
+   * plus lu. `parts[3]` conserve sa place dans le format.
+   */
+  void VICTORIES;
   return {
     duration,
-    victory,
+    victory: 'derniere_banniere',
     maxWeeks: DURATION_WEEKS[duration],
     heroLimit: HERO_LIMIT,
     turnTimerSeconds: TIMERS[duration],

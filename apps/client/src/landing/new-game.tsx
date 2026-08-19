@@ -44,28 +44,18 @@ const DURATIONS: readonly { id: Duration; name: string; text: string }[] = [
   { id: 'saga', name: 'Saga', text: 'Cinquante-deux semaines. Grandes armées, longues rancunes.' },
 ];
 
-const VICTORIES: readonly { id: Victory; name: string; text: string }[] = [
-  {
-    id: 'couronne',
-    name: 'La Couronne du Forez',
-    text: "Réunir trois des cinq Sceaux des Marches, ouvrir la Maison du Trésor, vaincre sa garde, puis tenir le site trois semaines pleines. Le compte à rebours est public : tout le monde vous verra venir.",
-  },
-  {
-    id: 'derniere_banniere',
-    name: 'La dernière bannière',
-    text: "Rester la seule maison debout. Aucune condition détournée, aucune sortie honorable : il faut abattre les autres.",
-  },
-  {
-    id: 'maitre_marches',
-    name: 'Maître des Marches',
-    text: 'Tenir simultanément les cinq Sceaux des Marches. Une victoire de contrôle du territoire, sans siège final.',
-  },
-  {
-    id: 'chronique',
-    name: 'Chronique',
-    text: "Au terme du calendrier, la maison la mieux pourvue en cités, en sceaux et en renom l'emporte. La partie va jusqu'au bout.",
-  },
-];
+/*
+ * Il n'y a plus de mode à choisir : la partie se gagne en prenant tous les
+ * châteaux adverses, point. Les anciens modes — Couronne, Maître des Marches,
+ * Chronique — permettaient de gagner sans conquérir, et vingt parties
+ * mesurées ont montré ce que cela valait : toutes se réglaient au score, et
+ * le profil le plus immobile l'emportait quinze fois. La Maison du Trésor et
+ * les Sceaux restent dans le jeu comme trésors et titres de prestige.
+ */
+const VICTOIRE_UNIQUE = {
+  name: 'La dernière bannière',
+  text: "Prendre tous les châteaux adverses. Une maison qui perd sa dernière cité a sept jours pour en reprendre une — sinon elle s'éteint, héros ou pas.",
+} as const;
 
 const AI_PROFILES: readonly { id: AiProfile; name: string; text: string }[] = [
   { id: 'prudent', name: 'Prudent', text: "Fortifie, économise, n'attaque qu'à coup sûr." },
@@ -311,7 +301,7 @@ export function NewGamePage({ onStart, onBack, onNaviguer }: NewGamePageProps): 
   const [count, setCount] = useState(2);
   const [drafts, setDrafts] = useState<PlayerDraft[]>(() => makeDrafts(2, []));
   const [duration, setDuration] = useState<Duration>('standard');
-  const [victory, setVictory] = useState<Victory>('couronne');
+  const victory: Victory = 'derniere_banniere';
   const [seedMode, setSeedMode] = useState<'aleatoire' | 'saisie'>('aleatoire');
   const [seed, setSeed] = useState<number>(() => randomSeed());
   const [dispositionIndex, setDisposition] = useState(0);
@@ -638,13 +628,12 @@ export function NewGamePage({ onStart, onBack, onNaviguer }: NewGamePageProps): 
               onChange={(next): void => setDuration(next)}
               columns
             />
-            <Segments<Victory>
-              legend="Mode de victoire"
-              value={victory}
-              options={VICTORIES}
-              onChange={(next): void => setVictory(next)}
-              columns
-            />
+            <fieldset className="hmm-acc-champ">
+              <legend className="hmm-acc-legende">Victoire</legend>
+              <p className="hmm-acc-aide">
+                <strong>{VICTOIRE_UNIQUE.name}.</strong> {VICTOIRE_UNIQUE.text}
+              </p>
+            </fieldset>
 
             <fieldset className="hmm-acc-champ">
               <legend className="hmm-acc-legende">Graine</legend>
@@ -717,7 +706,7 @@ export function NewGamePage({ onStart, onBack, onNaviguer }: NewGamePageProps): 
               </div>
               <div>
                 <dt>Victoire</dt>
-                <dd>{VICTORIES.find((v) => v.id === victory)?.name}</dd>
+                <dd>{VICTOIRE_UNIQUE.name}</dd>
               </div>
               <div>
                 <dt>Graine</dt>

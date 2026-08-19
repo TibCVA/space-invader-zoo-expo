@@ -38,8 +38,6 @@ import {
   BASE_VISION,
   CLAIM_DURATION_TURNS,
   GABELLE,
-  MASTER_CENTERS_REQUIRED,
-  MASTER_HOLD_TURNS,
   MAX_LEVEL,
   MAX_MOVEMENT,
   MAX_SKILLS,
@@ -49,7 +47,6 @@ import {
   WEATHER_WEIGHTS,
   WEATHER_KINDS,
 } from './constants.js';
-import { gameConfig } from './config.js';
 import { content, type WorldModulePack } from './registry.js';
 import { revealFog } from './fog.js';
 import { applyBp, mergeDelta, sortedKeys } from './util.js';
@@ -645,37 +642,37 @@ function alivePlayers(state: GameState): PlayerId[] {
   return state.turnOrder.filter((id) => state.players[id]?.alive);
 }
 
-function scoreOf(state: GameState, player: PlayerId): number {
-  const p = state.players[player];
-  if (!p) return 0;
-  let score = p.seals.length * 2500 + p.towns.length * 900 + p.reputation * 50;
-  for (const uid of p.heroes) {
-    const hero = state.heroes[uid];
-    if (!hero) continue;
-    score += hero.level * 120;
-    for (const s of hero.army) {
-      if (!s) continue;
-      const def = content().CREATURES[s.creature];
-      if (def) score += Math.trunc((def.power * s.count) / 10);
-    }
-  }
-  let treasure = 0;
-  for (const k of RESOURCE_KEYS) treasure += p.resources[k] | 0;
-  score += Math.trunc(treasure / 40);
-  return score;
-}
+/** Sept jours de grâce sans cité — même règle que le module monde. */
+const JOURS_SANS_CITE_REPLI = 7;
 
 export function checkVictory(state: GameState): GameEvent[] {
   const events: GameEvent[] = [];
   if (state.phase === 'termine') return events;
-  const config = gameConfig(state);
 
-  // Élimination : plus de cité ni de héros disponible.
+  /*
+   * Un seul mode : la prise de tous les châteaux adverses. Le repli suit la
+   * même règle que le module monde — sept jours de grâce sans cité, puis la
+   * maison s'éteint — sans les annonces de prestige, qui sont l'affaire du
+   * module complet. Ni Couronne, ni Maître des Marches, ni victoire au score :
+   * la mesure a montré ce que valait un monde où l'on gagnait sans conquérir.
+   */
+  for (const id of state.turnOrder) {
+    const p = state.players[id];
+    if (!p || !p.alive) continue;
+    if (p.towns.length === 0 && p.sansCiteDepuis === undefined) {
+      p.sansCiteDepuis = state.turn;
+    } else if (p.towns.length > 0 && p.sansCiteDepuis !== undefined) {
+      delete p.sansCiteDepuis;
+    }
+  }
+
   for (const id of state.turnOrder) {
     const p = state.players[id];
     if (!p || !p.alive) continue;
     const hasHero = p.heroes.some((uid) => state.heroes[uid]);
-    if (p.towns.length === 0 && !hasHero) {
+    const graceEchue =
+      p.sansCiteDepuis !== undefined && state.turn - p.sansCiteDepuis >= JOURS_SANS_CITE_REPLI;
+    if ((p.towns.length === 0 && !hasHero) || graceEchue) {
       p.alive = false;
       p.defeatedAtTurn = state.turn;
       events.push({ type: 'PlayerDefeated', player: id });
@@ -690,46 +687,14 @@ export function checkVictory(state: GameState): GameEvent[] {
     return [...events, ...endGame(state, null, 'Plus aucune bannière en lice.')];
   }
 
-  if (config.victory === 'couronne' && state.claim) {
+  /* La proclamation de la Maison du Trésor survit comme événement de prestige :
+     rompue si la Maison change de main, mais elle ne couronne plus personne. */
+  if (state.claim) {
     const holder = maisonTresorOwner(state);
     if (holder !== state.claim.by) {
       events.push({ type: 'ClaimBroken', by: state.claim.by });
       state.claim = null;
-    } else if (state.turn >= state.claim.endsAtTurn) {
-      return [
-        ...events,
-        ...endGame(
-          state,
-          state.claim.by,
-          'La proclamation a tenu : la Couronne du Forez est acquise.',
-        ),
-      ];
     }
-  }
-
-  if (config.victory === 'maitre_marches') {
-    for (const id of alive) {
-      const p = state.players[id];
-      if (p.towns.length >= MASTER_CENTERS_REQUIRED && state.turn >= MASTER_HOLD_TURNS) {
-        return [
-          ...events,
-          ...endGame(state, id, `Maître des Marches : ${MASTER_CENTERS_REQUIRED} centres tenus.`),
-        ];
-      }
-    }
-  }
-
-  if (weekOf(state.turn) > config.maxWeeks) {
-    let best: PlayerId | null = null;
-    let bestScore = -1;
-    for (const id of alive) {
-      const s = scoreOf(state, id);
-      if (s > bestScore) {
-        bestScore = s;
-        best = id;
-      }
-    }
-    return [...events, ...endGame(state, best, 'Fin de la chronique : victoire au score.')];
   }
 
   return events;

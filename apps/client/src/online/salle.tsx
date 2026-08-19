@@ -269,7 +269,7 @@ function graineAleatoire(): number {
 export function EcranEnLigne(): ReactElement {
   const [bannieres, setBannieres] = useState(3);
   const [duree, setDuree] = useState<DureePartie>('standard');
-  const [victoire, setVictoire] = useState<VictoirePartie>('couronne');
+  const victoire: VictoirePartie = 'derniere_banniere';
   const [creation, setCreation] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -367,14 +367,14 @@ export function EcranEnLigne(): ReactElement {
               disabled={creation}
               columns
             />
-            <Segments<VictoirePartie>
-              legend="Mode de victoire"
-              value={victoire}
-              options={VICTOIRES}
-              onChange={setVictoire}
-              disabled={creation}
-              columns
-            />
+            {/* Une seule victoire — prendre tous les châteaux — donc rien à
+                choisir : on l'énonce, on ne la propose pas. */}
+            <fieldset className="hmm-acc-champ">
+              <legend className="hmm-acc-legende">Victoire</legend>
+              <p className="hmm-acc-aide">
+                <strong>{VICTOIRES[0].name}.</strong> {VICTOIRES[0].text}
+              </p>
+            </fieldset>
             <button type="button" className="hmm-acc-lancer" disabled={creation} onClick={creer}>
               <Icon name="banniere" size={22} />
               <span>{creation ? 'On ouvre le salon…' : 'Créer la partie et obtenir le lien'}</span>

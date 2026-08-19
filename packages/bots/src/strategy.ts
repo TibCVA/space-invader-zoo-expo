@@ -147,21 +147,17 @@ export function planStrategy(
     scores.sceaux = bp(4000 + momentum, bias.sceaux);
   }
 
-  /* — Maison du Trésor : n'a de sens qu'avec les trois sceaux, ou pour briser — */
-  if (config.victory === 'couronne') {
-    if (seals >= SEALS_REQUIRED && treasuryKnown) {
-      scores.tresor = bp(ourClaim ? 26000 : 20000, bias.tresor);
-    } else if (treasuryOurs && ourClaim) {
-      scores.tresor = bp(24000, bias.tresor);
-    }
-    if (enemyClaim && profile.strategy.contestClaim) {
-      // Briser une proclamation adverse passe avant tout le reste.
-      const urgency = Math.max(0, 22 - (enemyClaim.endsAtTurn - state.turn));
-      scores.tresor = Math.max(scores.tresor, bp(14000 + urgency * 1400, bias.tresor));
-    }
-  } else if (seals >= SEALS_REQUIRED && treasuryKnown) {
+  /* — Maison du Trésor : un trésor de prestige, plus jamais une victoire.
+     Le mode Couronne a disparu — la partie ne se gagne qu'en prenant tous les
+     châteaux adverses — donc la Maison vaut son butin et sa réputation, pas
+     une course à la proclamation. */
+  if (seals >= SEALS_REQUIRED && treasuryKnown) {
     scores.tresor = bp(9000, bias.tresor);
   }
+  void ourClaim;
+  void enemyClaim;
+  void treasuryOurs;
+  void config;
 
   /* — Harcèlement : seulement si l'on voit une proie plus faible que nous — */
   let prey = 0;
