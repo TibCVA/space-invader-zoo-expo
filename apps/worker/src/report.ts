@@ -79,7 +79,11 @@ export function renderGame(game: GameOutcome, index?: number): string {
     out.push('  Aucun Sceau des Marches levé de toute la partie.\n');
   }
   for (const banner of game.banners) out.push(bannerLine(banner, game.winner));
-  if (game.stalled) out.push('  ⚠ Partie enlisée : une bannière ne parvenait plus à clore son tour.\n');
+  if (game.stalled) {
+    out.push(
+      `  ⚠ Partie enlisée : une bannière ne parvenait plus à clore son tour${game.stalledReason ? ` — ${game.stalledReason}` : ''}.\n`,
+    );
+  }
   if (game.invalidCommands > 0) {
     out.push(`  ⚠ ${plural(game.invalidCommands, 'commande refusée', 'commandes refusées')} au rejeu :\n`);
     for (const detail of game.invalidDetail) out.push(`      ${detail}\n`);

@@ -134,7 +134,37 @@ export function endTurn(state: GameState, world: WorldMap): GameEvent[] {
     if (state.phase === 'termine') return events;
   }
 
-  state.activePlayer = next;
+  /*
+   * `advanceDay` peut éteindre une maison — et rien n'empêche que ce soit
+   * celle qui vient d'être désignée. La règle des sept jours sans cité tombe
+   * au passage du jour, c'est-à-dire exactement entre le choix du suivant et
+   * sa prise de main.
+   *
+   * Poser une bannière morte comme joueur actif fige la partie pour tout le
+   * monde : `applyCommand` refuse alors toute commande — « Le joueur actif
+   * n'est plus en lice » — y compris `EndTurn`, y compris celui qu'un harnais
+   * force à sa place. Plus personne ne joue jamais. Mesuré à la taille d'une
+   * XL de HMM3, où les conquêtes aboutissent plus vite : deux parties
+   * enlisées sur quatre, aux tours 34 et 48.
+   *
+   * On reprend donc la recherche là où elle s'était arrêtée. Elle ne peut pas
+   * repasser le jour une seconde fois : `next` était la première maison
+   * vivante de la ronde, aucune ne la précède, et si plus rien ne suit c'est
+   * que la chronique est close.
+   */
+  let suivant: PlayerId = next;
+  for (let garde = 0; garde < state.turnOrder.length; garde++) {
+    const maison = state.players[suivant];
+    if (maison && maison.alive) break;
+    const relais = nextAlive(state, suivant);
+    if (!relais.player) return [...events, ...worldModule().checkVictory(state)];
+    suivant = relais.player;
+  }
+  if (!state.players[suivant]?.alive) {
+    return [...events, ...worldModule().checkVictory(state)];
+  }
+
+  state.activePlayer = suivant;
   events.push(...startTurn(state, world));
   return events;
 }

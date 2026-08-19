@@ -107,6 +107,8 @@ export interface GameOutcome {
   invalidDetail: string[];
   /** la partie s'est arrêtée faute de progrès */
   stalled: boolean;
+  /** motif de l'enlisement, vide s'il n'y en a pas eu */
+  stalledReason: string;
   elapsedMs: number;
   think: ThinkTiming;
   hash: string;
@@ -272,6 +274,11 @@ export function simulateGame(partial: Partial<GameOptions> = {}): GameOutcome {
   const invalidDetail: string[] = [];
   let invalidCommands = 0;
   let stalled = false;
+  /* Pourquoi l'enlisement, et pas seulement qu'il a eu lieu : un « une
+     bannière ne parvenait plus à clore son tour » sans motif a coûté une
+     fausse piste entière — on avait supposé un combat non résolu, c'était une
+     maison éteinte à qui l'on donnait quand même la main. */
+  let stalledReason = '';
 
   const started = now();
 
@@ -317,12 +324,14 @@ export function simulateGame(partial: Partial<GameOptions> = {}): GameOutcome {
     if (state.turn === turnBefore && state.activePlayer === player) {
       const forced = applyCommand(state, { type: 'EndTurn' }, world);
       if (!forced.ok) {
+        stalledReason = `T${String(state.turn)} ${player} : ${String(forced.error)}`;
         stalled = true;
         break;
       }
       collect(tally, state, forced.events);
       state = forced.state;
       if (state.turn === turnBefore && state.activePlayer === player) {
+        stalledReason = `T${String(state.turn)} ${player} : le tour n'avance pas malgré EndTurn`;
         stalled = true;
         break;
       }
@@ -414,6 +423,7 @@ export function simulateGame(partial: Partial<GameOptions> = {}): GameOutcome {
     invalidCommands,
     invalidDetail,
     stalled,
+    stalledReason,
     elapsedMs,
     think,
     hash: state.hash,
