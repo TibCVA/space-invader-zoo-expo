@@ -9,17 +9,32 @@ import {
 } from './panorama.js';
 
 describe('assets peints de la cité', () => {
-  it('expose exactement les quarante bâtiments nommés par la vague 2', () => {
-    /* Les cinquante-quatre bâtiments ne réclament que quarante peintures :
-       les quatorze améliorations reprennent celle de leur demeure. */
+  it('réclame une peinture par bâtiment distinct, les améliorations mises à part', () => {
+    /* Les améliorations reprennent la peinture de leur demeure : le nombre
+       d'images distinctes est celui des bâtiments moins les quatorze
+       ateliers. Quarante sont peintes depuis la vague 2 ; la Citadelle et le
+       Château, ajoutés avec la croissance ×2 de HMM3, attendent la vague 3
+       et tiennent sur le dessin procédural en attendant (repli jamais
+       retiré, bible artistique §0.7). */
     const keys = BUILDING_LIST
       .map((building) => clefAssetBatiment(building.id))
       .filter((key): key is string => key !== null);
     expect(keys).toHaveLength(BUILDING_LIST.length);
-    expect(new Set(keys).size).toBe(40);
+    const ateliers = BUILDING_LIST.filter((b) => b.id.includes('_amelioration_')).length;
+    expect(new Set(keys).size).toBe(BUILDING_LIST.length - ateliers);
     expect(keys).toContain('bati_granit_demeure_1');
     expect(keys).toContain('bati_ermitage_capitole');
     expect(keys).toContain('bati_hotel_ville_3');
+  });
+
+  it('nomme les peintures qui restent à produire', () => {
+    /* La liste explicite de ce qui manque : elle rétrécit quand une vague
+       d'images arrive, et elle empêche d'oublier un bâtiment neuf. */
+    const ATTENDUES_VAGUE_3 = ['bati_citadelle', 'bati_chateau'];
+    const clefs = new Set(
+      BUILDING_LIST.map((b) => clefAssetBatiment(b.id)).filter((k): k is string => k !== null),
+    );
+    for (const clef of ATTENDUES_VAGUE_3) expect(clefs.has(clef), clef).toBe(true);
   });
 
   it('chaque amélioration reprend la peinture de sa demeure', () => {

@@ -227,7 +227,27 @@ export function perceive(state: GameState, world: WorldMap, player: PlayerId): P
       towns.push(town);
       continue;
     }
-    if (!isExploredCell(state, world, player, town.at)) continue;
+    /*
+     * Les CAPITALES sont publiques, les autres places se découvrent.
+     *
+     * Chaque bannière choisit sa capitale sur l'écran de nouvelle partie,
+     * dans une liste de lieux nommés du Forez : un joueur humain sait donc
+     * exactement où sont Cervières et Viscomtat avant le premier jour. Le
+     * cacher à l'IA n'est pas de l'équité, c'est une infirmité — et elle
+     * était mesurable : sur une partie complète de huit cent cinquante-huit
+     * jours, les deux bannières ne se sont JAMAIS vues (« cités adverses
+     * connues : zéro » à chaque relevé), sur une carte de cent six mille
+     * cases où deux capitales sont à plus de deux cents cases l'une de
+     * l'autre. Aucune conquête n'était possible, donc aucune partie ne
+     * pouvait se gagner.
+     *
+     * `fresh` reste soumis au brouillard : on sait où est la place, on ne
+     * lit sa garnison que si on la voit — l'estimation prend le relais
+     * sinon (`estimateGarrison`). Savoir où frapper n'est pas savoir ce
+     * qu'on y trouvera.
+     */
+    const publique = town.isCapital || isExploredCell(state, world, player, town.at);
+    if (!publique) continue;
     const known: KnownTown = { town, fresh: isVisibleCell(state, world, player, town.at) };
     if (town.owner === null) neutralTowns.push(known);
     else enemyTowns.push(known);
