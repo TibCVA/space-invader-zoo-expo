@@ -52,7 +52,9 @@ describe('A* hiérarchique', () => {
       const route = computePath(world, state, hero, target);
       samples.push(performance.now() - start);
       expect(route).not.toBeNull();
-      expect(route?.path.length).toBeGreaterThan(300);
+      /* Le trajet traverse la carte du nord au sud : sa longueur se compte en
+         cases et suit donc la hauteur de la grille, passée de 416 à 184. */
+      expect(route?.path.length).toBeGreaterThan(MAP_ROWS - 40);
     }
     const median = samples.slice().sort((a, b) => a - b)[2];
     console.log("[perf] trajet Arconsat→La Renaudie :", samples.map((s) => s.toFixed(1)).join(" / "), "ms");

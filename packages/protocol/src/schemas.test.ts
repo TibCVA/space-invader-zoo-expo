@@ -133,7 +133,7 @@ describe('CommandSchema', () => {
     { type: 'EndTurn' },
     { type: 'Surrender' },
     { type: 'AutoResolveCombat' },
-    { type: 'MoveHero', hero: 'H3', to: { col: 145, row: 113 } },
+    { type: 'MoveHero', hero: 'H3', to: { col: 64, row: 50 } },
     { type: 'HeroInteract', hero: 'H3', object: 'O_1042' },
     { type: 'BuildInTown', town: 'T_cervieres', building: 'granit_demeure_3' },
     { type: 'RecruitCreatures', town: 'T_cervieres', creature: 'granit_t1', count: 12 },
