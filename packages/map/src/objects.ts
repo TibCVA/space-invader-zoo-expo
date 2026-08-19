@@ -935,38 +935,133 @@ function seedGuards(
   ctx: ObjectContext,
   startDist: Uint16Array,
 ): void {
-  // Les gardes errantes tiennent les passages : on ne les pose que sur des
-  // cases de voie ou de lisière, jamais au milieu d'un versant vide.
-  const spots: number[] = [];
+  /*
+   * Deux compagnies, deux métiers.
+   *
+   * Les POSTES tiennent les voies aux transitions d'anneau : là où la route
+   * quitte les abords d'un départ pour entrer dans une zone plus rude. C'est
+   * la structure de HMM3 — les zones se franchissent par des passages gardés —
+   * et c'était l'écart le plus mesurable de l'audit : sur les dix itinéraires
+   * optimaux entre capitales, on ne croisait AUCUN garde ; trois sur
+   * quarante-six seulement touchaient une voie, et tous n'occupaient que leur
+   * case d'entrée, que le calcul de chemin ignore par construction — ils ne
+   * bloquaient donc rien du tout.
+   *
+   * Un poste reçoit une empreinte de TROIS cases : l'entrée, sur la voie —
+   * on la franchit, mais y poser le pied déclenche le combat — et deux cases
+   * de flanc, réellement bloquées pour le calcul de chemin. On passe par le
+   * poste ou l'on fait un grand détour ; c'est toute la différence entre un
+   * décor et une garde.
+   *
+   * Les ERRANTES gardent les lisières comme avant : elles protègent les
+   * trésors des couverts, pas les passages.
+   */
+  const postes: number[] = [];
+  const lisieres: number[] = [];
   for (let row = 6; row < ROWS - 6; row++) {
     for (let col = 6; col < COLS - 6; col++) {
       const i = row * COLS + col;
       if (b.occupied[i] === 1) continue;
       if (!passable(ctx, i)) continue;
-      const onRoad = (ctx.flags[i] & CELL_ROAD) !== 0;
-      const onEdge = (ctx.flags[i] & CELL_EDGE) !== 0;
-      if (!onRoad && !onEdge) continue;
       if (startDist[i] < 14) continue;
-      spots.push(i);
-    }
-  }
-  shuffle(rng, spots);
-  const wanted = 46;
-  let placed = 0;
-  const minSpacing = 9;
-  const taken: MapCoord[] = [];
-  for (const i of spots) {
-    if (placed >= wanted) break;
-    const col = i % COLS;
-    const row = (i / COLS) | 0;
-    let tooClose = false;
-    for (const t of taken) {
-      if (Math.max(Math.abs(t.col - col), Math.abs(t.row - row)) < minSpacing) {
-        tooClose = true;
-        break;
+      const onRoad = (ctx.flags[i] & CELL_ROAD) !== 0;
+      if (onRoad) {
+        /* Transition d'anneau : un voisin de voie est d'un anneau différent. */
+        const ring = ringAt(startDist, col, row);
+        let transition = false;
+        for (let dr = -1; dr <= 1 && !transition; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            if (!dr && !dc) continue;
+            const j = (row + dr) * COLS + (col + dc);
+            if ((ctx.flags[j] & CELL_ROAD) === 0) continue;
+            if (ringAt(startDist, col + dc, row + dr) !== ring) {
+              transition = true;
+              break;
+            }
+          }
+        }
+        if (transition) postes.push(i);
+      } else if ((ctx.flags[i] & CELL_EDGE) !== 0) {
+        lisieres.push(i);
       }
     }
-    if (tooClose) continue;
+  }
+  shuffle(rng, postes);
+  shuffle(rng, lisieres);
+
+  const taken: MapCoord[] = [];
+  const espace = (col: number, row: number, min: number): boolean => {
+    for (const t of taken) {
+      if (Math.max(Math.abs(t.col - col), Math.abs(t.row - row)) < min) return false;
+    }
+    return true;
+  };
+
+  /* — Les postes : jusqu'à 30, espacés, forts comme la zone qu'ils ferment — */
+  let posts = 0;
+  for (const i of postes) {
+    if (posts >= 30) break;
+    const col = i % COLS;
+    const row = (i / COLS) | 0;
+    if (!espace(col, row, 12)) continue;
+    /* Le poste est fort comme le PLUS RUDE de ses deux côtés : on paie la
+       zone où l'on entre, pas celle d'où l'on vient. */
+    let ring = ringAt(startDist, col, row);
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        const r2 = ringAt(startDist, col + dc, row + dr);
+        if (r2 > ring) ring = r2;
+      }
+    }
+    /* Deux flancs bloquants : des cases libres et praticables voisines, hors
+       voie — on ne mure pas la route elle-même, on l'encadre. Déterministe :
+       balayage d'ordre fixe. */
+    const flancs: MapCoord[] = [];
+    const AUTOUR = [
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0, 1],
+      [-1, -1],
+      [1, 1],
+      [-1, 1],
+      [1, -1],
+    ] as const;
+    for (const [dc, dr] of AUTOUR) {
+      if (flancs.length >= 2) break;
+      const c = col + dc;
+      const r = row + dr;
+      if (c < 1 || r < 1 || c >= COLS - 1 || r >= ROWS - 1) continue;
+      const j = r * COLS + c;
+      if (b.occupied[j] === 1) continue;
+      if (!passable(ctx, j)) continue;
+      if ((ctx.flags[j] & CELL_ROAD) !== 0) continue;
+      if (TERRAINS[ctx.terrain[j]] === 'eau') continue;
+      flancs.push({ col: c, row: r });
+    }
+    const obj = place(
+      b,
+      'garde',
+      { col, row },
+      { ring, poste: true },
+      {
+        guard: guardFor(rng, ring, 3),
+        footprint: [{ col, row }, ...flancs],
+      },
+    );
+    if (obj) {
+      taken.push({ col, row });
+      posts++;
+    }
+  }
+
+  /* — Les errantes : le complément à 54, sur les lisières — */
+  let placed = 0;
+  for (const i of lisieres) {
+    if (posts + placed >= 54) break;
+    const col = i % COLS;
+    const row = (i / COLS) | 0;
+    if (!espace(col, row, 9)) continue;
     const ring = ringAt(startDist, col, row);
     const obj = place(b, 'garde', { col, row }, { ring }, { guard: guardFor(rng, ring, 3) });
     if (obj) {

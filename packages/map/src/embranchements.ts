@@ -99,6 +99,21 @@ export function tracerEmbranchements(
    * sans garde de péremption, coûtait 1,7 seconde sur les 106 496 cases —
    * six fois le budget de construction du monde.
    */
+  /*
+   * Les empreintes des lieux sont interdites au tracé, sauf leur entrée —
+   * exactement la règle du moteur (`buildStaticBlocked`) : un chemin peint à
+   * travers le flanc d'un poste de garde ou le corps d'une mine serait une
+   * voie visible que personne ne peut emprunter.
+   */
+  const bloque = new Uint8Array(CELLS);
+  for (const o of objects) {
+    const e = o.entrance.row * COLS + o.entrance.col;
+    for (const f of o.footprint) {
+      const i = f.row * COLS + f.col;
+      if (i !== e && i >= 0 && i < CELLS) bloque[i] = 1;
+    }
+  }
+
   const dist = new Int32Array(CELLS).fill(-1);
   const parent = new Int32Array(CELLS).fill(-1);
   const CAP = CELLS * 4;
@@ -183,7 +198,12 @@ export function tracerEmbranchements(
   }
 
   for (let i = 0; i < CELLS; i++) {
-    if (comp[i] >= 0 && composanteARoute[comp[i]] && (flags[i] & CELL_PASSABLE) !== 0) {
+    if (
+      comp[i] >= 0 &&
+      composanteARoute[comp[i]] &&
+      (flags[i] & CELL_PASSABLE) !== 0 &&
+      bloque[i] === 0
+    ) {
       dist[i] = 0;
       pousser(i, 0);
     }
@@ -231,7 +251,7 @@ export function tracerEmbranchements(
         const r = row + dr;
         if (c < 0 || r < 0 || c >= COLS || r >= ROWS) continue;
         const j = r * COLS + c;
-        if ((flags[j] & CELL_PASSABLE) === 0) continue;
+        if ((flags[j] & CELL_PASSABLE) === 0 || bloque[j] === 1) continue;
         let pas = COUT[terrain[j]] || TERRAIN_COST.chemin;
         if (dc && dr) pas = Math.trunc((pas * DIAG_NUM) / DIAG_DEN);
         const nd = d0 + pas;
