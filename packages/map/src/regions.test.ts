@@ -47,6 +47,7 @@ describe('régions', () => {
   it('range chaque ancrage dans sa région', () => {
     const expected: Record<string, RegionId> = {
       arconsat: 'hauts_arconsat',
+      col_st_thomas: 'hauts_arconsat',
       chabreloche: 'vallee_durolle',
       le_lac: 'lac_sagnes',
       col_sagnes: 'lac_sagnes',

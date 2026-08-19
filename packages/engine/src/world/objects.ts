@@ -1508,6 +1508,20 @@ function visitEcole(state: GameState, hero: HeroInstance, obj: MapObject): GameE
   eleves[hero.uid] = true;
   markVisited(obj, hero.owner);
   hero[matiere] += 1;
+  if (prix === 0) {
+    /* Les pierres levées enseignent gratis : la Pierre de Pamole rend la
+       force à qui la touche, une fois par héros. Même registre que l'école,
+       autre récit. */
+    return [
+      notice(
+        hero.owner,
+        `${heroName(hero)} pose la main sur ${objectName(obj, 'la pierre')} : ` +
+          `+1 en ${matiere}. La pierre ne parle qu'une fois.`,
+        'info',
+      ),
+      visited(hero, obj, 'ecole_lecon'),
+    ];
+  }
   return [
     ...giveResources(state, hero.owner, { ecus: -prix }, 'ecole'),
     notice(

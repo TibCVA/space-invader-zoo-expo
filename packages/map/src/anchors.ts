@@ -23,6 +23,7 @@ export type AnchorKey =
   | 'chabreloche'
   | 'le_lac'
   | 'col_sagnes'
+  | 'col_st_thomas'
   | 'maison_tresor'
   | 'cervieres'
   | 'viscomtat'
@@ -107,6 +108,19 @@ const TABLE: ForezAnchor[] = [
     row: 113,
     kind: 'col',
     alt: 990,
+    canonical: true,
+  },
+  {
+    /* Sur la vieille route Forez-Auvergne, à la limite Loire / Puy-de-Dôme :
+       la D 324 y monte de Chabreloche, la D 1 de La Bombarde. 930 m. */
+    key: 'col_st_thomas',
+    label: 'Col Saint-Thomas',
+    lat: 45.88609,
+    lon: 3.754218,
+    col: 182,
+    row: 33,
+    kind: 'col',
+    alt: 930,
     canonical: true,
   },
   {

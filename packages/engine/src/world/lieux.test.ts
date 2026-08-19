@@ -100,6 +100,29 @@ describe('le catalogue de la densification', () => {
     expect(state.players.P2.resources.ecus).toBe(10);
   });
 
+  it('la Pierre de Pamole rend la force à qui la touche, gratis, une fois', () => {
+    /* Lot 1.7 : la pierre levée est une école au prix zéro — même registre
+       de visite, autre récit, et pas un écu ne bouge, même bourse vide. */
+    const { state, world } = fixture();
+    const hero = state.heroes[state.players.P1.heroes[0]];
+    state.players.P1.resources.ecus = 0;
+    const vaillance = hero.vaillance;
+
+    const pierre = place(state, 'O_t_pierre', 'ecole', hero.at.col, hero.at.row, {
+      name: 'Pierre de Pamole',
+      matiere: 'vaillance',
+      prix: 0,
+      rite: 'pierre',
+    });
+    visitObject(state, world, hero, pierre);
+    expect(hero.vaillance).toBe(vaillance + 1);
+    expect(state.players.P1.resources.ecus).toBe(0);
+
+    // La pierre ne parle qu'une fois.
+    visitObject(state, world, hero, pierre);
+    expect(hero.vaillance).toBe(vaillance + 1);
+  });
+
   it("l'oratoire donne +1 de moral une semaine, sans cumul du même lieu", () => {
     const { state, world } = fixture();
     const hero = state.heroes[state.players.P1.heroes[0]];
@@ -286,7 +309,7 @@ describe('le catalogue de la densification', () => {
     const events = visitObject(state, world, hero, colporteurs);
     const acquis =
       hero.backpack.includes('fer_de_lance_des_farges') ||
-      Object.values(hero.equipment ?? {}).includes('fer_de_lance_des_farges');
+      Object.values(hero.artifacts).includes('fer_de_lance_des_farges');
     if (!acquis) {
       /* L'identifiant d'artefact du contenu peut différer : le test vérifie
          alors au moins le paiement et l'épuisement de l'étal. */

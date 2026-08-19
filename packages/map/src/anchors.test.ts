@@ -73,7 +73,7 @@ describe('ancrages', () => {
       expect(a.lon).toBeGreaterThan(3.64);
       expect(a.lon).toBeLessThan(3.8);
     }
-    expect(FOREZ_ANCHORS.length).toBe(18);
+    expect(FOREZ_ANCHORS.length).toBe(19);
   });
 
   it('publie ANCHORS au format MapAnchor du moteur', () => {
@@ -181,6 +181,15 @@ describe('topologie — ordre relatif et directions', () => {
   it('place Pierre Pamole à l’est de Vollore-Montagne, en hauteur', () => {
     expect(cell('pamole').col).toBeGreaterThan(cell('vollore').col);
     expect(anchorAltitude('pamole')).toBeGreaterThan(anchorAltitude('vollore'));
+  });
+
+  it('place le col Saint-Thomas au nord-est, sur la vieille route Forez-Auvergne', () => {
+    /* 45,886 N · 3,754 E, 930 m — limite Loire / Puy-de-Dôme, D 324 côté
+       Chabreloche, D 1 côté La Bombarde. Projeté en (182, 33). */
+    expect(cell('col_st_thomas').row).toBeLessThan(cell('chabreloche').row);
+    expect(cell('col_st_thomas').col).toBeGreaterThan(cell('arconsat').col);
+    expect(anchorAltitude('col_st_thomas')).toBe(930);
+    expect(anchorAltitude('col_st_thomas')).toBeLessThan(anchorAltitude('col_sagnes'));
   });
 
   it('fait de La Renaudie le départ le plus éloigné du centre', () => {

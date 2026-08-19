@@ -536,6 +536,38 @@ function place(
   return obj;
 }
 
+/**
+ * Deux flancs bloquants pour un poste de garde : des cases libres et
+ * praticables voisines de l'entrée, hors voie — on ne mure pas la route
+ * elle-même, on l'encadre — et hors eau. Déterministe : balayage d'ordre fixe.
+ */
+function flancsDe(b: Builder, ctx: ObjectContext, col: number, row: number): MapCoord[] {
+  const flancs: MapCoord[] = [];
+  const AUTOUR = [
+    [-1, 0],
+    [1, 0],
+    [0, -1],
+    [0, 1],
+    [-1, -1],
+    [1, 1],
+    [-1, 1],
+    [1, -1],
+  ] as const;
+  for (const [dc, dr] of AUTOUR) {
+    if (flancs.length >= 2) break;
+    const c = col + dc;
+    const r = row + dr;
+    if (c < 1 || r < 1 || c >= COLS - 1 || r >= ROWS - 1) continue;
+    const j = r * COLS + c;
+    if (b.occupied[j] === 1) continue;
+    if (!passable(ctx, j)) continue;
+    if ((ctx.flags[j] & CELL_ROAD) !== 0) continue;
+    if (TERRAINS[ctx.terrain[j]] === 'eau') continue;
+    flancs.push({ col: c, row: r });
+  }
+  return flancs;
+}
+
 /* ── Anneaux de difficulté ──────────────────────────────────────────────── */
 
 /** Distance de Tchebychev à la position de départ la plus proche. */
@@ -761,6 +793,40 @@ export function buildObjects(ctx: ObjectContext, seed: number): ObjectBuild {
         amount: 300 + nextInt(rng, 0, 6) * 100,
       });
     }
+  }
+
+  /* 5 bis — Les lieux nommés demandés par le propriétaire (plan AAA, lot
+     1.7). Deux cols GARDÉS — un col est un passage qu'on paie, pas un
+     panneau — et la Pierre de Pamole, qui rend la force à qui la touche :
+     +1 en vaillance, une fois par héros, sans bourse délier (mécanique de
+     l'école, prix zéro, récit de pierre levée). */
+  const COL_SITES = [
+    { anchor: 'col_sagnes', label: 'Col des Sagnes' },
+    { anchor: 'col_st_thomas', label: 'Col Saint-Thomas' },
+  ] as const;
+  for (const s of COL_SITES) {
+    const brut = anchorCell(s.anchor);
+    const at = snap(b, brut, 3) ?? brut;
+    const ring = ringAt(startDist, at.col, at.row);
+    place(
+      b,
+      'garde',
+      at,
+      { name: s.label, ring, poste: true, col: s.anchor },
+      {
+        guard: guardFor(rng, ring, 3),
+        footprint: [{ col: at.col, row: at.row }, ...flancsDe(b, ctx, at.col, at.row)],
+      },
+    );
+  }
+  const pierre = snap(b, anchorCell('pamole'), 3);
+  if (pierre) {
+    place(b, 'ecole', pierre, {
+      name: 'Pierre de Pamole',
+      matiere: 'vaillance',
+      prix: 0,
+      rite: 'pierre',
+    });
   }
 
   /* 6 — Artefacts posés à demeure. */
@@ -1015,32 +1081,7 @@ function seedGuards(
         if (r2 > ring) ring = r2;
       }
     }
-    /* Deux flancs bloquants : des cases libres et praticables voisines, hors
-       voie — on ne mure pas la route elle-même, on l'encadre. Déterministe :
-       balayage d'ordre fixe. */
-    const flancs: MapCoord[] = [];
-    const AUTOUR = [
-      [-1, 0],
-      [1, 0],
-      [0, -1],
-      [0, 1],
-      [-1, -1],
-      [1, 1],
-      [-1, 1],
-      [1, -1],
-    ] as const;
-    for (const [dc, dr] of AUTOUR) {
-      if (flancs.length >= 2) break;
-      const c = col + dc;
-      const r = row + dr;
-      if (c < 1 || r < 1 || c >= COLS - 1 || r >= ROWS - 1) continue;
-      const j = r * COLS + c;
-      if (b.occupied[j] === 1) continue;
-      if (!passable(ctx, j)) continue;
-      if ((ctx.flags[j] & CELL_ROAD) !== 0) continue;
-      if (TERRAINS[ctx.terrain[j]] === 'eau') continue;
-      flancs.push({ col: c, row: r });
-    }
+    const flancs = flancsDe(b, ctx, col, row);
     const obj = place(
       b,
       'garde',

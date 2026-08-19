@@ -129,6 +129,7 @@ const SEEDS: readonly Seed[] = [
 /** Région propre de chaque ancrage, imposée dans un disque autour de lui. */
 const ANCHOR_REGION: Readonly<Record<AnchorKey, RegionId>> = {
   arconsat: 'hauts_arconsat',
+  col_st_thomas: 'hauts_arconsat',
   chabreloche: 'vallee_durolle',
   le_lac: 'lac_sagnes',
   col_sagnes: 'lac_sagnes',

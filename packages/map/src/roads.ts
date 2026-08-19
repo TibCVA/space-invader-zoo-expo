@@ -98,6 +98,16 @@ function roadDefs(): RoadDef[] {
       waypoints: [A('arconsat'), c(136, 44), c(146, 78), c(152, 112), A('bois_noirs_est')],
     },
     {
+      /* La D 324 / D 1 d'aujourd'hui : le vieux passage Forez-Auvergne à la
+         limite des deux pays, par le col Saint-Thomas (930 m). Sur la carte,
+         c'est le second lien du nord — d'Arconsat vers Cervières par les
+         hauteurs — et son col est un poste gardé (lot 1.7). */
+      key: 'route_forez_auvergne',
+      label: 'la vieille route Forez-Auvergne',
+      major: false,
+      waypoints: [A('arconsat'), c(150, 26), A('col_st_thomas'), c(200, 70), A('cervieres')],
+    },
+    {
       key: 'lac_sagnes',
       label: 'le chemin du Col des Sagnes',
       major: false,
