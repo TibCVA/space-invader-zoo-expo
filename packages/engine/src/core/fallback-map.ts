@@ -49,19 +49,19 @@ interface AnchorRow {
 }
 
 const ANCHOR_ROWS: AnchorRow[] = [
-  { key: 'arconsat', label: 'Arconsat', lat: 45.88972, lon: 3.71389, col: 117, row: 25, alt: 700, kind: 'ville' },
-  { key: 'chabreloche', label: 'Chabreloche', lat: 45.87972, lon: 3.6975, col: 90, row: 48, alt: 780, kind: 'ville' },
-  { key: 'le_lac', label: 'Le Lac', lat: 45.85937, lon: 3.70981, col: 111, row: 95, alt: 900, kind: 'hameau' },
-  { key: 'col_sagnes', label: 'Col des Sagnes', lat: 45.8517, lon: 3.7032, col: 100, row: 113, alt: 990, kind: 'col' },
-  { key: 'maison_tresor', label: 'Maison du Trésor', lat: 45.8515024, lon: 3.7307805, col: 145, row: 113, alt: 950, kind: 'monument' },
-  { key: 'cervieres', label: 'Cervières', lat: 45.84861, lon: 3.77306, col: 214, row: 119, alt: 880, kind: 'ville' },
-  { key: 'viscomtat', label: 'Viscomtat', lat: 45.82917, lon: 3.67694, col: 58, row: 165, alt: 700, kind: 'ville' },
-  { key: 'noiretable', label: 'Noirétable', lat: 45.81806, lon: 3.76556, col: 202, row: 189, alt: 720, kind: 'ville' },
-  { key: 'hermitage', label: "Notre-Dame de l'Hermitage", lat: 45.7917, lon: 3.71756, col: 125, row: 250, alt: 1110, kind: 'sanctuaire' },
-  { key: 'vollore', label: 'Vollore-Montagne', lat: 45.785833, lon: 3.674444, col: 55, row: 264, alt: 940, kind: 'ville' },
-  { key: 'renaudie', label: 'La Renaudie', lat: 45.7361, lon: 3.7211, col: 132, row: 378, alt: 800, kind: 'ville' },
-  { key: 'pamole', label: 'Pierre Pamole', lat: 45.7805, lon: 3.6899, col: 84, row: 273, alt: 1165, kind: 'sommet' },
-  { key: 'bois_noirs', label: 'Sommet des Bois Noirs', lat: 45.8348, lon: 3.7365, col: 154, row: 152, alt: 1200, kind: 'sommet' },
+  { key: 'arconsat', label: 'Arconsat', lat: 45.88972, lon: 3.71389, col: 52, row: 11, alt: 700, kind: 'ville' },
+  { key: 'chabreloche', label: 'Chabreloche', lat: 45.87972, lon: 3.6975, col: 40, row: 21, alt: 780, kind: 'ville' },
+  { key: 'le_lac', label: 'Le Lac', lat: 45.85937, lon: 3.70981, col: 49, row: 42, alt: 900, kind: 'hameau' },
+  { key: 'col_sagnes', label: 'Col des Sagnes', lat: 45.8517, lon: 3.7032, col: 44, row: 50, alt: 990, kind: 'col' },
+  { key: 'maison_tresor', label: 'Maison du Trésor', lat: 45.8515024, lon: 3.7307805, col: 64, row: 50, alt: 950, kind: 'monument' },
+  { key: 'cervieres', label: 'Cervières', lat: 45.84861, lon: 3.77306, col: 94, row: 53, alt: 880, kind: 'ville' },
+  { key: 'viscomtat', label: 'Viscomtat', lat: 45.82917, lon: 3.67694, col: 26, row: 73, alt: 700, kind: 'ville' },
+  { key: 'noiretable', label: 'Noirétable', lat: 45.81806, lon: 3.76556, col: 89, row: 84, alt: 720, kind: 'ville' },
+  { key: 'hermitage', label: "Notre-Dame de l'Hermitage", lat: 45.7917, lon: 3.71756, col: 55, row: 111, alt: 1110, kind: 'sanctuaire' },
+  { key: 'vollore', label: 'Vollore-Montagne', lat: 45.785833, lon: 3.674444, col: 24, row: 117, alt: 940, kind: 'ville' },
+  { key: 'renaudie', label: 'La Renaudie', lat: 45.7361, lon: 3.7211, col: 58, row: 167, alt: 800, kind: 'ville' },
+  { key: 'pamole', label: 'Pierre Pamole', lat: 45.7805, lon: 3.6899, col: 37, row: 121, alt: 1165, kind: 'sommet' },
+  { key: 'bois_noirs', label: 'Sommet des Bois Noirs', lat: 45.8348, lon: 3.7365, col: 68, row: 67, alt: 1200, kind: 'sommet' },
 ];
 
 /* ── Bruit entier déterministe ──────────────────────────────────────────── */
@@ -196,11 +196,11 @@ export const FALLBACK_START_SETS: Record<2 | 3 | 4 | 5, StartKey[][]> = {
 /* ── Sceaux et centres neutres ──────────────────────────────────────────── */
 
 const SEAL_SITES: { seal: SealId; anchorKey: string; offset: MapCoord; label: string }[] = [
-  { seal: 'hautes_futaies', anchorKey: 'viscomtat', offset: { col: 26, row: -34 }, label: 'Sceau des Hautes-Futaies' },
-  { seal: 'farges', anchorKey: 'cervieres', offset: { col: -12, row: 14 }, label: 'Sceau des Farges' },
+  { seal: 'hautes_futaies', anchorKey: 'viscomtat', offset: { col: 11, row: -15 }, label: 'Sceau des Hautes-Futaies' },
+  { seal: 'farges', anchorKey: 'cervieres', offset: { col: -5, row: 6 }, label: 'Sceau des Farges' },
   { seal: 'pamole', anchorKey: 'pamole', offset: { col: 0, row: 0 }, label: 'Sceau de Pamole' },
-  { seal: 'hermitage', anchorKey: 'hermitage', offset: { col: 6, row: -8 }, label: "Sceau de l'Hermitage" },
-  { seal: 'brumes', anchorKey: 'bois_noirs', offset: { col: -8, row: 22 }, label: 'Sceau des Brumes' },
+  { seal: 'hermitage', anchorKey: 'hermitage', offset: { col: 3, row: -4 }, label: "Sceau de l'Hermitage" },
+  { seal: 'brumes', anchorKey: 'bois_noirs', offset: { col: -4, row: 10 }, label: 'Sceau des Brumes' },
 ];
 
 const NEUTRAL_TOWNS: { key: string; uid: string; name: string; region: RegionId }[] = [
@@ -346,15 +346,15 @@ function carveRiver(d: Draft, seed: number): void {
   // La Durolle coule vers le nord-ouest depuis Le Lac.
   const course: MapCoord[] = [
     at('le_lac'),
-    { col: 104, row: 78 },
+    { col: 46, row: 34 },
     at('chabreloche'),
-    { col: 74, row: 30 },
-    { col: 58, row: 4 },
+    { col: 33, row: 13 },
+    { col: 26, row: 2 },
   ];
   const cells: MapCoord[] = [];
   for (let i = 0; i + 1 < course.length; i++) cells.push(...line(course[i], course[i + 1]));
   // Affluent depuis le col des Sagnes.
-  const trib = [at('col_sagnes'), { col: 106, row: 92 }];
+  const trib = [at('col_sagnes'), { col: 47, row: 41 }];
   cells.push(...line(trib[0], trib[1]));
 
   for (const c of cells) {
@@ -528,20 +528,20 @@ function buildObjects(d: Draft, seed: number): MapObject[] {
 
   // Mines et sites de revenu, deux par région de départ.
   const mineSpots: { c: MapCoord; resource: string; amount: number }[] = [
-    { c: { col: 124, row: 38 }, resource: 'bois', amount: 2 },
-    { c: { col: 108, row: 20 }, resource: 'granit', amount: 2 },
-    { c: { col: 70, row: 152 }, resource: 'essence', amount: 1 },
-    { c: { col: 48, row: 178 }, resource: 'bois', amount: 2 },
-    { c: { col: 206, row: 106 }, resource: 'filDor', amount: 1 },
-    { c: { col: 224, row: 132 }, resource: 'fer', amount: 2 },
-    { c: { col: 192, row: 200 }, resource: 'ecus', amount: 500 },
-    { c: { col: 214, row: 178 }, resource: 'fer', amount: 2 },
-    { c: { col: 122, row: 364 }, resource: 'bois', amount: 2 },
-    { c: { col: 144, row: 390 }, resource: 'granit', amount: 2 },
-    { c: { col: 66, row: 254 }, resource: 'granit', amount: 2 },
-    { c: { col: 118, row: 96 }, resource: 'sel', amount: 2 },
-    { c: { col: 152, row: 128 }, resource: 'sel', amount: 2 },
-    { c: { col: 96, row: 210 }, resource: 'essence', amount: 1 },
+    { c: { col: 55, row: 17 }, resource: 'bois', amount: 2 },
+    { c: { col: 48, row: 9 }, resource: 'granit', amount: 2 },
+    { c: { col: 31, row: 67 }, resource: 'essence', amount: 1 },
+    { c: { col: 21, row: 79 }, resource: 'bois', amount: 2 },
+    { c: { col: 91, row: 47 }, resource: 'filDor', amount: 1 },
+    { c: { col: 99, row: 58 }, resource: 'fer', amount: 2 },
+    { c: { col: 85, row: 88 }, resource: 'ecus', amount: 500 },
+    { c: { col: 94, row: 79 }, resource: 'fer', amount: 2 },
+    { c: { col: 54, row: 161 }, resource: 'bois', amount: 2 },
+    { c: { col: 64, row: 172 }, resource: 'granit', amount: 2 },
+    { c: { col: 29, row: 112 }, resource: 'granit', amount: 2 },
+    { c: { col: 52, row: 42 }, resource: 'sel', amount: 2 },
+    { c: { col: 67, row: 57 }, resource: 'sel', amount: 2 },
+    { c: { col: 42, row: 93 }, resource: 'essence', amount: 1 },
   ];
   for (const m of mineSpots) {
     clearPlot(d, m.c, 1);
@@ -558,12 +558,12 @@ function buildObjects(d: Draft, seed: number): MapObject[] {
 
   // Bornes armoriées.
   const borneSpots: MapCoord[] = [
-    { col: 112, row: 60 },
-    { col: 132, row: 118 },
-    { col: 84, row: 168 },
-    { col: 196, row: 150 },
-    { col: 110, row: 268 },
-    { col: 138, row: 344 },
+    { col: 49, row: 27 },
+    { col: 58, row: 52 },
+    { col: 37, row: 74 },
+    { col: 87, row: 66 },
+    { col: 49, row: 119 },
+    { col: 61, row: 152 },
   ];
   for (const b of borneSpots) {
     clearPlot(d, b, 1);
@@ -580,9 +580,9 @@ function buildObjects(d: Draft, seed: number): MapObject[] {
   // Belvédères, sources et sanctuaires.
   const specials: { kind: MapObject['kind']; c: MapCoord; name: string }[] = [
     { kind: 'belvedere', c: at('pamole'), name: 'Belvédère de Pamole' },
-    { kind: 'belvedere', c: { col: 218, row: 112 }, name: 'Belvédère de Cervières' },
+    { kind: 'belvedere', c: { col: 96, row: 50 }, name: 'Belvédère de Cervières' },
     { kind: 'sanctuaire', c: at('hermitage'), name: "Sanctuaire de l'Hermitage" },
-    { kind: 'source', c: { col: 104, row: 100 }, name: 'Source de la Durolle' },
+    { kind: 'source', c: { col: 46, row: 44 }, name: 'Source de la Durolle' },
     { kind: 'auberge', c: at('chabreloche'), name: 'Relais de Chabreloche' },
   ];
   for (const s of specials) {

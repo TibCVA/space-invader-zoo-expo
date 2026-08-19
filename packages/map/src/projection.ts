@@ -148,16 +148,22 @@ export const MAP_WIDTH_M = CORNER_NE.x - CORNER_SW.x;
 /** Hauteur de l'emprise projetée, en mètres (≈ 20 102 m). */
 export const MAP_HEIGHT_M = CORNER_NE.y - CORNER_SW.y;
 
-/** Largeur d'une case, en mètres (≈ 47,82 m). */
+/** Largeur d'une case, en mètres (≈ 108,3 m). */
 export const CELL_WIDTH_M = MAP_WIDTH_M / MAP_COLS;
-/** Hauteur d'une case, en mètres (≈ 48,32 m). */
+/** Hauteur d'une case, en mètres (≈ 109,3 m). */
 export const CELL_HEIGHT_M = MAP_HEIGHT_M / MAP_ROWS;
 
 /**
- * Taille nominale d'une case, en mètres entiers (48 m).
- * Utilisée par les calculs de pente : la carte est isotrope à 1 % près.
+ * Taille nominale d'une case, en mètres entiers.
+ *
+ * Elle sert aux calculs de pente : une dénivelée se divise par la longueur
+ * réellement parcourue. Elle valait 48 en dur, ce qui était juste tant que la
+ * carte faisait 256 × 416 ; à la taille d'une XL de HMM3 la case vaut 109 m et
+ * une constante figée aurait surestimé toutes les pentes d'un facteur 2,26.
+ * On la dérive donc de l'emprise et de la grille, pour qu'elle suive d'
+ * elle-même le prochain changement d'échelle.
  */
-export const CELL_SIZE_M = 48;
+export const CELL_SIZE_M = Math.round((CELL_WIDTH_M + CELL_HEIGHT_M) / 2);
 
 /* ── Grille ─────────────────────────────────────────────────────────────── */
 

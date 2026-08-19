@@ -84,7 +84,7 @@ function clotilde(): HeroInstance {
     manaMax: 70,
     movement: 1420,
     movementMax: 2180,
-    at: { col: 214, row: 119 },
+    at: { col: 94, row: 53 },
     facing: 4,
     army: armee([
       ['granit_t1_up', 64],
@@ -152,7 +152,7 @@ function auguste(): HeroInstance {
     manaMax: 50,
     movement: 2040,
     movementMax: 2040,
-    at: { col: 202, row: 189 },
+    at: { col: 89, row: 84 },
     facing: 2,
     army: armee([
       ['granit_t1', 42],
@@ -192,7 +192,7 @@ function anastasia(): HeroInstance {
     manaMax: 80,
     movement: 1900,
     movementMax: 1900,
-    at: { col: 125, row: 250 },
+    at: { col: 55, row: 111 },
     facing: 6,
     army: armee([
       ['ermitage_t1_up', 55],
@@ -422,7 +422,7 @@ export function etatDemo(): GameState {
   };
 
   const towns: Record<string, TownState> = {
-    T_cervieres: cite('T_cervieres', 'Cervières', 'granit', 'P1', { col: 214, row: 119 }, BATIS_CERVIERES, {
+    T_cervieres: cite('T_cervieres', 'Cervières', 'granit', 'P1', { col: 94, row: 53 }, BATIS_CERVIERES, {
       isCapital: true,
       unrest: 12,
       charter: 'marchande',
@@ -439,7 +439,7 @@ export function etatDemo(): GameState {
         granit_t5: 4,
       },
     }),
-    T_noiretable: cite('T_noiretable', 'Noirétable', 'granit', 'P1', { col: 202, row: 189 }, BATIS_NOIRETABLE, {
+    T_noiretable: cite('T_noiretable', 'Noirétable', 'granit', 'P1', { col: 89, row: 84 }, BATIS_NOIRETABLE, {
       unrest: 5,
       available: { granit_t1: 22, granit_t2: 9, granit_t3: 5 },
     }),
@@ -448,7 +448,7 @@ export function etatDemo(): GameState {
       "Notre-Dame de l'Hermitage",
       'ermitage',
       'P2',
-      { col: 125, row: 250 },
+      { col: 55, row: 111 },
       BATIS_HERMITAGE,
       {
         isCapital: true,
@@ -457,8 +457,8 @@ export function etatDemo(): GameState {
         available: { ermitage_t1: 30, ermitage_t2: 16, ermitage_t3: 9, ermitage_t4: 5 },
       },
     ),
-    T_viscomtat: cite('T_viscomtat', 'Viscomtat', 'ermitage', null, { col: 58, row: 165 }, []),
-    T_arconsat: cite('T_arconsat', 'Arconsat', 'granit', null, { col: 117, row: 25 }, []),
+    T_viscomtat: cite('T_viscomtat', 'Viscomtat', 'ermitage', null, { col: 26, row: 73 }, []),
+    T_arconsat: cite('T_arconsat', 'Arconsat', 'granit', null, { col: 52, row: 11 }, []),
   };
 
   const fogP1 = brouillard(false);
@@ -513,11 +513,11 @@ export function etatDemo(): GameState {
     weather: { current: 'brume', forecast: ['eclaircie', 'pluie'], delayedBy: null },
     gabelle: 'mesure',
     seals: {
-      hautes_futaies: { owner: null, at: { col: 96, row: 62 } },
-      farges: { owner: 'P1', at: { col: 188, row: 148 } },
-      pamole: { owner: 'P1', at: { col: 152, row: 96 } },
-      hermitage: { owner: null, at: { col: 125, row: 252 } },
-      brumes: { owner: 'P2', at: { col: 74, row: 214 } },
+      hautes_futaies: { owner: null, at: { col: 42, row: 27 } },
+      farges: { owner: 'P1', at: { col: 83, row: 65 } },
+      pamole: { owner: 'P1', at: { col: 67, row: 42 } },
+      hermitage: { owner: null, at: { col: 55, row: 111 } },
+      brumes: { owner: 'P2', at: { col: 33, row: 95 } },
     },
     claim: null,
     phase: 'aventure',
@@ -544,13 +544,13 @@ export function etatDemo(): GameState {
 
 /** Les huit cases que le moteur essaie autour d'une cité pour poser un héros. */
 const ABORDS: readonly { col: number; row: number }[] = [
-  { col: 0, row: 1 },
-  { col: 1, row: 1 },
+  { col: 0, row: 0 },
+  { col: 0, row: 0 },
   { col: -1, row: 1 },
-  { col: 1, row: 0 },
+  { col: 0, row: 0 },
   { col: -1, row: 0 },
-  { col: 0, row: 2 },
-  { col: 2, row: 1 },
+  { col: 0, row: 1 },
+  { col: 1, row: 0 },
   { col: -2, row: 1 },
 ];
 

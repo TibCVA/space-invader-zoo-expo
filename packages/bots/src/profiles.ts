@@ -86,7 +86,15 @@ export interface EconomyWeights {
   recruitShareBp: number;
   /** on ne recrute que les créatures dont le rang est ≥ à ce seuil quand le trésor est serré */
   tightTier: number;
-  /** distance (cases) à laquelle une menace déclenche la filière défense */
+  /**
+   * distance (cases) à laquelle une menace déclenche la filière défense.
+   *
+   * Une distance en cases, donc un réglage lié à la taille de la carte : les
+   * valeurs ont été divisées par 2,26 le jour où la carte est passée de
+   * 256 × 416 à la taille d'une XL de HMM3. Sans cela, un seuil de soixante
+   * cases couvrait la moitié de la largeur du monde et toute armée ennemie,
+   * où qu'elle fût, passait pour une menace sur la capitale.
+   */
   defenseTrigger: number;
   /** semaine à partir de laquelle les améliorations passent devant les demeures */
   upgradeFromWeek: number;
@@ -124,7 +132,13 @@ export interface ExploreWeights {
   riskBp: number;
   /** coût par journée de marche, en points de score */
   dayCost: number;
-  /** rayon d'action autour de la capitale, en cases (0 = illimité) */
+  /**
+   * rayon d'action autour de la capitale, en cases (0 = illimité).
+   *
+   * Même échelle que `defenseTrigger` : une laisse de soixante-dix cases
+   * bornait le prudent au tiers de l'ancienne carte, elle l'aurait laissé
+   * courir aux deux tiers de la nouvelle.
+   */
   leash: number;
   /** nombre de héros affectés à la découverte pure */
   scouts: number;
@@ -190,7 +204,7 @@ const PRUDENT: BotProfile = {
     reserveEcus: 2200,
     recruitShareBp: 5500,
     tightTier: 2,
-    defenseTrigger: 60,
+    defenseTrigger: 27,
     upgradeFromWeek: 6,
     useMarket: false,
     marketMinBp: 8000,
@@ -209,7 +223,7 @@ const PRUDENT: BotProfile = {
     gainBp: 9000,
     riskBp: 19000,
     dayCost: 300,
-    leash: 70,
+    leash: 31,
     scouts: 1,
     fogBonus: 90,
     shortlist: 7,
@@ -260,7 +274,7 @@ const EQUILIBRE: BotProfile = {
     reserveEcus: 1200,
     recruitShareBp: 7000,
     tightTier: 1,
-    defenseTrigger: 34,
+    defenseTrigger: 15,
     upgradeFromWeek: 4,
     useMarket: true,
     marketMinBp: 6800,
@@ -279,7 +293,7 @@ const EQUILIBRE: BotProfile = {
     gainBp: 11000,
     riskBp: 11000,
     dayCost: 240,
-    leash: 130,
+    leash: 57,
     scouts: 1,
     fogBonus: 120,
     shortlist: 9,
@@ -330,7 +344,7 @@ const AGRESSIF: BotProfile = {
     reserveEcus: 300,
     recruitShareBp: 9200,
     tightTier: 1,
-    defenseTrigger: 14,
+    defenseTrigger: 6,
     upgradeFromWeek: 2,
     useMarket: true,
     marketMinBp: 5600,
@@ -401,7 +415,7 @@ const EXPERT: BotProfile = {
     reserveEcus: 800,
     recruitShareBp: 8600,
     tightTier: 1,
-    defenseTrigger: 26,
+    defenseTrigger: 12,
     upgradeFromWeek: 3,
     useMarket: true,
     marketMinBp: 5200,

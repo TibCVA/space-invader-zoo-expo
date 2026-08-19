@@ -76,26 +76,36 @@ export function fractalNoise(
   return total;
 }
 
+/**
+ * Longueurs d'onde du bruit, **en cases**.
+ *
+ * Elles ont été divisées par 2,26 quand la carte est passée de 256 × 416 à la
+ * taille d'une XL de HMM3. Une longueur d'onde en cases n'est pas une grandeur
+ * abstraite : c'est la taille d'un accident de terrain. Laissée à 88 cases sur
+ * une carte large de 113, la plus grande octave du relief couvrait les quatre
+ * cinquièmes de la carte au lieu du tiers, et le pays devenait trois taches au
+ * lieu d'un massif — la forêt était tombée de 25 % à 15 % de la surface.
+ */
 /** Octaves du relief : quatre échelles, de 4,6 km à 240 m. */
 export const RELIEF_OCTAVES: readonly Octave[] = [
-  { cell: 88, amp: 74 },
-  { cell: 33, amp: 44 },
-  { cell: 12, amp: 25 },
-  { cell: 4, amp: 10 },
+  { cell: 39, amp: 74 },
+  { cell: 15, amp: 44 },
+  { cell: 5, amp: 25 },
+  { cell: 2, amp: 10 },
 ];
 
 /** Octaves de l'humidité : champ lent, valeurs en centièmes. */
 export const MOISTURE_OCTAVES: readonly Octave[] = [
-  { cell: 58, amp: 60 },
-  { cell: 21, amp: 26 },
-  { cell: 8, amp: 12 },
-  { cell: 3, amp: 5 },
+  { cell: 26, amp: 60 },
+  { cell: 9, amp: 26 },
+  { cell: 4, amp: 12 },
+  { cell: 2, amp: 5 },
 ];
 
 /** Octaves du couvert forestier, en centièmes. */
 export const CANOPY_OCTAVES: readonly Octave[] = [
-  { cell: 44, amp: 64 },
-  { cell: 17, amp: 28 },
-  { cell: 7, amp: 12 },
-  { cell: 3, amp: 5 },
+  { cell: 19, amp: 64 },
+  { cell: 8, amp: 28 },
+  { cell: 3, amp: 12 },
+  { cell: 2, amp: 5 },
 ];

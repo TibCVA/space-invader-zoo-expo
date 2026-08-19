@@ -207,7 +207,7 @@ export function classifyTerrain(
       } else {
         let wood = Math.trunc(fractalNoise(col, row, CANOPY_SEED, CANOPY_OCTAVES) / 2);
         wood += Math.trunc((alt - 740) / 7);
-        if (dw < 12) wood -= (12 - dw) * 5;
+        if (dw < 5) wood -= (5 - dw) * 12;
         if (s >= 18) wood -= 24;
         if (wet >= 140) wood -= 18;
         code = wood > 14 ? T.foret : T.prairie;

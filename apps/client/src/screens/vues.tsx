@@ -79,7 +79,7 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
         reducedMotion,
         quality: 'haute',
         demo,
-        focus: { col: 145, row: 113 },
+        focus: { col: 64, row: 50 },
         onPickCell: (at): void => selectionner({ kind: 'case', at }),
         onPickHero: (uid): void => selectionner({ kind: 'heros', uid }),
         onPickTown: (uid): void => selectionner({ kind: 'cite', uid }),
