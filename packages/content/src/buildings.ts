@@ -458,7 +458,7 @@ const GRANIT_SPECIALS: readonly BuildingDef[] = [
       { kind: 'income', resource: 'ecus', amount: 500 },
       { kind: 'special', key: 'serment_des_comtes' },
     ],
-    scene: scene(42, 14, 0, 250),
+    scene: scene(42, 21, 0, 225),
   },
 ];
 
@@ -527,7 +527,7 @@ const ERMITAGE_SPECIALS: readonly BuildingDef[] = [
       { kind: 'income', resource: 'essence', amount: 2 },
       { kind: 'special', key: 'coeur_des_bois_noirs' },
     ],
-    scene: scene(42, 14, 0, 250),
+    scene: scene(42, 21, 0, 225),
   },
 ];
 

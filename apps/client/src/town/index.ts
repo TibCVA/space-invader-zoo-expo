@@ -537,7 +537,11 @@ class TableauCite implements TownView {
 
     dessinerLisere(lisere, dessin.emprise.hw * 1.16, dessin.emprise.hd * 1.16, dessin.hauteur);
 
-    const lumieres = new Lumieres(dessin.fenetres, graine);
+    /* Les fenêtres qui s'allument au crépuscule sont celles du dessin
+       procédural : sur une peinture, elles tombent à côté des fenêtres
+       peintes et font des pastilles blanches sur les façades. La peinture
+       porte déjà ses fenêtres éclairées. */
+    const lumieres = new Lumieres(sprite ? [] : dessin.fenetres, graine);
     const bannieres: Banniere[] = [];
     node.addChild(lisere, sprite ?? corps, lumieres.node);
     for (const b of dessin.bannieres) {
