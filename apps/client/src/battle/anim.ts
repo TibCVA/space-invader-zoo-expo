@@ -415,7 +415,7 @@ export class FileAnimations {
     const uid = typeof d.cible === 'string' ? d.cible : typeof d.unite === 'string' ? d.unite : null;
     const degats = typeof d.degats === 'number' ? d.degats : 0;
     const pertes = typeof d.pertes === 'number' ? d.pertes : 0;
-    const ecole = ecoleDuTexte(e.text);
+    const ecole = ecoleDuSort(d, e.text);
     this.taches.push({
       index,
       duree: 0.78,
@@ -540,8 +540,28 @@ export function cheminDeMarche(
   return hexLine(de, vers);
 }
 
-/** École devinée depuis le texte du journal, à défaut d'un détail chiffré. */
-function ecoleDuTexte(texte: string): 'braises' | 'sources' | 'brumes' | 'racines' {
+export type EcoleSort = 'braises' | 'sources' | 'brumes' | 'racines';
+
+const ECOLES: readonly EcoleSort[] = ['braises', 'sources', 'brumes', 'racines'];
+
+/**
+ * École d'un sort : celle que le moteur inscrit au journal (`detail.ecole`),
+ * qui est la donnée du contenu.
+ *
+ * Le repli par mots-clefs n'est là que pour les vieilles parties enregistrées
+ * avant que le moteur ne porte l'école — et il se trompait sur dix-huit sorts
+ * sur trente-deux : « Foudre des Bois Noirs » n'a ni braise ni source dans son
+ * nom et tombait donc en brumes, « Regain » en racines. Sur une partie
+ * d'aujourd'hui, il n'est jamais consulté.
+ */
+export function ecoleDuSort(
+  detail: Record<string, unknown> | undefined,
+  texte: string,
+): EcoleSort {
+  const brut = detail?.['ecole'];
+  if (typeof brut === 'string' && (ECOLES as readonly string[]).includes(brut)) {
+    return brut as EcoleSort;
+  }
   const t = texte.toLowerCase();
   if (t.includes('braise') || t.includes('feu') || t.includes('flamme')) return 'braises';
   if (t.includes('source') || t.includes('eau') || t.includes('soin')) return 'sources';

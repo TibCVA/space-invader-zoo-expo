@@ -183,7 +183,18 @@ export function castCombatSpell(
   const player = playerOfSide(combat, side);
   if (player) combat.spellCastThisRound[player] = true;
 
-  pushLog(combat, events, 'sort', `Le héros lance « ${spell.name} ».`, {
+  /*
+   * Toute entrée de journal d'un sort porte SON école, celle du contenu.
+   * L'affichage la devinait dans la phrase par mots-clefs (« feu », « soin »,
+   * « ronce »…) et se trompait sur dix-huit sorts sur trente-deux : une
+   * Foudre des Bois Noirs s'entourait de brume, un Regain de racines. Une
+   * donnée qui existe ne se redevine pas dans du texte.
+   */
+  const journal = (text: string, detail?: Record<string, number | string>): void => {
+    pushLog(combat, events, 'sort', text, { ...detail, ecole: spell.school });
+  };
+
+  journal(`Le héros lance « ${spell.name} ».`, {
     sort: spell.id,
     cout: spell.cost,
     mana: hero.mana,
@@ -204,10 +215,7 @@ export function castCombatSpell(
           if (dmg <= 0) continue;
           const res = applyDamage(u, dmg);
           totalDamage += dmg;
-          pushLog(
-            combat,
-            events,
-            'sort',
+          journal(
             `${unitLabel(u)} subit ${dmg} points de dégâts (${effect.element}).`,
             { cible: u.uid, degats: dmg, pertes: res.kills },
           );
@@ -221,10 +229,7 @@ export function castCombatSpell(
           const res = healStack(u, amount, effect.resurrect);
           totalHealed += res.healed;
           if (res.healed > 0) {
-            pushLog(
-              combat,
-              events,
-              'sort',
+            journal(
               res.resurrected > 0
                 ? `${unitLabel(u)} : ${res.resurrected} ${res.resurrected > 1 ? 'créatures se relèvent' : 'créature se relève'}.`
                 : `${unitLabel(u)} récupère ${res.healed} points de vie.`,
@@ -247,10 +252,7 @@ export function castCombatSpell(
             source: spell.name,
           });
         }
-        pushLog(
-          combat,
-          events,
-          'sort',
+        journal(
           `${spell.name} : ${statLabel(effect.stat)} ${sign > 0 ? '+' : '−'}${Math.abs(effect.value)} pendant ${effect.turns} rounds.`,
           { sort: spell.id, cibles: units.length },
         );
@@ -277,7 +279,7 @@ export function castCombatSpell(
             turnsLeft: effect.turns,
             source: spell.name,
           });
-          pushLog(combat, events, 'sort', `${unitLabel(u)} est entravée.`, { cible: u.uid });
+          journal(`${unitLabel(u)} est entravée.`, { cible: u.uid });
         }
         break;
       }
@@ -290,7 +292,7 @@ export function castCombatSpell(
             turnsLeft: effect.turns,
             source: spell.name,
           });
-          pushLog(combat, events, 'sort', `${unitLabel(u)} est aveuglée.`, { cible: u.uid });
+          journal(`${unitLabel(u)} est aveuglée.`, { cible: u.uid });
         }
         break;
       }
@@ -298,7 +300,7 @@ export function castCombatSpell(
         for (const u of units) {
           const removed = cleanseUnit(u);
           if (removed > 0) {
-            pushLog(combat, events, 'sort', `${unitLabel(u)} est purifiée.`, {
+            journal(`${unitLabel(u)} est purifiée.`, {
               cible: u.uid,
               effets: removed,
             });
@@ -310,10 +312,7 @@ export function castCombatSpell(
         const count = effect.base + effect.perMystique * power;
         const summoned = summonStack(combat, side, effect.creature, count);
         if (summoned) {
-          pushLog(
-            combat,
-            events,
-            'sort',
+          journal(
             `${unitLabel(summoned)} ${summoned.count > 1 ? 'apparaissent' : 'apparaît'} sur le champ de bataille.`,
             { cible: summoned.uid, effectif: summoned.count },
           );
@@ -325,7 +324,7 @@ export function castCombatSpell(
           const u = units[0];
           if (canStand(combat, u, target)) {
             u.at = { col: target.col, row: target.row };
-            pushLog(combat, events, 'sort', `${unitLabel(u)} est transportée ailleurs.`, {
+            journal(`${unitLabel(u)} est transportée ailleurs.`, {
               cible: u.uid,
               colonne: target.col,
               ligne: target.row,
@@ -350,7 +349,7 @@ export function castCombatSpell(
             const tmp = a.at;
             a.at = b.at;
             b.at = tmp;
-            pushLog(combat, events, 'sort', `${unitLabel(a)} et ${unitLabel(b)} échangent leurs places.`, {
+            journal(`${unitLabel(a)} et ${unitLabel(b)} échangent leurs places.`, {
               a: a.uid,
               b: b.uid,
             });
@@ -361,10 +360,7 @@ export function castCombatSpell(
       case 'wall': {
         if (target && typeof target !== 'string') {
           const placed = raiseMagicWall(combat, target, effect.hexes, effect.turns);
-          pushLog(
-            combat,
-            events,
-            'sort',
+          journal(
             `Un obstacle magique se dresse sur ${placed} ${placed > 1 ? 'hexagones' : 'hexagone'}.`,
             { hexagones: placed, rounds: effect.turns },
           );
@@ -386,14 +382,14 @@ export function castCombatSpell(
       }
       case 'weather_shift': {
         combat.weather = side === 0 ? 'eclaircie' : 'brume';
-        pushLog(combat, events, 'sort', `Le ciel change : ${combat.weather}.`, {
+        journal(`Le ciel change : ${combat.weather}.`, {
           meteo: combat.weather,
         });
         break;
       }
       case 'vision':
       case 'reveal_map':
-        pushLog(combat, events, 'sort', 'Le sort révèle les alentours : sans effet au combat.', {
+        journal('Le sort révèle les alentours : sans effet au combat.', {
           sort: spell.id,
         });
         break;
