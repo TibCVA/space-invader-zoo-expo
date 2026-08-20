@@ -61,11 +61,21 @@ import { classifyTerrain, couvre, franchissable, markEdges } from './terrain.js'
  * laquelle elle a été jouée. La version enregistrée est ce qui permet de le
  * voir plutôt que de le subir.
  *
- * 1.1.0 : neuf gisements posés ou déplacés pour que chaque capitale puisse
+ * **Le MAJEUR change à chaque fois, et ce n'est pas de la prudence excessive.**
+ * `versionsCompatibles` (`packages/protocol/src/api.ts:215`) ne compare que le
+ * majeur : un passage de 1.0 à 1.1 serait déclaré compatible et la partie
+ * reprendrait en silence sur une AUTRE carte. C'est vrai de la carte et pas du
+ * moteur, parce que la carte n'est pas enregistrée : seul l'état l'est, et le
+ * monde se reconstruit à chaque chargement par `buildWorld(graine)`. Changer
+ * le semeur, c'est donc changer le sol sous une partie en cours — les
+ * identifiants d'objets de l'état ne désignent plus rien. Pour la carte, toute
+ * différence est cassante ; le majeur est le seul cran que le contrôle voit.
+ *
+ * 2.0.0 : neuf gisements posés ou déplacés pour que chaque capitale puisse
  * jouer l'une ou l'autre maison, essence et fil d'or portés à deux comme toutes
  * les autres mines, et table de tirage propre aux filons.
  */
-export const MAP_VERSION = '1.1.0-forez';
+export const MAP_VERSION = '2.0.0-forez';
 
 export interface TerrainBuild {
   cols: number;
