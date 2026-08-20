@@ -58,6 +58,7 @@ import {
   ROWS,
   START_POSITIONS,
   cleEspacement,
+  startEconomy,
   integriteDesMurs,
   objectValue,
   type MurMesure,
@@ -164,6 +165,17 @@ export interface Rapport {
   terreLibre: { depart: string; libre: number }[];
   repartition: Repartition;
   glanage: Glanage[];
+  /**
+   * Valeur économique accessible depuis chaque départ, telle que la passe
+   * d'équilibrage la mesure, et l'écart relatif qui reste.
+   *
+   * Il fallait l'imprimer : la compensation pose des tas jusqu'à ramener
+   * l'écart sous trois pour cent, et son plafond de tas est désormais un budget
+   * par départ. Si le budget ne suffit pas, l'écart RESTE — et il vaut mieux le
+   * lire ici que le découvrir dans un taux de victoire par capitale.
+   */
+  economie: { depart: string; valeur: number }[];
+  ecartEconomique: number;
 }
 
 /** Ce qu'un héros ramasse depuis un départ, en jeu parfait. */
@@ -499,6 +511,17 @@ export function mesurer(graine: number): Rapport {
     glaner(praticable, w.terrain, cols, rows, objetIndex, s.at, s.label),
   );
 
+  /* L'équité économique des cinq départs, telle que la passe la laisse. */
+  const eco = startEconomy(graine);
+  const economie = Object.entries(START_POSITIONS).map(([key, s]) => ({
+    depart: s.label,
+    valeur: eco[key as keyof typeof eco] ?? 0,
+  }));
+  economie.sort((a, b) => b.valeur - a.valeur);
+  const hautEco = economie.length ? economie[0].valeur : 0;
+  const basEco = economie.length ? economie[economie.length - 1].valeur : 0;
+  const ecart = hautEco > 0 ? Math.round((10000 * (hautEco - basEco)) / hautEco) : 0;
+
   return {
     graine,
     cellules: n,
@@ -543,6 +566,8 @@ export function mesurer(graine: number): Rapport {
       rows,
     ),
     glanage,
+    economie,
+    ecartEconomique: ecart,
   };
 }
 
@@ -711,9 +736,43 @@ export interface Repartition {
   /** Par canton : combien d'objets, et la nature la plus représentée. */
   cantons: { canton: string; objets: number; gisements: number; dominante: string; part: number }[];
   /** Les objets de forte valeur et la garde qui les tient. */
-  gardeParValeur: { tranche: string; combien: number; gardeMediane: number; sansGarde: number }[];
+  gardeParValeur: {
+    tranche: string;
+    combien: number;
+    gardeMediane: number;
+    sansGarde: number;
+    /**
+     * Le détail des non gardés, par nature, du plus nombreux au moins.
+     *
+     * Sans ce détail le compte ne dit pas quoi faire : « trente-trois lieux
+     * sans garde entre six cents et mille cinq cents » se lit comme un défaut
+     * grave si ce sont des artefacts, et comme la règle même de HMM3 si ce sont
+     * des moulins et des fontaines — un lieu de service ne se garde pas.
+     */
+    sansGardeParNature: { nature: string; combien: number }[];
+  }[];
   /** La garde en fonction de l'éloignement du départ le plus proche. */
   gardeParDistance: { tranche: string; combien: number; gardeMediane: number }[];
+  /**
+   * La garde des lieux QU'ON TIENT, nature par nature.
+   *
+   * Les tranches de valeur ne suffisent pas à répondre au propriétaire : « les
+   * assets les plus importants doivent être gardés par des gardes assez forts ».
+   * Un coffre de deux mille écus est de forte valeur et ne se garde pas — dans
+   * HMM3 un coffre au trésor est un ramassage libre — tandis qu'un gisement de
+   * cent écus se garde toujours, parce qu'on le POSSÈDE et qu'on le reprend. La
+   * mesure suit donc la liste des natures qui se tiennent, et non la valeur
+   * seule.
+   */
+  gardeParNature: {
+    nature: string;
+    combien: number;
+    sansGarde: number;
+    gardeMediane: number;
+    gardeMin: number;
+    gardeMax: number;
+    valeurMediane: number;
+  }[];
 }
 
 /** Distance minimale d'un objet à l'un des cinq départs, en cases. */
@@ -897,19 +956,26 @@ function mesurerRepartition(
   const gardeParValeur: Repartition['gardeParValeur'] = tranchesValeur.map((t) => {
     const forces: number[] = [];
     let sansGarde = 0;
+    const nues = new Map<string, number>();
     for (const o of w.objects) {
       if (o.kind === 'garde' || o.kind === 'ville') continue;
       const v = objectValue(o as never);
       if (v < t.min || v >= t.max) continue;
       const f = forceDeGarde(o);
       forces.push(f);
-      if (f === 0) sansGarde++;
+      if (f === 0) {
+        sansGarde++;
+        nues.set(o.kind, (nues.get(o.kind) ?? 0) + 1);
+      }
     }
     return {
       tranche: t.nom,
       combien: forces.length,
       gardeMediane: mediane2(forces),
       sansGarde,
+      sansGardeParNature: [...nues]
+        .map(([nature, combien]) => ({ nature, combien }))
+        .sort((a, b) => b.combien - a.combien || a.nature.localeCompare(b.nature)),
     };
   });
 
@@ -933,7 +999,42 @@ function mesurerRepartition(
     return { tranche: t.nom, combien: forces.length, gardeMediane: mediane2(forces) };
   });
 
-  return { voisinage, cantons, gardeParValeur, gardeParDistance };
+  /* — La garde des natures qu'on tient — */
+  const NATURES_TENUES = [
+    'ville',
+    'maison_tresor',
+    'sceau',
+    'banque',
+    'mine',
+    'artefact',
+    'demeure',
+    'village',
+  ] as const;
+  const gardeParNature: Repartition['gardeParNature'] = [];
+  for (const nature of NATURES_TENUES) {
+    const forces: number[] = [];
+    const valeurs: number[] = [];
+    let sansGarde = 0;
+    for (const o of w.objects) {
+      if (o.kind !== nature) continue;
+      const f = forceDeGarde(o);
+      forces.push(f);
+      valeurs.push(objectValue(o as never));
+      if (f === 0) sansGarde++;
+    }
+    if (forces.length === 0) continue;
+    gardeParNature.push({
+      nature,
+      combien: forces.length,
+      sansGarde,
+      gardeMediane: mediane2(forces),
+      gardeMin: Math.min(...forces),
+      gardeMax: Math.max(...forces),
+      valeurMediane: mediane2(valeurs),
+    });
+  }
+
+  return { voisinage, cantons, gardeParValeur, gardeParDistance, gardeParNature };
 }
 
 /* ─────────────────────────────────── Sortie ──────────────────────────────── */
@@ -991,6 +1092,14 @@ function imprimer(r: Rapport): void {
   ligne('coût médian entre deux objets', `${coutMedian.toFixed(0)} pts`);
   console.log('     (colonnes : objets ramassés à 7 jours / 14 jours / 28 jours)');
 
+  console.log('\n▸ Équité économique des cinq départs');
+  for (const e of r.economie) ligne(`  ${e.depart}`, `${String(e.valeur)} écus accessibles`);
+  ligne(
+    'écart entre le plus riche et le plus pauvre',
+    `${(r.ecartEconomique / 100).toFixed(2)} %`,
+    'cible ≤ 3.00 %',
+  );
+
   console.log('\n▸ Structure — zones et goulets');
   ligne('composantes praticables', String(r.composantes));
   ligne('points d’articulation', String(r.articulations));
@@ -1044,6 +1153,22 @@ function imprimer(r: Rapport): void {
       `  ${g.tranche}`,
       `${String(g.combien)} lieux`,
       `garde médiane ${String(g.gardeMediane)} · ${String(g.sansGarde)} sans garde`,
+    );
+    if (g.sansGardeParNature.length > 0) {
+      console.log(
+        `        nus : ${g.sansGardeParNature
+          .map((n) => `${n.nature} ${String(n.combien)}`)
+          .join(' · ')}`,
+      );
+    }
+  }
+  console.log('    les natures qu’on tient — valeur médiane, puis la garde qui la tient :');
+  for (const g of r.repartition.gardeParNature) {
+    ligne(
+      `    ${g.nature}`,
+      `${String(g.combien)} lieux · ${String(g.valeurMediane)} écus`,
+      `garde ${String(g.gardeMin)} → ${String(g.gardeMediane)} → ${String(g.gardeMax)}` +
+        (g.sansGarde > 0 ? ` · ${String(g.sansGarde)} SANS GARDE` : ''),
     );
   }
   for (const g of r.repartition.gardeParDistance) {

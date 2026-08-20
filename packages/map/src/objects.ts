@@ -346,9 +346,115 @@ const RING_TABLE: Readonly<
 
 type Faction = 'granit' | 'ermitage';
 
-function guardFor(rng: RngState, ring: 1 | 2 | 3 | 4, stacks: number): ArmyStack[] {
+/**
+ * Poids de garde : ce que le lieu VAUT à qui devra le prendre.
+ *
+ * Ce n'est pas `objectValue`, et la différence est la raison d'être de cette
+ * fonction. `objectValue` mesure un pillage — ce qu'on emporte le jour où l'on
+ * visite — et c'est la bonne grandeur pour équilibrer les départs. Un gisement,
+ * lui, ne s'emporte pas : on le GARDE, et il paie tous les jours. Mesuré à huit
+ * jours de production, une scierie vaut quatre-vingt-seize écus ; sa garde
+ * médiane en vaut deux mille. Doser la garde sur la valeur de pillage
+ * reviendrait donc à laisser les scieries sans défense et à ne garder que les
+ * coffres — l'inverse exact de HMM3, où l'on se bat pour les mines et où les
+ * coffres se ramassent librement.
+ *
+ * Le poids retient donc un mois de production pour un gisement, la valeur de
+ * pillage pour un butin, et un forfait d'objectif pour ce qui décide la partie.
+ */
+const JOURS_DE_GARDE = 30;
+
+/** Poids à partir duquel une garde occupe le haut de sa fourchette d'anneau. */
+const POIDS_PLEIN = 3000;
+
+function poidsDeGarde(kind: string, data: Record<string, unknown>): number {
+  switch (kind) {
+    case 'mine': {
+      const resource = data.resource as ResourceKey | undefined;
+      const amount = (data.amount as number | undefined) ?? 0;
+      if (!resource) return 400;
+      return amount * (RESOURCE_VALUE[resource] ?? 1) * JOURS_DE_GARDE;
+    }
+    case 'ville':
+    case 'village':
+      /* Une ville capturable paie tous les jours et bâtit des troupes : c'est
+         le plus gros lot de la carte après les objectifs de victoire. */
+      return 5000;
+    case 'maison_tresor':
+      return 6000;
+    case 'sceau':
+      return 3000;
+    case 'banque': {
+      const ecus = (data.ecus as number | undefined) ?? 0;
+      const resource = data.resource as ResourceKey | undefined;
+      const amount = (data.amount as number | undefined) ?? 0;
+      /* Un repaire se repeuple : on le pillera plus d'une fois. */
+      const pillage = ecus + (resource ? amount * (RESOURCE_VALUE[resource] ?? 1) : 0);
+      return Math.trunc((pillage * 15) / 10);
+    }
+    case 'artefact': {
+      const rarity = (data.rarity as string | undefined) ?? 'rare';
+      return VALEUR_ARTEFACT[rarity] ?? 900;
+    }
+    case 'demeure': {
+      const creature = (data.creature as string | undefined) ?? '';
+      const tier = Number(creature.slice(-1));
+      /* Une demeure recrute chaque semaine : le rang décide, et l'on compte
+         quatre semaines comme pour un gisement. */
+      return Number.isFinite(tier) && tier > 0 ? tier * 700 : 700;
+    }
+    case 'ressource': {
+      const resource = data.resource as ResourceKey | undefined;
+      const amount = (data.amount as number | undefined) ?? 0;
+      return resource ? amount * (RESOURCE_VALUE[resource] ?? 1) : 0;
+    }
+    case 'coffre': {
+      const ecus = (data.ecus as number | undefined) ?? 0;
+      return ecus;
+    }
+    /* Un poste de garde ne garde rien d'autre que le passage : c'est l'anneau
+       seul qui le dose, donc le poids plein — on ne veut pas d'un péage mou. */
+    case 'garde':
+      return POIDS_PLEIN;
+    default:
+      return 600;
+  }
+}
+
+/**
+ * La garde d'un lieu : l'anneau donne la fourchette, le poids donne la place
+ * dans la fourchette.
+ *
+ * C'est la traduction des deux axes que le propriétaire demande dans la même
+ * phrase : « que la difficulté des ennemis sur la carte soit bien dosée en
+ * fonction des évènements qu'ils gardent et du niveau du joueur ou proximité
+ * avec le point de départ du héros ». L'anneau EST la proximité du départ, et
+ * la fourchette d'anneau est calée sur la courbe de puissance d'un héros —
+ * quatre cents à mille deux cents la première semaine, quatre à neuf mille au
+ * troisième anneau. Le poids est ce qu'on garde. Avant, seul l'anneau comptait :
+ * dans le même anneau, une scierie et un repaire de sept mille écus recevaient
+ * la même garde tirée au sort, et la moitié de la phrase n'était pas honorée.
+ *
+ * Le tirage reste présent mais réduit — un huitième de la fourchette — pour que
+ * deux lieux de même poids ne portent pas exactement la même garde.
+ */
+function guardFor(
+  rng: RngState,
+  ring: 1 | 2 | 3 | 4,
+  stacks: number,
+  poids: number = POIDS_PLEIN,
+): ArmyStack[] {
   const table = RING_TABLE[ring];
-  const target = nextInt(rng, table.powerMin, table.powerMax);
+  const etendue = table.powerMax - table.powerMin;
+  const part = Math.min(10000, Math.max(0, Math.trunc((poids * 10000) / POIDS_PLEIN)));
+  const jeu = Math.trunc(etendue / 8);
+  const target = Math.min(
+    table.powerMax,
+    Math.max(
+      table.powerMin,
+      table.powerMin + Math.trunc((etendue * part) / 10000) + nextInt(rng, -jeu, jeu),
+    ),
+  );
   const count = Math.max(1, Math.min(stacks, table.tiers.length + 1));
   const share = Math.trunc(target / count);
   const out: ArmyStack[] = [];
@@ -607,6 +713,61 @@ interface Builder {
    * seule mémoire, gisements nommés compris.
    */
   parCle: Map<string, MapCoord[]>;
+  /**
+   * Le répartiteur de richesse : à qui appartient chaque case, et combien de
+   * butin chaque départ a déjà reçu.
+   *
+   * Les familles de fort butin — repaires, gisements supplémentaires, artefacts,
+   * coffres, demeures — le consultent avant de choisir leur case, et le
+   * créditent après. C'est un accumulateur COMMUN à toutes les familles : c'est
+   * ce qui permet à un artefact de compenser un repaire, et non seulement à un
+   * artefact de compenser un artefact.
+   */
+  repartiteur: {
+    proprio: Int8Array;
+    attribue: number[];
+    /** Coût de marche depuis chaque départ, dans l'ordre de `START_KEYS`. */
+    champs: Int32Array[];
+  };
+}
+
+/** La case appartient-elle à l'arrière-pays du départ visé ? */
+function chez(b: Builder, cible: number, col: number, row: number): boolean {
+  return b.repartiteur.proprio[row * COLS + col] === cible;
+}
+
+/**
+ * Crédite le départ propriétaire de la case, à hauteur de ce que ce butin lui
+ * rapporte VRAIMENT.
+ *
+ * Créditer le poids brut ne marche pas, et c'est mesuré : à répartir le poids
+ * brut par arrière-pays, l'écart économique est remonté de 20,9 % à 35,3 %. La
+ * raison est que la richesse ne se compte pas en butin posé mais en butin
+ * ATTEIGNABLE : `accessibleValue` escompte chaque lieu par le coût de marche
+ * qui reste dans le budget une fois la case atteinte. Un arrière-pays compact
+ * et facile — Cervières — encaisse presque la valeur faciale ; un arrière-pays
+ * étiré en forêt et en pente — Viscomtat — n'en encaisse qu'une fraction. Le
+ * répartiteur doit donc compter dans la même monnaie que la mesure qu'il sert,
+ * sinon il équilibre une grandeur que personne ne joue.
+ */
+function crediter(
+  b: Builder,
+  at: MapCoord,
+  poids: number,
+  garde?: readonly ArmyStack[],
+): void {
+  const i = at.row * COLS + at.col;
+  const qui = b.repartiteur.proprio[i];
+  if (qui < 0) return;
+  const cout = b.repartiteur.champs[qui][i];
+  if (cout >= BALANCE_BUDGET) return;
+  const portee = Math.trunc(((BALANCE_BUDGET - cout) * 10000) / BALANCE_BUDGET);
+  /* Le même escompte de risque que `accessibleValue` : un repaire tenu par
+     quinze mille de puissance ne vaut qu'un cinquième de son butin tant qu'on
+     ne peut pas le prendre. Sans ce facteur, le répartiteur croit enrichir un
+     départ en lui posant un trésor qu'il ne peut pas ouvrir. */
+  const risque = Math.max(2000, 10000 - Math.trunc(guardPower(garde) / 2));
+  b.repartiteur.attribue[qui] += Math.trunc((poids * portee * risque) / 100000000);
 }
 
 /**
@@ -859,6 +1020,56 @@ function startDistanceField(): Uint16Array {
   return field;
 }
 
+/**
+ * À quel départ chaque case appartient : l'arrière-pays, par plus court chemin
+ * à vol d'oiseau.
+ *
+ * On mesure ici la seule chose qui manquait pour répartir la RICHESSE : l'anneau
+ * dit à quelle distance d'un départ on se trouve, jamais duquel. Les familles de
+ * fort butin se posaient donc sur les meilleures cases disponibles, sans
+ * personne pour remarquer qu'elles s'accumulaient autour de deux capitales.
+ * Mesuré : Cervières atteignait 48 897 écus dans son horizon d'équilibrage
+ * contre 24 159 à Viscomtat — cinquante pour cent d'écart, quand le document
+ * maître en tolère trois. L'oubli était invisible parce qu'aucun outil ne
+ * l'imprimait, et parce que `objectValue` rendait zéro pour les coffres et les
+ * repaires, c'est-à-dire pour l'essentiel du butin.
+ *
+ * La distance de Tchebychev suffit : on ne cherche pas à savoir qui arrivera le
+ * premier — le champ de coût de `balanceStarts` le fait, et mieux — mais à
+ * répartir un lot entre cinq voisinages.
+ */
+function startOwnerField(): Int8Array {
+  const field = new Int8Array(CELLS).fill(-1);
+  const starts = START_KEYS.map((k) => START_POSITIONS[k].at);
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      let best = 0x7fffffff;
+      let qui = -1;
+      for (let k = 0; k < starts.length; k++) {
+        const d = Math.max(Math.abs(starts[k].col - col), Math.abs(starts[k].row - row));
+        if (d < best) {
+          best = d;
+          qui = k;
+        }
+      }
+      field[row * COLS + col] = qui;
+    }
+  }
+  return field;
+}
+
+/**
+ * Le départ le plus pauvre en butin déjà attribué, pour lui donner le prochain
+ * lot. À égalité, le plus petit indice — le semis reste déterministe.
+ */
+function departLePlusPauvre(attribue: readonly number[]): number {
+  let qui = 0;
+  for (let k = 1; k < attribue.length; k++) {
+    if (attribue[k] < attribue[qui]) qui = k;
+  }
+  return qui;
+}
+
 function ringAt(startDist: Uint16Array, col: number, row: number): 1 | 2 | 3 {
   const mt = anchorCell('maison_tresor');
   const dTresor = Math.max(Math.abs(mt.col - col), Math.abs(mt.row - row));
@@ -947,38 +1158,141 @@ export function costFieldFrom(ctx: ObjectContext, from: MapCoord, budget: number
   return dist;
 }
 
-/** Valeur économique brute d'un objet, en écus. */
+/** Horizon d'un gisement : combien de jours de production on met dans sa valeur. */
+const JOURS_DE_GISEMENT = 8;
+
+/** Ce que vaut un point de savoir dans un coffre, en écus. */
+const VALEUR_DU_SAVOIR = 250;
+
+/** Valeur d'un artefact selon sa rareté, en écus. */
+const VALEUR_ARTEFACT: Readonly<Record<string, number>> = {
+  commun: 500,
+  rare: 900,
+  majeur: 1600,
+  relique: 2600,
+};
+
+/**
+ * Valeur économique brute d'un objet, en écus.
+ *
+ * **Ce qui manquait, et ce que ça cassait.** La fonction rendait ZÉRO pour les
+ * coffres, les repaires, les demeures franches, la Maison du Trésor, les
+ * sceaux, les moulins, les écoles, les temples, les monolithes, les obélisques,
+ * le marché noir et le cartographe — c'est-à-dire pour la moitié du butin de la
+ * carte. Deux conséquences mesurées, et aucune n'était visible dans le code :
+ *
+ *   - le tableau de bord rangeait un repaire de deux mille écus dans la tranche
+ *     « valeur < 200 », si bien que la question du propriétaire — « les assets
+ *     les plus importants doivent être gardés par des gardes assez forts » — ne
+ *     pouvait même pas se poser : on ne savait pas ce qui était important ;
+ *   - `accessibleValue` sert à ÉQUILIBRER les cinq départs. Un départ entouré de
+ *     coffres et de repaires était donc jugé pauvre et recevait de la
+ *     compensation en plus. Le taux de victoire par capitale mesuré sur
+ *     vingt-cinq parties à cinq allait de 40 % à 4 % ; c'est l'une des pistes,
+ *     et la seule qui soit un défaut de calcul plutôt qu'un réglage.
+ *
+ * Les valeurs ci-dessous sont des ordres de grandeur en écus, cohérents entre
+ * eux : ce qui compte n'est pas leur exactitude absolue mais leur RAPPORT, car
+ * c'est le rapport qui décide de la garde et de la compensation.
+ */
 export function objectValue(obj: MapObject): number {
-  switch (obj.kind) {
+  return valeurBrute(obj.kind, obj.data);
+}
+
+/**
+ * La même valeur, mais AVANT que l'objet existe.
+ *
+ * Le semis doit connaître la valeur d'un lieu pour décider à quel arrière-pays
+ * le donner, et il la connaît avant de le poser. Deux fonctions diraient deux
+ * choses — c'est l'erreur qu'on a déjà payée avec la table d'espacement recopiée
+ * dans le tableau de bord — donc `objectValue` délègue ici, et il n'y a qu'un
+ * seul barème.
+ */
+export function valeurBrute(kind: string, data: Record<string, unknown>): number {
+  switch (kind) {
     case 'mine': {
-      const resource = obj.data.resource as ResourceKey | undefined;
-      const amount = (obj.data.amount as number | undefined) ?? 0;
+      const resource = data.resource as ResourceKey | undefined;
+      const amount = (data.amount as number | undefined) ?? 0;
       if (!resource) return 0;
-      return amount * (RESOURCE_VALUE[resource] ?? 1) * 8;
+      return amount * (RESOURCE_VALUE[resource] ?? 1) * JOURS_DE_GISEMENT;
     }
     case 'ressource': {
-      const resource = obj.data.resource as ResourceKey | undefined;
-      const amount = (obj.data.amount as number | undefined) ?? 0;
+      const resource = data.resource as ResourceKey | undefined;
+      const amount = (data.amount as number | undefined) ?? 0;
       if (!resource) return 0;
       return amount * (RESOURCE_VALUE[resource] ?? 1);
     }
-    case 'artefact':
-      return 900;
+    case 'coffre': {
+      const ecus = (data.ecus as number | undefined) ?? 0;
+      const savoir = (data.savoir as number | undefined) ?? 0;
+      return ecus + savoir * VALEUR_DU_SAVOIR;
+    }
+    case 'banque': {
+      /* Un repaire rend des écus ET une ressource, et il se repeuple : la
+         valeur retenue est celle d'un pillage, pas celle du repaire à vie. */
+      const ecus = (data.ecus as number | undefined) ?? 0;
+      const resource = data.resource as ResourceKey | undefined;
+      const amount = (data.amount as number | undefined) ?? 0;
+      return ecus + (resource ? amount * (RESOURCE_VALUE[resource] ?? 1) : 0);
+    }
+    case 'demeure': {
+      /* Une demeure franche vaut ce qu'elle recrute : le rang décide. La
+         créature est nommée `<faction>_t<rang>`. */
+      const creature = (data.creature as string | undefined) ?? '';
+      const tier = Number(creature.slice(-1));
+      return Number.isFinite(tier) && tier > 0 ? 250 + tier * 250 : 400;
+    }
+    case 'artefact': {
+      const rarity = (data.rarity as string | undefined) ?? 'rare';
+      return VALEUR_ARTEFACT[rarity] ?? 900;
+    }
+    /* Les objectifs de victoire : leur valeur n'est pas économique, mais elle
+       doit primer sur tout le reste quand on décide d'une garde. */
+    case 'maison_tresor':
+      return 6000;
+    case 'sceau':
+      return 3000;
+    case 'ville':
+      return 5000;
     case 'village':
       return 1400;
+    /* Les lieux de service. Ils ne se gardent pas dans HMM3 — on n'assiège pas
+       un moulin — mais ils valent quelque chose pour l'équilibre des départs,
+       et c'est ce qui manquait. */
+    case 'ecole':
+      return 800;
+    case 'cartographe':
+      return 500;
     case 'caravane':
       return 550;
+    case 'marche_noir':
+      return 400;
+    case 'monolithe':
+      return 400;
+    case 'moulin':
+      return 350;
+    case 'temple':
+      return 300;
+    case 'obelisque':
+      return 300;
     case 'auberge':
+      return 250;
+    case 'fontaine':
       return 250;
     case 'sanctuaire':
     case 'source':
+      return 200;
+    case 'quete':
       return 200;
     case 'belvedere':
       return 180;
     case 'borne':
       return 150;
-    case 'quete':
-      return 200;
+    /* Un poste de garde et un obstacle ne valent rien : l'un EST la garde,
+       l'autre est du décor infranchissable. */
+    case 'garde':
+    case 'obstacle':
+      return 0;
     default:
       return 0;
   }
@@ -1026,6 +1340,13 @@ export function buildObjects(ctx: ObjectContext, seed: number): ObjectBuild {
     occupied: new Uint8Array(CELLS),
     next: 1,
     parCle: new Map(),
+    repartiteur: {
+      proprio: startOwnerField(),
+      attribue: START_KEYS.map(() => 0),
+      champs: START_KEYS.map((k) =>
+        costFieldFrom(ctx, START_POSITIONS[k].at, BALANCE_BUDGET),
+      ),
+    },
   };
   const startDist = startDistanceField();
 
@@ -1049,7 +1370,11 @@ export function buildObjects(ctx: ObjectContext, seed: number): ObjectBuild {
       'village',
       at,
       { townUid: n.townUid, name: n.name, capital: false, region: n.region, vocation: n.vocation },
-      { footprint: townFootprint(at, ctx), guard: guardFor(rng, 2, 3), fixe: true },
+      {
+        footprint: townFootprint(at, ctx),
+        guard: guardFor(rng, 2, 3, poidsDeGarde('village', {})),
+        fixe: true,
+      },
     );
   }
 
@@ -1070,7 +1395,7 @@ export function buildObjects(ctx: ObjectContext, seed: number): ObjectBuild {
   for (const s of SEAL_SITES) {
     const at = snap(b, s.at, 4) ?? s.at;
     place(b, 'sceau', at, { seal: s.seal, name: s.label, lore: s.lore }, {
-      guard: guardFor(rng, 3, 4),
+      guard: guardFor(rng, 3, 4, poidsDeGarde('sceau', {})),
       fixe: true,
     });
   }
@@ -1156,7 +1481,10 @@ export function buildObjects(ctx: ObjectContext, seed: number): ObjectBuild {
       'artefact',
       at,
       { artifact: a.artifact, rarity: a.rarity, name: a.label, fixed: true },
-      { guard: guardFor(rng, 3, 4), fixe: true },
+      {
+        guard: guardFor(rng, 3, 4, poidsDeGarde('artefact', { rarity: a.rarity })),
+        fixe: true,
+      },
     );
   }
 
@@ -1180,7 +1508,33 @@ export function buildObjects(ctx: ObjectContext, seed: number): ObjectBuild {
       { resource: m.resource, amount: m.amount, name: m.label },
       auPasDeLaPorte
         ? { fixe: true }
-        : { guard: guardFor(rng, m.ring, m.ring === 1 ? 2 : 3), fixe: true },
+        : {
+            guard: guardFor(
+              rng,
+              m.ring,
+              m.ring === 1 ? 2 : 3,
+              poidsDeGarde('mine', { resource: m.resource, amount: m.amount }),
+            ),
+            fixe: true,
+          },
+    );
+  }
+
+  /*
+   * Le répartiteur part de ce que la GÉOGRAPHIE a déjà donné.
+   *
+   * Les sept étapes précédentes sont écrites à la main — capitales, Maison du
+   * Trésor, sceaux, bornes, belvédères, sanctuaires, auberges, doléances,
+   * gisements nommés, artefacts fixes — et elles ne donnent pas la même chose à
+   * chacun : c'est leur droit, la géographie est fixe. Mais le semis qui suit
+   * doit COMPENSER cette inégalité au lieu de l'ignorer, sans quoi il répartit
+   * équitablement par-dessus un socle inéquitable et l'écart survit intact.
+   */
+  for (let k = 0; k < START_KEYS.length; k++) {
+    b.repartiteur.attribue[k] = accessibleValue(
+      b.objects,
+      b.repartiteur.champs[k],
+      BALANCE_BUDGET,
     );
   }
 
@@ -1348,7 +1702,15 @@ function prendreEspace(
   ring: 1 | 2 | 3,
   kind: string,
   data: Record<string, unknown>,
+  /**
+   * Arrière-pays visé, ou -1 pour n'importe lequel. C'est une PRÉFÉRENCE : on
+   * l'essaie d'abord partout, puis on l'abandonne plutôt que de renoncer au
+   * lieu. Un lot qui disparaît parce qu'un voisinage était plein serait une
+   * perte de densité payée pour une équité — les deux sont des exigences.
+   */
+  cible = -1,
 ): number {
+  for (const chezQui of cible >= 0 ? [cible, -1] : [-1]) {
   for (const facteur of [10000, 6600, 3300, 0]) {
     for (const r of [ring, 2, 1, 3] as (1 | 2 | 3)[]) {
       const list = caches[r];
@@ -1374,12 +1736,14 @@ function prendreEspace(
           n--;
           continue;
         }
+        if (chezQui >= 0 && !chez(b, chezQui, col, row)) continue;
         if (!assezLoin(b, kind, data, col, row, facteur)) continue;
         list[k] = list[list.length - 1];
         list.pop();
         return i;
       }
     }
+  }
   }
   return -1;
 }
@@ -1392,15 +1756,28 @@ function seedArtifacts(b: Builder, rng: RngState, caches: Record<1 | 2 | 3, numb
   ];
   for (const entry of plan) {
     for (let k = 0; k < entry.count; k++) {
-      const i = prendreEspace(b, rng, caches, entry.ring, 'artefact', {});
-      if (i < 0) continue;
+      /* La rareté se tire d'abord : c'est elle qui dit le poids, et le poids
+         désigne l'arrière-pays qui en a le plus besoin. */
       const rarity = pickWeighted(rng, RARITY_BY_RING[entry.ring]);
+      const cible = departLePlusPauvre(b.repartiteur.attribue);
+      const i = prendreEspace(b, rng, caches, entry.ring, 'artefact', {}, cible);
+      if (i < 0) continue;
       const pool = ARTIFACT_POOL[rarity];
       const artifact = pool[nextInt(rng, 0, pool.length - 1)];
       const at = { col: i % COLS, row: (i / COLS) | 0 };
-      place(b, 'artefact', at, { artifact, rarity }, {
-        guard: entry.ring === 1 ? undefined : guardFor(rng, entry.ring, 2),
-      });
+      /*
+       * Un artefact SANS garde, c'est un artefact qui ne se mérite pas. Les
+       * trois artefacts du premier anneau n'en avaient aucune : on les
+       * ramassait en passant, alors qu'un artefact est dans HMM3 l'objectif qui
+       * justifie qu'on détourne un héros de sa route. Ils reçoivent maintenant
+       * la garde de leur anneau, dosée par leur rareté — un commun du premier
+       * anneau tombe donc au plancher de la fourchette, quatre cents de
+       * puissance, ce qui est une escarmouche de première semaine et non un
+       * mur.
+       */
+      const garde = guardFor(rng, entry.ring, 2, poidsDeGarde('artefact', { rarity }));
+      crediter(b, at, valeurBrute('artefact', { rarity }), garde);
+      place(b, 'artefact', at, { artifact, rarity }, { guard: garde });
     }
   }
 }
@@ -1417,13 +1794,18 @@ function seedPiles(b: Builder, rng: RngState, caches: Record<1 | 2 | 3, number[]
          d'espacement — on ne veut pas deux tas de sel côte à côte, deux tas
          de natures différentes ne gênent personne. */
       const resource = pickWeighted(rng, PILE_TABLE);
-      const i = prendreEspace(b, rng, caches, entry.ring, 'ressource', { resource });
+      const amount = pileAmount(rng, resource, entry.ring);
+      /* Les tas sont la famille la plus nombreuse : ils ne pèsent pas lourd un
+         par un, mais ensemble ils font le tiers du butin de la carte. Ils
+         suivent donc le même répartiteur — c'est le sens littéral de la demande
+         du propriétaire, « les items de ressources doivent être répartis et
+         distribués de manière intelligente et réfléchie ». */
+      const cible = departLePlusPauvre(b.repartiteur.attribue);
+      const i = prendreEspace(b, rng, caches, entry.ring, 'ressource', { resource }, cible);
       if (i < 0) continue;
       const at = { col: i % COLS, row: (i / COLS) | 0 };
-      place(b, 'ressource', at, {
-        resource,
-        amount: pileAmount(rng, resource, entry.ring),
-      });
+      crediter(b, at, valeurBrute('ressource', { resource, amount }));
+      place(b, 'ressource', at, { resource, amount });
     }
   }
 }
@@ -1651,15 +2033,19 @@ function chercherPlace(
   kind: string,
   data: Record<string, unknown>,
   convient?: (col: number, row: number) => boolean,
+  cible = -1,
 ): MapCoord | null {
-  for (const facteur of [10000, 6600, 3300, 0]) {
-    for (const i of spots) {
-      if (b.occupied[i] === 1) continue;
-      const col = i % COLS;
-      const row = (i / COLS) | 0;
-      if (convient && !convient(col, row)) continue;
-      if (!assezLoin(b, kind, data, col, row, facteur)) continue;
-      return { col, row };
+  for (const chezQui of cible >= 0 ? [cible, -1] : [-1]) {
+    for (const facteur of [10000, 6600, 3300, 0]) {
+      for (const i of spots) {
+        if (b.occupied[i] === 1) continue;
+        const col = i % COLS;
+        const row = (i / COLS) | 0;
+        if (chezQui >= 0 && !chez(b, chezQui, col, row)) continue;
+        if (convient && !convient(col, row)) continue;
+        if (!assezLoin(b, kind, data, col, row, facteur)) continue;
+        return { col, row };
+      }
     }
   }
   return null;
@@ -1694,31 +2080,56 @@ function poserEspaces(
   nature?: { kind: string; data: Record<string, unknown> },
 ): void {
   const pris: MapCoord[] = [];
+  const loinDesPris = (col: number, row: number): boolean => {
+    for (const t of pris) {
+      if (Math.max(Math.abs(t.col - col), Math.abs(t.row - row)) < spacing) return false;
+    }
+    return true;
+  };
   /*
-   * Trois passes de relâchement. La densité est une exigence du propriétaire
-   * autant que l'espacement — « il faut suffisamment de mines de ressources
-   * pour pouvoir jouer » — donc on ne rend jamais un compte incomplet par
-   * respect d'un écart : on desserre l'écart, dans cet ordre, et l'on note
-   * implicitement le résultat dans la mesure du tableau de bord.
+   * Un lieu à la fois, et chacun va au voisinage le plus pauvre.
+   *
+   * La boucle d'avant parcourait les cases et posait au fil de l'eau, ce qui
+   * interdisait toute répartition de la RICHESSE : les onze écoles, les huit
+   * moulins, les douze pierres levées — une trentaine de milliers d'écus au
+   * total — tombaient là où il restait de la place. Poser un lieu à la fois
+   * permet de demander, avant chacun, quel départ en a le plus besoin.
+   *
+   * Les trois passes de relâchement de l'écart restent : la densité est une
+   * exigence du propriétaire autant que l'espacement — « il faut suffisamment de
+   * mines de ressources pour pouvoir jouer » — donc on ne rend jamais un compte
+   * incomplet par respect d'un écart. L'arrière-pays visé se relâche de même,
+   * et en premier : mieux vaut le bon lieu chez le voisin que pas de lieu.
    */
-  for (const facteur of [10000, 6600, 3300, 0]) {
-    for (const i of spots) {
-      if (pris.length >= count) return;
-      const col = i % COLS;
-      const row = (i / COLS) | 0;
-      if (b.occupied[i] === 1) continue;
-      let proche = false;
-      for (const t of pris) {
-        if (Math.max(Math.abs(t.col - col), Math.abs(t.row - row)) < spacing) {
-          proche = true;
+  for (let n = 0; n < count; n++) {
+    const cible = nature ? departLePlusPauvre(b.repartiteur.attribue) : -1;
+    let choisi: MapCoord | null = null;
+    for (const chezQui of cible >= 0 ? [cible, -1] : [-1]) {
+      for (const facteur of [10000, 6600, 3300, 0]) {
+        for (const i of spots) {
+          if (b.occupied[i] === 1) continue;
+          const col = i % COLS;
+          const row = (i / COLS) | 0;
+          if (chezQui >= 0 && !chez(b, chezQui, col, row)) continue;
+          if (!loinDesPris(col, row)) continue;
+          if (nature && !assezLoin(b, nature.kind, nature.data, col, row, facteur)) continue;
+          choisi = { col, row };
           break;
         }
+        if (choisi) break;
       }
-      if (proche) continue;
-      if (nature && !assezLoin(b, nature.kind, nature.data, col, row, facteur)) continue;
-      fabrique({ col, row }, ringAt(startDist, col, row));
-      pris.push({ col, row });
+      if (choisi) break;
     }
+    if (!choisi) return;
+    /* On crédite ce que la fabrique a RÉELLEMENT posé — elle peut poser deux
+       pierres levées d'un coup — et non ce qu'on croyait qu'elle poserait. */
+    const avant = b.objects.length;
+    fabrique(choisi, ringAt(startDist, choisi.col, choisi.row));
+    for (let k = avant; k < b.objects.length; k++) {
+      const o = b.objects[k];
+      crediter(b, o.at, valeurBrute(o.kind, o.data), o.guard);
+    }
+    pris.push(choisi);
   }
 }
 
@@ -1745,12 +2156,17 @@ function seedDensification(
   ];
   for (const entry of coffres) {
     for (let k = 0; k < entry.count; k++) {
-      const i = prendreEspace(b, rng, caches, entry.ring, 'coffre', {});
+      /* Un coffre vaut de mille à deux mille cinq cents écus : quarante-quatre
+         coffres, c'est le plus gros pot de la carte, et il se répartissait au
+         hasard des couverts. */
+      const ecus = (10 + entry.ring * 5 + nextInt(rng, 0, 5)) * 100;
+      const savoir = nextInt(rng, 0, 2) === 0 ? 1 : 0;
+      const cible = departLePlusPauvre(b.repartiteur.attribue);
+      const i = prendreEspace(b, rng, caches, entry.ring, 'coffre', {}, cible);
       if (i < 0) continue;
-      place(b, 'coffre', { col: i % COLS, row: (i / COLS) | 0 }, {
-        ecus: (10 + entry.ring * 5 + nextInt(rng, 0, 5)) * 100,
-        savoir: nextInt(rng, 0, 2) === 0 ? 1 : 0,
-      });
+      const at = { col: i % COLS, row: (i / COLS) | 0 };
+      crediter(b, at, valeurBrute('coffre', { ecus, savoir }));
+      place(b, 'coffre', at, { ecus, savoir });
     }
   }
 
@@ -1773,12 +2189,13 @@ function seedDensification(
   for (const entry of tas) {
     for (let k = 0; k < entry.count; k++) {
       const resource = pickWeighted(rng, PILE_TABLE);
-      const i = prendreEspace(b, rng, caches, entry.ring, 'ressource', { resource });
+      const amount = pileAmount(rng, resource, entry.ring);
+      const cible = departLePlusPauvre(b.repartiteur.attribue);
+      const i = prendreEspace(b, rng, caches, entry.ring, 'ressource', { resource }, cible);
       if (i < 0) continue;
-      place(b, 'ressource', { col: i % COLS, row: (i / COLS) | 0 }, {
-        resource,
-        amount: pileAmount(rng, resource, entry.ring),
-      });
+      const at = { col: i % COLS, row: (i / COLS) | 0 };
+      crediter(b, at, valeurBrute('ressource', { resource, amount }));
+      place(b, 'ressource', at, { resource, amount });
     }
   }
 
@@ -1787,19 +2204,26 @@ function seedDensification(
 
   /* — Demeures franches : 32, le compte d'habitats extérieurs d'une XL — un
        recruteur extérieur donne à l'exploration une conséquence militaire. — */
-  poserEspaces(b, rng, spots, 32, 10, (at, ring) => {
+  for (let n = 0; n < 32; n++) {
+    const cible = departLePlusPauvre(b.repartiteur.attribue);
+    const at = chercherPlace(b, spots, 'demeure', {}, undefined, cible);
+    if (!at) continue;
+    const ring = ringAt(startDist, at.col, at.row);
     const tiers = DEMEURE_TIERS[ring];
     const tier = tiers[nextInt(rng, 0, tiers.length - 1)];
     const faction: Faction = nextInt(rng, 0, 1) === 0 ? 'granit' : 'ermitage';
     const creature = `${faction}_t${tier}`;
+    const gardeDemeure =
+      ring >= 2 ? guardFor(rng, ring, 2, poidsDeGarde('demeure', { creature })) : undefined;
+    crediter(b, at, valeurBrute('demeure', { creature }), gardeDemeure);
     place(
       b,
       'demeure',
       at,
       { creature, stock: 0, name: NOMS_DEMEURES[tier] ?? 'Demeure franche' },
-      ring >= 2 ? { guard: guardFor(rng, ring, 2) } : {},
+      gardeDemeure ? { guard: gardeDemeure } : {},
     );
-  }, startDist, { kind: 'demeure', data: {} });
+  }
 
   /* — Gisements supplémentaires : 14, dont les orpaillages qui rendent des
        écus — l'équivalent des mines d'or, gardés à la mesure du gain. Avec les
@@ -1819,48 +2243,77 @@ function seedDensification(
     const orpaillage = nextInt(rng, 0, 2) === 0;
     const filon = pickWeighted(rng, PILE_TABLE);
     const resource = orpaillage ? 'ecus' : filon === 'ecus' ? 'fer' : filon;
-    const at = chercherPlace(b, spots, 'mine', { resource }, (col, row) =>
-      orpaillage ? ringAt(startDist, col, row) >= 2 : true,
+    const cible = departLePlusPauvre(b.repartiteur.attribue);
+    const at = chercherPlace(
+      b,
+      spots,
+      'mine',
+      { resource },
+      (col, row) => (orpaillage ? ringAt(startDist, col, row) >= 2 : true),
+      cible,
     );
     if (!at) continue;
     const ring = ringAt(startDist, at.col, at.row);
+    const quantite = orpaillage ? 300 + ring * 60 : 1 + (ring > 1 ? 1 : 0);
+    const gardeMine = guardFor(
+      rng,
+      orpaillage ? (ring === 3 ? 4 : 3) : ring,
+      3,
+      poidsDeGarde('mine', { resource, amount: quantite }),
+    );
+    crediter(b, at, valeurBrute('mine', { resource, amount: quantite }), gardeMine);
     if (orpaillage) {
       place(
         b,
         'mine',
         at,
-        { resource: 'ecus', amount: 300 + ring * 60, name: 'Orpaillage' },
-        { guard: guardFor(rng, ring === 3 ? 4 : 3, 3) },
+        { resource: 'ecus', amount: quantite, name: 'Orpaillage' },
+        { guard: gardeMine },
       );
     } else {
       place(
         b,
         'mine',
         at,
-        { resource, amount: 1 + (ring > 1 ? 1 : 0), name: 'Filon' },
-        { guard: guardFor(rng, ring, ring === 1 ? 2 : 3) },
+        { resource, amount: quantite, name: 'Filon' },
+        { guard: gardeMine },
       );
     }
   }
 
   /* — Repaires gardés : 12 banques, gros gardien, gros butin, repeuplées — */
-  poserEspaces(b, rng, spots, 12, 18, (at, ring) => {
-    const garde = guardFor(rng, ring === 1 ? 2 : ring === 2 ? 3 : 4, 3);
+  for (let n = 0; n < 12; n++) {
+    const cibleR = departLePlusPauvre(b.repartiteur.attribue);
+    const at = chercherPlace(b, spots, 'banque', {}, undefined, cibleR);
+    if (!at) continue;
+    const ring = ringAt(startDist, at.col, at.row);
+    /* Le butin se tire d'abord : c'est lui qui dose le gardien. Un repaire de
+       cinq mille écus et un de deux mille recevaient la même garde. */
+    const butin = {
+      ecus: (20 + ring * 15 + nextInt(rng, 0, 10)) * 100,
+      resource: pickWeighted(rng, PILE_TABLE),
+      amount: 4 + ring * 3,
+    };
+    const garde = guardFor(
+      rng,
+      ring === 1 ? 2 : ring === 2 ? 3 : 4,
+      3,
+      poidsDeGarde('banque', butin),
+    );
+    crediter(b, at, valeurBrute('banque', butin), garde);
     place(
       b,
       'banque',
       at,
       {
-        ecus: (20 + ring * 15 + nextInt(rng, 0, 10)) * 100,
-        resource: pickWeighted(rng, PILE_TABLE),
-        amount: 4 + ring * 3,
+        ...butin,
         repop: 4,
         garde0: garde.map((g) => ({ ...g })),
         name: NOMS_REPAIRES[nextInt(rng, 0, NOMS_REPAIRES.length - 1)],
       },
       { guard: garde },
     );
-  }, startDist, { kind: 'banque', data: {} });
+  }
 
   /* — Écoles : 10, temples : 8, fontaines : 7, moulins : 8 — */
   const matieres = ['vaillance', 'garde', 'mystique', 'savoir'] as const;
@@ -2044,6 +2497,9 @@ function balanceStarts(
   }
 
   const values = {} as Record<StartKey, number>;
+  /* Le budget de tas de chaque départ, dépensé une fois pour toutes. */
+  const reste = {} as Record<StartKey, number>;
+  for (const key of START_KEYS) reste[key] = COMPENSATION_PILES;
   for (let pass = 0; pass < BALANCE_PASSES; pass++) {
     let max = 0;
     for (const key of START_KEYS) {
@@ -2064,8 +2520,16 @@ function balanceStarts(
       const list = candidates.get(key) as number[];
       // Une cache proche vaut presque sa valeur faciale : on vise la moitié du
       // manque à chaque passe, ce qui converge sans jamais dépasser.
+      if (reste[key] <= 0) continue;
       const wanted = Math.max(120, Math.trunc(gap / 2));
-      addCompensation(b, rng, list, wanted, fields.get(key) as Int32Array);
+      reste[key] -= addCompensation(
+        b,
+        rng,
+        list,
+        wanted,
+        fields.get(key) as Int32Array,
+        reste[key],
+      );
     }
   }
 
@@ -2075,10 +2539,30 @@ function balanceStarts(
   return values;
 }
 
-/** Valeur faciale maximale d'une cache de compensation, en écus. */
-const COMPENSATION_CAP = 900;
-/** Nombre maximal de caches posées en une passe pour un même départ. */
-const COMPENSATION_PILES = 8;
+/**
+ * Valeur faciale maximale d'une cache de compensation, en écus.
+ *
+ * Relevée de neuf cents à deux mille cinq cents le jour où la compensation a
+ * cessé de pouvoir ajouter des tas à volonté : à budget de tas fixe, c'est la
+ * valeur de chaque tas qui doit porter l'écart. Deux mille cinq cents écus,
+ * c'est un gros tas de HMM3 — pas un magot.
+ */
+const COMPENSATION_CAP = 2500;
+/**
+ * Nombre maximal de caches posées pour un même départ, TOUTES PASSES CONFONDUES.
+ *
+ * C'était un plafond par passe, et la compensation en a fait un désastre
+ * silencieux : dix-huit passes, quatre départs en retard, huit tas chacun, cela
+ * autorise cinq cent soixante-seize tas. Le jour où `objectValue` a cessé
+ * d'ignorer les coffres et les repaires, les écarts absolus ont triplé, la
+ * convergence a demandé plus de passes, et la carte est passée de 477 à 653
+ * lieux — 327 tas de ressources au lieu de 131, une case sur 27 au lieu d'une
+ * sur 38. Un dispositif d'équilibrage qui peut poser deux cents tas n'équilibre
+ * pas la carte : il la noie. Le plafond est donc un BUDGET par départ, et ce qui
+ * ne rentre pas dans le budget se dit dans le tableau de bord au lieu de se
+ * payer en densité.
+ */
+const COMPENSATION_PILES = 12;
 
 /**
  * Pose des caches de compensation jusqu'à apporter `wantedValue` à la position
@@ -2091,7 +2575,8 @@ function addCompensation(
   list: number[],
   wantedValue: number,
   field: Int32Array,
-): void {
+  budget: number,
+): number {
   let delivered = 0;
   let piles = 0;
   /*
@@ -2109,7 +2594,7 @@ function addCompensation(
   const paliers = [10000, 5000, 0];
   let palier = 0;
   const recales: number[] = [];
-  while (delivered < wantedValue && piles < COMPENSATION_PILES) {
+  while (delivered < wantedValue && piles < budget) {
     if (list.length === 0) {
       if (palier + 1 >= paliers.length || recales.length === 0) break;
       palier++;
@@ -2129,9 +2614,22 @@ function addCompensation(
     // Valeur faciale nécessaire pour apporter le reste après escompte.
     const remaining = wantedValue - delivered;
     const raw = Math.min(COMPENSATION_CAP, Math.trunc((remaining * 10000) / reach));
+
     if (raw < 40) break;
 
-    const resource = pickWeighted(rng, PILE_TABLE);
+    /*
+     * La bourse plutôt que le tas, quand le manque est gros.
+     *
+     * Un tas de ressource est plafonné à soixante unités — au-delà ce n'est plus
+     * un tas, c'est un entrepôt — donc il ne porte au mieux que trois cent
+     * soixante écus de bois. C'était le vrai goulet de la compensation :
+     * vingt-deux tas ne fermaient pas un écart de dix pour cent, et l'on
+     * croyait manquer de tas quand on manquait de valeur PAR tas. Une bourse
+     * d'écus va jusqu'au plafond de deux mille cinq cents, ce qui est le gros
+     * tas d'or de HMM3, et ferme l'écart avec trois caches au lieu de vingt.
+     */
+    const resource: ResourceKey =
+      remaining > 600 ? 'ecus' : pickWeighted(rng, PILE_TABLE);
     const unit = RESOURCE_VALUE[resource] ?? 1;
     let amount: number;
     if (resource === 'ecus') {
@@ -2150,4 +2648,5 @@ function addCompensation(
   }
   /* Ce qui n'a pas servi retourne dans la file : la passe suivante y revient. */
   for (const r of recales) list.push(r);
+  return piles;
 }

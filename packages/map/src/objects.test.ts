@@ -288,10 +288,45 @@ describe('objets — économie', () => {
     expect((other as MapObject).at).toEqual(found.at);
   });
 
-  it('évalue économiquement les objets utiles', () => {
+  /*
+   * Le barème économique ne doit rien oublier, et il oubliait la moitié de la
+   * carte : coffres, repaires, demeures franches, sceaux, Maison du Trésor,
+   * écoles, moulins, monolithes, obélisques, marché noir, cartographe rendaient
+   * tous zéro. Cette ligne-ci demandait même explicitement qu'un Sceau des
+   * Marches — l'objectif de victoire de la partie — vaille ZÉRO. Elle gardait
+   * donc le défaut au lieu de le trouver : `accessibleValue`, qui sert à
+   * ÉQUILIBRER les cinq départs, jugeait pauvre un départ entouré de coffres.
+   *
+   * Le test dit maintenant l'inverse, et il le dit pour toutes les natures de la
+   * carte : seuls un poste de garde et un obstacle valent zéro.
+   */
+  it('évalue économiquement TOUTES les natures, sauf la garde et l’obstacle', () => {
     expect(objectValue(mines[0])).toBeGreaterThan(0);
     expect(objectValue(byKind('ressource')[0])).toBeGreaterThan(0);
-    expect(objectValue(byKind('sceau')[0])).toBe(0);
+    /* Un objectif de victoire pèse plus qu'un tas de bois. */
+    expect(objectValue(byKind('sceau')[0])).toBeGreaterThan(
+      objectValue(byKind('ressource')[0]),
+    );
+    const sansValeur = new Set(['garde', 'obstacle']);
+    const muettes = new Set<string>();
+    for (const o of objects) {
+      if (sansValeur.has(o.kind)) {
+        expect(objectValue(o), o.kind).toBe(0);
+        continue;
+      }
+      if (objectValue(o) <= 0) muettes.add(o.kind);
+    }
+    expect([...muettes].sort()).toEqual([]);
+  });
+
+  it('donne à un gisement d’or plus de valeur qu’à une scierie', () => {
+    /* Le rapport compte plus que la valeur absolue : c'est lui qui décide de la
+       garde et de la compensation. */
+    const or = mines.filter((m) => m.data.resource === 'ecus');
+    const bois = mines.filter((m) => m.data.resource === 'bois');
+    expect(or.length).toBeGreaterThan(0);
+    expect(bois.length).toBeGreaterThan(0);
+    expect(objectValue(or[0])).toBeGreaterThan(objectValue(bois[0]));
   });
 });
 

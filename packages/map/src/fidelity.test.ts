@@ -282,14 +282,37 @@ describe('fidélité — équivalence économique des départs', () => {
     return ((max - min) * 100) / max;
   }
 
-  it('tient la fourchette de ±8 % sur plusieurs graines', () => {
-    for (const seed of [1, 20260817, 987654321]) {
+  /*
+   * La fourchette est passée de huit à quatre pour cent, et ce n'est pas un
+   * resserrement gratuit : c'est la grandeur mesurée qui a changé de sens.
+   *
+   * `objectValue` rendait ZÉRO pour les coffres, les repaires, les demeures
+   * franches, les sceaux, la Maison du Trésor et tous les lieux de service —
+   * c'est-à-dire pour la moitié du butin. Les huit pour cent d'alors portaient
+   * donc sur une vue partielle, et la vue complète disait tout autre chose : sur
+   * la graine de démonstration, l'écart réel valait cinquante pour cent —
+   * Cervières 48 897 écus accessibles contre 24 159 à Viscomtat. Le document
+   * maître §20.3 demande un taux de victoire de 18 à 22 % par position ; on ne
+   * l'obtiendra jamais avec un départ deux fois plus riche qu'un autre.
+   *
+   * Ce que la correction a demandé, dans l'ordre : compter tout le butin, puis
+   * répartir les familles de valeur par arrière-pays au lieu de les poser où il
+   * restait de la place, puis compter le crédit dans la MÊME monnaie que la
+   * mesure — escompté par le coût de marche et par le risque de la garde —, puis
+   * compenser le reste en bourses d'écus plutôt qu'en tas de bois plafonnés à
+   * soixante unités. Mesuré sur huit graines : 1,78 à 2,76 %.
+   *
+   * Quatre pour cent laisse donc une marge d'un tiers au-dessus du pire cas
+   * mesuré, ce qui reste un test et non un moulage de la sortie du jour.
+   */
+  it('tient la fourchette de ±4 % sur plusieurs graines', () => {
+    for (const seed of [1, 20260817, 987654321, 31337, 55]) {
       const values = startEconomy(seed);
       for (const key of START_KEYS) {
         expect(values[key], `${key} (graine ${seed})`).toBeGreaterThan(0);
       }
       const s = spread(values);
-      expect(s, `graine ${seed} : écart de ${s.toFixed(2)} %`).toBeLessThanOrEqual(8);
+      expect(s, `graine ${seed} : écart de ${s.toFixed(2)} %`).toBeLessThanOrEqual(4);
     }
   });
 });
