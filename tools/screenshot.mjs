@@ -68,6 +68,9 @@ const SCENES = {
     hash: '#/demo/carte',
     wait: 60000,
     defile: 1400,
+    /* Au zoom le plus large, la carte a une centaine de blocs à repeindre et
+       les peint sous un budget par image : il lui faut son temps. */
+    repos: 15000,
     label: 'Carte — trois cantons dans le cadre',
   },
   cite_granit: { hash: '#/demo/cite/granit', wait: 11000, label: 'Cité — Châtellenie de Granit' },
@@ -218,7 +221,16 @@ async function main() {
                laisse le temps de se réveiller et de repeindre. */
             await page.mouse.move(vp.width / 2, vp.height / 2);
             await page.mouse.wheel(0, scene.defile);
-            await page.waitForTimeout(2500);
+            /*
+             * Le repos après la molette est une MESURE, pas une marge de
+             * confort. Deux secondes et demie suffisent à la planche de contact,
+             * qui ne repeint rien ; elles ne suffisent pas à la carte
+             * d'aventure, qui repeint ses blocs de terrain avec un budget par
+             * image — vu sur capture au zoom le plus large : un carré peint aux
+             * bords nets, et du vide autour. Chaque scène dit donc son propre
+             * repos.
+             */
+            await page.waitForTimeout(scene.repos ?? 2500);
           }
           const file = resolve(outDir, `${key}--${vp.key}.png`);
           await page.screenshot({ path: file, fullPage: false });
