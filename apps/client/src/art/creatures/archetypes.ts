@@ -748,6 +748,120 @@ export function corne(
 }
 
 /** Aile membraneuse ou emplumée. */
+/**
+ * L'aile emplumée : un éventail de rémiges, et non une palette festonnée.
+ *
+ * **Ce qu'elle remplace, et pourquoi.** L'aile à plumes était une seule masse
+ * pleine sur laquelle on posait six fuseaux courts. Rendu à l'écran, cela ne
+ * fait pas une aile : cela fait une palette, un coquillage segmenté — c'est
+ * exactement le mot qui vient devant les griffons de Pamole et les chouettes de
+ * l'Ermitage sur la planche de contact, et les rendus de référence disent tout
+ * autre chose. Chez eux, l'aile est un ÉVENTAIL : des rémiges longues,
+ * nettement séparées, qui partent toutes du poignet et s'ouvrent de la verticale
+ * à l'horizontale, chacune se lisant comme une plume distincte.
+ *
+ * On construit donc dans cet ordre : les couvertures — la masse courte près du
+ * corps, qui cache les bases —, puis les secondaires, puis les primaires en
+ * éventail depuis le poignet. Les extrémités reçoivent le liseré chaud : c'est
+ * ce qui donne au griffon son or et à la chouette sa lumière de bord d'aile.
+ *
+ * Les plumes sont peintes de l'intérieur vers l'extérieur pour que le
+ * recouvrement aille dans le bon sens, comme sur un oiseau qui plane.
+ */
+function ailePlumee(
+  g: Graphics,
+  k: Kit,
+  o: { E: number; C: number; s: 1 | -1; couleur: number; seed: number },
+): void {
+  const { E, C, s, couleur, seed } = o;
+  /** Le poignet : d'où part l'éventail. */
+  const px = s * E * 0.4;
+  const py = -C * 0.04;
+
+  /* Les couvertures : masse courte et arrondie, du corps au poignet. */
+  const couvertures = lisser(
+    perturber(
+      densifier(
+        [
+          pt(0, -C * 0.1),
+          pt(s * E * 0.2, -C * 0.2),
+          pt(px, py - C * 0.06),
+          pt(s * E * 0.44, C * 0.34),
+          pt(s * E * 0.2, C * 0.52),
+          pt(0, C * 0.3),
+        ],
+        C * 0.16,
+      ),
+      C * 0.014,
+      seed + 61,
+    ),
+    1,
+  );
+  poser(g, k, couvertures, {
+    couleur: assombrir(couleur, 0.14),
+    matiere: 'plumes',
+    matiereAlpha: 0.26,
+    echelle: 0.6,
+    modele: 1,
+    seed,
+  });
+
+  /* Les secondaires : un rang court derrière les couvertures. */
+  const SECONDAIRES = 5;
+  for (let i = 0; i < SECONDAIRES; i += 1) {
+    const t = i / (SECONDAIRES - 1);
+    const bx = s * E * (0.08 + t * 0.3);
+    const by = C * 0.06;
+    const tx = bx - s * C * 0.06;
+    const ty = C * (0.62 + 0.22 * Math.sin(t * Math.PI));
+    poser(g, k, fuseau(bx, by, tx, ty, C * 0.19, { seed: seed + i * 3, taper: 0.46 }), {
+      couleur: i % 2 ? assombrir(couleur, 0.24) : assombrir(couleur, 0.06),
+      matiere: 'plumes',
+      matiereAlpha: 0.22,
+      echelle: 0.5,
+      modele: 0.85,
+      rim: false,
+    });
+  }
+
+  /*
+   * Les primaires. Leurs pointes se posent sur un quart d'ellipse allant du bas
+   * (la plus intérieure, presque verticale) au bout de l'aile (la plus
+   * extérieure, dans le prolongement de l'envergure) : c'est ce quart
+   * d'ellipse, et lui seul, qui fait lire l'éventail.
+   */
+  const PRIMAIRES = 10;
+  for (let i = 0; i < PRIMAIRES; i += 1) {
+    const t = i / (PRIMAIRES - 1);
+    const a = (Math.PI / 2) * (1 - t);
+    const rx = E * 0.66;
+    const ry = C * 1.15;
+    const tx = px + s * rx * Math.cos(a) * (0.9 + t * 0.24);
+    const ty = py + ry * Math.sin(a) - C * 0.1 * t;
+    const large = C * (0.2 - t * 0.05);
+    poser(g, k, fuseau(px, py, tx, ty, large, { seed: seed + 40 + i * 5, taper: 0.34 }), {
+      couleur: i % 2 ? assombrir(couleur, 0.2) : eclaircir(couleur, 0.08),
+      matiere: 'plumes',
+      matiereAlpha: 0.2,
+      echelle: 0.46,
+      modele: 0.9,
+      /* Le liseré sur les trois dernières : c'est l'or du griffon et la
+         lumière de bord d'aile de la chouette. */
+      rim: i >= PRIMAIRES - 4,
+    });
+    /* Le rachis, une nervure claire : sans elle, deux plumes voisines de même
+       ton se fondent l'une dans l'autre. */
+    g.moveTo(px, py);
+    g.lineTo(tx, ty);
+    g.stroke({
+      color: eclaircir(couleur, 0.34),
+      width: C * 0.016,
+      alpha: 0.42,
+      cap: 'round',
+    });
+  }
+}
+
 export function aile(
   g: Graphics,
   k: Kit,
@@ -776,32 +890,20 @@ export function aile(
     const festons = o.plume ? 0 : Math.abs(Math.sin(t * Math.PI * doigts)) * C * 0.16;
     bordFuite.push(pt(s * E * t, C * (0.28 + 0.72 * Math.sin(t * Math.PI * 0.75)) - festons));
   }
+  if (o.plume) {
+    ailePlumee(g, k, { E, C, s, couleur: o.couleur, seed: o.seed ?? 7 });
+    return;
+  }
   const forme = lisser(perturber([...bordAttaque, ...bordFuite], C * 0.012, (o.seed ?? 7) + 61), 1);
   poser(g, k, forme, {
     couleur: o.couleur,
-    matiere: o.plume ? 'plumes' : 'ecailles',
+    matiere: 'ecailles',
     matiereAlpha: 0.24,
-    echelle: o.plume ? 0.7 : 0.6,
+    echelle: 0.6,
     modele: 1,
     seed: o.seed,
   });
-  if (o.plume) {
-    for (let i = 0; i < 6; i += 1) {
-      const t = 0.24 + (i / 6) * 0.72;
-      const x0 = s * E * t;
-      const y0 = -C * 0.1;
-      const y1 = C * (0.3 + 0.68 * Math.sin(t * Math.PI * 0.75));
-      const pl = fuseau(x0, y0, x0 + s * C * 0.1, y1, C * 0.2, { seed: i + (o.seed ?? 0), taper: 0.5 });
-      poser(g, k, pl, {
-        couleur: i % 2 ? assombrir(o.couleur, 0.18) : eclaircir(o.couleur, 0.1),
-        matiere: 'plumes',
-        matiereAlpha: 0.2,
-        echelle: 0.55,
-        modele: 0.8,
-        rim: i > 3,
-      });
-    }
-  } else {
+  {
     for (let i = 1; i < doigts; i += 1) {
       const t = i / doigts;
       g.moveTo(s * E * 0.06, -C * 0.06);
@@ -2088,7 +2190,24 @@ export interface VolantOptions {
   robe: number;
   ventre?: number;
   matiere?: MaterialKey;
-  aile: { envergure: number; corde: number; couleur: number; plume?: boolean; doigts?: number };
+  aile: {
+    envergure: number;
+    corde: number;
+    couleur: number;
+    plume?: boolean;
+    doigts?: number;
+    /**
+     * Où l'aile s'attache et sous quel angle, en fractions du corps.
+     *
+     * Un oiseau porte ses ailes au milieu du flanc, à plat : c'est le défaut, et
+     * c'est juste pour les chouettes. Un griffon les porte à l'épaule et
+     * relevées, parce qu'il a un arrière-train de lion à montrer — sans cette
+     * option, l'éventail se centrait sur la bête et avalait le fauve, si bien
+     * que les deux rangs sept de la Châtellenie rendaient de grands oiseaux
+     * sombres au lieu de griffons.
+     */
+    pose?: { x: number; y: number; rot: number };
+  };
   tete: (g: Graphics, k: Kit) => void;
   machoire?: (g: Graphics, k: Kit) => void;
   cou?: { longueur?: number; largeur?: number; angle?: number };
@@ -2109,12 +2228,45 @@ export function squeletteVolant(o: VolantOptions): PieceDef[] {
 
   pieces.push({ nom: 'corps', x: 0, y: -A, ordreMort: 7, dessin: () => {} });
 
+  /*
+   * L'aile LOINTAINE, poussée la première donc peinte derrière tout le reste.
+   *
+   * Elle manquait, et les clips la réclamaient depuis toujours : `clipsVolant`
+   * anime `aile_g` comme `aile_d`, mais chaque ligne est gardée par `si(rig,
+   * 'aile_g', …)` et ne trouvait rien. Une bête ailée n'avait donc qu'une aile,
+   * ce qui se voyait : les griffons et les chouettes rendaient un éventail
+   * planté sur un flanc, sans la symétrie qui fait lire un oiseau. Elle est
+   * placée plus haut et plus en arrière, à l'envergure réduite et à la lumière
+   * baissée — c'est la perspective, pas une aile atrophiée.
+   */
+  const pose = o.aile.pose ?? { x: 0.02, y: -0.24, rot: 0.22 };
+  pieces.push({
+    nom: 'aile_g',
+    parent: 'corps',
+    x: L * (pose.x - 0.12),
+    y: Hc * (pose.y - 0.18),
+    rot: pose.rot - 0.56,
+    lumiere: -1.15,
+    ambiance: 1.25,
+    ordreMort: 1,
+    dessin: (g, k) =>
+      aile(g, k, {
+        envergure: o.aile.envergure * 0.8,
+        corde: o.aile.corde * 0.82,
+        couleur: assombrir(o.aile.couleur, 0.42),
+        plume: o.aile.plume,
+        doigts: o.aile.doigts,
+        sens: -1,
+        seed: o.seed + 23,
+      }),
+  });
+
   pieces.push({
     nom: 'aile_d',
     parent: 'corps',
-    x: L * 0.02,
-    y: -Hc * 0.24,
-    rot: 0.22,
+    x: L * pose.x,
+    y: Hc * pose.y,
+    rot: pose.rot,
     lumiere: -0.7,
     ordreMort: 2,
     dessin: (g, k) =>

@@ -1603,7 +1603,16 @@ const banneret: Fabrique = (k) =>
 /* ───────────────────── Rang 7 — les griffons de Pamole ──────────────────── */
 
 function teteAigle(g: Graphics, k: Kit, S: number, couronne: boolean, seed: number): void {
-  const plume = couronne ? melanger(IVOIRE, 0xd8d2c4, 0.4) : melanger(IVOIRE, CHENE, 0.22);
+  /*
+   * La collerette : grise et brune sur le griffon de Pamole, blanc et or sur le
+   * couronné. Elle était ivoire sur les deux, et c'est ce qui achevait de faire
+   * lire ces deux bêtes comme des coquillages — le rendu de référence donne un
+   * griffon NOIR ET OR, tête grise, et un couronné à la collerette blanchie
+   * cerclée d'or.
+   */
+  const plume = couronne
+    ? melanger(IVOIRE, LIGHT.chaude, 0.26)
+    : melanger(ARDOISE, 0x8f8a7c, 0.42);
   const forme = lisser(
     perturber(
       densifier(
@@ -1700,8 +1709,30 @@ function teteAigle(g: Graphics, k: Kit, S: number, couronne: boolean, seed: numb
 
 function griffonPieces(k: Kit, couronne: boolean): PieceDef[] {
   const S = couronne ? 1.14 : 1;
-  const plume = couronne ? melanger(IVOIRE, 0xcfc7b6, 0.4) : melanger(IVOIRE, CHENE, 0.3);
-  const pelage = melanger(CHENE, 0xa2833f, 0.42);
+  /*
+   * Noir et or, comme le rendu de référence — et non ivoire.
+   *
+   * Les deux griffons étaient les seules bêtes de la Châtellenie peintes en
+   * ivoire, ailes comprises : sur la planche de contact ils rendaient deux
+   * coquillages pâles, là où la référence donne un fauve ardoise aux rémiges
+   * ourlées d'or. La faute n'était pas dans la géométrie mais dans la teinte, et
+   * c'est elle qui coûtait le plus : un rang sept doit être la pièce qu'on
+   * regarde en premier.
+   *
+   * Le couronné garde l'ardoise mais reçoit l'or sur les membres — pattes
+   * écaillées d'or du rendu — pour rester distinct de sa forme de base à la
+   * silhouette près.
+   */
+  const plume = couronne
+    ? melanger(ARDOISE, 0x24211f, 0.4)
+    : melanger(ARDOISE, 0x1f1d1b, 0.52);
+  /* Le fauve doit se DÉTACHER de l'aile : sur le premier essai, robe et rémiges
+     étaient toutes deux presque noires et l'arrière-train de lion disparaissait
+     dans l'éventail — la référence, elle, oppose une aile ardoise à un corps
+     brun fauve, et c'est ce contraste qui fait lire la bête composite. */
+  const pelage = couronne
+    ? melanger(0x8a6a1e, ARDOISE, 0.3)
+    : melanger(CHENE, 0x7d5a24, 0.52);
   return squeletteVolant({
     altitude: 74 * S,
     corpsL: 78 * S,
@@ -1715,6 +1746,9 @@ function griffonPieces(k: Kit, couronne: boolean): PieceDef[] {
       couleur: plume,
       plume: true,
       doigts: 5,
+      /* À l'épaule et relevées : le griffon a un arrière-train de lion, et il
+         faut qu'on le voie. */
+      pose: { x: 0.16, y: -0.58, rot: -0.5 },
     },
     seed: k.seed + (couronne ? 110 : 100),
     cou: { longueur: 30 * S, largeur: 26 * S, angle: -0.75 },

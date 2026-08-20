@@ -322,9 +322,25 @@ export async function renderArtSheet(
       rigs.push(rig);
       const boite = new Container();
       const b = rig.getLocalBounds();
-      const k = Math.min(1, 150 / Math.max(1, b.width), 156 / Math.max(1, b.height));
+      /*
+       * On REMPLIT la case, sans plafonner l'échelle à 1.
+       *
+       * Le plafond faisait qu'une bête plus petite que sa case y restait à sa
+       * taille natale : le manant occupait un cinquième de son cadre, le loup un
+       * quart, et vingt-huit sculptures se jugeaient sur des vignettes de
+       * cinquante pixels. C'est ce qui rendait la revue impossible — on ne
+       * pouvait pas voir ce qu'il y avait à corriger, et l'impression de « très
+       * fruste » venait autant du cadrage que du dessin.
+       *
+       * Les tailles relatives ne sont donc plus comparables d'une case à
+       * l'autre ; c'est le prix, et il est juste : la ligne de statistiques
+       * donne le rang et les points de vie, et cette planche existe pour juger
+       * une sculpture, pas une échelle. Le champ de bataille, lui, garde les
+       * proportions réelles.
+       */
+      const k = Math.min(150 / Math.max(1, b.width), 156 / Math.max(1, b.height));
       rig.scale.set(k);
-      rig.position.set(88, 178 - Math.max(0, b.y + b.height) * k);
+      rig.position.set(88 - (b.x + b.width / 2) * k, 178 - Math.max(0, b.y + b.height) * k);
       boite.addChild(rig);
       return {
         contenu: boite,
