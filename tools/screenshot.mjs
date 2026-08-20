@@ -37,7 +37,12 @@ const SCENES = {
   nouvelle: { hash: '#/nouvelle-partie', wait: 3000, label: 'Assistant de nouvelle partie' },
   codex: { hash: '#/codex', wait: 1400, label: 'Codex' },
   options: { hash: '#/options', wait: 1000, label: 'Options' },
-  diagnostic: { hash: '#/diagnostic', wait: 6000, label: 'Diagnostic de la machine' },
+  /* 6 s suffisaient sur le bureau et pas sur l'iPhone : à une densité de trois
+     pixels, « peindre une page de 2048 px » et « construire la planche d'art »
+     — deux cent cinquante-sept vignettes — prennent bien plus longtemps, et la
+     page a été photographiée sur son « On interroge la machine… ». Une capture
+     prise trop tôt ne montre pas une régression, elle ne montre rien. */
+  diagnostic: { hash: '#/diagnostic', wait: 22000, label: 'Diagnostic de la machine' },
   /* 5200 ms suffisaient tant que la machine était au repos ; sous charge, la
      carte a été photographiée sur son écran de chargement — carton de
      parchemin, barre de progression, « on peint les vingt-huit créatures ».

@@ -425,8 +425,20 @@
 }
 
 .diagnostic__epreuves li span {
-  color: var(--hmm-texte-doux);
+  color: var(--hmm-texte-clair-doux, #c3bda9);
   font-size: var(--hmm-fs-base);
+}
+
+/* Une note posée À MÊME la page prend l'encre claire, pas celle du parchemin.
+   `.ecran__note` porte `--hmm-texte-doux`, qui vaut #4c3f2f : juste partout où
+   cette classe vit dans une carte de parchemin, illisible sur le fond de nuit
+   de la page. Vu en capture sur le diagnostic — paragraphe d'introduction et
+   détail de chaque épreuve noyés dans le fond, sur la page même qui existe pour
+   être lue et photographiée par un joueur dont le jeu ne s'affiche pas. La
+   règle est écrite sur le PARENT et non sur l'écran, pour qu'elle vaille partout
+   où le cas se présentera. */
+.jeu-page > .ecran__note {
+  color: var(--hmm-texte-clair-doux, #c3bda9);
 }
 
 .diagnostic__ok {
