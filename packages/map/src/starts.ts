@@ -73,6 +73,56 @@ function build(): Record<StartKey, StartPosition> {
   return out;
 }
 
+/**
+ * Ce que vaut chaque siège, en une phrase, pour qui doit le choisir.
+ *
+ * **Pourquoi cette table existe.** Les cinq capitales sont des lieux RÉELS du
+ * Forez et la géographie est fixe (document maître §4) : on ne va pas déplacer
+ * Cervières pour l'éloigner de Noirétable, qui en est voisine dans la vraie vie
+ * comme sur la carte. Or ce voisinage se paie, et il se mesure. Vingt-cinq
+ * parties à cinq bannières, une fois la richesse accessible égalisée à moins de
+ * trois pour cent près :
+ *
+ *     La Renaudie   44 % de victoires · 3,0 cités · niveau 11,5 · debout 20/25
+ *     Viscomtat     20 %              · 1,6        · niveau  7,4 · debout 17/25
+ *     Cervières     20 %              · 1,1        · niveau  7,9 · debout 10/25
+ *     Arconsat       8 %              · 1,2        · niveau  6,8 · debout 16/25
+ *     Noirétable     8 %              · 0,7        · niveau  5,5 · debout  8/25
+ *
+ * L'isolement explique l'essentiel : La Renaudie est à 8 943 points de marche de
+ * sa plus proche rivale, Cervières et Noirétable à 3 246 l'une de l'autre. Une
+ * marche frontière gardée a été posée entre ces deux-là — le semis de postes ne
+ * pouvait pas le faire seul, il ne garde que les transitions d'anneau et entre
+ * deux capitales voisines il n'y en a pas — et cela n'a pas suffi à égaliser.
+ *
+ * Plutôt que de feindre une symétrie que la géographie n'a pas, on la DIT. Le
+ * joueur qui choisit son siège doit savoir ce qu'il choisit : c'est ainsi qu'on
+ * joue à HMM3, où l'on regarde la carte avant de prendre sa place. Les faits
+ * énoncés ici sont mesurés, pas devinés — coût de marche jusqu'à la plus proche
+ * rivale, nombre de rivales à une semaine de marche, distance au bourg neutre le
+ * plus proche.
+ */
+export const EXPOSITION_DEPART: Readonly<Record<StartKey, string>> = {
+  arconsat:
+    'Estive du nord, adossée au bord de la carte. Chabreloche à onze cases, ' +
+    'donc un bourg neutre sous la main dès la première semaine — mais trois ' +
+    'rivales à une semaine de marche.',
+  viscomtat:
+    'Futaies de l’ouest, la position la plus centrale des cinq. Le Lac à trente ' +
+    'et une cases ; quatre rivales à une semaine, donc autant de fronts.',
+  cervieres:
+    'Châtellenie de l’est, à MOINS DE DEUX JOURS de Noirétable : le front est ' +
+    'immédiat, et une marche gardée sépare les deux bourgs. Aucun bourg neutre ' +
+    'à moins de quarante cases.',
+  noiretable:
+    'Pays du Forez oriental, à MOINS DE DEUX JOURS de Cervières : même front, ' +
+    'même marche gardée. Notre-Dame de l’Hermitage à trente-quatre cases.',
+  renaudie:
+    'La marche du sud, la plus isolée des cinq : neuf mille points de marche ' +
+    'jusqu’à la première rivale, et aucun bourg neutre à moins de cinquante ' +
+    'cases. On y grandit tard, mais tranquille.',
+};
+
 /** Contrat `docs/02-API.md` : les cinq positions de départ. */
 export const START_POSITIONS: Readonly<Record<StartKey, StartPosition>> = build();
 

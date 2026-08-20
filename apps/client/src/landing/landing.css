@@ -1009,6 +1009,24 @@
   box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.4);
 }
 
+/*
+ * Ce que vaut le siège qu'on vient de choisir.
+ *
+ * Un récit court, pas une donnée : c'est de la prose de carte, celle qu'on lit
+ * avant de prendre sa place. Elle se compose donc dans la fonte de récit, en
+ * italique, sur un filet discret — jamais dans la fonte de donnée, qui crierait.
+ */
+.hmm-acc-exposition {
+  margin: 2px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid rgba(122, 93, 22, 0.32);
+  font-family: var(--acc-recit);
+  font-size: var(--acc-fs-sm);
+  font-style: italic;
+  line-height: 1.45;
+  color: #5c4626;
+}
+
 .hmm-acc-controle {
   display: flex;
   gap: 8px;

@@ -24,7 +24,14 @@ import {
 } from 'react';
 import type { FactionId, GameSetup, HeroId, PlayerId } from '@auvergne/engine';
 import { CONTENT_VERSION, FACTIONS, HEROES, heroesOf } from '@auvergne/content';
-import { MAP_VERSION, START_KEYS, START_POSITIONS, START_SETS, type StartKey } from '@auvergne/map';
+import {
+  EXPOSITION_DEPART,
+  MAP_VERSION,
+  START_KEYS,
+  START_POSITIONS,
+  START_SETS,
+  type StartKey,
+} from '@auvergne/map';
 import { FactionBlazon, HeroAvatar, Icon, PlayerBanner, banners } from '@auvergne/ui';
 import { renderForezMinimap } from './minimap.js';
 import { jouerEffet } from './audio-bridge.js';
@@ -542,6 +549,18 @@ export function NewGamePage({ onStart, onBack, onNaviguer }: NewGamePageProps): 
                           ))}
                         </select>
                       </label>
+                      {/*
+                        Ce que vaut le siège choisi, en une phrase. Les cinq
+                        capitales sont des lieux réels du Forez et la géographie
+                        est fixe : Cervières est voisine de Noirétable dans la
+                        vraie vie comme sur la carte, et ce voisinage se paie —
+                        mesuré, la plus isolée des cinq gagne quarante-quatre
+                        parties sur cent contre huit à la plus exposée. Plutôt
+                        que de feindre une symétrie que la géographie n'a pas, on
+                        la dit : c'est ainsi qu'on joue à HMM3, où l'on regarde
+                        la carte avant de prendre sa place.
+                      */}
+                      <p className="hmm-acc-exposition">{EXPOSITION_DEPART[draft.start]}</p>
 
                       <div className="hmm-acc-controle" role="radiogroup" aria-label={`Contrôle de la bannière ${index + 1}`}>
                         {(['humain', 'ia'] as const).map((kind) => (

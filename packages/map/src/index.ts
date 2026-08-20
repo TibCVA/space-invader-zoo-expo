@@ -23,7 +23,7 @@ export { BOUNDS, latLonToCell, cellToLatLon } from './projection.js';
 
 export { ANCHORS } from './anchors.js';
 
-export { START_POSITIONS, START_SETS } from './starts.js';
+export { EXPOSITION_DEPART, START_POSITIONS, START_SETS } from './starts.js';
 
 /** Types de départ : ils appartiennent au moteur, la carte les réexporte. */
 export type { StartKey, StartPosition } from '@auvergne/engine';
