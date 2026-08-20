@@ -19,13 +19,18 @@
  * sceaux, les gisements, les héros, le trésor et la réputation
  * (`scoreBreakdown`, `world/victory.ts`).
  *
- * **Ce que dit la mesure.** Sur ces vingt graines l'expert gagne treize fois,
- * soit 65 %. Étendu à soixante graines — mêmes profils, même rotation, mêmes
- * réglages — il gagne **43 fois, soit 71,7 %**. Le 65 % était donc un artefact
- * d'échantillon, et non un écart à corriger : sur vingt parties, l'écart-type
- * binomial vaut deux parties entières. On assert la fourchette des plans, on
- * imprime le taux, et l'on garde le chiffre de soixante dans ce commentaire
- * pour que personne ne re-diagnostique un problème qui n'existe pas.
+ * **Ce que dit la mesure.** Sur ces vingt graines l'expert gagne quatorze fois,
+ * soit 70 %. Étendu à soixante graines — mêmes profils, même rotation, mêmes
+ * réglages — il gagne **46 fois, soit 76,7 %**. On assert la fourchette des
+ * plans, on imprime le taux, et l'on garde le chiffre de soixante dans ce
+ * commentaire pour que personne ne re-diagnostique un problème qui n'existe pas.
+ *
+ * *Historique utile, parce qu'il enseigne la prudence :* avant la répartition du
+ * plancher de garnison entre les cités, c'était 13/20 (65 %) et 43/60 (71,7 %).
+ * On avait donc, un temps, lu « 65 % » comme un écart à la cible de 70 % — alors
+ * que l'échantillon de vingt a un écart-type binomial de deux parties entières,
+ * et que le vrai taux était déjà dans la fourchette. La leçon tient en une
+ * ligne : sur vingt parties, une partie d'écart ne veut rien dire.
  *
  * **Ce que les barrières de crête ont changé.** Cette mesure-là valait sept
  * conquêtes sur vingt avant que la carte ne reçoive ses murs et ses cols ; elle
@@ -35,19 +40,21 @@
  * la diluait. Et les parties tranchées le sont plus vite : quatre se règlent
  * désormais en moins de cent jours, dont une en vingt-quatre.
  *
- * **Et la moitié qui bute sur le garde-fou de tours n'est pas un défaut du jeu.**
- * C'est ce qu'on croyait, et il a suffi de lever le plafond pour le savoir : à
- * 700 tours au lieu de 320, **huit parties sur dix se règlent par conquête**,
- * durée médiane 132 jours, la plus longue tranchée à 237. Deux seulement restent
- * indécises à 351 jours. Le plafond de 320 tours n'est donc pas une mesure du
- * jeu, c'est une contrainte du harnais — il tient le duel sous son propre délai,
- * et on le garde pour cela. Mais il ne faut pas lire « dix conquêtes sur vingt »
- * comme « l'IA ne sait pas conclure » : elle sait, il lui faut du temps, et une
- * partie à deux bannières sur une carte XL en prend deux cents jours.
+ * **Ce qui bute sur le garde-fou de tours n'est pas un défaut du jeu.** C'est ce
+ * qu'on croyait, et il a suffi de lever le plafond pour le savoir : à 700 tours
+ * au lieu de 320, **neuf parties sur dix se règlent par conquête**, durée médiane
+ * 122 jours. Le plafond de 320 tours n'est donc pas une mesure du jeu, c'est une
+ * contrainte du harnais — il tient le duel sous son propre délai, et on le garde
+ * pour cela. Mais il ne faut pas lire le compte de conquêtes affiché ici comme
+ * « l'IA ne sait pas conclure » : elle sait, il lui faut du temps, et une partie
+ * à deux bannières sur une carte XL en prend deux cents jours.
  *
- * Le vrai reste d'équilibrage est donc plus étroit qu'il n'y paraissait : deux
- * parties sur dix ne se tranchent pas même en trois cent cinquante jours. C'est
- * là qu'il faudra regarder, et nulle part ailleurs.
+ * Le vrai reste d'équilibrage tient à une partie sur dix — la graine 48514, où
+ * l'expert livre quatre-vingt-dix-huit combats pour une seule cité et un héros
+ * resté au niveau quatre. Trois pistes sont écartées par la mesure : ce n'est pas
+ * la carte, ce ne sont pas les gardes (99 % de terre libre depuis chaque
+ * capitale), et ce n'est plus le plancher de garnison. Reste la reconstitution
+ * d'armée après une défaite.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -126,11 +133,12 @@ describe('duel expert contre prudent', () => {
       `  RÉSULTAT : expert ${duel.expert}/${GAMES} (${percent} %) · ` +
         `prudent ${duel.prudent}/${GAMES} · sans vainqueur ${duel.draws}\n` +
         `  Fourchette des plans : ${BANDE_MIN} à ${BANDE_MAX} %. ` +
-        `Sur soixante graines : 43/60, soit 71,7 %.\n` +
-        `  Parties réglées par conquête : ${decidees}/${GAMES} — sept sur vingt avant que\n` +
-        `  la carte ne reçoive ses murs et ses cols. Le reste bute sur le plafond de tours\n` +
-        `  du harnais, PAS sur une IA qui ne saurait pas conclure : a 700 tours au lieu de\n` +
-        `  320, huit parties sur dix se reglent par conquete, duree mediane 132 jours.\n`,
+        `Sur soixante graines : 46/60, soit 76,7 %.\n` +
+        `  Parties réglées par conquête : ${decidees}/${GAMES} — sept sur vingt avant les murs\n` +
+        `  et les cols de la carte, dix avant la répartition du plancher de garnison. Le\n` +
+        `  reste bute sur le plafond de tours du harnais, PAS sur une IA qui ne saurait pas\n` +
+        `  conclure : à 700 tours au lieu de 320, neuf parties sur dix se règlent par\n` +
+        `  conquête, durée médiane 122 jours.\n`,
     );
     process.stdout.write(lines.join(''));
 
