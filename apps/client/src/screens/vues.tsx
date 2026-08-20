@@ -22,6 +22,7 @@ import type { DemoTownKey } from '../router.js';
 import { ScenePixi, type FabriqueScene } from './scene.js';
 import { calendrierLong, nombre, pluriel } from './format.js';
 import { FicheInspection } from './inspection.js';
+import { BarreTresor } from './tresor.js';
 import type { Cible } from './cible.js';
 import { ConfirmBar } from '@auvergne/ui';
 
@@ -209,6 +210,9 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
     <ScenePixi
       titre="Carte d’aventure"
       note={game ? calendrierLong(game.turn) : undefined}
+      outils={
+        game && localPlayer ? <BarreTresor game={game} player={localPlayer} demo={demo} /> : null
+      }
       cle={`carte-${game?.id ?? 'vide'}-${demo ? 'demo' : 'partie'}`}
       fabrique={fabrique}
       reducedMotion={reducedMotion}
@@ -333,6 +337,11 @@ export function EcranCite({ state, reducedMotion, uid, demoTown }: EcranCiteProp
     <ScenePixi
       titre={cible ? cible.name : 'Cité'}
       note={game ? calendrierLong(game.turn) : undefined}
+      /* La cité est l'autre écran où l'on dépense — bâtiments et recrues. Dans
+         HMM3 la barre y est aussi permanente, et pour la même raison. */
+      outils={
+        game && localPlayer ? <BarreTresor game={game} player={localPlayer} demo={demo} /> : null
+      }
       cle={`cite-${cible?.uid ?? 'vide'}`}
       fabrique={fabrique}
       reducedMotion={reducedMotion}

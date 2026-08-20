@@ -53,6 +53,13 @@ export type FabriqueScene = (deps: FabriqueSceneDeps) => Promise<SceneMontee>;
 export interface ScenePixiProps {
   titre: string;
   note?: ReactNode;
+  /**
+   * Contenu poussé à droite du bandeau — la barre du trésor sur les écrans où
+   * l'on dépense. Il est rendu **même pendant le chargement** : le bandeau est
+   * hors de la scène Pixi, et attendre l'atlas pour afficher un nombre déjà
+   * connu ferait clignoter la barre à chaque entrée d'écran.
+   */
+  outils?: ReactNode;
   /** construit la scène ; **doit** rester sous deux secondes */
   fabrique: FabriqueScene;
   /** relance la fabrique quand cette clef change */
@@ -82,6 +89,7 @@ export function ScenePixi(props: ScenePixiProps): ReactElement {
   const {
     titre,
     note,
+    outils,
     fabrique,
     cle,
     reducedMotion = false,
@@ -298,7 +306,7 @@ export function ScenePixi(props: ScenePixiProps): ReactElement {
   if (erreur !== null) {
     return (
       <>
-        <Bandeau titre={titre} note={note} />
+        <Bandeau titre={titre} note={note}>{outils}</Bandeau>
         <EcranPanne erreur={erreur} />
       </>
     );
@@ -306,7 +314,7 @@ export function ScenePixi(props: ScenePixiProps): ReactElement {
 
   return (
     <>
-      <Bandeau titre={titre} note={note} />
+      <Bandeau titre={titre} note={note}>{outils}</Bandeau>
       <div className="jeu-ecran">
         <div className="jeu-scene">
           <div className="jeu-scene__toile" ref={hote} />

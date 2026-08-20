@@ -62,6 +62,73 @@
   }
 }
 
+/* ════════════════ La barre du trésor, posée dans le bandeau ═══════════════
+
+   Elle n'était nulle part sur la carte d'aventure : le trésor ne vivait que
+   dans `#/partie/royaume`, à un écran de distance. Vu sur la première capture
+   d'une vraie partie en ligne. Le raisonnement est dans `tresor.tsx`.
+
+   Le bandeau est un `flex` d'une seule ligne. Sur un écran large, la barre
+   tient à droite du titre sans rien pousser. Sur un téléphone, le titre en
+   Cinzel prend déjà toute la largeur : la barre passe donc à la ligne, en
+   pleine largeur, plutôt que de comprimer le titre ou de sortir du cadre.
+   ======================================================================== */
+.jeu-bandeau {
+  flex-wrap: wrap;
+  row-gap: var(--hmm-space-2);
+}
+
+/* Sur le granit du bandeau, la barre ne rejoue pas son propre cadre : elle
+   s'y pose. Deux encadrements emboîtés à quatre pixels l'un de l'autre font
+   du bruit, et le bandeau porte déjà son filet d'or en bas. */
+.jeu-bandeau__tresor {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+  gap: var(--hmm-space-1);
+}
+
+@media (max-width: 719px) {
+  /* Pleine largeur en seconde ligne. `order` la met après le titre même si
+     le bandeau reçoit d'autres outils un jour. */
+  .jeu-bandeau__tresor {
+    flex: 1 0 100%;
+    order: 3;
+  }
+  /*
+     Sept ressources sur 390 pixels : le compte ne tombe pas juste, et il ne
+     peut pas tomber juste — « 50 000 » écus prennent à eux seuls la place de
+     deux icônes. Deux décisions, donc, plutôt qu'une illusion :
+
+     1. le revenu du jour disparaît sur téléphone. Il reste dans la bulle
+        d'aide et dans la vue du royaume, à un appui de là. C'est la ligne la
+        moins lue des deux, et la supprimer fait passer la barre de deux
+        lignes à une ;
+     2. ce qui dépasse **défile** horizontalement, ce que la barre sait déjà
+        faire (`overflow-x: auto`). Les écus sont en tête de l'ordre : la
+        ressource qu'on regarde vingt fois par tour est celle qui ne sort
+        jamais du cadre.
+  */
+  .jeu-bandeau__tresor .hmm-ressource__revenu {
+    display: none;
+  }
+  .jeu-bandeau__tresor .hmm-ressource {
+    gap: var(--hmm-space-1);
+    padding: 2px var(--hmm-space-1);
+  }
+  .jeu-bandeau__tresor .hmm-ressource__valeur {
+    font-size: var(--hmm-fs-micro);
+  }
+  /* La cible tactile de 48 px vaut pour un bouton isolé ; ici les sept cases
+     mènent toutes au même écran, et une barre de 48 px de haut mangerait six
+     pour cent de la carte sur un iPhone. La hauteur suit le contenu, la
+     largeur reste confortable. */
+  .jeu-bandeau__tresor .hmm-ressource__bouton {
+    min-height: 0;
+  }
+}
+
 /* Les cinq commandes de pouce portent du texte sur granit : il lui faut le
    contraste des libellés clairs, pas celui des mentions secondaires. */
 .jeu-pouce__bouton {
