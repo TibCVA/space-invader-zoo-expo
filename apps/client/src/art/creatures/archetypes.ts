@@ -121,6 +121,13 @@ export interface CorpsOptions {
   echelle?: number;
   modele?: number;
   rim?: boolean;
+  /**
+   * Pose le contour teinté. Vrai par défaut (loi n°6). On ne le retire que pour
+   * une masse INTERNE à une pièce déjà cernée — une rotule au milieu d'une
+   * jambe, un pli au milieu d'une étoffe : là, le contour ne détache rien du
+   * fond, il dessine un anneau à l'intérieur de la silhouette.
+   */
+  contour?: boolean;
   seed?: number;
   speculaire?: { x: number; y: number; r: number } | null;
 }
@@ -134,6 +141,7 @@ export function poser(g: Graphics, k: Kit, poly: Poly, o: CorpsOptions): void {
     matiereEchelle: o.echelle ?? 1,
     modele: o.modele ?? 1,
     rim: o.rim !== false,
+    contour: o.contour !== false,
     speculaire: o.speculaire ?? null,
   });
 }
@@ -2567,6 +2575,28 @@ export interface QuadrupedeOptions {
    * de la croupe (suidé) ; 0 = dos droit (cervidé, loup).
    */
   pente?: number;
+  /**
+   * Profondeur du POITRAIL sous la ligne du ventre, en fraction de `Hs`.
+   * C'est la masse de la cage thoracique, entre les deux antérieurs.
+   */
+  poitrail?: number;
+  /**
+   * Remontée du FLANC — le vide sous le rein, entre les côtes et la cuisse, en
+   * fraction de `Hs`. Grand chez le cervidé et le canidé, presque nul chez le
+   * suidé, qui est un tonneau.
+   */
+  flanc?: number;
+  /** Réglages du membre. Voir `membreQuadrupede` dans le corps du squelette. */
+  patte?: {
+    /** longueur du pied, en fraction de `Hs` (0,16 par défaut) */
+    pied?: number;
+    /** repli du jarret vers l'arrière, en fraction de la longueur du membre */
+    jarret?: number;
+    /** épaisseur du canon, en fraction de l'épaisseur du haut du membre */
+    canon?: number;
+    /** pied en SABOT fendu (cervidé) plutôt qu'en patte (canidé, suidé) */
+    sabot?: boolean;
+  };
   queue?: { longueur?: number; epaisseur?: number; courbe?: number; matiere?: MaterialKey } | null;
   dos?: (g: Graphics, k: Kit) => void;
   seed: number;
@@ -2580,30 +2610,190 @@ export function squeletteQuadrupede(o: QuadrupedeOptions): PieceDef[] {
   const mat = o.matiere ?? 'fourrure';
   const couL = o.cou?.longueur ?? Hs * 0.34;
   const couA = o.cou?.angle ?? -1.15;
-  const couAv = o.cou?.avance ?? 0;
+  /*
+   * `avance` vaut 0,34 par défaut, et non plus zéro.
+   *
+   * Le défaut de zéro voulait dire « l'encolure part tout droit vers le haut
+   * dans son repère », et comme l'articulation est ensuite tournée pour la
+   * coucher, le sommet du fût partait vers l'ARRIÈRE. Le loup en portait la
+   * marque sur la planche de contact : sa tête tombait en x = +26 pour un
+   * poitrail à +47, soit VINGT ET UNE unités en arrière de sa propre poitrine,
+   * posée sur les omoplates. C'est le défaut déjà nommé au cerf, mais il vivait
+   * dans la valeur par défaut, donc dans toute bête qui ne pensait pas à la
+   * corriger. Aucun quadrupède ne porte sa tête au-dessus du dos.
+   */
+  const couAv = o.cou?.avance ?? 0.34;
+  const reg = o.patte ?? {};
+  const canonRel = reg.canon ?? 0.42;
+  const jarretRel = reg.jarret ?? 0.15;
   const pieces: PieceDef[] = [];
 
   pieces.push({ nom: 'corps', x: 0, y: -Hs, ordreMort: 7, dessin: () => {} });
 
-  const jambe = (nom: string, x: number, len: number, w: number, cote: number): PieceDef => ({
+  /*
+   * Un membre de quadrupède en TROIS tronçons, et c'est la même correction que
+   * celle du bipède, un cran plus bas.
+   *
+   * Le membre était UN fuseau de l'attache au sol : ni coude, ni genou, ni
+   * jarret, ni boulet, et un pied planté au bout. Le propriétaire l'a nommé sur
+   * le cerf — « une planche sur quatre baguettes » — mais le défaut n'était pas
+   * au cerf : il était ici, et il tenait les loups, les sangliers et les cerfs
+   * ensemble. Quatre bâtons droits ne portent rien ; ce qui fait qu'un animal
+   * est POSÉ sur ses membres, c'est la cassure — l'antérieur qui recule au
+   * coude puis redescend d'aplomb sous l'épaule, et surtout le postérieur, dont
+   * le JARRET part franchement en arrière avant que le canon ne revienne à la
+   * verticale. C'est ce zigzag qu'on lit à trente pixels, bien avant le poil.
+   *
+   * Quatre stations, donc : attache, coude (ou grasset), genou (ou jarret),
+   * boulet ; puis le pied. Chaque articulation porte sa rotule — deux valeurs,
+   * comme au genou du bipède — et le haut du membre porte la masse d'épaule ou
+   * de cuisse qui le rattache au tronc au lieu de l'y planter.
+   */
+  const membreQuadrupede = (
+    g: Graphics,
+    k: Kit,
+    q: { avant: boolean; len: number; w: number; couleur: number; cote: 1 | -1; seed: number },
+  ): void => {
+    const { avant, len, w, couleur, cote, seed } = q;
+    const lat = cote * L * 0.02;
+    /** Les quatre stations de la colonne, du haut vers le sol. */
+    const coude = pt(lat * 0.2 + (avant ? -len * 0.07 : len * 0.05), len * (avant ? 0.33 : 0.28));
+    const genou = pt(lat * 0.5 + (avant ? len * 0.015 : -len * jarretRel), len * (avant ? 0.6 : 0.57));
+    const boulet = pt(lat * 0.8 + len * (avant ? 0.055 : 0.035), len * 0.87);
+    const sol = pt(lat + len * (avant ? 0.06 : 0.045), len * 0.99);
+
+    /* La masse d'épaule ou de cuisse : c'est elle qui rattache le membre au
+       tronc. Sans elle, quatre fuseaux sont plantés dans une caisse. */
+    poser(
+      g,
+      k,
+      blob(lat * 0.1 + (avant ? -len * 0.03 : len * 0.02), len * 0.17, w * (avant ? 0.78 : 0.95), len * 0.24, {
+        seed: seed + 71,
+        points: 14,
+        wobble: 0.2,
+      }),
+      {
+        couleur: faceEclairee(couleur, cote > 0 ? 0.04 : 0.16),
+        matiere: mat,
+        matiereAlpha: 0.24,
+        echelle: 0.4,
+        modele: 1,
+        rim: cote < 0,
+        seed,
+      },
+    );
+    membre(g, k, pt(0, 0), coude, w, {
+      couleur,
+      matiere: mat,
+      matiereAlpha: 0.22,
+      echelle: 0.45,
+      taper: 0.3,
+      seed,
+    });
+    membre(g, k, pt(coude.x, coude.y - len * 0.02), genou, w * 0.74, {
+      couleur: assombrir(couleur, 0.06),
+      matiere: mat,
+      matiereAlpha: 0.22,
+      echelle: 0.45,
+      taper: 0.3,
+      seed: seed + 5,
+    });
+    /* Le canon : mince, sec, presque droit. C'est le contraste entre lui et la
+       cuisse qui dit que la bête a une jambe et non un pilier. */
+    membre(g, k, pt(genou.x, genou.y - len * 0.02), boulet, w * canonRel, {
+      couleur: assombrir(couleur, 0.14),
+      matiere: mat,
+      matiereAlpha: 0.2,
+      echelle: 0.42,
+      taper: 0.24,
+      seed: seed + 9,
+    });
+    membre(g, k, pt(boulet.x, boulet.y - len * 0.01), sol, w * canonRel * 0.86, {
+      couleur: assombrir(couleur, 0.2),
+      matiere: mat,
+      matiereAlpha: 0.18,
+      echelle: 0.4,
+      taper: 0.2,
+      rim: false,
+      seed: seed + 13,
+    });
+    /* Les deux rotules : le coude et le genou. Deux valeurs suffisent — la même
+       règle qu'au genou du bipède, et pas un détail de plus. Un écart de 0,2 de
+       clarté sur un membre étroit ne faisait pas une articulation mais une
+       MANCHETTE, un anneau clair autour de la jambe : les loups portaient des
+       bandages. On garde donc l'ovale, on lui retire son contraste. */
+    for (const [j, r] of [
+      [coude, w * 0.42],
+      [genou, w * 0.36],
+    ] as const) {
+      poser(g, k, blob(j.x, j.y, r, r * 0.8, { seed: seed + Math.round(r) + 3, points: 12, wobble: 0.24 }), {
+        couleur: faceEclairee(couleur, cote > 0 ? 0.02 : 0.09),
+        matiere: mat,
+        matiereAlpha: 0.16,
+        modele: 0.8,
+        rim: false,
+        contour: false,
+      });
+    }
+    if (reg.sabot) {
+      /* Le SABOT fendu du cervidé : un coin sombre et brillant, pas une botte.
+         Il est court, il est net, et c'est ce qui pose le cerf au sol. */
+      const sw = Hs * (reg.pied ?? 0.1);
+      const sh = Hs * 0.07;
+      /* Le sabot pose sa SEMELLE sur le sol : on le dessine au-dessus de la
+         station basse, pas au-dessous, sinon le cerf s'enfonce de trois pixels
+         dans son ombre. */
+      const y0 = sol.y - sh * 0.78;
+      const corne = melanger(assombrir(couleur, 0.6), LIGHT.froide, 0.2);
+      poser(
+        g,
+        k,
+        perturber(
+          [pt(sol.x - sw * 0.34, y0), pt(sol.x + sw * 0.5, y0 + sh * 0.1), pt(sol.x + sw * 0.34, y0 + sh), pt(sol.x - sw * 0.4, y0 + sh * 0.86)],
+          sh * 0.08,
+          seed + 17,
+        ),
+        {
+          couleur: corne,
+          matiere: 'granit',
+          matiereAlpha: 0.18,
+          echelle: 0.3,
+          modele: 1,
+          speculaire: { x: 0.3, y: 0.24, r: 0.16 },
+        },
+      );
+      // la fente : l'onglon se lit à ce seul trait
+      g.moveTo(sol.x + sw * 0.44, y0 + sh * 0.12);
+      g.lineTo(sol.x + sw * 0.3, y0 + sh * 0.92);
+      g.stroke({ color: ombreBleutee(corne, 1), width: Math.max(0.7, sh * 0.16), alpha: 0.7, cap: 'round' });
+    } else {
+      sous(g, sol.x, sol.y, (h) =>
+        pied(h, k, {
+          l: Hs * (reg.pied ?? 0.16),
+          h: Hs * 0.05,
+          couleur: assombrir(couleur, 0.34),
+          seed: seed + 19,
+        }),
+      );
+    }
+  };
+
+  const jambe = (nom: string, x: number, len: number, w: number, cote: 1 | -1): PieceDef => ({
     nom,
     parent: 'corps',
     x,
     y: Hs * 0.06,
     lumiere: cote > 0 ? -0.6 : 0.6,
     ordreMort: cote > 0 ? 1 : 4,
-    dessin: (g, k) => {
-      membre(g, k, pt(0, 0), pt(cote * L * 0.02, len), w, {
+    dessin: (g, k) =>
+      membreQuadrupede(g, k, {
+        avant: x > 0,
+        len,
+        w,
         couleur: cote > 0 ? assombrir(patte, 0.16) : patte,
-        matiere: mat,
-        matiereAlpha: 0.22,
-        echelle: 0.45,
-        seed: o.seed + x,
-      });
-      sous(g, cote * L * 0.024, len * 0.99, (h) =>
-        pied(h, k, { l: Hs * 0.16, h: Hs * 0.05, couleur: assombrir(patte, 0.34), seed: o.seed + len }),
-      );
-    },
+        cote,
+        seed: o.seed + Math.round(x) * 3,
+      }),
   });
 
   /*
@@ -2671,19 +2861,40 @@ export function squeletteQuadrupede(o: QuadrupedeOptions): PieceDef[] {
        * l'arrière : c'est la ligne du dos, et elle se lit avant tout détail.
        */
       const p0 = (o.pente ?? 0) * Hs;
+      /*
+       * Le POITRAIL et le FLANC, qui manquaient tous les deux.
+       *
+       * Le tronc était un tonneau à ligne de ventre HORIZONTALE : la même
+       * profondeur sous l'épaule que sous le rein. Aucun quadrupède n'est fait
+       * ainsi. La cage thoracique descend bas entre les antérieurs et le vide du
+       * flanc remonte derrière les côtes ; c'est ce creux, et lui seul, qui
+       * sépare l'avant-main de l'arrière-main et qui donne une poitrine à lire.
+       * Sans lui, cerf et loup rendaient une planche — le mot est du
+       * propriétaire, et la mesure lui donnait raison : 94 de long pour 33 de
+       * creux, sur un loup qui en demande 38 à l'épaule et 26 au flanc.
+       */
+      const po = (o.poitrail ?? 0.2) * Hs;
+      const fl = (o.flanc ?? 0.16) * Hs;
       const corps: Poly = lisser(
         perturber(
           densifier(
             [
-              pt(-L * 0.5, -Hs * 0.1 + p0 * 0.7),
-              pt(-L * 0.3, -Hs * 0.34 + p0 * 0.9),
-              pt(0, -Hs * 0.4 + p0 * 0.2),
-              pt(L * 0.32, -Hs * 0.36 - p0 * 0.72),
-              pt(L * 0.5, -Hs * 0.12 - p0 * 0.42),
-              pt(L * 0.44, Hs * 0.16),
-              pt(L * 0.1, Hs * 0.26),
-              pt(-L * 0.28, Hs * 0.22 - p0 * 0.5),
-              pt(-L * 0.48, Hs * 0.06 - p0 * 0.4),
+              pt(-L * 0.48, -Hs * 0.16 + p0 * 0.7),
+              /* Le dos est presque plat par lui-même : l'écart entre croupe et
+                 garrot vaut 0,04 Hs, et tout le reste vient de `pente`. Avec
+                 0,10 Hs d'écart intrinsèque, le loup rendait une hyène — dos
+                 fuyant, arrière-main basse — alors qu'il ne demandait qu'un
+                 garrot un peu marqué. La différence d'espèce se règle par une
+                 valeur, pas par la forme partagée. */
+              pt(-L * 0.34, -Hs * 0.38 + p0 * 0.92),
+              pt(-L * 0.06, -Hs * 0.36 + p0 * 0.2),
+              pt(L * 0.24, -Hs * 0.42 - p0 * 0.6),
+              pt(L * 0.44, -Hs * 0.34 - p0 * 0.3),
+              pt(L * 0.54, -Hs * 0.02),
+              pt(L * 0.34, Hs * 0.06 + po * 0.9),
+              pt(L * 0.02, Hs * 0.02 + po * 0.72),
+              pt(-L * 0.24, Hs * 0.24 - fl),
+              pt(-L * 0.44, Hs * 0.2 - p0 * 0.4),
             ],
             Hs * 0.16,
           ),
@@ -2700,10 +2911,44 @@ export function squeletteQuadrupede(o: QuadrupedeOptions): PieceDef[] {
         modele: 1,
         seed: o.seed,
       });
+      /*
+       * Les deux masses qui font le volume : l'épaule et la cuisse. Ce sont les
+       * deux seuls endroits où le squelette affleure sous la peau d'un
+       * quadrupède, et deux ovales de valeur y suffisent — c'est le même moyen
+       * que le creux orbital sur un visage, deux valeurs plutôt qu'un dessin.
+       */
+      for (const [mx, my, rx, ry, clair] of [
+        [L * 0.26, -Hs * 0.12 - p0 * 0.4, L * 0.15, Hs * 0.26, true],
+        [-L * 0.3, -Hs * 0.06 + p0 * 0.4, L * 0.16, Hs * 0.3, false],
+      ] as const) {
+        poser(g, k, blob(mx, my, rx, ry, { seed: o.seed + (clair ? 63 : 67), points: 16, wobble: 0.16 }), {
+          /* Deux valeurs discrètes : à 0,22 d'écart les deux ovales se lisaient
+             comme des PIÈCES cousues sur le flanc. Un os sous la peau ne fait
+             pas une couture. */
+          couleur: clair ? faceEclairee(o.robe, 0.12) : melanger(o.robe, ombreBleutee(o.robe, 0.5), 0.2),
+          matiere: mat,
+          matiereAlpha: 0.2,
+          echelle: 0.4,
+          modele: 0.75,
+          rim: false,
+          seed: o.seed + 5,
+        });
+      }
       if (o.ventre != null) {
+        /* Le ventre suit désormais le creux du flanc : il est PROFOND sous les
+           côtes et remonte vers l'aine, au lieu de courir à plat. */
         const v = lisser(
           perturber(
-            densifier([pt(-L * 0.36, Hs * 0.06), pt(L * 0.3, Hs * 0.04), pt(L * 0.2, Hs * 0.24), pt(-L * 0.24, Hs * 0.2)], Hs * 0.16),
+            densifier(
+              [
+                pt(-L * 0.3, Hs * 0.04),
+                pt(L * 0.34, Hs * 0.0),
+                pt(L * 0.3, Hs * 0.04 + po * 0.86),
+                pt(L * 0.0, Hs * 0.0 + po * 0.68),
+                pt(-L * 0.22, Hs * 0.2 - fl),
+              ],
+              Hs * 0.16,
+            ),
             Hs * 0.01,
             o.seed + 53,
           ),

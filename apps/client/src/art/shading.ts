@@ -270,6 +270,93 @@ export function fuseau(
   return [...left, ...right];
 }
 
+/**
+ * Ruban fuselé le long d'un CHEMIN quelconque : un fuseau qui a le droit de
+ * changer de sens de courbure.
+ *
+ * **Pourquoi une primitive de plus, alors que la règle est de n'en ajouter
+ * aucune tant qu'une autre fait l'affaire.** Aucune ne fait l'affaire ici.
+ * `fuseau` va d'un point à un autre en LIGNE DROITE ; `arcBande` suit un arc
+ * d'ellipse, donc une courbure de signe constant. Or un col de serpent dressé
+ * est un **S** — la base creuse vers l'arrière, le sommet bombe vers l'avant —
+ * et un S rabouté à partir de deux fuseaux ou de deux arcs montre ses coudes :
+ * deux ruptures de tangente que le liseré doré souligne au lieu de les cacher.
+ * `ruban` prend la ligne médiane telle qu'on la veut et pose l'épaisseur autour
+ * en suivant la normale locale, si bien que la courbure peut s'inverser sans
+ * qu'aucune arête n'apparaisse. Il sert au col et à la queue de la vouivre.
+ *
+ * `largeur(t)` donne l'épaisseur TOTALE au paramètre t (0 à la base, 1 au
+ * bout) : c'est ce qui permet un col gros d'épaules et fin de nuque.
+ */
+export function ruban(
+  chemin: Poly,
+  largeur: (t: number) => number,
+  opts: { lissage?: number; pas?: number; wobble?: number; seed?: number } = {},
+): Poly {
+  if (chemin.length < 2) return [];
+  const pas = opts.pas ?? 6;
+  const axe = lisserOuvert(densifierOuvert(chemin, pas), opts.lissage ?? 2);
+  const n = axe.length;
+  if (n < 2) return [];
+  const gauche: Poly = [];
+  const droite: Poly = [];
+  const seed = opts.seed ?? 1;
+  const wob = opts.wobble ?? 0;
+  for (let i = 0; i < n; i += 1) {
+    const t = i / (n - 1);
+    const a = axe[Math.max(0, i - 1)];
+    const b = axe[Math.min(n - 1, i + 1)];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const w = (largeur(t) / 2) * (1 + (hash2(i, seed, 29) - 0.5) * 2 * wob);
+    const nx = (-dy / len) * w;
+    const ny = (dx / len) * w;
+    gauche.push({ x: axe[i].x + nx, y: axe[i].y + ny });
+    droite.push({ x: axe[i].x - nx, y: axe[i].y - ny });
+  }
+  droite.reverse();
+  return [...gauche, ...droite];
+}
+
+/**
+ * Chaikin sur une ligne OUVERTE : `lisser` referme le contour et relierait la
+ * pointe du col à son épaule. Les deux extrémités sont conservées telles quelles.
+ */
+function lisserOuvert(ligne: Poly, passes: number): Poly {
+  let cur = ligne;
+  for (let k = 0; k < passes; k += 1) {
+    if (cur.length < 3) return cur;
+    const out: Poly = [cur[0]];
+    for (let i = 0; i < cur.length - 1; i += 1) {
+      const a = cur[i];
+      const b = cur[i + 1];
+      out.push({ x: a.x * 0.75 + b.x * 0.25, y: a.y * 0.75 + b.y * 0.25 });
+      out.push({ x: a.x * 0.25 + b.x * 0.75, y: a.y * 0.25 + b.y * 0.75 });
+    }
+    out.push(cur[cur.length - 1]);
+    cur = out;
+  }
+  return cur;
+}
+
+/** Densifie une ligne OUVERTE : `densifier` referme le contour, pas celle-ci. */
+function densifierOuvert(ligne: Poly, pas: number): Poly {
+  const out: Poly = [];
+  for (let i = 0; i < ligne.length - 1; i += 1) {
+    const a = ligne[i];
+    const b = ligne[i + 1];
+    const d = Math.hypot(b.x - a.x, b.y - a.y);
+    const n = Math.max(1, Math.round(d / pas));
+    for (let k = 0; k < n; k += 1) {
+      const t = k / n;
+      out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    }
+  }
+  out.push(ligne[ligne.length - 1]);
+  return out;
+}
+
 /** Arc épais (cornes, anses, ramures, arceaux). */
 export function arcBande(
   cx: number,

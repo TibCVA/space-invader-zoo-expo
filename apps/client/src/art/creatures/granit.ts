@@ -1568,6 +1568,13 @@ function sanglierPieces(k: Kit, Hs: number, L: number, ferre: boolean): PieceDef
     cou: { longueur: Hs * 0.3, largeur: Hs * 0.52, angle: 0.5, avance: 0.7 },
     teteRot: 0.24,
     pente: PENTE_SANGLIER,
+    /* Le suidé est un TONNEAU : poitrail profond, flanc presque plein. Les deux
+       valeurs sont dites ici parce que le squelette partage désormais un creux
+       de flanc taillé pour le cervidé et le canidé, qui l'ont marqué ; un
+       sanglier au ventre remonté serait un lévrier. */
+    poitrail: 0.24,
+    flanc: 0.05,
+    patte: { canon: 0.5, jarret: 0.19, pied: 0.15 },
     queue: { longueur: L * 0.16, epaisseur: Hs * 0.09, courbe: 1.2 },
     tete: (g, kk) => teteSanglier(g, kk, Hs * 0.55, ferre, k.seed + 33),
     surTronc: (g, kk) => {

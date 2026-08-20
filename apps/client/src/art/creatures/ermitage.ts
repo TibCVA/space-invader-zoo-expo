@@ -10,20 +10,20 @@
  *   Pénitent Blanc — cagoule en cône à pointe retombée, lin en lambeaux, croix
  *   Hulotte        — disque facial rond, ailes courtes et larges
  *   Oraculaire     — aigrettes dressées, nimbe de brume
- *   Loup           — ligne basse, échine longue, queue touffue
+ *   Loup           — tête basse devant le garrot, échine hérissée, flanc creusé
  *   Loup des Brumes— même ligne, arrière-train qui se défait en brume
  *   Veneur         — arc BANDÉ : un D profond, corde en V tirée à la joue
  *   Garde-Futaie   — même geste, arc plus lourd, manteau de feuilles galonné
- *   Cerf           — ramure haute et ouverte
+ *   Cerf           — ramure haute et ouverte SUR une poitrine profonde
  *   Cerf Miraculeux— ramure double portant la lampe froide
- *   Colosse        — blocs empilés, aucune articulation lisible
+ *   Colosse        — carrure de dalles, tête enfoncée, bras aux genoux
  *   Colosse Pamole — même masse, faille lumineuse et bloc levé
- *   Vouivre        — long S ailé, escarboucle à la tempe
+ *   Vouivre        — col en S dressé, aile de chauve-souris, escarboucle au front
  *   Vouivre Cour.  — même S, couronne enchâssée et collerette
  */
 import type { Graphics } from 'pixi.js';
 import { LIGHT, assombrir, eclaircir, melanger, ombreBleutee } from '../palette.js';
-import type { Poly } from '../shading.js';
+import type { Poly, Pt } from '../shading.js';
 import {
   arcBande,
   blob,
@@ -33,6 +33,7 @@ import {
   lisser,
   perturber,
   pt,
+  ruban,
 } from '../shading.js';
 import { clip, p } from '../rig.js';
 import type { Fabrique, Kit, PieceDef } from './archetypes.js';
@@ -56,6 +57,7 @@ import {
   mousse,
   oreilleAnimale,
   orfevrerie,
+  pointeLance,
   poser,
   queue as dessinerQueue,
   rayonTete,
@@ -644,16 +646,20 @@ function teteLoup(g: Graphics, k: Kit, S: number, brumes: boolean, seed: number)
     color: 0x241c14,
     alpha: 0.95,
   });
-  // oreilles dressées
+  /* Oreilles dressées, courtes et TRIANGULAIRES — un demi-rayon de haut, pas
+     un rayon entier. Les longues faisaient deux antennes au-dessus du dos ;
+     celles d'un loup sont épaisses, rondes à la base, à peine plus hautes que
+     le crâne, et elles portent leur conque. */
   for (const [dx, dy] of [
-    [-0.18, -0.42],
-    [0.02, -0.5],
+    [-0.2, -0.42],
+    [0.0, -0.5],
   ] as const) {
-    poser(g, k, fuseau(S * dx, S * dy, S * (dx - 0.14), S * (dy - 0.5), S * 0.24, { seed: seed + dx * 30, taper: 0.6 }), {
+    oreilleAnimale(g, k, {
+      base: pt(S * dx, S * dy),
+      pointe: pt(S * (dx - 0.1), S * (dy - 0.34)),
+      largeur: S * 0.28,
       couleur: assombrir(poil, 0.2),
-      matiere: 'fourrure',
-      matiereAlpha: 0.3,
-      echelle: 0.3,
+      seed: seed + dx * 30,
     });
   }
   if (brumes) {
@@ -680,7 +686,27 @@ function loupPieces(k: Kit, brumes: boolean): PieceDef[] {
     matiere: 'fourrure',
     patteCouleur: assombrir(poil, 0.24),
     seed: k.seed + (brumes ? 250 : 240),
-    cou: { longueur: Hs * 0.3, largeur: Hs * 0.42, angle: -0.55 },
+    /*
+     * LA LIGNE DU LOUP : garrot haut, tête basse et poussée en avant.
+     *
+     * L'encolure était tournée de −0,55 sans `avance`, ce qui posait le crâne
+     * en x = +26 pour un poitrail à +47 — au-dessus des omoplates, nez au ciel.
+     * D'où la dalle grise à tête que montrait la planche. Un loup qui chasse
+     * porte la tête DEVANT et EN DESSOUS de son garrot, au bout d'une encolure
+     * courte et épaisse : c'est la seule ligne qui le distingue d'un chien, et
+     * elle se lit à trente pixels.
+     */
+    cou: { longueur: Hs * 0.32, largeur: Hs * 0.5, angle: 0.55, avance: 0.9 },
+    teteRot: -0.04,
+    /* Garrot plus haut que la croupe, poitrail profond, flanc creusé : le
+       canidé est un coureur, pas un tonneau. */
+    pente: 0.05,
+    poitrail: 0.24,
+    flanc: 0.18,
+    /* Canon épais et patte large : un loup marche sur des pieds, pas sur des
+       échasses. À 0,42 de canon et 0,17 de pied il rendait un lévrier monté sur
+       piquets, et le rapport jambe/corps d'un canidé ne pardonne pas. */
+    patte: { canon: 0.66, jarret: 0.17, pied: 0.26 },
     queue: { longueur: L * 0.46, epaisseur: Hs * 0.3, courbe: 0.75 },
     tete: (g, kk) => teteLoup(g, kk, Hs * 0.5, brumes, k.seed + 61),
     machoire: (g, kk) => {
@@ -718,29 +744,71 @@ function loupPieces(k: Kit, brumes: boolean): PieceDef[] {
        * une sur deux prend le liseré — sans cette alternance, dix-huit fuseaux du
        * même ton refont une masse lisse, et l'on n'aurait rien gagné.
        */
-      const n = brumes ? 18 : 15;
+      /*
+       * La crête s'accroche désormais à la LIGNE DU DOS, et non à une hauteur
+       * fixe. Le tronc partagé a pris son garrot : à x = +0,24 L le dos monte à
+       * −0,494 Hs quand les touffes culminaient à −0,46 Hs. Elles étaient donc
+       * ENFOUIES dans le tronc sur toute l'épaule — la correction du dos aurait
+       * effacé celle du poil, ce qui est la façon la plus discrète de perdre un
+       * correctif déjà mesuré.
+       */
+      const dos = (t: number): number => -Hs * (0.31 + 0.13 * t);
+      const n = brumes ? 12 : 10;
       for (let i = 0; i < n; i += 1) {
         const t = i / (n - 1);
         const x = L * (-0.42 + t * 0.76);
         /* Cloche centrée au garrot, à peu près aux trois quarts de l'échine. */
         const cloche = Math.sin(Math.PI * Math.min(1, Math.max(0, (t + 0.18) / 1.18)));
-        /* Une CRINIÈRE, pas une crête de lézard : mesurée sur capture, la
-           première version montait à la moitié de la hauteur du garrot et
-           rendait un dos d'iguane. On l'abaisse, on l'élargit, et les touffes se
-           recouvrent — c'est le recouvrement qui fait le poil. */
-        const haut = Hs * (0.3 + 0.16 * cloche * cloche);
-        poser(g, kk, fuseau(x, -Hs * 0.26, x - L * 0.02, -haut, Hs * (0.15 + 0.07 * cloche), { seed: i + 3, taper: 0.72 }), {
-          couleur: i % 2 ? eclaircir(poil, 0.24) : assombrir(poil, 0.24),
+        /* Une CRINIÈRE, pas une crête de lézard : mesurée deux fois sur
+           capture. Dix-huit fuseaux hauts et étroits, c'était un dos de
+           stégosaure — une rangée de plaques régulières, et le regard compte les
+           plaques au lieu de lire une échine. Dix touffes larges et basses se
+           RECOUVRENT, et c'est le recouvrement qui fait le poil. */
+        const pied0 = dos(t) + Hs * 0.1;
+        const haut = dos(t) - Hs * (0.02 + 0.09 * cloche * cloche);
+        poser(g, kk, fuseau(x, pied0, x - L * 0.02, haut, Hs * (0.24 + 0.08 * cloche), { seed: i + 3, taper: 0.72 }), {
+          couleur: i % 2 ? eclaircir(poil, 0.16) : assombrir(poil, 0.16),
           matiere: 'fourrure',
           matiereAlpha: 0.3,
           echelle: 0.3,
           rim: i % 2 === 0,
+          /* Sans contour : cernée, chaque touffe se lisait comme une PLAQUE, et
+             dix plaques alignées font un tatou. Le poil n'a pas de bord — il a
+             une valeur, et c'est tout ce qu'on lui laisse. */
+          contour: false,
         });
       }
-      // ligne dorsale sombre
-      g.moveTo(-L * 0.4, -Hs * 0.28);
-      g.quadraticCurveTo(0, -Hs * 0.4, L * 0.34, -Hs * 0.3);
+      // ligne dorsale sombre, sur la même ligne de dos
+      g.moveTo(-L * 0.4, dos(0.03));
+      g.quadraticCurveTo(0, dos(0.55) - Hs * 0.02, L * 0.34, dos(1));
       g.stroke({ color: assombrir(poil, 0.42), width: Hs * 0.1, alpha: 0.45 });
+      /*
+       * La COLLERETTE du poitrail : le manchon de poils longs qui va de la
+       * gorge au coude et qui double la largeur de l'avant-main. Un loup se
+       * reconnaît par là autant que par son échine — c'est le triangle sombre
+       * sous la tête basse, et c'est ce qui empêchait le poitrail neuf de se
+       * lire comme une simple bosse.
+       */
+      for (let i = 0; i < 6; i += 1) {
+        const t = i / 5;
+        const y0 = -Hs * (0.34 - t * 0.3);
+        poser(
+          g,
+          kk,
+          fuseau(L * 0.34, y0, L * (0.5 + t * 0.06), y0 + Hs * (0.1 + t * 0.12), Hs * (0.2 - t * 0.05), {
+            seed: i + 31,
+            taper: 0.66,
+          }),
+          {
+            couleur: i % 2 ? eclaircir(poil, 0.2) : assombrir(poil, 0.18),
+            matiere: 'fourrure',
+            matiereAlpha: 0.3,
+            echelle: 0.3,
+            modele: 0.95,
+            rim: i % 2 === 1,
+          },
+        );
+      }
       if (brumes) {
         brumeAccrochee(g, { x: -L * 0.3, y: Hs * 0.02, w: L * 0.7, h: Hs * 0.8, couleur: BRUME, seed: 41, densite: 10 });
         cicatrice(g, pt(L * 0.06, -Hs * 0.12), pt(L * 0.2, Hs * 0.04), poil, 1.6);
@@ -1231,7 +1299,20 @@ function teteCerf(g: Graphics, k: Kit, S: number, miraculeux: boolean, seed: num
       seed: seed + bx * 20,
     });
   }
-  sous(g, -S * 0.06, -S * 0.5, (h) => ramure(h, k, S * 1.05, miraculeux, seed + 21));
+  /*
+   * La ramure descend de 1,05 S à 0,84 S.
+   *
+   * Ce n'est pas une reculade sur ce qui marchait : c'est une mesure de place.
+   * La boîte du cerf faisait 309 de haut pour un TRONC de 55, et la planche
+   * échelonne chaque bête pour remplir sa case — le corps ne recevait donc que
+   * dix-huit pour cent de la hauteur disponible, et le propriétaire y voyait
+   * une planche parce qu'il n'en restait littéralement pas assez de pixels
+   * pour y lire une poitrine. La ramure montait à quatre-vingt-dix unités
+   * au-dessus du garrot pour une hauteur au garrot de 136, soit deux tiers :
+   * un cerf en porte quarante à cinquante pour cent. On lui rend sa mesure, et
+   * les vingt-quatre unités récupérées reviennent au corps.
+   */
+  sous(g, -S * 0.06, -S * 0.5, (h) => ramure(h, k, S * 0.84, miraculeux, seed + 21));
 }
 
 function cerfPieces(k: Kit, miraculeux: boolean): PieceDef[] {
@@ -1248,19 +1329,73 @@ function cerfPieces(k: Kit, miraculeux: boolean): PieceDef[] {
     seed: k.seed + (miraculeux ? 290 : 280),
     /* Encolure haute et PORTÉE EN AVANT : un cerf tient sa tête devant son
        poitrail, pas au-dessus de ses omoplates. C'est ce que corrigeait
-       `avance` ; sans elle la ramure retombait sur la croupe. */
-    cou: { longueur: Hs * 0.52, largeur: Hs * 0.26, angle: -0.14, avance: 0.42 },
-    teteRot: -0.2,
+       `avance` ; sans elle la ramure retombait sur la croupe. `avance` passe de
+       0,42 à 0,6 : la tête tombait encore en x = +47 pour un poitrail à +53,
+       donc six unités DERRIÈRE la poitrine. */
+    cou: { longueur: Hs * 0.52, largeur: Hs * 0.3, angle: -0.05, avance: 0.6 },
+    teteRot: -0.16,
+    /*
+     * Le cervidé : poitrail profond, flanc très creusé, garrot un rien plus haut
+     * que la croupe. C'est ce qui manquait — « une planche sur quatre
+     * baguettes » —, et c'est ce qui, avec la ramure, doit se lire à la
+     * vignette. Les membres sont FINS : un canon de trois dixièmes de la cuisse,
+     * un jarret franchement replié, et un sabot fendu au bout.
+     */
+    pente: 0.04,
+    poitrail: 0.26,
+    flanc: 0.24,
+    patte: { canon: 0.34, jarret: 0.17, pied: 0.1, sabot: true },
     queue: { longueur: L * 0.12, epaisseur: Hs * 0.1, courbe: 0.8 },
     tete: (g, kk) => teteCerf(g, kk, Hs * 0.38, miraculeux, k.seed + 71),
-    surTronc: (g) => {
-      // mouchetures de faon conservées à l'âge adulte
-      for (let i = 0; i < 12; i += 1) {
-        const x = -L * 0.32 + (i % 6) * L * 0.11;
-        const y = -Hs * 0.24 + Math.floor(i / 6) * Hs * 0.16;
-        g.poly(flat(blob(x, y, Hs * 0.035, Hs * 0.028, { seed: i * 3 + 2, points: 9, wobble: 0.3 }))).fill({
+    surTronc: (g, kk) => {
+      /*
+       * Le MIROIR : la tache claire de la croupe, sous la queue. C'est la seule
+       * marque qu'un cervidé porte en grand, la seule qu'on voit de loin dans un
+       * sous-bois, et elle ferme l'arrière-main que le flanc creusé vient
+       * d'ouvrir.
+       */
+      poser(
+        g,
+        kk,
+        lisser(
+          perturber(
+            densifier(
+              [pt(-L * 0.46, -Hs * 0.26), pt(-L * 0.3, -Hs * 0.3), pt(-L * 0.26, Hs * 0.02), pt(-L * 0.44, Hs * 0.1)],
+              Hs * 0.14,
+            ),
+            Hs * 0.012,
+            17,
+          ),
+          1,
+        ),
+        {
+          couleur: melanger(eclaircir(poil, 0.3), PIERRE_CLAIRE, 0.24),
+          matiere: 'fourrure',
+          matiereAlpha: 0.22,
+          echelle: 0.32,
+          modele: 0.7,
+          rim: false,
+          contour: false,
+        },
+      );
+      /* Le POITRAIL : la masse de la poitrine entre les antérieurs, prise dans
+         la lumière. Sans elle, le creux du flanc ne se lit pas — il faut deux
+         valeurs pour qu'un vide se voie, et celle-ci est la pleine. */
+      poser(g, kk, blob(L * 0.34, Hs * 0.06, L * 0.13, Hs * 0.24, { seed: 19, points: 15, wobble: 0.18 }), {
+        couleur: melanger(poil, LIGHT.chaude, 0.16),
+        matiere: 'fourrure',
+        matiereAlpha: 0.24,
+        echelle: 0.34,
+        modele: 0.9,
+        rim: false,
+      });
+      // mouchetures de faon conservées à l'âge adulte, semées sur le flanc seul
+      for (let i = 0; i < 10; i += 1) {
+        const x = -L * 0.2 + (i % 5) * L * 0.1;
+        const y = -Hs * 0.24 + Math.floor(i / 5) * Hs * 0.15;
+        g.poly(flat(blob(x, y, Hs * 0.032, Hs * 0.026, { seed: i * 3 + 2, points: 9, wobble: 0.3 }))).fill({
           color: eclaircir(poil, 0.42),
-          alpha: 0.34,
+          alpha: 0.32,
         });
       }
       if (miraculeux) {
@@ -1272,12 +1407,18 @@ function cerfPieces(k: Kit, miraculeux: boolean): PieceDef[] {
           });
         }
       } else {
-        // l'eau des sept vallons ruisselle le long de l'échine
-        for (let i = 0; i < 6; i += 1) {
-          const x = -L * 0.24 + i * L * 0.1;
-          g.moveTo(x, -Hs * 0.32);
-          g.quadraticCurveTo(x + 2, -Hs * 0.1, x - 1, Hs * 0.1);
-          g.stroke({ color: melanger(BRUME, LIGHT.chaude, 0.28), width: Hs * 0.022, alpha: 0.35, cap: 'round' });
+        /*
+         * L'eau des sept vallons : TROIS filets courts sur le flanc, et non six
+         * verticales du dos au ventre. Les six barres claires traversaient la
+         * bête de part en part et rendaient une GRILLE — une cage thoracique
+         * peinte à l'extérieur —, ce qu'on voit sans erreur possible sur la
+         * planche de contact. Un ruissellement se lit à ce qu'il s'interrompt.
+         */
+        for (let i = 0; i < 3; i += 1) {
+          const x = -L * 0.06 + i * L * 0.13;
+          g.moveTo(x, -Hs * 0.3);
+          g.quadraticCurveTo(x + 2, -Hs * 0.18, x - 1, -Hs * 0.06);
+          g.stroke({ color: melanger(BRUME, LIGHT.chaude, 0.28), width: Hs * 0.02, alpha: 0.3, cap: 'round' });
         }
       }
     },
@@ -1333,6 +1474,15 @@ function blocPierre(
   o: { couleur?: number; faille?: boolean; lichen?: number } = {},
 ): void {
   const c = o.couleur ?? melanger(0x4a4e52, PIERRE_CLAIRE, 0.16);
+  /*
+   * Le nombre de RANGS suit la taille du bloc, et ne vaut plus trois quoi qu'il
+   * arrive. Trois rangs de deux pierres dans un bras de vingt-cinq pixels de
+   * large font des pierres de huit pixels : du GRAVIER, et c'est ce que la
+   * planche montrait — un tas de galets. Une pierre de taille doit rester
+   * grande devant le membre qui la porte, sinon la maçonnerie se lit comme un
+   * grain de matière et la silhouette perd ses arêtes.
+   */
+  const RANGS = Math.max(1, Math.min(3, Math.round(h / 22)));
 
   /*
    * Un ASSEMBLAGE de pierres taillées, pas une masse arrondie.
@@ -1380,12 +1530,11 @@ function blocPierre(
     seed,
   });
 
-  /* Le damier : trois rangs, deux ou trois pierres par rang, décalés d'un
-     demi-pas comme un mur de moellons. */
-  const RANGS = 3;
+  /* Le damier : un à trois rangs selon la taille, deux ou trois pierres par
+     rang, décalés d'un demi-pas comme un mur de moellons. */
   for (let r = 0; r < RANGS; r += 1) {
-    const par = r === 1 ? 3 : 2;
-    const decale = r === 1 ? 0 : 0.5;
+    const par = RANGS > 1 && r === 1 ? 3 : 2;
+    const decale = RANGS > 1 && r === 1 ? 0 : 0.5;
     for (let i = 0; i < par; i += 1) {
       const u = (i + decale) / par;
       const cx = -w * 0.42 + u * w * 0.84;
@@ -1449,30 +1598,76 @@ function blocPierre(
   if (o.lichen) mousse(g, { x: -w * 0.1, y: -h * 0.2, w: w * 0.9, h: h * 0.8, seed: seed + 5, densite: o.lichen, couleur: SAUGE });
 }
 
+/**
+ * Le colosse : un HOMME DE PIERRE, et c'était un cairn.
+ *
+ * ─── Ce que l'ancien assemblage coûtait, mesuré sur la planche de contact ───
+ *
+ * Le propriétaire l'a nommé « un tas de galets empilés, sans tête, sans bras,
+ * sans posture », et les boîtes le disent au pixel près. Le buste tenait de
+ * x = −35 à +34 ; le bras de x = −45 à −5, soit TRENTE de ses quarante unités
+ * DERRIÈRE le buste : les trois quarts du bras étaient dans la masse du tronc,
+ * il ne dépassait que de dix unités et se lisait comme une colonne de plus dans
+ * l'empilement. La tête faisait 33 de large pour un buste de 69 et se posait
+ * juste au-dessus, du même ton, de la même maçonnerie : le rang du haut du
+ * cairn. Les deux jambes allaient de −30 à +2 et de −4 à +29 — elles se
+ * TOUCHAIENT, un seul bloc. Et l'ensemble flottait treize pixels au-dessus de
+ * son ombre, parce que le pied s'arrêtait à −0,11 H quand le sol est à zéro.
+ *
+ * Un géant de pierre ne se reconnaît pas à sa maçonnerie — celle-là était
+ * bonne — mais à quatre choses, et ce sont quatre écarts, pas quatre dessins :
+ *
+ *  1. **la carrure** : deux bosses d'épaules qui débordent franchement le
+ *     torse, 0,60 H contre 0,40 H de poitrine et 0,30 H de reins. C'est le
+ *     trapèze qui fait le colosse, et il se lit en négatif ;
+ *  2. **la tête basse, enfoncée ENTRE les bosses** : elle ne dépasse plus par
+ *     le haut d'une masse, elle occupe le creux laissé entre les deux épaules,
+ *     que rien ne vient combler. Un sourcil de pierre, deux orbites creuses et
+ *     une mâchoire suffisent à la faire lire ;
+ *  3. **les bras longs et lourds, HORS du tronc** : ils pendent à ±0,25 H,
+ *     c'est-à-dire entièrement à l'extérieur du buste, et finissent par un
+ *     POING plus large que l'avant-bras, aux genoux ;
+ *  4. **les jambes trapues et écartées** : un vide de lumière de 0,10 H entre
+ *     elles, et un pied posé au sol — au sol, pas treize pixels au-dessus.
+ */
 function colossePieces(k: Kit, pamole: boolean): PieceDef[] {
   const H = pamole ? 150 : 132;
   const c = pamole ? melanger(0x4a4e52, 0x6a6255, 0.28) : melanger(0x4a4e52, PIERRE_CLAIRE, 0.14);
+  /** Du bassin au sol. Le pied doit y arriver : l'ombre est peinte en y = 0. */
+  const SOL = H * 0.42;
   const pieces: PieceDef[] = [];
 
-  pieces.push({ nom: 'bassin', x: 0, y: -H * 0.42, ordreMort: 6, dessin: () => {} });
+  pieces.push({ nom: 'bassin', x: 0, y: -SOL, ordreMort: 6, dessin: () => {} });
 
   for (const cote of [1, -1] as const) {
     pieces.push({
       nom: cote > 0 ? 'jambe_d' : 'jambe_g',
       parent: 'bassin',
-      x: cote * H * 0.1,
+      /* ±0,135 H pour des blocs de 0,20 H : il reste 0,10 H de jour entre les
+         deux jambes. C'est ce jour, et lui seul, qui dit qu'il y a deux jambes. */
+      x: cote * H * 0.135,
       y: 0,
       lumiere: cote > 0 ? -0.7 : 0.7,
       ordreMort: cote > 0 ? 1 : 3,
       dessin: (g, kk) => {
-        blocPierre(g, kk, H * 0.19, H * 0.24, k.seed + cote * 7, {
+        // cuisse
+        blocPierre(g, kk, H * 0.21, H * 0.24, k.seed + cote * 7, {
           couleur: cote > 0 ? assombrir(c, 0.16) : c,
-          lichen: pamole ? 6 : 9,
+          lichen: pamole ? 5 : 8,
         });
-        sous(g, 0, H * 0.2, (h) =>
-          blocPierre(h, kk, H * 0.21, H * 0.22, k.seed + cote * 11, {
-            couleur: cote > 0 ? assombrir(c, 0.22) : assombrir(c, 0.06),
-            lichen: pamole ? 5 : 8,
+        // tibia, plus étroit : une jambe de pierre s'affine vers la cheville
+        sous(g, -cote * H * 0.008, H * 0.24, (h) =>
+          blocPierre(h, kk, H * 0.18, H * 0.21, k.seed + cote * 11, {
+            couleur: cote > 0 ? assombrir(c, 0.24) : assombrir(c, 0.08),
+            lichen: pamole ? 4 : 7,
+          }),
+        );
+        /* Le pied : une DALLE large et plate, posée au sol. Sans elle le
+           colosse finit en pointe et flotte. */
+        sous(g, cote * H * 0.026, SOL - H * 0.048, (h) =>
+          blocPierre(h, kk, H * 0.25, H * 0.1, k.seed + cote * 23, {
+            couleur: cote > 0 ? assombrir(c, 0.3) : assombrir(c, 0.14),
+            lichen: pamole ? 3 : 6,
           }),
         );
       },
@@ -1481,23 +1676,70 @@ function colossePieces(k: Kit, pamole: boolean): PieceDef[] {
 
   pieces.push({ nom: 'torse', parent: 'bassin', x: 0, y: 0, ordreMort: 7, dessin: () => {} });
 
+  /** Un bras : humérus, avant-bras, puis un poing de dalle. */
+  const brasDePierre = (g: Graphics, kk: Kit, cote: 1 | -1, graine: number): void => {
+    /*
+     * Le bras porte sa propre VALEUR, franchement écartée de celle du buste :
+     * le bras d'ombre part à 0,34 d'assombrissement, le bras de lumière à 0,22
+     * d'éclaircissement. Un écart de 0,18 ne suffisait pas — bras, épaule et
+     * poitrine se peignaient dans le même gris, la même maçonnerie, et les
+     * trois masses se refermaient en une seule bande horizontale : c'est ce que
+     * la seconde capture montrait, un mur de moellons de trois rangs. Une
+     * silhouette se détache par contraste de valeur (loi n°6), et deux membres
+     * d'un même corps n'y échappent pas.
+     */
+    const ton = (d: number): number =>
+      cote > 0 ? assombrir(c, 0.34 + d) : eclaircir(melanger(c, LIGHT.chaude, 0.06), 0.22 - d * 0.5);
+    /* Le CREUX D'AISSELLE : une ombre franche entre le bras et le flanc, posée
+       avant le membre. Sans elle, deux pierres voisines de même ton se
+       raboutent et le bras rentre dans le tronc. */
+    g.poly(
+      flat(blob(-cote * H * 0.075, H * 0.02, H * 0.055, H * 0.135, { seed: graine + 91, points: 14, wobble: 0.18 })),
+    ).fill({ color: ombreBleutee(c, 1), alpha: 0.78 });
+    blocPierre(g, kk, H * 0.17, H * 0.2, graine, { couleur: ton(0), lichen: 5 });
+    sous(g, cote * H * 0.012, H * 0.23, (h) =>
+      blocPierre(h, kk, H * 0.155, H * 0.24, graine + 4, { couleur: ton(0.06), lichen: 4 }),
+    );
+    /* Le POING, plus large que l'avant-bras qui le porte : c'est le seul
+       renflement de toute la silhouette, et c'est ce qui dit que le colosse
+       frappe. Trois arêtes de phalanges par-dessus, côté lumière.
+       Il pend SOUS le buste — 0,09 H plus bas —, sans quoi le poing s'aligne
+       sur la hanche et le bras se referme dans le bloc du tronc. */
+    sous(g, cote * H * 0.022, H * 0.44, (h) => {
+      blocPierre(h, kk, H * 0.205, H * 0.17, graine + 8, { couleur: ton(0.1), lichen: 3 });
+      for (let i = 0; i < 3; i += 1) {
+        const x = -H * 0.06 + i * H * 0.06;
+        h.moveTo(x, -H * 0.045);
+        h.lineTo(x + H * 0.012, H * 0.05);
+        h.stroke({
+          color: i % 2 ? ombreBleutee(c, 0.9) : melanger(PIERRE_CLAIRE, LIGHT.chaude, 0.3),
+          width: H * 0.009,
+          alpha: 0.5,
+          cap: 'round',
+        });
+      }
+    });
+  };
+
   pieces.push({
     nom: 'bras_d',
     parent: 'torse',
-    x: H * 0.19,
-    y: -H * 0.3,
-    rot: 0.18,
+    /*
+     * ±0,30 H, et non 0,25.
+     *
+     * À 0,25 le bras pendait bien hors du buste — mais de DEUX UNITÉS ET DEMIE,
+     * un pixel sept à l'échelle où la planche affiche la bête. Bras, épaule et
+     * poitrine se refermaient donc en une seule masse carrée : le colosse
+     * restait un mur de moellons, corrigé dans la géométrie et pas à l'œil. À
+     * 0,30 H contre 0,132 H de demi-reins, il reste dix unités de fond entre le
+     * bras et la taille — six pixels, et le bras existe.
+     */
+    x: H * 0.3,
+    y: -H * 0.33,
+    rot: 0.07,
     lumiere: -0.8,
     ordreMort: 2,
-    dessin: (g, kk) => {
-      blocPierre(g, kk, H * 0.15, H * 0.2, k.seed + 13, { couleur: assombrir(c, 0.18), lichen: 5 });
-      sous(g, H * 0.01, H * 0.19, (h) =>
-        blocPierre(h, kk, H * 0.16, H * 0.19, k.seed + 17, { couleur: assombrir(c, 0.26), lichen: 4 }),
-      );
-      sous(g, H * 0.02, H * 0.36, (h) =>
-        blocPierre(h, kk, H * 0.15, H * 0.13, k.seed + 19, { couleur: assombrir(c, 0.3), lichen: 3 }),
-      );
-    },
+    dessin: (g, kk) => brasDePierre(g, kk, 1, k.seed + 13),
   });
 
   pieces.push({
@@ -1507,17 +1749,25 @@ function colossePieces(k: Kit, pamole: boolean): PieceDef[] {
     y: 0,
     ordreMort: 8,
     dessin: (g, kk) => {
-      blocPierre(g, kk, H * 0.42, H * 0.3, k.seed + 23, { couleur: c, faille: pamole, lichen: pamole ? 8 : 14 });
-      sous(g, 0, -H * 0.24, (h) =>
-        blocPierre(h, kk, H * 0.46, H * 0.22, k.seed + 29, {
-          couleur: eclaircir(c, 0.08),
+      /* Les reins, étroits et SOMBRES : c'est la taille du trapèze, et c'est
+         aussi la seule fenêtre où le fond passe entre le bras et le tronc. */
+      blocPierre(g, kk, H * 0.24, H * 0.21, k.seed + 23, {
+        couleur: assombrir(c, 0.2),
+        lichen: pamole ? 6 : 11,
+      });
+      /* La cage, plus large que les reins mais NETTEMENT plus étroite que les
+         épaules : à 0,41 H contre 0,60 H de carrure, les bosses ne débordaient
+         plus assez pour se voir, et le haut du corps redevenait un rectangle. */
+      sous(g, 0, -H * 0.2, (h) =>
+        blocPierre(h, kk, H * 0.35, H * 0.25, k.seed + 29, {
+          couleur: eclaircir(c, 0.14),
           faille: pamole,
           lichen: pamole ? 7 : 12,
         }),
       );
       if (pamole) {
         // la ligne de faille qui l'a détaché du flanc de la Pierre Pamole
-        lueurFroide(g, -H * 0.04, -H * 0.16, H * 0.05, melanger(CUIVRE, LIGHT.chaude, 0.35), 0.85);
+        lueurFroide(g, -H * 0.04, -H * 0.18, H * 0.05, melanger(CUIVRE, LIGHT.chaude, 0.35), 0.85);
       }
     },
   });
@@ -1525,59 +1775,123 @@ function colossePieces(k: Kit, pamole: boolean): PieceDef[] {
   pieces.push({
     nom: 'tete',
     parent: 'torse',
-    x: -H * 0.01,
-    y: -H * 0.42,
+    x: -H * 0.008,
+    /* Enfoncée : le bas du crâne passe DERRIÈRE la ligne des épaules, qui
+       viennent se peindre par-dessus. Il ne dépasse qu'un front et une
+       mâchoire, et c'est exactement ce qu'on veut voir d'un colosse. */
+    y: -H * 0.455,
     lumiere: 0.6,
     ordreMort: 10,
     dessin: (g, kk) => {
-      blocPierre(g, kk, H * 0.2, H * 0.17, k.seed + 31, { couleur: eclaircir(c, 0.12), lichen: pamole ? 5 : 9 });
-      // deux creux d'ombre en guise d'yeux, et rien d'autre
-      for (const dx of [-0.05, 0.04]) {
-        g.poly(flat(blob(dx * H, -H * 0.01, H * 0.022, H * 0.016, { seed: dx * 100 + 3, points: 10, wobble: 0.24 }))).fill({
+      /*
+       * Le crâne passe de 0,175 H à 0,21 H et s'éclaircit de 0,14 à 0,3.
+       *
+       * À la première reprise il ne rendait plus qu'une bosse de quinze pixels,
+       * du même gris que la carrure : la tête existait dans la géométrie et pas
+       * à l'écran. Une tête de colosse doit être PETITE devant les épaules — ce
+       * qui fait la brute — mais elle doit être la pièce la plus CLAIRE du
+       * corps, sinon elle rentre dans le tas.
+       */
+      const T = H * 0.21;
+      blocPierre(g, kk, T, T * 0.9, k.seed + 31, {
+        couleur: eclaircir(melanger(c, LIGHT.chaude, 0.08), 0.3),
+        lichen: pamole ? 4 : 7,
+      });
+      /* Le SOURCIL : une dalle en surplomb, la seule arête franche du visage.
+         Sous elle, deux orbites vraiment creuses — pas deux points. C'est le
+         même moyen que le creux orbital d'un humain : deux valeurs, et un
+         caillou devient une tête. */
+      poser(
+        g,
+        kk,
+        perturber(
+          [pt(-T * 0.46, -T * 0.2), pt(T * 0.46, -T * 0.24), pt(T * 0.42, -T * 0.02), pt(-T * 0.44, T * 0.02)],
+          T * 0.03,
+          k.seed + 33,
+        ),
+        {
+          couleur: eclaircir(c, 0.26),
+          matiere: 'granit',
+          matiereAlpha: 0.3,
+          echelle: 0.4,
+          modele: 1.2,
+        },
+      );
+      for (const dx of [-0.22, 0.16]) {
+        g.poly(flat(blob(dx * T, T * 0.14, T * 0.15, T * 0.11, { seed: dx * 100 + 3, points: 11, wobble: 0.24 }))).fill({
           color: ombreBleutee(c, 1),
-          alpha: 0.9,
+          alpha: 0.92,
         });
         if (pamole) {
-          g.poly(flat(blob(dx * H, -H * 0.01, H * 0.011, H * 0.009, { seed: dx * 100 + 5, points: 8, wobble: 0.3 }))).fill({
+          g.poly(flat(blob(dx * T, T * 0.14, T * 0.07, T * 0.055, { seed: dx * 100 + 5, points: 8, wobble: 0.3 }))).fill({
             color: melanger(CUIVRE, LIGHT.chaude, 0.5),
-            alpha: 0.8,
+            alpha: 0.85,
           });
         }
       }
-      if (!pamole) mousse(g, { x: 0, y: -H * 0.06, w: H * 0.18, h: H * 0.1, seed: 37, densite: 8, couleur: SAUGE });
+      // la mâchoire : un bloc plus étroit, en retrait, qui ferme le crâne
+      sous(g, T * 0.02, T * 0.42, (h) =>
+        blocPierre(h, kk, T * 0.78, T * 0.34, k.seed + 35, { couleur: assombrir(c, 0.1) }),
+      );
+      if (!pamole) mousse(g, { x: 0, y: -T * 0.36, w: T * 0.9, h: T * 0.4, seed: 37, densite: 7, couleur: SAUGE });
+    },
+  });
+
+  /*
+   * LES ÉPAULES, et elles se peignent APRÈS la tête.
+   *
+   * Deux bosses distinctes, pas une barre : le creux qu'elles laissent au
+   * milieu est ce dans quoi la tête est enfoncée. Une barre pleine aurait
+   * mangé le crâne ; deux bosses le CADRENT, et c'est cette découpe en trois
+   * temps — masse, creux, masse — qu'on lit encore à trente pixels.
+   */
+  pieces.push({
+    nom: 'epaules',
+    parent: 'torse',
+    x: 0,
+    y: -H * 0.37,
+    lumiere: 0.5,
+    ordreMort: 9,
+    dessin: (g, kk) => {
+      /* L'ombre de la nuque, d'abord : c'est elle qui creuse le col entre les
+         deux bosses et qui détache la tête du fond de pierre. */
+      g.poly(flat(blob(0, H * 0.012, H * 0.105, H * 0.05, { seed: 71, points: 14, wobble: 0.2 }))).fill({
+        color: ombreBleutee(c, 1),
+        alpha: 0.7,
+      });
+      for (const cote of [1, -1] as const) {
+        sous(g, cote * H * 0.245, 0, (h) =>
+          blocPierre(h, kk, H * 0.25, H * 0.16, k.seed + 61 + cote * 5, {
+            couleur: cote > 0 ? assombrir(c, 0.26) : eclaircir(c, 0.18),
+            lichen: pamole ? 4 : 7,
+          }),
+        );
+      }
     },
   });
 
   pieces.push({
     nom: 'bras_g',
     parent: 'torse',
-    x: -H * 0.19,
-    y: -H * 0.32,
-    rot: -0.14,
+    x: -H * 0.3,
+    y: -H * 0.35,
+    rot: -0.06,
     lumiere: 0.9,
     ordreMort: 4,
-    dessin: (g, kk) => {
-      blocPierre(g, kk, H * 0.16, H * 0.21, k.seed + 41, { couleur: eclaircir(c, 0.06), lichen: 6 });
-      sous(g, -H * 0.01, H * 0.2, (h) =>
-        blocPierre(h, kk, H * 0.17, H * 0.2, k.seed + 43, { couleur: c, lichen: 5 }),
-      );
-      sous(g, -H * 0.02, H * 0.38, (h) =>
-        blocPierre(h, kk, H * 0.16, H * 0.14, k.seed + 47, { couleur: assombrir(c, 0.1), lichen: 4 }),
-      );
-    },
+    dessin: (g, kk) => brasDePierre(g, kk, -1, k.seed + 41),
   });
 
   if (pamole) {
-    // le bloc de la taille d'un veau, tenu prêt
+    // le bloc de la taille d'un veau, tenu prêt dans le poing gauche
     pieces.push({
       nom: 'arme',
       parent: 'bras_g',
-      x: -H * 0.03,
-      y: H * 0.5,
+      x: -H * 0.05,
+      y: H * 0.52,
       lumiere: 0.5,
       ordreMort: 0,
       dessin: (g, kk) => {
-        blocPierre(g, kk, H * 0.2, H * 0.18, k.seed + 53, { couleur: melanger(c, PIERRE_CLAIRE, 0.2), lichen: 6 });
+        blocPierre(g, kk, H * 0.22, H * 0.2, k.seed + 53, { couleur: melanger(c, PIERRE_CLAIRE, 0.2), lichen: 6 });
         mousse(g, { x: 0, y: 0, w: H * 0.16, h: H * 0.14, seed: 59, densite: 7, couleur: MOUSSE });
       },
     });
@@ -1737,109 +2051,151 @@ function teteVouivre(g: Graphics, k: Kit, S: number, couronnee: boolean, seed: n
   }
 }
 
+/**
+ * La vouivre : un SERPENT AILÉ dressé, et c'était une masse verte couchée.
+ *
+ * ─── Ce que l'ancien assemblage coûtait, mesuré sur la planche de contact ───
+ *
+ * Trois défauts, et le premier explique les deux autres.
+ *
+ *  1. **L'encolure penchait en arrière.** Elle partait tout droit dans son
+ *     repère et l'articulation était tournée de −0,95 rad pour la coucher : or
+ *     une rotation emporte le sommet du fût vers l'ARRIÈRE. Mesuré, la tête
+ *     retombait en x = −2 pour une attache en x = +30 — au-dessus du MILIEU du
+ *     corps. C'est le défaut déjà nommé au cerf, et il vivait encore ici parce
+ *     que la vouivre n'emprunte aucun squelette : ses pièces sont écrites à la
+ *     main. Une vouivre sans col dressé n'est pas une vouivre.
+ *  2. **Il y avait TROIS ailes, dont deux du même nom.** `aile_g` était poussée
+ *     deux fois — une petite au fond, une grande devant —, et `assembler`
+ *     indexe par nom : celle du fond n'était jamais animée, elle restait figée
+ *     pendant que sa jumelle battait. C'est exactement la faute des pattes
+ *     doublées du quadrupède, un fichier plus loin. Deux ailes, deux noms.
+ *  3. **L'aile proche mesurait 104 × 64 pour un anneau de 52 × 34** : deux fois
+ *     le corps. Elle l'avalait, et la planche rendait une cape verte à tête.
+ *
+ * On tient donc, dans cet ordre : le col en **S** — la base creuse vers
+ * l'arrière, le sommet bombe vers l'avant et jette la tête devant le poitrail —,
+ * la membrane tendue sur ses doigts, la queue longue finissant en **pointe de
+ * lance**, et l'escarboucle au front. Le S est le trait ; tout le reste le sert.
+ */
 function vouivrePieces(k: Kit, couronnee: boolean): PieceDef[] {
   const S = couronnee ? 1.12 : 1;
   const ecaille = couronnee ? melanger(VERT_PROFOND, CUIVRE, 0.32) : melanger(VERT_PROFOND, MOUSSE, 0.28);
-  const ventre = melanger(CUIVRE, PIERRE_CLAIRE, 0.35);
+  /* Le ventre du serpent, RABATTU. À 0,35 de pierre claire les cinq plaques de
+     chaque anneau ressortaient plus que la bête, et la chaîne d'anneaux rendait
+     une rangée de tablettes claires sous une crête verte — une chenille. Un
+     ventre de couleuvre est pâle, pas blanc. */
+  const ventre = melanger(CUIVRE, PIERRE_CLAIRE, 0.18);
   const A = 84 * S;
   const pieces: PieceDef[] = [];
 
   pieces.push({ nom: 'corps', x: 0, y: -A, ordreMort: 7, dessin: () => {} });
 
   /*
-   * Les ailes, RELEVÉES et sombres — et il y en a deux.
-   *
-   * L'aile unique était posée au milieu du corps, large de quatre-vingt-seize
-   * unités contre quarante pour le plus gros anneau, et peinte d'un mélange de
-   * BRUME qui la rendait plus claire que la bête. Résultat vu sur la planche :
-   * une cape turquoise avec une tête au bout, et pas un anneau visible. Or ce
-   * qui fait la vouivre, c'est le serpent — les anneaux d'abord, les ailes
-   * ensuite. On les relève donc derrière la nuque, on les assombrit pour
-   * qu'elles reculent, et l'on en met deux comme le rendu de référence : la
-   * lointaine plus haute, plus petite et plus sombre.
+   * L'aile LOINTAINE. Plus petite, plus sombre, plus haute : elle recule
+   * derrière la nuque et ne dispute rien au serpent. C'est elle qui portait le
+   * nom `aile_g` en double ; elle s'appelle désormais `aile_d`, le nom que
+   * `clipsSerpent` anime en opposition de phase avec l'autre.
    */
-  pieces.push({
-    nom: 'aile_g',
-    parent: 'corps',
-    x: -2 * S,
-    y: -46 * S,
-    rot: -0.95,
-    lumiere: -1.2,
-    ambiance: 1.3,
-    ordreMort: 1,
-    dessin: (g, kk) => aileVouivre(g, kk, 58 * S, 36 * S, assombrir(ecaille, 0.48), couronnee, -1, 9),
-  });
-
   pieces.push({
     nom: 'aile_d',
     parent: 'corps',
-    x: 12 * S,
-    y: -32 * S,
-    rot: -0.5,
-    lumiere: -0.8,
-    ordreMort: 2,
-    dessin: (g, kk) => aileVouivre(g, kk, 76 * S, 46 * S, assombrir(ecaille, 0.26), couronnee, -1, 3),
+    x: -4 * S,
+    y: -46 * S,
+    rot: 0.98,
+    lumiere: -1.2,
+    ambiance: 1.3,
+    ordreMort: 1,
+    dessin: (g, kk) => aileVouivre(g, kk, 64 * S, 38 * S, assombrir(ecaille, 0.46), couronnee, -1, 9),
   });
 
-  // les anneaux du corps, en S vers l'arrière
+  // les anneaux du corps, en S vers l'arrière et remontant
+  /** Somme des rotations de la chaîne d'anneaux : la queue s'en déduit. */
+  const ROT_ANNEAUX = 0.22 + 0.36 + 0.5;
+
   pieces.push({
     nom: 'anneau1',
     parent: 'corps',
-    x: -34 * S,
+    x: -30 * S,
     y: 8 * S,
-    rot: 0.16,
+    rot: 0.22,
     lumiere: -0.2,
     ordreMort: 4,
-    dessin: (g, kk) => anneau(g, kk, 54 * S, 34 * S, ecaille, ventre, couronnee, 11),
+    dessin: (g, kk) => anneau(g, kk, 52 * S, 34 * S, ecaille, ventre, couronnee, 11),
   });
   pieces.push({
     nom: 'anneau2',
     parent: 'anneau1',
-    x: -44 * S,
-    y: 8 * S,
-    rot: 0.24,
+    x: -40 * S,
+    y: 6 * S,
+    rot: 0.36,
     lumiere: -0.3,
     ordreMort: 3,
-    dessin: (g, kk) => anneau(g, kk, 46 * S, 28 * S, assombrir(ecaille, 0.1), ventre, couronnee, 13),
+    dessin: (g, kk) => anneau(g, kk, 44 * S, 27 * S, assombrir(ecaille, 0.1), ventre, couronnee, 13),
   });
   pieces.push({
     nom: 'anneau3',
     parent: 'anneau2',
-    x: -36 * S,
-    y: 5 * S,
-    rot: 0.28,
+    x: -30 * S,
+    y: 2 * S,
+    rot: 0.5,
     lumiere: -0.4,
     ordreMort: 2,
-    dessin: (g, kk) => anneau(g, kk, 38 * S, 22 * S, assombrir(ecaille, 0.2), ventre, couronnee, 17),
+    dessin: (g, kk) => anneau(g, kk, 34 * S, 20 * S, assombrir(ecaille, 0.2), ventre, couronnee, 17),
   });
   pieces.push({
     nom: 'queue',
     parent: 'anneau3',
-    x: -22 * S,
-    y: 2 * S,
-    rot: 0.3,
+    x: -14 * S,
+    y: 0,
+    /*
+     * Le fouet repart vers l'ARRIÈRE et le HAUT, à soixante degrés au-dessus de
+     * l'horizontale : la rotation cumulée doit valoir π + 1,05, on retire donc
+     * ce que la chaîne d'anneaux a déjà tourné.
+     *
+     * Elle était tracée vers +x pendant que la chaîne courait vers −x : la queue
+     * rebroussait chemin sous le ventre, et il n'en restait à l'écran qu'un
+     * petit crochet — tout ce que la planche montrait d'une queue de vouivre.
+     * Le relevé fait aussi gagner de la place : couchée, elle portait la boîte
+     * à 336 de large et la planche échelonne sur la largeur.
+     */
+    rot: Math.PI + 1.05 - ROT_ANNEAUX,
     lumiere: -0.4,
     ambiance: 2,
     periode: 4.2,
     ordreMort: 1,
     dessin: (g, kk) => {
-      dessinerQueue(g, kk, {
-        longueur: 54 * S,
-        epaisseur: 14 * S,
+      const L = 62 * S;
+      /* Le fouet : un ruban qui s'affine sans jamais casser, et non une suite
+         de tronçons. */
+      const chemin: Poly = [
+        pt(0, 0),
+        pt(L * 0.3, -L * 0.04),
+        pt(L * 0.6, -L * 0.02),
+        pt(L * 0.84, L * 0.08),
+        pt(L, L * 0.2),
+      ];
+      poser(g, kk, ruban(chemin, (t) => 15 * S * (1 - t * 0.86), { seed: 19, pas: 5 }), {
         couleur: assombrir(ecaille, 0.26),
-        courbe: -0.6,
         matiere: 'ecailles',
+        matiereAlpha: 0.26,
+        echelle: 0.32,
         seed: 19,
       });
-      sous(g, 52 * S, 8 * S, (h) => {
-        for (const dy of [-1, 1]) {
-          poser(h, kk, fuseau(0, 0, 16 * S, dy * 12 * S, 8 * S, { seed: dy + 2, taper: 0.7 }), {
-            couleur: melanger(ecaille, CUIVRE, 0.4),
-            matiere: 'ecailles',
-            matiereAlpha: 0.26,
-            echelle: 0.3,
-          });
-        }
+      /* La POINTE : un fer de lance, pas une fourche. La vouivre du Forez finit
+         en dard, et c'est le bout de la silhouette qu'on lit en dernier. */
+      sous(g, L * 0.98, L * 0.19, (h) => {
+        poser(h, kk, pivoterPointeVouivre(pointeLance(L * 0.3, L * 0.15)), {
+          /* Un dard, pas une nageoire : le mélange de cuivre patiné passait au
+             bleu-vert clair et rendait une queue de poisson. On garde l'écaille
+             et on lui donne son fil d'or. */
+          couleur: melanger(ecaille, LIGHT.rim, 0.26),
+          matiere: 'ecailles',
+          matiereAlpha: 0.24,
+          echelle: 0.3,
+          modele: 1.1,
+          speculaire: { x: 0.3, y: 0.28, r: 0.1 },
+        });
       });
     },
   });
@@ -1851,7 +2207,7 @@ function vouivrePieces(k: Kit, couronnee: boolean): PieceDef[] {
     y: 0,
     ordreMort: 8,
     dessin: (g, kk) => {
-      anneau(g, kk, 52 * S, 34 * S, ecaille, ventre, couronnee, 23);
+      anneau(g, kk, 54 * S, 36 * S, ecaille, ventre, couronnee, 23);
       // crête dorsale
       for (let i = 0; i < 6; i += 1) {
         const x = -22 * S + i * 9 * S;
@@ -1868,28 +2224,79 @@ function vouivrePieces(k: Kit, couronnee: boolean): PieceDef[] {
     },
   });
 
+  /*
+   * LE COL EN S — le trait de la bête.
+   *
+   * L'articulation ne tourne plus : le S est écrit dans le repère du col, si
+   * bien que le sommet ne peut plus partir en arrière. La ligne médiane creuse
+   * d'abord vers l'ARRIÈRE (x négatif, la gorge se retire au-dessus des
+   * épaules), puis bombe vers l'AVANT et jette la tête très en avant du
+   * poitrail. Le ruban va de 26 unités d'épaisseur à l'attache à 12 à la nuque.
+   */
+  const COL: Poly = [
+    pt(0, 0),
+    pt(-10 * S, -16 * S),
+    pt(-12 * S, -34 * S),
+    pt(-2 * S, -50 * S),
+    pt(14 * S, -58 * S),
+    /* Le dernier point REMONTE : sans lui la médiane tourne toujours dans le
+       même sens et ce n'est pas un S mais un C — mesuré, les quatre produits
+       vectoriels de la ligne étaient tous positifs. C'est ce redressement final
+       qui jette la tête haute et donne au col sa double courbure. */
+    pt(26 * S, -70 * S),
+  ];
+
   pieces.push({
     nom: 'cou',
     parent: 'corps',
-    x: 30 * S,
-    y: -14 * S,
-    rot: -0.95,
+    x: 26 * S,
+    y: -16 * S,
+    rot: 0,
     lumiere: 0.4,
     ordreMort: 6,
     dessin: (g, kk) => {
-      membre(g, kk, pt(0, 0), pt(6 * S, -46 * S), 22 * S, {
+      poser(g, kk, ruban(COL, (t) => (26 - 14 * t) * S, { seed: 29, pas: 5, lissage: 2 }), {
         couleur: ecaille,
         matiere: 'ecailles',
         matiereAlpha: 0.28,
         echelle: 0.34,
-        taper: 0.34,
         seed: 29,
       });
-      for (let i = 0; i < 4; i += 1) {
-        const y = -8 * S - i * 10 * S;
-        g.moveTo(-9 * S, y);
-        g.quadraticCurveTo(0, y + 3 * S, 9 * S, y - 1 * S);
-        g.stroke({ color: melanger(ventre, LIGHT.chaude, 0.2), width: 2.4, alpha: 0.4 });
+      /* Les plaques de la gorge : elles suivent le S, côté ventre, et c'est ce
+         qui dit qu'un col se plie au lieu de se pencher. */
+      for (let i = 1; i < COL.length; i += 1) {
+        const a = COL[i - 1];
+        const b = COL[i];
+        const mx = (a.x + b.x) / 2;
+        const my = (a.y + b.y) / 2;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const n = Math.hypot(dx, dy) || 1;
+        const w = (11 - i * 1.2) * S;
+        g.moveTo(mx + (dy / n) * w, my - (dx / n) * w);
+        g.quadraticCurveTo(mx, my, mx - (dy / n) * w * 0.7, my + (dx / n) * w * 0.7);
+        g.stroke({ color: melanger(ventre, LIGHT.chaude, 0.24), width: 2.6 * S, alpha: 0.45, cap: 'round' });
+      }
+      /* La crête du col : elle court sur le dos du S et le rend lisible même en
+         négatif, comme l'échine rend le loup lisible. */
+      for (let i = 0; i < 5; i += 1) {
+        const t = 0.16 + i * 0.19;
+        const j = Math.min(COL.length - 2, Math.floor(t * (COL.length - 1)));
+        const u = t * (COL.length - 1) - j;
+        const px = COL[j].x + (COL[j + 1].x - COL[j].x) * u;
+        const py = COL[j].y + (COL[j + 1].y - COL[j].y) * u;
+        const dx = COL[j + 1].x - COL[j].x;
+        const dy = COL[j + 1].y - COL[j].y;
+        const n = Math.hypot(dx, dy) || 1;
+        const h = (10 - i) * S;
+        poser(g, kk, fuseau(px, py, px - (dy / n) * (11 * S + h), py + (dx / n) * (11 * S + h), 6.5 * S, { seed: i + 41, taper: 0.6 }), {
+          couleur: i % 2 ? melanger(ecaille, LIGHT.rim, 0.22) : assombrir(ecaille, 0.18),
+          matiere: 'ecailles',
+          matiereAlpha: 0.22,
+          echelle: 0.28,
+          modele: 0.85,
+          rim: i % 2 === 0,
+        });
       }
     },
   });
@@ -1897,8 +2304,9 @@ function vouivrePieces(k: Kit, couronnee: boolean): PieceDef[] {
   pieces.push({
     nom: 'tete',
     parent: 'cou',
-    x: 6 * S,
-    y: -44 * S,
+    x: 26 * S,
+    y: -70 * S,
+    rot: 0.22,
     lumiere: 0.6,
     ordreMort: 10,
     dessin: (g, kk) => teteVouivre(g, kk, 26 * S, couronnee, 31),
@@ -1928,18 +2336,35 @@ function vouivrePieces(k: Kit, couronnee: boolean): PieceDef[] {
     },
   });
 
+  /*
+   * L'aile PROCHE : 84 × 52 contre 104 × 64. Elle reste la plus grande masse de
+   * la bête, mais elle ne la couvre plus — elle s'ouvre derrière le col, si
+   * bien qu'on lit d'abord le S, puis la membrane.
+   */
   pieces.push({
     nom: 'aile_g',
     parent: 'corps',
-    x: -4 * S,
-    y: -18 * S,
-    rot: -0.28,
+    /* Accrochée HAUT sur l'épaule et ouverte vers l'arrière : posée au milieu
+       du flanc, elle retombait sur les anneaux et il ne restait du serpent
+       qu'une bosse sous une bâche. La membrane travaille au-dessus du corps,
+       jamais devant. */
+    x: 4 * S,
+    y: -38 * S,
+    /* Bord d'attaque relevé vers l'ARRIÈRE et le HAUT : la membrane retombe
+       alors dans le creux entre le col et la queue, qui était vide, au lieu de
+       s'étaler sur les anneaux. C'est la composition autant que l'anatomie. */
+    rot: 0.72,
     lumiere: 0.9,
     ordreMort: 5,
-    dessin: (g, kk) => aileVouivre(g, kk, 104 * S, 64 * S, ecaille, couronnee, -1, 5),
+    dessin: (g, kk) => aileVouivre(g, kk, 84 * S, 50 * S, ecaille, couronnee, -1, 5),
   });
 
   return pieces;
+}
+
+/** Retourne la pointe de lance vers l'arrière : `pointeLance` pointe vers −y. */
+function pivoterPointeVouivre(poly: Poly): Poly {
+  return poly.map((q) => pt(-q.y, q.x));
 }
 
 /** Anneau du corps de la vouivre : dos écailleux, ventre à plaques claires. */
@@ -2019,12 +2444,17 @@ function anneau(
       1,
     );
     poser(g, k, pl, {
-      couleur: i % 2 ? ventre : eclaircir(ventre, 0.14),
+      couleur: i % 2 ? ventre : eclaircir(ventre, 0.07),
       matiere: 'ecailles',
       matiereAlpha: 0.2,
       echelle: 0.3,
       modele: 0.7,
       rim: false,
+      /* Sans contour : cerclées, les cinq plaques claires se lisaient comme une
+         rangée de DENTS sous le corps — c'est ce qu'on voyait sous la vouivre
+         sur la capture. Un ventre de serpent est une bande continue, pas cinq
+         jetons. */
+      contour: false,
     });
   }
   if (couronnee) {
@@ -2037,7 +2467,35 @@ function anneau(
   }
 }
 
-/** Aile membraneuse de vouivre : longs doigts, membrane translucide. */
+/**
+ * Aile de CHAUVE-SOURIS : une membrane tendue sur des doigts, et non une palme.
+ *
+ * ─── Ce que l'ancienne coûtait, vu sur la capture ───
+ *
+ * C'était un unique polygone plein, sur lequel on posait quatre fuseaux à peine
+ * plus sombres que lui (0,24 d'écart) et quatre taches chaudes à 14 %
+ * d'opacité. À l'écran, la seule chose lisible était la MASSE : une bâche verte
+ * accrochée au serpent, sans un doigt visible, sans un feston franc — et comme
+ * elle mesurait davantage que le corps, c'était tout ce qu'on voyait de la
+ * bête. `ailePlumee` a déjà eu ce diagnostic et cette correction : une aile ne
+ * se lit pas à sa surface, elle se lit à sa CHARPENTE.
+ *
+ * On construit donc dans l'ordre inverse de l'ancien :
+ *
+ *  1. les **quatre travées de membrane** d'abord, une par intervalle entre deux
+ *     doigts, chacune franchement creusée en arc de cercle rentrant. C'est ce
+ *     creux — le feston — qui dit « peau tendue » ; posé en découpe sur un
+ *     polygone unique, il se perdait dans le lissage ;
+ *  2. les **doigts** ensuite, par-dessus les jointures, en os clair : quatre
+ *     rayons qui partent tous du poignet et s'ouvrent en éventail ;
+ *  3. le **bras d'aile** — humérus et avant-bras — le long du bord d'attaque,
+ *     plus épais, qui donne à l'aile son point d'accroche ;
+ *  4. la **griffe du pouce** au poignet, courte et claire : le détail qui
+ *     achève la lecture « chauve-souris » plutôt que « voile ».
+ *
+ * Les travées alternent deux valeurs et sont plus claires que les doigts : sans
+ * cet écart la charpente ne ressort pas.
+ */
 function aileVouivre(
   g: Graphics,
   k: Kit,
@@ -2048,66 +2506,106 @@ function aileVouivre(
   sens: 1 | -1,
   seed: number,
 ): void {
-  const doigts = 4;
-  const bordAttaque: Poly = [];
-  for (let i = 0; i <= 8; i += 1) {
-    const t = i / 8;
-    bordAttaque.push(pt(sens * E * t, -C * 0.2 * Math.sin(t * Math.PI * 0.85) - C * 0.05));
-  }
-  const bordFuite: Poly = [];
-  for (let i = 8; i >= 0; i -= 1) {
-    const t = i / 8;
-    const feston = Math.abs(Math.sin(t * Math.PI * doigts)) * C * 0.19;
-    bordFuite.push(pt(sens * E * t, C * (0.26 + 0.74 * Math.sin(t * Math.PI * 0.72)) - feston));
-  }
-  const forme = lisser(perturber([...bordAttaque, ...bordFuite], C * 0.012, seed), 1);
-  /* Sans mélange de BRUME : la membrane doit rester plus sombre que l'écaille,
-     sans quoi elle prend le devant de la bête et l'on ne voit plus le serpent. */
-  poser(g, k, forme, {
-    couleur: couleur,
-    matiere: 'ecailles',
-    matiereAlpha: 0.22,
-    echelle: 0.55,
-    modele: 0.9,
-    seed,
-  });
-  for (let i = 1; i <= doigts; i += 1) {
-    const t = i / (doigts + 0.2);
-    const bras = fuseau(
-      sens * E * 0.05,
-      -C * 0.08,
-      sens * E * t,
-      C * (0.26 + 0.72 * Math.sin(t * Math.PI * 0.72)),
-      C * 0.075,
-      { seed: i + seed, taper: 0.7 },
+  const DOIGTS = 4;
+  /** Le poignet : d'où part l'éventail des doigts, aux deux cinquièmes du bras. */
+  const px = sens * E * 0.4;
+  const py = -C * 0.12;
+  /**
+   * Pointe du doigt `i`, en coordonnées polaires depuis le POIGNET : c'est la
+   * seule écriture qui garantisse un éventail. Décrit en cartésien, l'éventail
+   * se referme dès qu'on touche une constante — au premier essai les quatre
+   * pointes tenaient dans 0,43 C de hauteur pour 0,50 E de largeur, et l'aile
+   * rendait une lame, pas une membrane. Le doigt 0 tombe presque à la
+   * verticale contre le corps, le doigt 3 prolonge le bras : entre les deux,
+   * l'ouverture.
+   */
+  const ANGLES = [1.83, 1.36, 0.91, 0.38] as const;
+  const RAYONS = [1.05, 1.15, 1.2, 1.25] as const;
+  const bout = (i: number): Pt =>
+    pt(px + sens * Math.cos(ANGLES[i]) * C * RAYONS[i], py + Math.sin(ANGLES[i]) * C * RAYONS[i]);
+  /** Attache de la membrane au corps, sous l'aisselle de l'aile. */
+  const flanc = pt(0, C * 0.5);
+
+  const membrane = melanger(couleur, LIGHT.chaude, 0.14);
+  const os = melanger(assombrir(couleur, 0.34), PIERRE_CLAIRE, 0.18);
+
+  /* 1 — les travées, du corps vers le bout de l'aile. */
+  for (let i = 0; i <= DOIGTS; i += 1) {
+    const a = i === 0 ? flanc : bout(i - 1);
+    const b = i === DOIGTS ? pt(px + sens * E * 0.08, py - C * 0.08) : bout(i);
+    /* Le feston : le milieu de la corde rentre vers le poignet d'un tiers de sa
+       longueur. C'est l'arc creux d'une peau tendue entre deux baguettes. */
+    const mx = (a.x + b.x) / 2;
+    const my = (a.y + b.y) / 2;
+    const creux = 0.3;
+    const travee: Poly = lisser(
+      perturber(
+        [
+          pt(px, py),
+          a,
+          pt(a.x + (mx - a.x) * 0.5 + (px - mx) * creux * 0.6, a.y + (my - a.y) * 0.5 + (py - my) * creux * 0.6),
+          pt(mx + (px - mx) * creux, my + (py - my) * creux),
+          pt(b.x + (mx - b.x) * 0.5 + (px - mx) * creux * 0.6, b.y + (my - b.y) * 0.5 + (py - my) * creux * 0.6),
+          b,
+        ],
+        C * 0.012,
+        seed + i * 7,
+      ),
+      1,
     );
-    poser(g, k, bras, {
-      couleur: assombrir(couleur, 0.24),
+    poser(g, k, travee, {
+      couleur: i % 2 ? membrane : assombrir(membrane, 0.14),
       matiere: 'ecailles',
       matiereAlpha: 0.2,
+      echelle: 0.5,
+      modele: 0.95,
+      rim: i % 2 === 1,
+      seed: seed + i,
+    });
+  }
+
+  /* 2 — les doigts, en os clair, par-dessus les jointures. */
+  for (let i = 0; i < DOIGTS; i += 1) {
+    const b = bout(i);
+    poser(g, k, fuseau(px, py, b.x, b.y, C * (0.1 - i * 0.008), { seed: seed + i * 3 + 1, taper: 0.78 }), {
+      couleur: i % 2 ? os : assombrir(os, 0.14),
+      matiere: 'granit',
+      matiereAlpha: 0.18,
       echelle: 0.3,
-      rim: i > 2,
+      modele: 1,
+      rim: true,
     });
     if (couronnee) {
-      g.poly(flat(blob(sens * E * t, C * (0.26 + 0.72 * Math.sin(t * Math.PI * 0.72)), C * 0.03, C * 0.03, { seed: i + 3, points: 9, wobble: 0.26 }))).fill({
+      g.poly(flat(blob(b.x, b.y, C * 0.04, C * 0.04, { seed: i + 3, points: 9, wobble: 0.26 }))).fill({
         color: LIGHT.rim,
-        alpha: 0.75,
+        alpha: 0.8,
       });
     }
   }
-  // membrane éclairée par transparence entre les doigts
-  for (let i = 0; i < doigts; i += 1) {
-    const t = (i + 0.5) / (doigts + 0.2);
-    g.poly(
-      flat(
-        blob(sens * E * t * 0.72, C * 0.3 * Math.sin(t * Math.PI * 0.8), E * 0.07, C * 0.16, {
-          seed: i + 21,
-          points: 12,
-          wobble: 0.25,
-        }),
-      ),
-    ).fill({ color: melanger(couleur, LIGHT.chaude, 0.35), alpha: 0.14 });
-  }
+
+  /* 3 — le bras de l'aile, le long du bord d'attaque. */
+  poser(g, k, fuseau(0, C * 0.1, px, py, C * 0.24, { seed: seed + 31, taper: 0.4 }), {
+    couleur: assombrir(couleur, 0.22),
+    matiere: 'ecailles',
+    matiereAlpha: 0.24,
+    echelle: 0.34,
+    modele: 1,
+  });
+
+  /* 4 — la griffe du pouce, au poignet. */
+  poser(
+    g,
+    k,
+    fuseau(px, py, px + sens * C * 0.1, py - C * 0.3, C * 0.075, { seed: seed + 37, taper: 0.86 }),
+    {
+      couleur: melanger(PIERRE_CLAIRE, couronnee ? LIGHT.rim : MOUSSE, 0.34),
+      matiere: 'granit',
+      matiereAlpha: 0.18,
+      echelle: 0.28,
+      modele: 1,
+      speculaire: { x: 0.3, y: 0.26, r: 0.12 },
+    },
+  );
 }
 
 const vouivre: Fabrique = (k) =>

@@ -7,11 +7,13 @@
  * couvrent exactement ce que le contenu réclame, et que tout est déterministe.
  */
 import { beforeAll, describe, expect, it } from 'vitest';
-import { Texture } from 'pixi.js';
+import { Container, Texture } from 'pixi.js';
+import { Joint } from './rig.js';
+import type { Rig } from './rig.js';
 import { ARTIFACTS, HEROES, SKILLS, SPELLS } from '@auvergne/content';
 import { MAP_OBJECT_KINDS } from '@auvergne/engine';
 import type { MaterialSet } from './shading.js';
-import { blob, centroid, clipHalfPlane, flat, perturber, pt, signedArea } from './shading.js';
+import { blob, centroid, clipHalfPlane, flat, perturber, pt, ruban, signedArea } from './shading.js';
 import {
   ANGLE_LUMIERE,
   LIGHT,
@@ -435,5 +437,206 @@ describe('loi n°2 — l’angle d’éclairage', () => {
     // Et le soleil est bien l'opposé : en haut à gauche.
     expect(LIGHT.toSun.x).toBeLessThan(0);
     expect(LIGHT.toSun.y).toBeLessThan(0);
+  });
+});
+
+/*
+ * ───────────────────── Anatomie des bêtes, mesurée ─────────────────────────
+ *
+ * Ces cinq tests gardent les corrections du lot « quatre bêtes » : ce sont des
+ * MESURES sur la géométrie des rigs, pas des captures. Chacun a été éprouvé en
+ * défaisant la correction qu'il garde, et chacun a rougi.
+ */
+
+/** Toutes les articulations d'un rig, en descendant l'arbre d'affichage. */
+function articulations(rig: Rig): Joint[] {
+  const out: Joint[] = [];
+  const descendre = (c: Container): void => {
+    for (const enfant of c.children) {
+      if (enfant instanceof Joint) out.push(enfant);
+      descendre(enfant as Container);
+    }
+  };
+  descendre(rig.corps as unknown as Container);
+  return out;
+}
+
+/** Position d'une articulation dans le repère du rig, ancre comprise. */
+function ancre(rig: Rig, nom: string): { x: number; y: number } {
+  const p = rig.joint(nom).toGlobal({ x: 0, y: 0 });
+  return rig.corps.toLocal(p);
+}
+
+describe('anatomie des bêtes', () => {
+  /**
+   * Deux pièces du même nom : `Rig.ajouter` indexe par nom, la seconde chasse
+   * la première de la table et la PREMIÈRE n'est plus jamais animée. Elle reste
+   * peinte, immobile, pendant que sa jumelle bouge. Le défaut a coûté six
+   * pattes à chaque quadrupède, puis trois ailes à la vouivre — dont deux
+   * nommées `aile_g`, l'aile du fond figée pendant que l'autre battait.
+   */
+  it("ne porte jamais deux articulations du même nom", () => {
+    for (const id of CREATURE_IDS) {
+      const rig = construireCreature(id, MATS);
+      const noms = articulations(rig).map((j) => j.nom);
+      const uniques = new Set(noms);
+      expect(`${id}: ${noms.length}`, `${id} — noms en double : ${noms.join(' ')}`).toBe(
+        `${id}: ${uniques.size}`,
+      );
+      rig.destroy({ children: true });
+    }
+  });
+
+  /**
+   * Un quadrupède porte sa tête DEVANT son poitrail. L'encolure part droit dans
+   * son repère et l'articulation est ensuite tournée pour la coucher : comme
+   * une rotation emporte le sommet du fût vers l'arrière, une `avance` nulle
+   * pose le crâne au-dessus des omoplates. Mesuré sur le loup avant
+   * correction : ancre de tête en x = +26 pour un tronc allant jusqu'à +52.
+   */
+  it('porte la tête de chaque quadrupède devant le poitrail', () => {
+    for (const id of ['granit_t5', 'granit_t5_up', 'ermitage_t3', 'ermitage_t3_up', 'ermitage_t5', 'ermitage_t5_up']) {
+      const rig = construireCreature(id, MATS);
+      const tronc = rig.joint('tronc').getBounds();
+      const avant = rig.corps.toLocal({ x: tronc.x + tronc.width, y: tronc.y }).x;
+      const tete = ancre(rig, 'tete');
+      expect(tete.x / avant, `${id} — ancre de tête ${tete.x.toFixed(0)} pour un poitrail à ${avant.toFixed(0)}`)
+        .toBeGreaterThan(0.85);
+      rig.destroy({ children: true });
+    }
+  });
+
+  /**
+   * Le membre postérieur est COUDÉ : le jarret part franchement en arrière, le
+   * canon revient à l'aplomb. Un fuseau unique de la hanche au sol ne dépasse
+   * son attache que d'une demi-épaisseur — c'est ce qui faisait « quatre
+   * baguettes ».
+   *
+   * On mesure donc le RECUL : de combien le membre passe derrière son point
+   * d'attache, rapporté à sa longueur. Le premier essai mesurait l'étalement
+   * total du membre, et il ne prouvait rien : cette largeur est dominée par la
+   * masse de cuisse, qui existe avec ou sans jarret. Défait, le recul retombe à
+   * 0,172 · 0,153 · 0,156 pour le loup, le cerf et le sanglier ; coudé, il vaut
+   * 0,241 · 0,233 · 0,248. Le seuil est posé entre les deux nuages.
+   */
+  it('coude le membre postérieur de chaque quadrupède', () => {
+    for (const id of ['granit_t5', 'granit_t5_up', 'ermitage_t3', 'ermitage_t3_up', 'ermitage_t5', 'ermitage_t5_up']) {
+      const rig = construireCreature(id, MATS);
+      const b = rig.joint('patte_pg').getBounds();
+      const attache = ancre(rig, 'patte_pg');
+      const arriere = rig.corps.toLocal({ x: b.x, y: b.y }).x;
+      const recul = (attache.x - arriere) / b.height;
+      expect(recul, `${id} — recul du jarret ${recul.toFixed(3)}`).toBeGreaterThan(0.2);
+      // et il recule plus que l'antérieur, qui descend d'aplomb sous l'épaule
+      const ba = rig.joint('patte_ag').getBounds();
+      const reculAvant =
+        (ancre(rig, 'patte_ag').x - rig.corps.toLocal({ x: ba.x, y: ba.y }).x) / ba.height;
+      expect(recul, `${id} — postérieur ${recul.toFixed(3)} contre antérieur ${reculAvant.toFixed(3)}`)
+        .toBeGreaterThan(reculAvant * 1.3);
+      rig.destroy({ children: true });
+    }
+  });
+
+  /**
+   * La vouivre est un SERPENT AILÉ DRESSÉ : sa tête est devant ET au-dessus de
+   * son tronc, au bout d'un col en S. Avant correction, l'ancre de tête tombait
+   * en x = −2 pour un tronc allant jusqu'à +27 — au-dessus du milieu du corps.
+   */
+  it('dresse le col de la vouivre devant et au-dessus du tronc', () => {
+    for (const id of ['ermitage_t7', 'ermitage_t7_up']) {
+      const rig = construireCreature(id, MATS);
+      const tb = rig.joint('tronc').getBounds();
+      const avant = rig.corps.toLocal({ x: tb.x + tb.width, y: tb.y + tb.height }).x;
+      const haut = rig.corps.toLocal({ x: tb.x, y: tb.y }).y;
+      const tete = ancre(rig, 'tete');
+      expect(tete.x, `${id} — tête en x ${tete.x.toFixed(0)}, tronc jusqu'à ${avant.toFixed(0)}`)
+        .toBeGreaterThan(avant);
+      expect(tete.y, `${id} — tête en y ${tete.y.toFixed(0)}, dos à ${haut.toFixed(0)}`)
+        .toBeLessThan(haut);
+      rig.destroy({ children: true });
+    }
+  });
+
+  /**
+   * Le colosse a une CARRURE, des bras hors du tronc, et des pieds au sol.
+   * Avant correction : bras de 40 unités dont 30 derrière le buste, jambes qui
+   * se touchaient, et treize pixels de vide entre le pied et l'ombre.
+   */
+  it('donne au colosse une carrure, des bras hors du buste et des pieds au sol', () => {
+    for (const id of ['ermitage_t6', 'ermitage_t6_up']) {
+      const rig = construireCreature(id, MATS);
+      const buste = rig.joint('buste').getBounds();
+      const epaules = rig.joint('epaules').getBounds();
+      expect(epaules.width / buste.width, `${id} — épaules ${epaules.width.toFixed(0)} pour un buste ${buste.width.toFixed(0)}`)
+        .toBeGreaterThan(1.5);
+      /* Chaque bras déborde franchement le buste, du bon côté. Le seuil est à
+         0,4 largeur de buste et non 0,2 : à 0,2 l'épreuve restait verte quand on
+         ramenait les bras à ±0,17 H, c'est-à-dire dans la masse du tronc — un
+         bras large déborde un peu même rentré, et le test ne gardait rien. */
+      const gauche = rig.joint('bras_g').getBounds();
+      const droit = rig.joint('bras_d').getBounds();
+      expect(buste.x - gauche.x, `${id} — bras gauche`).toBeGreaterThan(buste.width * 0.4);
+      expect(droit.x + droit.width - (buste.x + buste.width), `${id} — bras droit`)
+        .toBeGreaterThan(buste.width * 0.4);
+      // les deux jambes laissent passer le jour entre elles
+      const jg = rig.joint('jambe_g').getBounds();
+      const jd = rig.joint('jambe_d').getBounds();
+      expect(jd.x - (jg.x + jg.width), `${id} — jour entre les jambes`).toBeGreaterThan(2);
+      // et le pied touche le sol, où l'ombre est peinte
+      const bas = rig.corps.toLocal({ x: jg.x, y: jg.y + jg.height }).y;
+      expect(bas, `${id} — pied à ${bas.toFixed(0)} du sol`).toBeGreaterThan(-4);
+      rig.destroy({ children: true });
+    }
+  });
+});
+
+/**
+ * `ruban` : la primitive ajoutée pour le col en S. Un fuseau ne se courbe pas,
+ * un arc ne change pas de sens de courbure ; il fallait les deux.
+ */
+describe('primitive ruban', () => {
+  it('suit une ligne médiane à double courbure et respecte l’épaisseur demandée', () => {
+    const chemin = [pt(0, 0), pt(-10, -16), pt(-12, -34), pt(-2, -50), pt(14, -58), pt(26, -70)];
+    const r = ruban(chemin, () => 20, { pas: 5, lissage: 2 });
+    expect(r.length).toBeGreaterThan(20);
+    expect(r.length % 2).toBe(0);
+    // Les deux bords sont appariés : le k-ième point de gauche fait face au
+    // k-ième point de droite pris depuis la fin, à l'épaisseur demandée.
+    const n = r.length / 2;
+    for (const i of [0, Math.floor(n / 3), Math.floor((2 * n) / 3), n - 1]) {
+      const a = r[i];
+      const b = r[r.length - 1 - i];
+      expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeCloseTo(20, 5);
+    }
+    // Le ruban passe par les deux extrémités du chemin.
+    const milieuDebut = { x: (r[0].x + r[r.length - 1].x) / 2, y: (r[0].y + r[r.length - 1].y) / 2 };
+    const milieuFin = { x: (r[n - 1].x + r[n].x) / 2, y: (r[n - 1].y + r[n].y) / 2 };
+    expect(Math.hypot(milieuDebut.x - chemin[0].x, milieuDebut.y - chemin[0].y)).toBeLessThan(1);
+    expect(Math.hypot(milieuFin.x - chemin[5].x, milieuFin.y - chemin[5].y)).toBeLessThan(1);
+    // La courbure change de sens : le produit vectoriel des tangentes doit
+    // s'annuler en cours de route, ce qu'un arc ne fait jamais.
+    const signes = new Set<number>();
+    for (let i = 1; i < chemin.length - 1; i += 1) {
+      const u = { x: chemin[i].x - chemin[i - 1].x, y: chemin[i].y - chemin[i - 1].y };
+      const v = { x: chemin[i + 1].x - chemin[i].x, y: chemin[i + 1].y - chemin[i].y };
+      signes.add(Math.sign(u.x * v.y - u.y * v.x));
+    }
+    expect(signes.size).toBeGreaterThan(1);
+  });
+
+  it('ne relie jamais la pointe à la base', () => {
+    /*
+     * Une ligne droite : les deux bords doivent rester parallèles à l'axe. Le
+     * lissage de Chaikin de `lisser` referme le contour — appliqué tel quel à
+     * une médiane OUVERTE, il relie la nuque à l'épaule et le col se replie sur
+     * lui-même. `ruban` a donc son propre lissage ouvert, et c'est cela qu'on
+     * vérifie ici : sur un segment vertical, aucun point ne quitte ±5 en x.
+     */
+    const r = ruban([pt(0, 0), pt(0, -60)], () => 10, { pas: 6 });
+    for (const q of r) {
+      expect(Math.abs(Math.abs(q.x) - 5)).toBeLessThan(0.001);
+      expect(q.y).toBeLessThanOrEqual(0.001);
+      expect(q.y).toBeGreaterThanOrEqual(-60.001);
+    }
   });
 });
