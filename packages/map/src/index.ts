@@ -58,7 +58,11 @@ export {
 export type { AnchorKey, ForezAnchor } from './anchors.js';
 
 export { MAX_ALTITUDE, MIN_ALTITUDE, buildElevation, computeSlope } from './elevation.js';
-export type { ElevationField } from './elevation.js';
+export type { ElevationField, LigneDeCrete } from './elevation.js';
+export { LIGNES_DE_CRETE } from './elevation.js';
+
+export { integriteDesMurs, masqueBarrieres, poserBarrieres } from './barrieres.js';
+export type { Barrieres, ColDeCrete, MasqueBarrieres, MurMesure } from './barrieres.js';
 
 export { CROSSINGS, RIVERS, SAGNES, buildHydrography } from './hydrography.js';
 export type { BogDef, CrossingDef, Hydrography, RiverDef } from './hydrography.js';

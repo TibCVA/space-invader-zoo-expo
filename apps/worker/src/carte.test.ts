@@ -144,37 +144,60 @@ describe('la carte — ce qui est tenu', () => {
   });
 });
 
-describe('la carte — ce qui reste à faire, et ne doit pas empirer', () => {
+describe('la carte — les murs de crête', () => {
   /*
-   * Le relief ne ferme toujours pas les ZONES, et il a fallu changer
-   * d'instrument pour le voir.
+   * Ce que les barrières ont changé, et ce qu'elles n'ont pas encore réglé.
    *
-   * Le compte brut de points d'articulation avait doublé puis quintuplé quand
-   * on a rendu le rocher infranchissable : quatre, puis vingt-trois, puis cent
-   * treize en abaissant le seuil de pente à 10. La cible « au moins douze »
-   * semblait donc largement dépassée. Elle ne l'était pas du tout : sur les
-   * vingt-trois, **aucune** ne détache un morceau de carte de plus de vingt-cinq
-   * cases. Ce sont vingt-trois culs-de-sac — la pointe d'une presqu'île, le fond
-   * d'une combe — et un cul-de-sac ne se force pas, on n'y va pas.
+   * Le relief ne fermait pas les zones, et il a fallu deux instruments neufs
+   * pour le voir. Le compte de points d'articulation avait quadruplé, puis
+   * quintuplé, en rendant le rocher infranchissable : la cible « au moins
+   * douze » semblait dépassée. Elle ne l'était pas — aucun de ces points ne
+   * détache un morceau de carte valant le détour — et surtout la grandeur était
+   * mal choisie : un point d'articulation exige un passage UNIQUE, alors que le
+   * générateur de HMM3 relie ses zones par « un à trois ». La cible se mesure
+   * donc en COUPE : le nombre de cases à boucher pour séparer deux capitales.
    *
-   * La mesure des vrais goulets, ajoutée pour trancher, dit la vraie forme du
-   * problème : 0 au seuil 13, 7 au seuil 11, 8 au seuil 10, 7 au seuil 9. Elle
-   * plafonne. Du rocher épars ne fabrique pas de frontière, quelle qu'en soit la
-   * quantité — il fabrique des recoins. Une barrière de zone est une CRÊTE
-   * CONTINUE percée de cols, et la roche affleure sur les FLANCS d'une crête,
-   * pas sur son fil, qui est justement le seul endroit plat : le relief nous
-   * donnait donc deux bandes brisées de part et d'autre d'un sommet resté
-   * marchable. Il faudra poser les barrières exprès, pas les espérer d'un seuil.
+   * Les murs sont posés, et ils tiennent : 155 cases sur 184 le long de la ligne
+   * de partage des eaux, contre une esplanade auparavant. La coupe est tombée à
+   * neuf autour d'Arconsat, mais elle reste de seize à dix-neuf entre les autres
+   * capitales, pour une cible de six. Ce qui manque est du contenu, pas de
+   * l'algorithme : cinq crêtes ne partagent pas le pays en douze zones, et deux
+   * de ces cinq passent par une capitale, qui les perce par construction.
    *
-   * Les planchers ci-dessous ne disent pas « c'est bien » : ils disent
-   * « n'empire pas pendant qu'on travaille ailleurs ».
+   * Les planchers ci-dessous ne disent pas « c'est bien » : ils disent « n'empire
+   * pas pendant qu'on travaille ailleurs ».
    */
   it('ne descend pas sous la part d’infranchissable mesurée ce jour', () => {
-    expect(r.partInfranchissable, 'cible du plan : 0,12').toBeGreaterThanOrEqual(0.079);
+    expect(r.partInfranchissable, 'cible du plan : 0,12').toBeGreaterThanOrEqual(0.105);
   });
 
-  it('ne descend pas sous le nombre de points d’articulation mesuré ce jour', () => {
-    expect(r.articulations).toBeGreaterThanOrEqual(20);
+  it('tient le mur de la ligne de partage des eaux', () => {
+    const partage = r.murs.find((m) => m.crete === 'partage');
+    expect(partage, 'la ligne de partage des eaux n’est plus mesurée').toBeDefined();
+    if (!partage) return;
+    /* Quatre cinquièmes de l'axe murés. Le reste est fait des cols percés
+       exprès, des passages voulus par le tracé — la Grande Chaussée franchit la
+       ligne à la Maison du Trésor, la vieille route au col Saint-Thomas — et des
+       tourbières de faîte, qu'on ne mure pas. */
+    expect(partage.mur * 5, `${String(partage.mur)} sur ${String(partage.axe)}`)
+      .toBeGreaterThanOrEqual(partage.axe * 4);
+    /* Et pas un mur qui coupe une route en deux : un tracé qui devrait
+       traverser passe, il ne s'interrompt pas. */
+    expect(partage.trousVoie, 'plus aucune voie ne franchit la crête').toBeGreaterThan(0);
+  });
+
+  it('mesure la coupe entre les dix paires de capitales', () => {
+    expect(r.coupes.length).toBe(10);
+    for (const c of r.coupes) {
+      /* Aucune capitale coupée du monde, et aucune coupe qui plafonne : une
+         valeur au plafond signifierait que le calcul n'a rien pu mesurer. */
+      expect(c.coupe, `${c.de} ↔ ${c.a} : capitale isolée`).toBeGreaterThan(0);
+      expect(c.coupe, `${c.de} ↔ ${c.a} : coupe au plafond`).toBeLessThan(64);
+    }
+    const plusLarge = Math.max(...r.coupes.map((c) => c.coupe));
+    /* Plafond de non-régression, très au-dessus de la cible de six : c'est la
+       mesure du jour, et elle ne doit pas remonter. */
+    expect(plusLarge, 'cible du plan : 6').toBeLessThanOrEqual(19);
   });
 
   it('mesure les vrais goulets, même quand il n’y en a aucun', () => {
@@ -182,8 +205,8 @@ describe('la carte — ce qui reste à faire, et ne doit pas empirer', () => {
        ne tiendrait rien. Ce que ce test tient, c'est que l'INSTRUMENT existe et
        répond — c'est lui qui a montré que la cible n'était pas atteinte alors
        qu'on la croyait dépassée de onze points. */
-    expect(r.goulets, 'cible du plan : 12 vrais goulets').toBeGreaterThanOrEqual(0);
     expect(Number.isInteger(r.goulets)).toBe(true);
     expect(r.goulets).toBeLessThanOrEqual(r.articulations);
+    expect(r.articulations).toBeGreaterThanOrEqual(20);
   });
 });

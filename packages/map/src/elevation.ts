@@ -172,6 +172,20 @@ interface RidgeDef {
   nodes: readonly RidgeNode[];
 }
 
+/**
+ * Les crêtes, pour qui veut leur GÉOMÉTRIE et non leur relief.
+ *
+ * `barrieres.ts` mure le fil de ces mêmes lignes : la barrière et le
+ * rehaussement du terrain doivent suivre exactement la même polyligne, sans
+ * quoi le mur ne serait pas sur la crête et l'on se retrouverait avec un
+ * rempart en travers d'un versant. Une seule source, donc, et c'est celle-ci.
+ */
+export interface LigneDeCrete {
+  key: string;
+  label: string;
+  nodes: readonly { col: number; row: number }[];
+}
+
 const r = (col: number, row: number, amp: number, width: number): RidgeNode => ({
   col,
   row,
@@ -233,6 +247,13 @@ const RIDGES: readonly RidgeDef[] = [
     nodes: [r(33, 62, 30, 4), r(36, 73, 28, 4), r(34, 86, 24, 4)],
   },
 ];
+
+/** Les crêtes du massif, telles que les mure `barrieres.ts`. */
+export const LIGNES_DE_CRETE: readonly LigneDeCrete[] = RIDGES.map((ridge) => ({
+  key: ridge.key,
+  label: ridge.label,
+  nodes: ridge.nodes.map((node) => ({ col: node.col, row: node.row })),
+}));
 
 /* ── Construction ───────────────────────────────────────────────────────── */
 

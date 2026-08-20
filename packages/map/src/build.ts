@@ -12,12 +12,22 @@
  * Ordre de construction, et raison de cet ordre :
  *
  *  1. **altitude et pente** — tout le reste en dépend ;
- *  2. **voies** — tracées sur le relief, avant les biomes, pour que le coût du
- *     tracé voie la vraie pente et non un terrain déjà classé ;
- *  3. **régions** — le corridor marchand suit les grandes chaussées ;
- *  4. **biomes** — altitude + pente + humidité + proximité de l'eau ;
- *  5. **emprises** — bourgs, sceaux et sites fixes sont aplanis ;
- *  6. **lisières** — recalculées en dernier, une fois le terrain définitif.
+ *  2. **barrières de crête** — le masque des murs, calculé sur la seule
+ *     élévation. Il vient AVANT les voies, et c'est le point d'articulation de
+ *     tout l'assemblage : les montagnes existent d'abord, les routes cherchent
+ *     ensuite leur passage et le trouvent aux cols. L'ordre inverse a été
+ *     essayé et mesuré — la grande chaussée courait sur quarante-quatre cases
+ *     le long du faîte, et un mur dont une route suit l'arête n'est pas un mur ;
+ *  3. **voies** — tracées sur le relief et sur le masque, avant les biomes,
+ *     pour que le coût du tracé voie la vraie pente et non un terrain déjà
+ *     classé ;
+ *  4. **régions** — le corridor marchand suit les grandes chaussées ;
+ *  5. **biomes** — altitude + pente + humidité + proximité de l'eau ;
+ *  6. **emprises** — bourgs, sceaux et sites fixes sont aplanis ;
+ *  7. **murs** — le masque s'applique au terrain classé, puis les brèches
+ *     restantes se comblent ;
+ *  8. **désenclavement** — ce qui reste scellé se perce d'un col ;
+ *  9. **lisières** — recalculées en dernier, une fois le terrain définitif.
  */
 import {
   CELL_BRIDGE,
@@ -27,17 +37,21 @@ import {
   MAP_COLS,
   MAP_ROWS,
   type MapAnchor,
+  type MapCoord,
   type StartKey,
   type WorldMap,
 } from '@auvergne/engine';
 import { anchorList } from './anchors.js';
+import { masqueBarrieres, poserBarrieres } from './barrieres.js';
 import { buildElevation } from './elevation.js';
 import { tracerEmbranchements } from './embranchements.js';
 import { CELLS, COLS, ROWS, T, idx } from './grid.js';
+import { buildHydrography } from './hydrography.js';
 import { buildObjects, fixedPlots, type ObjectContext } from './objects.js';
 import { assignRegions } from './regions.js';
 import { buildRoads } from './roads.js';
-import { classifyTerrain, couvre, franchissable, markEdges } from './terrain.js';
+import { START_KEYS, START_POSITIONS } from './starts.js';
+import { classifyTerrain, couvre, fermerLesCretes, franchissable, markEdges } from './terrain.js';
 
 /** Version de la carte, enregistrée dans chaque partie et chaque sauvegarde. */
 export const MAP_VERSION = '1.0.0-forez';
@@ -258,7 +272,39 @@ export function buildTerrain(): TerrainBuild {
   if (terrainCache) return terrainCache;
 
   const { elevation, slope } = buildElevation();
-  const roads = buildRoads(elevation, slope);
+
+  /*
+   * Les montagnes AVANT les routes.
+   *
+   * Le masque protège ce qu'aucun mur ne doit recouvrir : l'emprise des cinq
+   * capitales avec leur dégagement, et la case de chaque lieu fixe avec ses
+   * voisines immédiates. Rien de plus. Protéger le dégagement complet de tous
+   * les `fixedPlots` avait été essayé, et mesuré : soixante-et-un trous dans le
+   * seul mur de la ligne de partage des eaux, c'est-à-dire pas de mur.
+   */
+  const protege = new Uint8Array(CELLS);
+  const marquer = (at: MapCoord, rayon: number): void => {
+    for (let dr = -rayon; dr <= rayon; dr++) {
+      for (let dc = -rayon; dc <= rayon; dc++) {
+        const col = at.col + dc;
+        const row = at.row + dr;
+        if (col < 0 || row < 0 || col >= COLS || row >= ROWS) continue;
+        protege[idx(col, row)] = 1;
+      }
+    }
+  };
+  for (const key of START_KEYS) marquer(START_POSITIONS[key].at, 6);
+  for (const plot of fixedPlots()) marquer(plot.at, 1);
+  /* Et jamais un mur sur une tourbière. Une sagne est un replat gorgé d'eau sur
+     un socle imperméable, et c'est sur les replats de faîte qu'elle se forme :
+     les barrières en avaient converti une sur sept en rocher — celles que le
+     classificateur avait rendues en prairie faute d'humidité suffisante, et que
+     le masque ne pouvait donc pas reconnaître après coup. */
+  const tourbieres = buildHydrography().bog;
+  for (let i = 0; i < CELLS; i++) if (tourbieres[i] === 1) protege[i] = 1;
+
+  const barrieres = masqueBarrieres(elevation, protege);
+  const roads = buildRoads(elevation, slope, barrieres.mur);
   const region = assignRegions(roads.road);
   const { terrain, flags } = classifyTerrain(elevation, slope, roads.road, roads.bridge);
 
@@ -273,6 +319,15 @@ export function buildTerrain(): TerrainBuild {
     forceWalkable(terrain, flags, plot.at.col, plot.at.row - 1);
     forceWalkable(terrain, flags, plot.at.col + 1, plot.at.row - 1);
   }
+
+  /*
+   * Les crêtes se murent, puis les brèches restantes se comblent — et les deux
+   * passes tombent AVANT le désenclavement, qui perce les cols dans les murs
+   * qu'on vient d'achever. Dans l'ordre inverse, on laisserait des poches
+   * scellées.
+   */
+  poserBarrieres(terrain, flags, barrieres);
+  fermerLesCretes(terrain, flags, elevation);
 
   normaliseFlags(terrain, flags);
   desenclaver(terrain, flags);

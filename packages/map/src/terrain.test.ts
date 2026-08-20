@@ -51,7 +51,16 @@ describe('biomes — répartition', () => {
   });
 
   it('garde les terrains coûteux minoritaires', () => {
-    expect(counts.rocher * 100).toBeLessThan(CELLS * 6);
+    /*
+     * Le plafond du rocher est passé de 6 à 11 %, et ce n'est pas une
+     * complaisance : le rocher a changé de rôle. Il était le sous-produit d'un
+     * seuil de pente — un chaos qu'on traversait à deux cents points — et il
+     * est devenu la matière dont les crêtes sont murées, la seule chose qui
+     * donne un front à la carte. Mesuré : 7,9 % après la pose des barrières,
+     * dont 1,6 % de mur posé exprès. Onze laisse la marge d'une crête de plus
+     * sans laisser passer un doublement.
+     */
+    expect(counts.rocher * 100).toBeLessThan(CELLS * 11);
     expect(counts.pente * 100).toBeLessThan(CELLS * 16);
     expect(counts.humide * 100).toBeLessThan(CELLS * 10);
     expect(counts.eau * 100).toBeLessThan(CELLS * 3);

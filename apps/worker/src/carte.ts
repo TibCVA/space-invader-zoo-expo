@@ -49,7 +49,8 @@
  * pas une porte de qualité. Le jour où la carte aura été densifiée, les seuils
  * deviendront des assertions dans `packages/map/src/objects.test.ts`.
  */
-import { buildWorld, COLS, ROWS, START_POSITIONS } from '@auvergne/map';
+import { buildWorld, COLS, ROWS, START_POSITIONS, integriteDesMurs, type MurMesure } from '@auvergne/map';
+import { coupesEntreCapitales, type CoupeEntreCapitales } from './coupe.js';
 import {
   BASE_MOVEMENT,
   CELL_PASSABLE,
@@ -67,7 +68,34 @@ const COUT_PAR_TERRAIN: number[] = TERRAINS.map((t) => TERRAIN_COST[t]);
 /* ─────────────────────────────── Seuils HMM3 ─────────────────────────────── */
 
 const CIBLE_CASES_PAR_OBJET = 50; // borne haute de la fourchette 35–50
-const CIBLE_ARTICULATIONS_MIN = 12; // au moins une douzaine de vrais goulets
+/*
+ * Il n'y a plus de cible en points d'articulation, et c'est une correction.
+ *
+ * Le plan demandait « au moins douze points d'articulation ». On a cru la cible
+ * dépassée à vingt-trois, puis à cent cinquante-huit en abaissant le seuil de
+ * pente. Elle ne l'était pas : aucun de ces points ne détache un morceau de
+ * carte de plus de vingt-cinq cases — ce sont des culs-de-sac, et un cul-de-sac
+ * ne se force pas. Mais surtout, la grandeur elle-même était mal choisie : **un
+ * point d'articulation exige un passage UNIQUE**, alors que le générateur de
+ * HMM3 relie ses zones par « un à trois » passages. Une frontière percée de deux
+ * cols — exactement ce qu'on construit — n'a aucun point d'articulation, et un
+ * objectif exprimé ainsi pousserait à bâtir des couloirs uniques, c'est-à-dire
+ * une carte plus pauvre que celle qu'on imite.
+ *
+ * Les deux comptes restent imprimés, parce qu'ils décrivent la carte ; c'est la
+ * coupe qui porte la cible.
+ */
+
+/**
+ * Largeur maximale de la coupe entre deux capitales.
+ *
+ * HMM3 relie deux zones par « un à trois » passages. Entre deux capitales on
+ * traverse plusieurs frontières, et la coupe minimale vaut celle de la plus
+ * étroite d'entre elles : six cases laissent la place à deux ou trois cols
+ * larges de deux, ce qui est la structure visée. Au-delà, la carte est une
+ * esplanade — quel que soit le nombre de culs-de-sac qu'elle contient.
+ */
+const CIBLE_COUPE_MAX = 6;
 const CIBLE_INFRANCHISSABLE_MIN = 0.12; // 12 % de la carte, comme un relief HMM3
 /*
  * Cible recalibrée après mesure : à la densité de HMM3 (une case sur 135), le
@@ -114,6 +142,8 @@ export interface Rapport {
   blocsTotal: number;
   articulations: number;
   goulets: number;
+  coupes: CoupeEntreCapitales[];
+  murs: MurMesure[];
   composantes: number;
   gardes: number;
   gardesBloquants: number;
@@ -366,6 +396,9 @@ export function mesurer(graine: number): Rapport {
      récursion déborde la pile sur cent mille sommets. Un point d'articulation
      est un goulet : le retirer coupe la carte en deux. HMM3 en vit. */
   const { composantes, articulations, goulets } = tarjan(praticable, cols, rows);
+  /* Et la grandeur qui dit vraiment si la carte a un front : combien de cases
+     il faut boucher pour couper une capitale d'une autre. */
+  const coupes = coupesEntreCapitales(praticable, cols, rows);
 
   /* Le héros glaneur, depuis chaque départ de joueur. */
   const objetIndex = new Int32Array(n).fill(-1);
@@ -399,6 +432,12 @@ export function mesurer(graine: number): Rapport {
     blocsTotal,
     articulations,
     goulets,
+    coupes,
+    /* `WorldMap.terrain` est déclaré comme une union de tableaux d'octets pour
+       les sérialisations ; ici il est bien un `Uint8Array`. */
+    /* `WorldMap` déclare ses tableaux en unions pour les sérialisations ; ici
+       ce sont bien un `Uint8Array` et un `Uint16Array`. */
+    murs: integriteDesMurs(Uint8Array.from(w.terrain), Uint16Array.from(w.flags)),
     composantes,
     gardes,
     gardesBloquants,
@@ -593,8 +632,24 @@ function imprimer(r: Rapport): void {
   console.log('\n▸ Structure — zones et goulets');
   ligne('composantes praticables', String(r.composantes));
   ligne('points d’articulation', String(r.articulations));
-  ligne('dont vrais goulets (≥ 25 cases détachées)', String(r.goulets),
-    `≥ ${String(CIBLE_ARTICULATIONS_MIN)}`);
+  ligne('dont vrais goulets (≥ 25 cases détachées)', String(r.goulets));
+  const largeurs = r.coupes.map((c) => c.coupe).sort((a, b) => a - b);
+  ligne('coupe entre capitales — la plus étroite', String(largeurs[0] ?? 0));
+  ligne('  médiane des dix paires', String(mediane(largeurs)));
+  ligne('  la plus large', String(largeurs[largeurs.length - 1] ?? 0),
+    `≤ ${String(CIBLE_COUPE_MAX)}`);
+  for (const c of r.coupes) {
+    ligne(`  ${c.de} ↔ ${c.a}`, String(c.coupe));
+  }
+  console.log('\n▸ Murs de crête — un mur troué n’est pas un mur');
+  for (const m of r.murs) {
+    const l = `  ${m.label}`.padEnd(42);
+    const v = `${String(m.mur)} / ${String(m.axe)}`.padStart(14);
+    console.log(
+      `  ${l}${v}    trous : voie ${String(m.trousVoie)} · eau ${String(m.trousEau)} · autres ${String(m.trousAutres)}`,
+    );
+  }
+
   ligne('gardes posés', String(r.gardes));
   /* Seule la compagnie des POSTES doit bloquer : les errantes protègent les
      trésors des lisières, pas les passages — leur case d'entrée suffit. */
@@ -604,11 +659,16 @@ function imprimer(r: Rapport): void {
   console.log('\n▸ Rappel — pourquoi ces cibles');
   console.log('  Un objet toutes les 35 à 50 cases : densité d’une carte HMM3 de');
   console.log('  taille comparable, recomptée famille par famille sur une XL de');
-  console.log('  144 × 144 (400 à 620 lieux). Des points d’articulation : HMM3 relie');
-  console.log('  ses zones par');
-  console.log('  des liaisons étroites et gardées, et son générateur pose en règle que');
-  console.log('  les liaisons larges ne sont jamais gardées. Un garde qui ne déborde pas');
-  console.log('  de sa case d’entrée ne bloque rien : le calcul de chemin l’ignore.');
+  console.log('  144 × 144 (400 à 620 lieux).');
+  console.log('  La coupe entre capitales : HMM3 relie ses zones par « un à trois »');
+  console.log('  passages, et son générateur pose en règle que les liaisons larges ne');
+  console.log('  sont jamais gardées, parce qu’une liaison large ne se tient pas. La');
+  console.log('  coupe est la traduction littérale de cette règle : le nombre de cases');
+  console.log('  à boucher pour séparer deux capitales. Les points d’articulation ne');
+  console.log('  la remplacent pas — il en faudrait un passage UNIQUE, ce que HMM3 ne');
+  console.log('  fait pas.');
+  console.log('  Un garde qui ne déborde pas de sa case d’entrée ne bloque rien : le');
+  console.log('  calcul de chemin l’ignore.');
   console.log('');
 }
 

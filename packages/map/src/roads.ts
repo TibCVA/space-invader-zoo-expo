@@ -269,6 +269,25 @@ const STEP_MIN = 52;
 const WATER_COST = 5200;
 /** Coût d'un pas sur un gué ou un pont. */
 const CROSSING_COST = 260;
+/**
+ * Ce que coûte un pas dans un mur de crête.
+ *
+ * Cher, mais fini : le tracé doit préférer le grand détour par le col, et
+ * pourtant garder la faculté de traverser si aucun col n'ouvre de son côté —
+ * un réseau qui échouerait vaudrait moins qu'un réseau qui franchit.
+ *
+ * La valeur a été balayée. À 5 200 — le prix d'une rivière hors gué — la ligne
+ * de partage des eaux était franchie douze fois ; à 20 000, dix fois ; à
+ * 60 000, dix fois encore, au trou près. Le tracé a donc cessé de traverser par
+ * commodité, et les dix franchissements qui restent sont des passages VOULUS :
+ * la Grande Chaussée des Marchands franchit la ligne de partage à la Maison du
+ * Trésor — c'est précisément ce qui justifie qu'un poste de contrôle du sel s'y
+ * soit installé, à la limite de deux pays de gabelle — et la vieille route
+ * Forez-Auvergne la franchit au col Saint-Thomas. Aucune pénalité ne les fera
+ * disparaître : leurs points de passage sont de part et d'autre de la crête, et
+ * c'est le dessin du pays qui le veut.
+ */
+const MUR_COST = 20000;
 /** Marge du corridor de recherche, en cases. */
 const CORRIDOR_MARGIN = 64;
 
@@ -278,6 +297,8 @@ interface Tracer {
   water: Uint8Array;
   crossing: Uint8Array;
   bog: Uint8Array;
+  /** Les murs de crête : 1 sur ce qu'un chemin doit contourner. */
+  mur: Uint8Array;
   road: Uint8Array;
   gScore: Int32Array;
   cameFrom: Int32Array;
@@ -307,6 +328,7 @@ function stepCost(t: Tracer, from: number, to: number, diagonal: boolean): numbe
   cost += Math.trunc((s * s * PENTE_POIDS) / 2);
   const dh = t.elevation[to] - t.elevation[from];
   cost += (dh < 0 ? -dh : dh) * 11;
+  if (t.mur[to] === 1) cost += MUR_COST;
   if (t.water[to] === 1) cost += t.crossing[to] === 1 ? CROSSING_COST : WATER_COST;
   else if (t.bog[to] === 1) cost += 220;
   if (t.road[to] !== ROAD_NONE) cost = Math.trunc((cost * 55) / 100);
@@ -388,8 +410,14 @@ function trace(t: Tracer, from: MapCoord, to: MapCoord, margin: number): MapCoor
   return out;
 }
 
-/** Trace le réseau viaire complet. */
-export function buildRoads(elevation: Int16Array, slope: Uint8Array): RoadField {
+/**
+ * Trace le réseau viaire complet.
+ *
+ * @param mur Les murs de crête, s'ils sont déjà posés. Le tracé les contourne
+ *   et débouche donc aux cols — c'est ainsi que les passages d'une zone à
+ *   l'autre se retrouvent sur les voies, et les postes de garde avec eux.
+ */
+export function buildRoads(elevation: Int16Array, slope: Uint8Array, mur?: Uint8Array): RoadField {
   const hydro = buildHydrography();
   const road = new Uint8Array(CELLS);
   const bridge = new Uint8Array(CELLS);
@@ -400,6 +428,7 @@ export function buildRoads(elevation: Int16Array, slope: Uint8Array): RoadField 
     water: hydro.water,
     crossing: hydro.crossing,
     bog: hydro.bog,
+    mur: mur ?? new Uint8Array(CELLS),
     road,
     gScore: new Int32Array(CELLS),
     cameFrom: new Int32Array(CELLS),

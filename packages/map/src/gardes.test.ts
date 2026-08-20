@@ -224,11 +224,21 @@ describe('gardes — les postes tiennent les voies', () => {
   });
 
   it('garde l’empreinte pleine sur la grande majorité des postes', () => {
-    /* Mesuré : 29 à 31 postes sur 32 selon la graine. Ceux qui manquent sont
-       adossés à une barre, et le test ci-dessus exige qu'ils le soient. */
+    /*
+     * Le seuil est passé de neuf dixièmes à trois quarts, et la raison est dans
+     * le relief : depuis que les crêtes sont murées, un poste sur six est
+     * adossé à une barre rocheuse qui mure à sa place. Mesuré 27 à 31 sur 32
+     * selon la graine, contre 29 à 31 avant les barrières.
+     *
+     * Ce n'est pas un relâchement, parce que ce n'est pas ici que porte
+     * l'exigence : le test précédent réclame, pour CHAQUE poste écourté, du
+     * relief infranchissable qui l'explique. Un poste nu au milieu d'un pré y
+     * tombe, quel que soit le taux global. Ce seuil-ci ne sert qu'à repérer un
+     * effondrement de la pose des flancs, et trois quarts suffisent à cela.
+     */
     const pleins = postes.filter((p) => p.footprint.length === 3).length;
-    expect(pleins * 10, `${String(pleins)} sur ${String(postes.length)}`).toBeGreaterThanOrEqual(
-      postes.length * 9,
+    expect(pleins * 4, `${String(pleins)} sur ${String(postes.length)}`).toBeGreaterThanOrEqual(
+      postes.length * 3,
     );
   });
 
@@ -310,13 +320,14 @@ describe('gardes — la propriété tient sur cinq graines', () => {
   it.each([7, 1234, 987654, 42424242])('graine %d', (graine) => {
     const a = preparer(graine);
     expect(a.postes.length).toBeGreaterThanOrEqual(20);
-    /* Neuf postes sur dix gardent l'empreinte pleine. Les autres sont adossés
-       à une barre rocheuse, qui mure à leur place : depuis que le chaos
-       rocheux ferme le passage, exiger trois cases partout reviendrait à
-       demander un mur devant un mur. */
+    /* Trois postes sur quatre gardent l'empreinte pleine. Les autres sont
+       adossés à une barre rocheuse, qui mure à leur place : depuis que les
+       crêtes sont murées, exiger trois cases partout reviendrait à demander un
+       mur devant un mur. L'exigence réelle est ailleurs — chaque empreinte
+       courte doit être expliquée par du relief infranchissable. */
     const pleins = a.postes.filter((p) => p.footprint.length === 3).length;
-    expect(pleins * 10, `${String(pleins)} sur ${String(a.postes.length)}`).toBeGreaterThanOrEqual(
-      a.postes.length * 9,
+    expect(pleins * 4, `${String(pleins)} sur ${String(a.postes.length)}`).toBeGreaterThanOrEqual(
+      a.postes.length * 3,
     );
     const { croisent, paires, inatteignables } = croisements(a);
     expect(paires).toBe(10);
