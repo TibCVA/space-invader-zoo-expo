@@ -725,9 +725,36 @@ class TableauCite implements TownView {
 
     /* Cartouche de parchemin, posé au-dessus de l'arche : au pied de la
        muraille, il tomberait sous le bord de la toile. */
-    const tw = w * 1.06;
     const th = Math.max(18, w * 0.19);
     const ty = c.y - h * 0.86 - th - Math.max(6, w * 0.04);
+
+    /*
+     * LE CARTOUCHE EST TAILLÉ SUR SON TEXTE, ET NON L'INVERSE.
+     *
+     * Il valait `w * 1.06` — c'est-à-dire la largeur de la PORTE — et le corps
+     * du texte se déduisait de la HAUTEUR du cartouche. Rien ne comparait donc
+     * jamais la largeur du libellé à celle du cadre qui devait le contenir. Sur
+     * un iPhone, où la porte est étroite, « QUITTER LA CITÉ » débordait des deux
+     * côtés : mesuré au quadruple sur capture, le Q dehors à gauche et « ITÉ »
+     * coupé à droite. La seule commande de sortie de la cité s'affichait
+     * tronquée.
+     *
+     * On construit donc le texte d'abord, on le mesure, et le cartouche prend
+     * au moins cette largeur plus une gouttière. La porte ne fixe plus qu'un
+     * plancher.
+     */
+    if (this.legende) this.legende.destroy();
+    this.legende = new Text({
+      text: 'QUITTER LA CITÉ',
+      style: new TextStyle({
+        fontFamily: 'Cinzel, Georgia, serif',
+        fontSize: Math.max(9, Math.round(th * 0.5)),
+        letterSpacing: Math.max(1, th * 0.07),
+        fill: PALETTE.encre,
+        align: 'center',
+      }),
+    });
+    const tw = Math.max(w * 1.06, this.legende.width + th * 0.9);
     g.poly(
       flat(
         perturber(
@@ -756,17 +783,6 @@ class TableauCite implements TownView {
       ty + th,
     ]).stroke({ color: LIGHT.rim, width: 1.2, alpha: 0.8 });
 
-    if (this.legende) this.legende.destroy();
-    this.legende = new Text({
-      text: 'QUITTER LA CITÉ',
-      style: new TextStyle({
-        fontFamily: 'Cinzel, Georgia, serif',
-        fontSize: Math.max(9, Math.round(th * 0.5)),
-        letterSpacing: Math.max(1, th * 0.07),
-        fill: PALETTE.encre,
-        align: 'center',
-      }),
-    });
     this.legende.anchor.set(0.5);
     this.legende.position.set(c.x, ty + th / 2);
     this.gPorte.addChild(this.legende);
