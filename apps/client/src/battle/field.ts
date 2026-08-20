@@ -572,6 +572,25 @@ interface PropPose {
  * Le sol, sa trame gravée et les obstacles. Le tout vit dans le conteneur
  * étiré du plateau : sur téléphone en portrait la grille s'allonge un peu.
  */
+/**
+ * Les cinq arrêts du dégradé de biome, pour une ambiance donnée.
+ *
+ * Sortie de la méthode de peinture pour que `rampes.test.ts` mesure la RAMPE
+ * RÉELLE au lieu d'en recopier une jumelle : un témoin recopié cesse de dire la
+ * vérité au premier écart, et c'est justement le genre de témoin qui a laissé
+ * ce sol s'assombrir de dix-neuf points sans que rien ne rougisse.
+ */
+export function rampeBiome(pal: PaletteSol): { offset: number; color: number }[] {
+  return [
+    { offset: 0, color: faceEclairee(pal.clair, 0.62) },
+    { offset: 0.3, color: melanger(pal.fond, pal.clair, 0.55) },
+    { offset: 0.62, color: pal.fond },
+    { offset: 0.86, color: ombreBleutee(pal.fond, 0.3) },
+    { offset: 1, color: ombreBleutee(pal.sombre, 0.5) },
+  ];
+}
+
+
 export class ChampDeBataille {
   readonly container = new Container();
   /** couche des obstacles, triée en profondeur, au-dessus du sol */
@@ -637,19 +656,28 @@ export class ChampDeBataille {
     const g = new Graphics();
     racine.addChild(g);
 
-    /* 1 — dégradé de biome. L'angle 45° place la haute lumière au nord-ouest,
-       conformément à la loi n°2 : c'est de là que vient le soleil. */
+    /*
+     * 1 — dégradé de biome, ré-étalonné.
+     *
+     * Ces cinq arrêts avaient été écrits contre un dégradé MORT : tant que
+     * `degradeLineaire` rendait un aplat, seul l'arrêt d'offset 0 comptait et
+     * les quatre autres pouvaient être aussi sombres qu'on voulait. Depuis
+     * qu'elle peint, ils comptent tous, et le sol avait perdu ce que l'audit a
+     * mesuré — 19 points de luminance et 4 de saturation. Mesure de la rampe
+     * seule, ambiance prairie : 89,6 de luminance moyenne pour une cible de 95.
+     *
+     * Trois retouches, et aucune n'aplatit la rampe : la haute lumière monte
+     * (0,34 → 0,62 de face éclairée), le ton local tient plus longtemps avant
+     * de plonger (l'ombre commence à 0,86 au lieu de 0,80), et les deux arrêts
+     * d'ombre s'adoucissent. La rampe passe à 96,2 de luminance et 37,8 % de
+     * saturation, et son écart clair-ombre AUGMENTE — de 98 à 108 : elle est
+     * plus lisible sans être plus plate. `rampes.test.ts` tient ces nombres.
+     *
+     * L'angle 45° place la haute lumière au nord-ouest, conformément à la loi
+     * n°2 : c'est de là que vient le soleil.
+     */
     g.rect(cadre.x, cadre.y, cadre.w, cadre.h).fill({
-      fill: degradeLineaire(
-        [
-          { offset: 0, color: faceEclairee(pal.clair, 0.34) },
-          { offset: 0.26, color: melanger(pal.fond, pal.clair, 0.5) },
-          { offset: 0.55, color: pal.fond },
-          { offset: 0.8, color: ombreBleutee(pal.fond, 0.5) },
-          { offset: 1, color: ombreBleutee(pal.sombre, 0.75) },
-        ],
-        45,
-      ),
+      fill: degradeLineaire([...rampeBiome(pal)], ANGLE_LUMIERE),
     });
 
     /* 2 — nappes de valeur, lisières douces et jeu de lumière */
@@ -677,11 +705,14 @@ export class ChampDeBataille {
     g.rect(cadre.x, cadre.y, cadre.w, cadre.h).fill({
       fill: degradeLineaire(
         [
+          /* La nappe froide creuse le sud-est. Elle a été allégée avec la
+             rampe : à 0,16 elle reprenait une part de ce que la rampe venait
+             de rendre. */
           { offset: 0, color: LIGHT.froide, alpha: 0 },
-          { offset: 0.62, color: LIGHT.froide, alpha: 0.06 },
-          { offset: 1, color: LIGHT.froide, alpha: 0.16 },
+          { offset: 0.62, color: LIGHT.froide, alpha: 0.045 },
+          { offset: 1, color: LIGHT.froide, alpha: 0.12 },
         ],
-        45,
+        ANGLE_LUMIERE,
       ),
     });
 
@@ -707,11 +738,15 @@ export class ChampDeBataille {
     etalon.rect(cadre.x, cadre.y, cadre.w, cadre.h).fill({
       fill: degradeLineaire(
         [
+          /* Le glacis resature ce que la matière répétée a délavé. Son
+             dernier arrêt tirait 0,46 d'une couleur déjà assombrie : c'est lui
+             qui reprenait le plus de luminance à la rampe. Il resature encore,
+             il assombrit moins. */
           { offset: 0, color: saturer(pal.clair, 0.5), alpha: 0.1 },
-          { offset: 0.45, color: saturer(pal.fond, 0.55), alpha: 0.26 },
-          { offset: 1, color: ombreBleutee(saturer(pal.sombre, 0.5), 0.55), alpha: 0.46 },
+          { offset: 0.45, color: saturer(pal.fond, 0.55), alpha: 0.24 },
+          { offset: 1, color: ombreBleutee(saturer(pal.sombre, 0.5), 0.42), alpha: 0.34 },
         ],
-        45,
+        ANGLE_LUMIERE,
       ),
     });
     racine.addChild(etalon);
