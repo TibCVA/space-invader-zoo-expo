@@ -1001,7 +1001,72 @@ function sanglierPieces(k: Kit, Hs: number, L: number, ferre: boolean): PieceDef
     queue: { longueur: L * 0.16, epaisseur: Hs * 0.09, courbe: 1.2 },
     tete: (g, kk) => teteSanglier(g, kk, Hs * 0.55, ferre, k.seed + 33),
     surTronc: (g, kk) => {
-      // bardes d'ardoise rivetées le long de l'échine
+      /*
+       * Le GARROT, d'abord. C'est la silhouette du sanglier : une bête haute de
+       * l'épaule et basse de la croupe, un coin lancé en avant. Le tronc du
+       * squelette quadrupède est une masse régulière — juste pour un loup, faux
+       * pour un suidé —, et sans cette bosse les deux rangs cinq rendaient un
+       * long parallélépipède sur quatre bâtons, ce que la planche de contact a
+       * montré dès qu'elle a cessé de les afficher en timbre-poste.
+       */
+      const garrot = lisser(
+        perturber(
+          densifier(
+            [
+              pt(-L * 0.06, -Hs * 0.3),
+              pt(L * 0.06, -Hs * 0.58),
+              pt(L * 0.24, -Hs * 0.62),
+              pt(L * 0.4, -Hs * 0.44),
+              pt(L * 0.42, -Hs * 0.16),
+              pt(L * 0.02, -Hs * 0.18),
+            ],
+            Hs * 0.16,
+          ),
+          Hs * 0.016,
+          k.seed + 61,
+        ),
+        1,
+      );
+      poser(g, kk, garrot, {
+        couleur: melanger(soie, 0x241f19, 0.2),
+        matiere: 'fourrure',
+        matiereAlpha: 0.3,
+        echelle: 0.5,
+        modele: 1.05,
+      });
+
+      /*
+       * La barde ensuite, et elle couvre le FLANC.
+       *
+       * Elle ne courait que le long de l'échine, en plaques étroites et
+       * bleutées : rendu à l'écran, cela faisait une rangée d'onglets bleus
+       * posée sur un dos, là où le rendu de référence montre un caparaçon de
+       * plaques larges, rivetées, d'un acier chaud qui a pris la mousse. Le
+       * bleu venait de l'ardoise : on garde l'acier et on le réchauffe au chêne.
+       */
+      const acierChaud = melanger(ACIER, CHENE, ferre ? 0.26 : 0.4);
+      for (let i = 0; i < 3; i += 1) {
+        const x = -L * 0.2 + i * L * 0.2;
+        const flanc = lisser(
+          perturber(
+            densifier(
+              [
+                pt(x - L * 0.1, -Hs * (0.3 - i * 0.04)),
+                pt(x + L * 0.1, -Hs * (0.34 - i * 0.04)),
+                pt(x + L * 0.09, Hs * 0.06),
+                pt(x - L * 0.09, Hs * 0.08),
+              ],
+              Hs * 0.16,
+            ),
+            Hs * 0.014,
+            i * 11 + 5,
+          ),
+          1,
+        );
+        ferrure(g, kk, flanc, { couleur: acierChaud, rivets: 4, seed: i * 5 + 1 });
+      }
+
+      // bardes rivetées le long de l'échine, par-dessus le caparaçon
       const n = ferre ? 5 : 4;
       for (let i = 0; i < n; i += 1) {
         const x = -L * 0.3 + (i / (n - 1)) * L * 0.62;
@@ -1017,7 +1082,7 @@ function sanglierPieces(k: Kit, Hs: number, L: number, ferre: boolean): PieceDef
           1,
         );
         ferrure(g, kk, plaque, {
-          couleur: melanger(ARDOISE, ACIER, ferre ? 0.4 : 0.15),
+          couleur: eclaircir(acierChaud, ferre ? 0.12 : 0),
           rivets: 2,
           seed: i * 3,
         });
