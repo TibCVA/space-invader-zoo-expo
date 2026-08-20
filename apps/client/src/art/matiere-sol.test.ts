@@ -292,19 +292,25 @@ describe('les clefs de matière se répondent de bout en bout', () => {
 });
 
 describe('le manifeste livré nourrit vraiment le sol', () => {
-  it('déclare les six matières de base, répétables', () => {
+  it('déclare les douze matières du sol, répétables', () => {
     /*
      * Ce test-ci ne garde pas du code : il garde le FAIT que les fichiers
      * existent et sont déclarés sous la bonne clef. C'est lui qui aurait dit,
      * il y a deux vagues d'images, que six tuiles peintes attendaient sans
      * être employées. Si le manifeste disparaît, le jeu retombe sur sa matière
      * semée en code — mais on veut le SAVOIR.
+     *
+     * Les six matières de PAYS y sont désormais exigées au même titre que les
+     * six de base : la vague 3 les a livrées, les douze cantons les réclament,
+     * et le repli sur la matière de base ne doit plus servir. Si l'une d'elles
+     * disparaît du manifeste, le pays retombe silencieusement sur le sol de son
+     * terrain et les douze cantons se remettent à se ressembler.
      */
     const [texte] = Object.values(MANIFESTES);
     expect(texte, 'aucun manifeste livré dans apps/client/public/img/').toBeDefined();
     const brut: unknown = JSON.parse(texte);
     const entrees = (brut as { entrees: { clef: string; categorie: string; repetable?: boolean }[] }).entrees;
-    for (const clef of MATIERES_BASE) {
+    for (const clef of [...MATIERES_BASE, ...MATIERES_PAYS]) {
       const e = entrees.find((x) => x.clef === clef);
       expect(e, `« ${clef} » absente du manifeste`).toBeDefined();
       expect(e?.categorie, clef).toBe('terrain');

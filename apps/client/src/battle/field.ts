@@ -46,11 +46,12 @@ import { Geometrie } from './hexgrid.js';
 
 /* ═══════════════════════════════ Ambiances ═══════════════════════════════ */
 
-export type Ambiance = 'sapiniere' | 'prairie' | 'rocher' | 'humide' | 'cour';
+export type Ambiance = 'sapiniere' | 'prairie' | 'lande' | 'rocher' | 'humide' | 'cour';
 
 export const AMBIANCE_LABELS: Readonly<Record<Ambiance, string>> = {
   sapiniere: 'Sapinière',
   prairie: 'Prairie',
+  lande: 'Hautes chaumes',
   rocher: 'Chaos de rochers',
   humide: 'Zone humide',
   cour: 'Cour de siège',
@@ -76,6 +77,10 @@ const AMBIANCE_REGION: Readonly<Record<RegionId, Ambiance>> = {
 const AMBIANCE_TERRAIN: Readonly<Partial<Record<Terrain, Ambiance>>> = {
   foret: 'sapiniere',
   prairie: 'prairie',
+  /* Les hautes chaumes couvrent 7,4 % de la carte depuis le lot 1.8 et se
+     battaient jusqu'ici dans un pré : ni la couleur, ni le semis, ni — depuis
+     la vague 3 — le fond peint n'étaient les leurs. */
+  lande: 'lande',
   rocher: 'rocher',
   pente: 'rocher',
   humide: 'humide',
@@ -123,6 +128,18 @@ const PALETTES: Readonly<Record<Ambiance, PaletteSol>> = {
     pinceau: 'prairie',
     matiereAlpha: 0.26,
   },
+  lande: {
+    /* Herbe sèche et callune sur la tourbe : le vert a jauni, il n'a pas viré
+       à l'orange. C'est la même retenue que sur la carte, où l'ocre poussé à
+       0,64 avait rendu une nappe fluo qu'il a fallu défaire. */
+    fond: melanger(melanger(PALETTE.vertHetre, PALETTE.ocre, 0.3), PALETTE.brunFougere, 0.24),
+    clair: melanger(PALETTE.vertHetre, PALETTE.ocre, 0.46),
+    sombre: melanger(PALETTE.mousseSombre, PALETTE.grenat, 0.22),
+    detail: melanger(PALETTE.grenat, PALETTE.brunFougere, 0.4),
+    detail2: melanger(PALETTE.parchemin, PALETTE.ocre, 0.4),
+    pinceau: 'herbe',
+    matiereAlpha: 0.28,
+  },
   rocher: {
     fond: 0x4a4e52,
     clair: melanger(PALETTE.granitClair, PALETTE.ocre, 0.24),
@@ -151,6 +168,63 @@ const PALETTES: Readonly<Record<Ambiance, PaletteSol>> = {
     matiereAlpha: 0.3,
   },
 };
+
+/**
+ * LE FOND PEINT DU CHAMP DE BATAILLE.
+ *
+ * La vague 3 d'images a livré six panoramas de 1024 × 640 sous les clefs
+ * `combat_<ambiance>`, cadrés selon la règle du brief : **rien au centre**, le
+ * décor sur le pourtour et à l'horizon, parce que le centre est là où les
+ * créatures se battent. Personne ne les lisait — exactement le piège dans
+ * lequel les six pinceaux de terrain étaient tombés deux vagues durant, et que
+ * `docs/10-BRIEF-IMAGEGEN-VAGUE-3.md` §2 nomme en toutes lettres.
+ *
+ * **Pourquoi le fond ne REMPLACE pas la peinture procédurale.** Le sol du champ
+ * est composé de neuf strates réglées sur capture — rampe de biome ré-étalonnée
+ * à 96,2 de luminance, nappes, matière répétée, occlusion de vallon, semis par
+ * ambiance, gravure de trame, glacis de resaturation, lueur. Poser un panorama
+ * par-dessus effacerait tout cela, et avec lui la loi de lumière unique : le
+ * panorama a son propre éclairage, et un sol qui s'éclaire d'un côté quand les
+ * figurines s'éclairent de l'autre est plus illisible qu'un dégradé.
+ *
+ * Le panorama vient donc **juste après la rampe de biome et avant les nappes** :
+ * il apporte ce qu'un dégradé ne sait pas faire — un horizon, des fûts, des
+ * murets au loin, la matière du pourtour — et tout l'étalonnage qui suit le
+ * ramène sous notre lumière. C'est la même règle que pour le sol de la carte
+ * d'aventure : l'image apporte la MATIÈRE, le code garde la LUMIÈRE.
+ */
+const FOND_PEINT: Readonly<Record<Ambiance, string | null>> = {
+  sapiniere: 'combat_foret',
+  prairie: 'combat_prairie',
+  lande: 'combat_lande',
+  rocher: 'combat_rocher',
+  humide: 'combat_humide',
+  /* La cour de siège n'a pas de panorama : un fond de clairière ou de chaume
+     sous des remparts serait un contresens, et `siege.ts` peint déjà la porte,
+     les murs et les tours. `combat_pont` reste lui aussi inemployé : il faudrait
+     que le moteur dise qu'on se bat sur un franchissement, ce qu'il ne dit pas
+     — `ambianceDe` ne reçoit que la région, le terrain et le drapeau de siège.
+     Ces deux-là sont recensés par `field.test.ts`, pour qu'un fichier livré ne
+     puisse pas dormir sans que personne le sache. */
+  cour: null,
+};
+
+/**
+ * Opacité du panorama.
+ *
+ * À 1, le panorama est le sol et les huit strates qui suivent ne font plus que
+ * le teinter. À 0,4, on ne le distingue pas du dégradé. La valeur se règle sur
+ * capture, et la borne haute est fixée par une contrainte mesurable plutôt que
+ * par le goût : le contraste entre une figurine et le sol qu'elle occupe ne doit
+ * jamais tomber sous ce qu'il vaut aujourd'hui, sans quoi on aura rendu le
+ * combat moins lisible en le rendant plus joli.
+ */
+const ALPHA_FOND_PEINT = 0.78;
+
+/** La clef de panorama d'une ambiance, ou `null` si elle n'en a pas. */
+export function fondPeintDe(ambiance: Ambiance): string | null {
+  return FOND_PEINT[ambiance];
+}
 
 /* ══════════════════════════ Peinture du sol ══════════════════════════════ */
 
@@ -490,6 +564,12 @@ function detailCour(g: Graphics, cadre: Cadre, pal: PaletteSol, force: number): 
 }
 
 const DETAILS: Readonly<Record<Ambiance, (g: Graphics, c: Cadre, p: PaletteSol, f: number) => void>> = {
+  /* La chaume emprunte le semis du pré : mêmes touffes, mêmes cailloux, mais
+     un tiers moins dense — c'est une herbe rase battue par le vent. Écrire un
+     second semis presque identique aurait fait deux endroits à corriger. */
+  lande: (g, c, p, f) => {
+    detailPrairie(g, c, p, f * 0.66);
+  },
   sapiniere: detailSapiniere,
   prairie: detailPrairie,
   rocher: detailRocher,
@@ -680,19 +760,37 @@ export class ChampDeBataille {
       fill: degradeLineaire([...rampeBiome(pal)], ANGLE_LUMIERE),
     });
 
-    /* 2 — nappes de valeur, lisières douces et jeu de lumière */
-    nappes(g, cadre, pal, 20250816, force);
-    dapple(g, cadre, pal, force);
+    /* 1 bis — le panorama peint, s'il existe pour cette ambiance.
+       Étiré au cadre : ce n'est pas une matière répétable mais une SCÈNE, avec
+       un horizon. Le cadre du plateau ne fait jamais moins d'un tiers de la
+       largeur du panorama, donc l'étirement ne montre pas le pixel. */
+    const clefFond = FOND_PEINT[this.ambiance];
+    if (clefFond !== null && this.atlas.hasIcon(clefFond)) {
+      const panorama = new Sprite(this.atlas.icon(clefFond));
+      panorama.position.set(cadre.x, cadre.y);
+      panorama.width = cadre.w;
+      panorama.height = cadre.h;
+      panorama.alpha = ALPHA_FOND_PEINT;
+      racine.addChild(panorama);
+    }
+
+    /* 2 — nappes de valeur, lisières douces et jeu de lumière.
+       Elles vont dans leur PROPRE calque : `g` porte la rampe, qui doit rester
+       sous le panorama, et tout ce qui suit doit passer par-dessus. */
+    const apres = new Graphics();
+    racine.addChild(apres);
+    nappes(apres, cadre, pal, 20250816, force);
+    dapple(apres, cadre, pal, force);
 
     /* 3 — matière : le pinceau de terrain de l'atlas, répété sans couture */
     const brosse = this.atlas.terrainBrush(pal.pinceau);
     const motif = new FillPattern({ texture: brosse, repetition: 'repeat' });
     motif.setTransform(new Matrix().scale(0.72, 0.72));
-    g.rect(cadre.x, cadre.y, cadre.w, cadre.h).fill({ fill: motif, alpha: pal.matiereAlpha });
+    apres.rect(cadre.x, cadre.y, cadre.w, cadre.h).fill({ fill: motif, alpha: pal.matiereAlpha });
 
     /* 3 bis — occlusion de vallon et nappe de soleil rasant : la surface
        gagne la profondeur qu'un motif répété ne donne jamais seul. */
-    g.rect(cadre.x, cadre.y, cadre.w, cadre.h).fill({
+    apres.rect(cadre.x, cadre.y, cadre.w, cadre.h).fill({
       fill: degradeRadial(
         [
           { offset: 0, color: LIGHT.chaude, alpha: 0.17 },
@@ -702,7 +800,7 @@ export class ChampDeBataille {
         { x: 0.3, y: 0.24 },
       ),
     });
-    g.rect(cadre.x, cadre.y, cadre.w, cadre.h).fill({
+    apres.rect(cadre.x, cadre.y, cadre.w, cadre.h).fill({
       fill: degradeLineaire(
         [
           /* La nappe froide creuse le sud-est. Elle a été allégée avec la
