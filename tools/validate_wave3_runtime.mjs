@@ -55,7 +55,20 @@ try {
   await page.goto(`${base}/#/demo/carte`, { waitUntil: 'load', timeout: 45_000 });
   await page.waitForTimeout(60_000);
   await page.goto(`${base}/#/diagnostic`, { waitUntil: 'load', timeout: 45_000 });
-  await page.waitForTimeout(1_000);
+  /*
+   * Six secondes, et non une.
+   *
+   * La page de diagnostic ne se contente pas d'afficher un relevé : elle lance
+   * d'abord six épreuves sur l'appareil — remplir une forme, dessiner une
+   * texture, exécuter un filtre, peindre une page de 2048 px, compiler le
+   * filtre de la carte, construire la planche d'art — et ne dresse le tableau
+   * qu'ensuite. À une seconde, le tableau n'existe pas encore : la ligne
+   * « Images peintes chargées » est absente, le validateur lit `null` et
+   * conclut à un échec de chargement alors que les 197 images sont là et que
+   * ni avertissement de repli ni erreur console n'a été relevé. Mesuré : la
+   * ligne apparaît entre une et trois secondes selon la machine.
+   */
+  await page.waitForTimeout(6_000);
 
   const body = await page.locator('body').innerText();
   const match = body.match(/Images peintes chargées\s+(\d+) en (\d+) ms/i);
