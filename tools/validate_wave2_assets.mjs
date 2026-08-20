@@ -15,6 +15,7 @@ import {
   PUBLIC_SPECS,
   RESOURCES,
 } from './wave2_asset_specs.mjs';
+import { SUPERSEDED_WAVE2_KEYS } from './wave3_asset_specs.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const readJson = (file) => JSON.parse(readFileSync(resolve(ROOT, file), 'utf8'));
@@ -44,7 +45,7 @@ if (trace.entrees.length !== 152 || traceByKey.size !== 152) fail('trace incompl
 
 const manifest = readJson('apps/client/public/img/manifeste.json');
 const manifestByKey = new Map(manifest.entrees.map((entry) => [entry.clef, entry]));
-if (manifest.entrees.length !== 167 || manifestByKey.size !== 167) fail('manifeste public incomplet ou dupliqué');
+if (manifest.entrees.length !== 197 || manifestByKey.size !== 197) fail('manifeste public incomplet ou dupliqué');
 
 for (const spec of ALL_SPECS) {
   const record = traceByKey.get(spec.key) ?? fail(`trace absente: ${spec.key}`);
@@ -59,6 +60,9 @@ for (const spec of ALL_SPECS) {
   }
   if (!/^exec-[0-9a-f-]+$/.test(record.generationId ?? '')) {
     fail(`${spec.key}: generationId invalide`);
+  }
+  if (!spec.file.startsWith('docs/') && SUPERSEDED_WAVE2_KEYS.has(spec.key)) {
+    continue;
   }
   const isReference = spec.file.startsWith('docs/');
   const target = resolve(ROOT, isReference ? spec.file : `apps/client/public/img/${spec.file}`);
@@ -80,6 +84,7 @@ console.log(JSON.stringify({
   wave2: ALL_SPECS.length,
   public: PUBLIC_SPECS.length,
   references: CREATURE_REFERENCES.length,
+  supersededByWave3: SUPERSEDED_WAVE2_KEYS.size,
   publicBytes,
   referenceBytes,
   manifestEntries: manifest.entrees.length,

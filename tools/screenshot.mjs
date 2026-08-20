@@ -247,7 +247,8 @@ async function main() {
   } finally {
     if (browser) await browser.close();
     try {
-      process.kill(-server.pid, 'SIGTERM');
+      if (process.platform === 'win32') server.kill('SIGTERM');
+      else process.kill(-server.pid, 'SIGTERM');
     } catch {
       /* déjà arrêté */
     }

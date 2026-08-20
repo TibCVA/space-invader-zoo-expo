@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PUBLIC_SPECS } from './wave2_asset_specs.mjs';
+import { PUBLIC_SPECS as WAVE3_PUBLIC_SPECS } from './wave3_asset_specs.mjs';
 
 const root = process.cwd();
 const imageRoot = join(root, 'apps', 'client', 'public', 'img');
@@ -37,7 +38,7 @@ const portraits = [
   ['agathe', 'ermitage', 'Agathe, 31 ans, éleveuse de hulottes et éclaireuse des crêtes; femme nerveuse et tavelée, longue tresse blond sombre, petit chapeau de chasse sauge, manteau vert profond et une hulotte fauve anatomiquement juste posée sur son gant.', 'exec-14df6dbf-5360-402b-9655-85ab5b2ba042'],
   ['roxane', 'ermitage', 'Roxane, 28 ans, ancienne braconnière devenue capitaine d’embuscade; femme compacte au visage étroit et nez tordu, regard latéral sombre, tresses noires sous capuchon vert bas, laine mousse et fougère à petites pièces irrégulières.', 'exec-91a119a1-8f44-4da1-86b8-e5117c996fce'],
   ['jean', 'ermitage', 'Jean, 38 ans, meneur de meute qui commande par sa position; homme nerveux et large, boucles sombres, barbe irrégulière, moitié supérieure de l’oreille gauche manquante, col de laine grise, main cicatrisée avec un doigt absent, sans gore.', 'exec-dde6119d-6357-42e2-af91-67801a9ee323'],
-  ['adele', 'ermitage', 'Adèle, 24 ans, jeune trouvée de la forêt qui demande aux racines et aux menhirs; petite femme au front large, taches de rousseur, yeux gris-vert, boucles châtain en couronne lâche de fibres de racine, main sur une ronce vivante.', 'exec-57f412aa-1755-452d-85ff-33dbaf937657'],
+  ['alice', 'ermitage', 'Alice, 24 ans, jeune trouvée de la forêt qui demande aux racines et aux menhirs; petite femme au front large, taches de rousseur, yeux gris-vert, boucles châtain en couronne lâche de fibres de racine, main sur une ronce vivante.', 'exec-57f412aa-1755-452d-85ff-33dbaf937657'],
   ['ines', 'ermitage', 'Inès, 40 ans, marcheuse qui a relevé chaque chemin de dévotion; femme maigre au long visage tanné, deux tresses brun cendré grisonnantes sous vaste capuchon sauge, manteau vert, cordon de perles de pierre et bâton de frêne.', 'exec-aa5e1f08-a274-43de-bee5-b2d0e4d716b2'],
   ['gustave', 'ermitage', 'Gustave, 52 ans, ancien carrier qui éveille les colosses; homme exceptionnellement massif, crâne dégarni, nez aplati, barbe grise courte, habit de carrière vert sans manches, énorme main droite blanchie de poussière de granit.', 'exec-57ad5319-4519-430f-8067-261403c17d1e'],
   ['come', 'ermitage', 'Côme, 61 ans, prieur maigre qui observe le ciel depuis trente et un ans; long visage ridé, grandes oreilles rouges au vent, cheveux blancs, yeux gris levés, haut capuchon bleu profond replié, broche-girouette et carnets fermés.', 'exec-a70c6222-87c3-4e8a-928b-e04f946a4d57'],
@@ -203,15 +204,36 @@ for (const spec of PUBLIC_SPECS) {
   }));
 }
 
+const wave3Trace = JSON.parse(
+  readFileSync(join(root, 'docs', 'reference', 'IMAGEGEN-WAVE3-TRACE.json'), 'utf8'),
+);
+const wave3ByKey = new Map(wave3Trace.entrees.map((entry) => [entry.clef, entry]));
+const wave3Keys = new Set(WAVE3_PUBLIC_SPECS.map((spec) => spec.key));
+const currentEntries = entries.filter((entry) => !wave3Keys.has(entry.clef));
+for (const spec of WAVE3_PUBLIC_SPECS) {
+  const trace = wave3ByKey.get(spec.key);
+  if (!trace) throw new Error(`trace ImageGen vague 3 absente : ${spec.key}`);
+  currentEntries.push(makeEntry({
+    clef: spec.key,
+    fichier: spec.file,
+    categorie: spec.category,
+    largeur: spec.width,
+    hauteur: spec.height,
+    repetable: spec.repeatable,
+    invite: spec.prompt,
+    generationId: trace.generationId,
+  }));
+}
+
 const manifest = {
-  version: '2.0.0-imagegen-2026-08-19',
+  version: '3.0.0-imagegen-2026-08-20',
   budgetOctets: 12 * 1024 * 1024,
   noteInvite:
     "Le champ invite contient l’invite canonique de régénération, normalisée à partir de l’appel initial et conservant toutes ses contraintes matérielles. L’ordre et les espaces exacts de l’appel interactif initial ne sont pas exposés comme métadonnée par l’outil intégré.",
   noteGraine:
     "ImageGen intégré ne fournit pas de graine numérique. Le champ graine conserve donc honnêtement l’identifiant de génération; invite, generationId et sha256 assurent la traçabilité sans prétendre à une régénération bit-identique.",
-  entrees: entries,
+  entrees: currentEntries,
 };
 
 writeFileSync(join(imageRoot, 'manifeste.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
-console.log(`${entries.length} entrées, ${entries.reduce((sum, entry) => sum + entry.octets, 0)} octets`);
+console.log(`${currentEntries.length} entrées, ${currentEntries.reduce((sum, entry) => sum + entry.octets, 0)} octets`);

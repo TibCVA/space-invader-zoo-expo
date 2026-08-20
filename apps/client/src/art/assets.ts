@@ -97,6 +97,7 @@ export type CategorieAsset =
   | 'accueil'
   | 'creature'
   | 'prop'
+  | 'combat'
   | 'ciel';
 
 export interface EntreeAsset {
