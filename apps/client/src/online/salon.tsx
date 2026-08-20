@@ -87,6 +87,27 @@ function LienPartage({ code, lien }: { code: string; lien: string }): ReactEleme
 
   return (
     <div className="hmm-enl-lien">
+      {/*
+        LA VIGNETTE QUE VERRONT LES COUSINS.
+
+        C'est le seul emplacement produit naturel du teaser : cet écran est
+        exactement celui où l'on copie le lien pour l'envoyer, et l'image est
+        exactement ce qui s'affichera dans la conversation à l'arrivée. On la
+        montre donc à l'expéditeur, pour qu'il sache ce qu'il envoie.
+
+        Aucun texte n'est posé PAR-DESSUS — le teaser porte déjà son titre — et
+        le cadre est en 16:9 avec un ajustement « contain » : rogner couperait
+        un visage, le titre ou l'un des trois noms de lieux.
+      */}
+      <img
+        className="hmm-enl-teaser"
+        src="/img/teaser/cousins.webp"
+        width={1672}
+        height={941}
+        loading="lazy"
+        decoding="async"
+        alt="Les cinq héros du Forez devant un griffon, une vouivre, un colosse de granite et un sanglier cuirassé."
+      />
       <p className="hmm-enl-code-grand jeu-tabulaire" aria-label={`Code de la partie : ${code}`}>
         {code}
       </p>

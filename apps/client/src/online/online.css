@@ -534,3 +534,23 @@
 :root[data-contraste='renforce'] .hmm-enl-etape-rang {
   border-color: rgba(201, 162, 39, 0.92);
 }
+
+/*
+ * LA VIGNETTE DE PARTAGE.
+ *
+ * `contain` et non `cover` : le teaser porte le titre en haut, les cinq visages
+ * en bas et trois noms de lieux sur les bords. Un `cover` rognerait forcément
+ * l'un des trois — c'est la contrainte posée par celui qui l'a dessiné, et elle
+ * est juste. Le rapport est déclaré pour que la place soit réservée avant que
+ * l'image n'arrive : sans lui, le bloc du lien sauterait à l'affichage.
+ */
+.hmm-enl-teaser {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1672 / 941;
+  object-fit: contain;
+  border-radius: var(--hmm-rayon-2, 6px);
+  border: 1px solid rgba(201, 162, 39, 0.32);
+  background: #10131a;
+  margin-bottom: var(--hmm-space-3);
+}

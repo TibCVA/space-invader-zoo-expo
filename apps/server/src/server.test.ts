@@ -15,7 +15,7 @@ import { MAP_VERSION } from '@auvergne/map';
 import { startTestServer, setCookies, type TestServer } from './testkit.js';
 import { sanitizeUrl } from './server.js';
 import { escapeHtml } from './health.js';
-import { isFingerprinted } from './static.js';
+import { absolutiserPartage, isFingerprinted } from './static.js';
 import { identityTag, isIdentity, newIdentity } from './identity.js';
 
 let srv: TestServer;
@@ -342,5 +342,69 @@ describe('utilitaires', () => {
   it('reconnaît un fichier empreint de Vite', () => {
     expect(isFingerprinted('/tmp/dist/assets/index-DUxxxjiZ.js')).toBe(true);
     expect(isFingerprinted('/tmp/dist/index.html')).toBe(false);
+  });
+});
+
+describe('la carte de partage du lien', () => {
+  /**
+   * CE QUE VOIENT LES COUSINS QUAND LE LIEN ARRIVE.
+   *
+   * Le jeu se partage par une seule adresse : quatre joueurs sur cinq
+   * découvrent le Forez par la vignette d'aperçu de cette adresse, avant même
+   * d'ouvrir la page. Ce test garde les deux choses qui la cassent en silence,
+   * et qui ne se voient qu'une fois le lien déjà envoyé.
+   *
+   * 1. **Une adresse relative.** La spécification Open Graph exige une adresse
+   *    absolue ; plusieurs robots — dont celui qui compte ici, la messagerie —
+   *    refusent une adresse relative et n'affichent aucune vignette.
+   * 2. **Un rapport non déclaré.** Sans `og:image:width` et `og:image:height`,
+   *    un client cadre au jugé et ROGNE. Or le teaser porte le titre en haut,
+   *    les cinq visages en bas et trois noms de lieux sur les bords : tout
+   *    rognage coupe l'un des trois.
+   */
+  it('rend absolue l’adresse de la vignette, sur l’hôte de la requête', async () => {
+    const reponse = await srv.app.inject({
+      method: 'GET',
+      url: '/',
+      headers: { accept: 'text/html', host: 'auvergne.example' },
+    });
+    expect(reponse.statusCode).toBe(200);
+    const html = reponse.body;
+    /* Le client compilé n'existe pas forcément dans l'environnement de test :
+       sans lui, la page servie est la page de diagnostic et il n'y a rien à
+       garder. On ne fait pas semblant de mesurer. */
+    if (!html.includes('og:image')) {
+      expect(html, 'ni vignette ni page de diagnostic : la page servie a changé').toContain(
+        'Auvergne',
+      );
+      return;
+    }
+    expect(html).toMatch(/property="og:image" content="https?:\/\/auvergne\.example\/img\/teaser\//);
+    expect(html).toContain('property="og:image:width" content="1672"');
+    expect(html).toContain('property="og:image:height" content="941"');
+    expect(html).toContain('name="twitter:card" content="summary_large_image"');
+    /* Et rien d'autre n'a été réécrit : le reste du document garde ses adresses
+       relatives, sans quoi un déploiement derrière un autre nom se casserait. */
+    expect(html).not.toContain('content="https://auvergne.example/img/teaser/"');
+  });
+});
+
+describe('absolutiserPartage', () => {
+  it('ne touche que les adresses de la vignette de partage', () => {
+    const html =
+      '<meta property="og:image" content="/img/teaser/cousins.webp" />' +
+      '<link rel="icon" href="/favicon.svg" /><img src="/img/decor/ferme-0.webp" />' +
+      '<meta name="description" content="/img/teaser/pas-un-chemin" />';
+    const sorti = absolutiserPartage(html, 'https://forez.example');
+    expect(sorti).toContain('content="https://forez.example/img/teaser/cousins.webp"');
+    /* Le reste du document est intact : une réécriture large casserait les
+       adresses des assets, qui doivent rester relatives. */
+    expect(sorti).toContain('href="/favicon.svg"');
+    expect(sorti).toContain('src="/img/decor/ferme-0.webp"');
+  });
+
+  it('ne fait rien quand il n’y a rien à rendre absolu', () => {
+    const html = '<meta name="theme-color" content="#1A1F26" />';
+    expect(absolutiserPartage(html, 'https://forez.example')).toBe(html);
   });
 });

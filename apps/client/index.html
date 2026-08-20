@@ -12,6 +12,38 @@
       content="Heroes of Might and Magic — Auvergne Edition : jeu de stratégie au tour par tour dans le Forez, des Bois Noirs à La Renaudie."
     />
     <title>Heroes of Might and Magic — Auvergne Edition</title>
+    <!--
+      LA CARTE DE PARTAGE — ce que voient les cousins quand le lien arrive.
+
+      Le jeu se joue à cinq, en partageant une seule adresse : cette vignette
+      est donc le premier contact de quatre joueurs sur cinq avec le Forez. Le
+      teaser porte le titre, les cinq héros et trois noms de lieux, et il est en
+      16:9 — on ne le ROGNE jamais, sous peine de couper un visage ou un nom.
+      `og:image:width` et `og:image:height` sont là pour cela : un client qui
+      connaît les dimensions cadre en boîte au lieu de deviner et de tailler.
+
+      Les adresses sont écrites en RELATIF, ce qui suffit à un navigateur. Les
+      robots d'aperçu, eux, exigent une adresse absolue : `apps/server/src/static.ts`
+      les rend absolues au moment de servir la page, à partir de l'hôte de la
+      requête — de sorte qu'aucun nom de domaine n'est écrit en dur nulle part.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Heroes of Might and Magic — Auvergne Edition" />
+    <meta property="og:title" content="Heroes of Might and Magic — Auvergne Edition" />
+    <meta
+      property="og:description"
+      content="Cinq bannières, un massif : le Forez, des Bois Noirs à La Renaudie. Ouvrez le lien, prenez une bannière, jouez quand vous voulez."
+    />
+    <meta property="og:image" content="/img/teaser/cousins.webp" />
+    <meta property="og:image:type" content="image/webp" />
+    <meta property="og:image:width" content="1672" />
+    <meta property="og:image:height" content="941" />
+    <meta
+      property="og:image:alt"
+      content="Les cinq héros du Forez devant un griffon, une vouivre, un colosse de granite et un sanglier cuirassé."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="/img/teaser/cousins.webp" />
     <!-- Le donjon de la Châtellenie, dessiné en SVG et embarqué en `data:` :
          aucun fichier, aucun CDN, et surtout aucune requête `/favicon.ico` en
          404 dans le journal de la console. -->

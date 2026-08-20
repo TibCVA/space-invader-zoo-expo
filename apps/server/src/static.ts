@@ -16,7 +16,7 @@
  * Si le dossier est absent (API démarrée seule, image incomplète), une page de
  * diagnostic française soignée explique quoi faire, plutôt qu'un 404 nu.
  */
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import fastifyStatic from '@fastify/static';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -86,6 +86,11 @@ export async function registerStatic(
     };
   }
 
+  /* `clientDir` est déjà réduit à une chaîne par le retour anticipé ci-dessus,
+     mais l'analyse de flux de TypeScript ne traverse pas une déclaration de
+     fonction : `sendIndex` la reverrait `string | null`. On la fige ici. */
+  const racineClient: string = clientDir;
+
   await app.register(fastifyStatic, {
     root: clientDir,
     prefix: '/',
@@ -108,7 +113,7 @@ export async function registerStatic(
     },
   });
 
-  app.get('/', async (_request, reply) => sendIndex(reply));
+  app.get('/', async (request, reply) => sendIndex(request, reply));
 
   return {
     clientDir,
@@ -119,15 +124,73 @@ export async function registerStatic(
           .header('content-type', 'application/json; charset=utf-8')
           .send({ erreur: "Cette ressource n'existe pas.", code: 'route_introuvable' });
       }
-      return sendIndex(reply);
+      return sendIndex(request, reply);
     },
   };
 
-  function sendIndex(reply: FastifyReply): Promise<FastifyReply> {
+  function sendIndex(request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> {
+    const html = indexPour(racineClient, origineDe(request));
+    if (html === null) {
+      /* Illisible pour une raison quelconque : on retombe sur le fichier tel
+         quel plutôt que de rendre une page blanche. L'aperçu de partage sera
+         relatif, ce que la plupart des robots savent encore résoudre. */
+      return reply
+        .header('cache-control', 'no-cache, must-revalidate')
+        .type('text/html; charset=utf-8')
+        .sendFile('index.html') as unknown as Promise<FastifyReply>;
+    }
     return reply
       .header('cache-control', 'no-cache, must-revalidate')
       .type('text/html; charset=utf-8')
-      .sendFile('index.html') as unknown as Promise<FastifyReply>;
+      .send(html) as unknown as Promise<FastifyReply>;
+  }
+}
+
+/* ── Carte de partage ───────────────────────────────────────────────────── */
+
+/**
+ * L'origine de la requête, telle qu'un robot d'aperçu doit la voir.
+ *
+ * `trustProxy` est actif par défaut, donc `request.protocol` suit
+ * `x-forwarded-proto` : derrière Railway on obtient bien `https` et non le
+ * `http` du saut interne. Une adresse `http://` dans un `og:image` servi en
+ * `https` est refusée par une partie des robots, et c'est exactement le genre
+ * de défaut qui ne se voit qu'une fois le lien envoyé aux cousins.
+ */
+function origineDe(request: FastifyRequest): string {
+  return `${request.protocol}://${request.host}`;
+}
+
+/** `index.html` lu une fois, avec ses adresses de partage rendues absolues. */
+const cacheIndex = new Map<string, string>();
+
+/**
+ * Rend absolues les adresses de la carte de partage.
+ *
+ * Pourquoi ne pas simplement écrire l'adresse en dur dans `index.html` : parce
+ * qu'elle changerait selon qu'on sert depuis Railway, depuis un poste de
+ * développement ou depuis une prévisualisation, et qu'un nom de domaine écrit
+ * en dur finit toujours par mentir. Le remplacement est volontairement ÉTROIT —
+ * il ne touche que les adresses commençant par `/img/teaser/` dans un attribut
+ * `content` — pour qu'aucune autre partie du document ne puisse être réécrite
+ * par accident.
+ */
+export function absolutiserPartage(html: string, origine: string): string {
+  return html.replaceAll('content="/img/teaser/', `content="${origine}/img/teaser/`);
+}
+
+function indexPour(clientDir: string, origine: string): string | null {
+  const enCache = cacheIndex.get(origine);
+  if (enCache !== undefined) return enCache;
+  try {
+    const brut = readFileSync(join(clientDir, 'index.html'), 'utf8');
+    const html = absolutiserPartage(brut, origine);
+    /* Une poignée d'origines au plus en production ; la borne n'est là que pour
+       qu'un en-tête `Host` forgé ne fasse pas grossir la table indéfiniment. */
+    if (cacheIndex.size < 16) cacheIndex.set(origine, html);
+    return html;
+  } catch {
+    return null;
   }
 }
 
