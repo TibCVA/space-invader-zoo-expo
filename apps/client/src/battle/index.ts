@@ -28,8 +28,10 @@ import { Container, Graphics, Rectangle } from 'pixi.js';
 import type { FederatedPointerEvent } from 'pixi.js';
 import {
   activeUnit,
+  attackAngle,
   canCastSpell,
   canUseAbility,
+  chooseCombatAction,
   describeAbility,
   effectiveAttack,
   effectiveDefense,
@@ -40,6 +42,7 @@ import {
   hexPath,
   livingUnits,
   movementPoints,
+  reachableAttackHexes,
   reachableHexes,
   terrainLabel,
   unitDef,
@@ -48,6 +51,7 @@ import {
   weatherLabel,
 } from '@auvergne/engine';
 import type {
+  AttackAngle,
   CombatAction,
   CombatLogEntry,
   CombatState,
@@ -55,17 +59,18 @@ import type {
   GameEvent,
   HexCoord,
   HeroInstance,
+  PlayerId,
   SpellId,
 } from '@auvergne/engine';
 import type { AttackPreview, BattleView, BattleViewDeps } from '../view-contract.js';
 import { LIGHT, PALETTE, assombrir, melanger } from '../art/palette.js';
 import { blob, degradeLineaire, degradeRadial, flat } from '../art/shading.js';
 import { ChampDeBataille, AMBIANCE_LABELS } from './field.js';
-import { CoucheGrille, Geometrie, cadrerPlateau } from './hexgrid.js';
+import { CoucheGrille, Geometrie, cadrerPlateau, zonesDeMenace } from './hexgrid.js';
 import { CoucheUnites, campsDuCombat, vignettePile, type Camp } from './units.js';
 import { BarreInitiative } from './initiative.js';
 import { CarteApercu, construireApercu, enrichirApercu, libelleEffet, type ApercuComplet } from './preview.js';
-import { poserCarteAmarree } from './amarrage.js';
+import { POIGNEE_TACTILE, poserBoutonsActions, poserCarteAmarree } from './amarrage.js';
 import { brancherPincement, echelleBornee, gardePincement } from '../pincement.js';
 import { PanneauSorts, couleurEcole, sortConnu, type EntreeSort } from './spells.js';
 import { Fortifications } from './siege.js';
@@ -88,9 +93,169 @@ import {
 /** Grossissement maximal du champ au pincement. */
 const ZOOM_COMBAT_MAX = 2.6;
 
+/*
+ * ══════════════════════════ Assaut avec approche ══════════════════════════
+ *
+ * Le geste fondateur de HMM3 — cliquer l'ennemi, marcher jusqu'à lui, frapper
+ * — manquait. La vue émettait `{kind:'attack', unit, target}` SANS `from` ;
+ * `doAttack` ne bouge pas sans case de départ, `unitsAdjacent` échouait et le
+ * joueur récoltait « La cible n'est pas au contact. » dans une bulle posée
+ * hors du champ de bataille. Le moteur savait pourtant le faire : l'IA émet
+ * `{kind:'attack', …, from}` depuis toujours.
+ */
+
+/** Case d'où l'assaut partira, avec ce qu'il en coûte et l'angle obtenu. */
+export interface Approche {
+  readonly at: HexCoord;
+  /** hexagones à parcourir ; 0 quand la pile est déjà au contact */
+  readonly cout: number;
+  readonly angle: AttackAngle;
+}
+
+/** À coût égal, le dos vaut mieux que le flanc, et le flanc mieux que la face. */
+const RANG_ANGLE: Readonly<Record<AttackAngle, number>> = { face: 0, flanc: 1, dos: 2 };
+
+/*
+ * ═══════════════════════════ Le camp adverse joue ═════════════════════════
+ *
+ * `chooseCombatAction` n'avait qu'un seul appelant dans tout le dépôt :
+ * `autoResolve`. Personne ne jouait donc le camp adverse dans un combat
+ * manuel — quand une pile de gardes neutres devenait active, le joueur devait
+ * la jouer LUI-MÊME ou expédier la bataille par « Résoudre automatiquement ».
+ *
+ * La boucle est portée par la VUE et non par le moteur, pour trois raisons :
+ *  – `applyCombatAction` applique UNE action et ignore délibérément le
+ *    propriétaire de la pile : `autoResolve` et les rejeux serveur en
+ *    dépendent, un contrôle de bannière y casserait la résolution auto ;
+ *  – seule la vue connaît `deps.localPlayer` et la fin des animations, or
+ *    c'est là qu'il faut rendre la main ;
+ *  – la vue émet déjà les actions par `dispatch`, exactement comme un clic.
+ *
+ * Le délai est une CONSTANTE : le combat est déterministe, une graine rejouée
+ * doit rendre la même bataille, et aucun aléa n'a sa place ici.
+ */
+export const REFLEXION_ADVERSAIRE_MS = 520;
+
+/** Camp du joueur dans ce combat, `null` s'il n'y tient aucune bannière. */
+export function campDuJoueur(combat: CombatState, joueur: PlayerId): 0 | 1 | null {
+  if (combat.attacker.player === joueur) return 0;
+  if (combat.defender.player === joueur) return 1;
+  return null;
+}
+
+/**
+ * Le moteur doit-il jouer la pile active à la place du joueur ?
+ *
+ * Oui dès que la pile n'est pas au camp local : bannière adverse, gardes
+ * neutres (`defender.player === null`, donc `campLocal` vaut 0 et le camp 1
+ * n'appartient à personne), ou combat simplement observé. Non en
+ * démonstration : le contrat de vue interdit tout tour d'IA sur `#/demo/*`.
+ */
+export function moteurDoitJouer(
+  combat: CombatState,
+  actif: CombatUnit | null,
+  campLocal: 0 | 1 | null,
+  demo: boolean,
+): boolean {
+  if (demo || combat.finished) return false;
+  if (!actif || !actif.alive) return false;
+  return actif.side !== campLocal;
+}
+
+/**
+ * Case d'approche retenue, ou `null` si la cible est hors d'atteinte ce
+ * tour-ci. Le choix ne réinvente aucune règle : les cases viennent de
+ * `reachableAttackHexes`, déjà triées par coût croissant, et l'angle de
+ * `attackAngle`. On prend la moins chère ; le flanc et le dos ne départagent
+ * que ce qui coûte pareil, car ils ne doivent jamais faire marcher plus loin.
+ */
+export function choisirApproche(
+  combat: CombatState,
+  unit: CombatUnit,
+  cible: CombatUnit,
+): Approche | null {
+  let meilleure: Approche | null = null;
+  for (const { at, cost } of reachableAttackHexes(combat, unit, cible)) {
+    if (meilleure && cost > meilleure.cout) break;
+    const angle = attackAngle(cible.at, cible.facing, at);
+    if (!meilleure || RANG_ANGLE[angle] > RANG_ANGLE[meilleure.angle]) {
+      meilleure = { at, cout: cost, angle };
+    }
+  }
+  return meilleure;
+}
+
+/**
+ * L'action qu'un clic sur `cible` doit émettre, ou `null` quand rien ne peut
+ * partir. L'attaque emporte sa case de départ (`from`) : sans elle, `doAttack`
+ * ne bouge pas et refuse tout ce qui n'est pas déjà au contact.
+ */
+export function actionAssaut(
+  combat: CombatState,
+  unit: CombatUnit,
+  cible: CombatUnit,
+): CombatAction | null {
+  const def = unitDef(unit);
+  if (def.shooter === true && unit.shots > 0 && hexDistance(unit.at, cible.at) > 1) {
+    return { kind: 'shoot', unit: unit.uid, target: cible.uid };
+  }
+  const approche = choisirApproche(combat, unit, cible);
+  if (!approche) return null;
+  return approche.cout === 0
+    ? { kind: 'attack', unit: unit.uid, target: cible.uid }
+    : { kind: 'attack', unit: unit.uid, target: cible.uid, from: approche.at };
+}
+
+/* ═══════════════════════════ Viser, puis frapper ═════════════════════════ */
+
+/**
+ * Ce que fait un appui sur une pile ennemie.
+ *
+ * Au doigt, le PREMIER appui déclenchait l'attaque : `surClic` construisait
+ * l'aperçu puis appelait `emettre` dans la foulée, sans aucune étape de
+ * confirmation. L'aide affichée en compact promettait pourtant l'inverse —
+ * « une pile ennemie pour la viser ». Le texte promettait une visée, le code
+ * frappait, et un pouce qui rate d'un hexagone dépensait le tour.
+ *
+ * À la souris le geste de HMM3 reste d'un seul clic : le survol a déjà montré
+ * l'aperçu et le curseur, la visée a donc déjà eu lieu.
+ */
+export type GesteSurEnnemi = 'viser' | 'frapper';
+
+export function gesteSurEnnemi(
+  tactile: boolean,
+  visee: string | null,
+  cible: string,
+): GesteSurEnnemi {
+  if (!tactile) return 'frapper';
+  return visee === cible ? 'frapper' : 'viser';
+}
+
+/* ═══════════════════════ Maintien : zones de menace ══════════════════════ */
+
+/**
+ * Combien de temps le doigt doit rester posé pour que les zones de menace
+ * apparaissent, en millisecondes.
+ *
+ * Les menaces n'étaient offertes qu'au maintien de la touche `M` — inexistant
+ * sur un iPhone. Le maintien du doigt est la même intention, dite avec ce
+ * qu'on a. Le seuil se tient entre deux échecs : trop court, le moindre appui
+ * un peu appuyé fait clignoter le champ ; trop long, personne ne découvre le
+ * geste.
+ */
+export const MAINTIEN_MENACES_MS = 340;
+
+/** Au-delà de ce déplacement, le doigt fait glisser, il ne maintient pas. */
+export const MAINTIEN_TOLERANCE_PX = 12;
+
+/** Le doigt posé demande-t-il les zones de menace ? */
+export function maintienMontreLesMenaces(dureeMs: number, deplacementPx: number): boolean {
+  return deplacementPx <= MAINTIEN_TOLERANCE_PX && dureeMs >= MAINTIEN_MENACES_MS;
+}
+
 /* ══════════════════════════════ Disposition ══════════════════════════════ */
 
-interface Gabarit {
+export interface Gabarit {
   compact: boolean;
   /** téléphone tenu à la verticale : disposition entièrement empilée */
   portrait: boolean;
@@ -108,7 +273,17 @@ interface Gabarit {
   etirement: number;
 }
 
-function gabarit(largeur: number, hauteur: number): Gabarit {
+/** Hauteur du bandeau de fiche en portrait ; sa mise en page en dépend. */
+const FICHE_PORTRAIT = 124;
+
+/**
+ * Coiffe de la carte d'aperçu amarrée, plus la marge qui l'en sépare : ce
+ * qu'il faut réserver sous le champ pour que la carte REPLIÉE tienne entre le
+ * champ et le bandeau de fiche, sans recouvrir ni l'un ni l'autre.
+ */
+const COIFFE_CARTE = 54;
+
+export function gabarit(largeur: number, hauteur: number): Gabarit {
   const compact = largeur < 940 || hauteur < 520;
   if (compact) {
     const portrait = hauteur > largeur * 1.2;
@@ -118,11 +293,30 @@ function gabarit(largeur: number, hauteur: number): Gabarit {
       barre: 68,
       gauche: 0,
       droite: 0,
-      bas: 74,
-      /* en portrait, la place laissée sous le champ n'est pas un vide : elle
-         porte la fiche de la pile, et reçoit la carte d'aperçu amarrée. */
-      info: portrait ? Math.round(Math.min(320, Math.max(230, hauteur * 0.44))) : 0,
-      fiche: portrait ? 124 : 0,
+      /* 84 et non 74 : le panneau rétracté doit loger la bande de bascule de
+         26 points ET une rangée de boutons d'au moins 44 — la hauteur d'avant
+         forçait des boutons de 38 points, sous le minimum tactile. */
+      bas: 84,
+      /*
+       * La place laissée sous le champ n'est pas un vide : elle porte la
+       * fiche de la pile et la coiffe de la carte d'aperçu amarrée. Elle
+       * n'a donc pas à porter la carte DÉPLIÉE — celle-ci se superpose au
+       * champ, c'est tout son intérêt.
+       *
+       * Elle valait `max(230, hauteur × 0,44)`, jusqu'à 320 points : sur la
+       * capture iPhone, le champ de bataille tombait à un tiers de la scène
+       * et la carte en avalait la moitié. La réserve tient maintenant à ce
+       * qu'elle contient vraiment, fiche plus coiffe.
+       */
+      info: portrait
+        ? Math.round(
+            Math.min(
+              FICHE_PORTRAIT + COIFFE_CARTE + 42,
+              Math.max(FICHE_PORTRAIT + COIFFE_CARTE, hauteur * 0.27),
+            ),
+          )
+        : 0,
+      fiche: portrait ? FICHE_PORTRAIT : 0,
       etirementMax: portrait ? 1.3 : 1,
       etirement: 1,
     };
@@ -138,6 +332,29 @@ function gabarit(largeur: number, hauteur: number): Gabarit {
     fiche: 0,
     etirementMax: 1,
     etirement: 1,
+  };
+}
+
+/**
+ * Bande d'écran offerte au champ de bataille, marges comprises. Extraite du
+ * redimensionnement pour être MESURABLE : c'est elle que le test de
+ * disposition compare à la réserve du bas.
+ */
+export function bandeDuChamp(
+  plan: Gabarit,
+  largeur: number,
+  hauteur: number,
+  panneauBas: number,
+): { x: number; y: number; w: number; h: number } {
+  const marge = plan.compact ? 8 : 16;
+  /* En portrait, le cartouche d'effectif déborde de l'hexagone : sans ce
+     retrait, les piles des colonnes de bord sont coupées par l'écran. */
+  const retrait = plan.portrait ? 15 : 0;
+  return {
+    x: plan.gauche + marge + retrait,
+    y: plan.barre + marge,
+    w: Math.max(80, largeur - plan.gauche - plan.droite - marge * 2 - retrait * 2),
+    h: Math.max(80, hauteur - plan.barre - panneauBas - plan.info - marge * 2),
   };
 }
 
@@ -221,8 +438,16 @@ class VueCombat implements BattleView {
   private apercuImpose: AttackPreview | null = null;
   private ancreApercu = { x: 0, y: 0 };
   private menacesVisibles = false;
+  /** doigt posé sur le champ : origine, durée, plus grand écart parcouru */
+  private maintien: { x: number; y: number; ms: number; ecart: number } | null = null;
+  /** les menaces affichées le sont par un maintien du doigt, pas par `M` */
+  private menacesParMaintien = false;
+  /** le maintien a répondu : le relâché qui suit n'est pas un coup */
+  private avalerLeClic = false;
   private panneauReplie = true;
   private boutons: ActionBouton[] = [];
+  /** bande du haut du panneau qui bascule le panneau au lieu d'agir */
+  private zonePoignee = POIGNEE_TACTILE;
   private cleFiche = '';
   private cleJournal = '';
   private cleActions = '';
@@ -231,7 +456,14 @@ class VueCombat implements BattleView {
   private baseBoard = { x: 0, y: 0 };
   /** bande écran offerte au champ de bataille, marges comprises */
   private bandeChamp = { x: 0, y: 0, w: 1, h: 1 };
-  /** en portrait, la carte d'aperçu est un panneau rétractable superposé */
+  /**
+   * En portrait, la carte d'aperçu est un panneau rétractable superposé.
+   *
+   * Elle arrive REPLIÉE : dépliée d'office, elle occupait la moitié de la
+   * hauteur de scène et absorbait la touche sur toute sa surface — les piles
+   * qu'elle recouvrait étaient intouchables. Repliée, elle ne prend que sa
+   * coiffe, et une touche dessus la déroule quand on veut les chiffres.
+   */
   private carteRepliee = false;
   /** hauteur réellement montrée de la carte amarrée (rognée si besoin) */
   private hauteurCarteVisible = 0;
@@ -242,11 +474,14 @@ class VueCombat implements BattleView {
   private enAttenteDeSync = false;
   private surTouche: ((e: KeyboardEvent) => void) | null = null;
   private surRelache: ((e: KeyboardEvent) => void) | null = null;
+  /** millisecondes écoulées depuis que la pile adverse est devenue active */
+  private reflexionAdversaire = 0;
 
   constructor(private readonly deps: BattleViewDeps) {
     this.container.label = 'combat-tactique';
     this.combat = deps.combat;
     this.plan = gabarit(deps.width, deps.height);
+    this.carteRepliee = this.plan.compact;
     this.camps = campsDuCombat(this.combat, deps.store.get().game?.players ?? {});
 
     this.container.addChild(this.racine);
@@ -304,15 +539,22 @@ class VueCombat implements BattleView {
   /* ═══════════════════════════ Contrat de vue ════════════════════════════ */
 
   setCombat(combat: CombatState): void {
+    const avant = this.actif;
     this.combat = combat;
     this.camps = campsDuCombat(combat, this.deps.store.get().game?.players ?? {});
     if (this.actif && !findUnit(combat, this.actif)?.alive) this.actif = null;
     if (!this.actif) this.actif = activeUnit(combat)?.uid ?? null;
     if (this.selection && !findUnit(combat, this.selection)) this.selection = this.actif;
+    /* La visée appartient à la pile qui l'a posée : la laisser survivre au
+       changement de main ferait frapper au PREMIER appui du tour suivant. */
+    if (this.actif !== avant) this.cibleForcee = null;
+    /* Une cible morte ne se vise plus. */
+    if (this.cibleForcee && !findUnit(combat, this.cibleForcee)?.alive) this.cibleForcee = null;
     this.appliquer();
   }
 
   setActiveUnit(unitId: string | null): void {
+    if (unitId !== this.actif) this.cibleForcee = null;
     this.actif = unitId;
     if (unitId) this.selection = unitId;
     this.appliquer();
@@ -386,19 +628,7 @@ class VueCombat implements BattleView {
     );
 
     this.file.purger();
-    const marge = this.plan.compact ? 8 : 16;
-    /* En portrait, le cartouche d'effectif déborde de l'hexagone : sans ce
-       retrait, les piles des colonnes de bord sont coupées par l'écran. */
-    const retrait = this.plan.portrait ? 15 : 0;
-    const zone = {
-      x: this.plan.gauche + marge + retrait,
-      y: this.plan.barre + marge,
-      w: Math.max(80, this.largeur - this.plan.gauche - this.plan.droite - marge * 2 - retrait * 2),
-      h: Math.max(
-        80,
-        this.hauteur - this.plan.barre - this.hauteurPanneauBas() - this.plan.info - marge * 2,
-      ),
-    };
+    const zone = bandeDuChamp(this.plan, this.largeur, this.hauteur, this.hauteurPanneauBas());
     this.bandeChamp = zone;
 
     /* Étirement : le plateau prend la hauteur qu'on lui laisse, jusqu'au
@@ -451,6 +681,8 @@ class VueCombat implements BattleView {
     this.barre.update(dt);
     this.grimoire.update(dt);
     this.carte.update(dt, this.ancreApercu);
+    this.avancerMaintien(dt);
+    this.avancerAdversaire(dt);
 
     /* secousse d'écran : elle porte le plateau, jamais l'interface */
     const s = this.vfx.secousse.decalage;
@@ -595,6 +827,45 @@ class VueCombat implements BattleView {
     this.disposerIhm();
   }
 
+  /* ════════════════════════ Le camp adverse joue ═════════════════════════ */
+
+  /** Vrai quand la pile active n'est pas au joueur local. */
+  private get adversaireDoitJouer(): boolean {
+    return moteurDoitJouer(
+      this.combat,
+      this.actif ? findUnit(this.combat, this.actif) : null,
+      campDuJoueur(this.combat, this.deps.localPlayer),
+      this.deps.demo,
+    );
+  }
+
+  /**
+   * Fait jouer le moteur pour le camp adverse, après un temps de réflexion
+   * fixe et une fois les animations retombées — sans quoi les coups
+   * s'empileraient sans que l'œil puisse les suivre.
+   */
+  private avancerAdversaire(dt: number): void {
+    if (!this.adversaireDoitJouer || this.file.occupee || this.enAttenteDeSync) {
+      this.reflexionAdversaire = 0;
+      return;
+    }
+    this.reflexionAdversaire += dt;
+    const attente = this.deps.reducedMotion ? 0 : REFLEXION_ADVERSAIRE_MS;
+    if (this.reflexionAdversaire < attente) return;
+    this.reflexionAdversaire = 0;
+    const jeu = this.deps.store.get().game;
+    const combat = jeu?.combat;
+    if (!jeu || !combat || combat.finished) return;
+    const u = activeUnit(combat);
+    if (!u) return;
+    /* La décision vient du moteur, pas de la vue : `chooseCombatAction` est
+       pure et déterministe, la même situation rend toujours le même coup. */
+    const rendu = this.deps.dispatch({ type: 'CombatAction', action: chooseCombatAction(jeu, combat) });
+    /* Même verrou que `autoResolve` : une décision refusée ne doit jamais
+       figer la bataille sur une pile qui rejoue indéfiniment le même coup. */
+    if (!rendu.ok) this.deps.dispatch({ type: 'CombatAction', action: { kind: 'defend', unit: u.uid } });
+  }
+
   /** Cases atteignables et hexagone actif — tout vient de `reachableHexes`. */
   private majPortee(): void {
     const u = this.actif ? findUnit(this.combat, this.actif) : null;
@@ -607,33 +878,10 @@ class VueCombat implements BattleView {
     this.marques.set({
       atteignables: this.atteignables,
       active: u.at,
-      menaces: this.menacesVisibles ? this.zonesDeMenace(u) : [],
+      menaces: this.menacesVisibles ? zonesDeMenace(this.combat, u) : [],
     });
   }
 
-  /**
-   * Zones de menace : les cases d'où une pile ennemie pourrait frapper. Elles
-   * sont obtenues en interrogeant le moteur (`reachableHexes`) pile par pile,
-   * jamais en réinventant la portée.
-   */
-  private zonesDeMenace(pour: CombatUnit): HexCoord[] {
-    const out: HexCoord[] = [];
-    const vus = new Set<number>();
-    for (const e of livingUnits(this.combat, pour.side === 0 ? 1 : 0)) {
-      const def = unitDef(e);
-      if (def.shooter && e.shots > 0) {
-        /* un tireur menace tout le champ : on marque sa ligne de mire */
-        continue;
-      }
-      for (const h of reachableHexes(this.combat, e)) {
-        const k = h.row * 100 + h.col;
-        if (vus.has(k)) continue;
-        vus.add(k);
-        out.push(h);
-      }
-    }
-    return out;
-  }
 
   /* ═══════════════════════════ Prévisualisation ══════════════════════════ */
 
@@ -665,14 +913,30 @@ class VueCombat implements BattleView {
     }
     const def = unitDef(a);
     const distance = def.shooter === true && a.shots > 0 && hexDistance(a.at, c.at) > 1;
-    const cle = `${a.uid}:${a.count}:${a.at.col},${a.at.row}>${c.uid}:${c.count}:${c.topHp}:${distance}`;
+    /* Au corps à corps, le coup ne partira pas d'ici mais de la case
+       d'approche : c'est depuis elle que se comptent l'angle, la riposte
+       conditionnelle et la charge. L'aperçu mentait tant qu'il l'ignorait. */
+    const approche = distance ? null : choisirApproche(this.combat, a, c);
+    const depuis = approche ? approche.at : a.at;
+    const cle = [
+      a.uid, a.count, a.at.col, a.at.row,
+      c.uid, c.count, c.topHp, c.facing,
+      distance ? 't' : 'm',
+      approche ? `${approche.at.col},${approche.at.row},${approche.cout}` : 'x',
+    ].join(':');
     if (cle !== this.cleApercu) {
       this.cleApercu = cle;
-      this.apercu = construireApercu(this.combat, a, c, distance);
+      this.apercu = construireApercu(this.combat, a, c, distance, approche);
       this.carte.montrer(this.apercu, this.combat);
     }
     this.placerCarte();
-    this.marques.set({ curseur: { depuis: a.at, vers: c.at, tir: distance } });
+    /* Assaut impossible : pas de pointe de lance sur la cible. Rien ne doit
+       laisser croire que le clic va porter. */
+    this.marques.set(
+      distance || approche
+        ? { curseur: { depuis, vers: c.at, tir: distance } }
+        : { curseur: null },
+    );
   }
 
   private cibleSurvolee(): string | null {
@@ -757,7 +1021,11 @@ class VueCombat implements BattleView {
         hauteur: this.hauteur,
         largeur: this.largeur,
         barre: this.plan.barre,
-        panneauBas: this.hauteurPanneauBas(),
+        /* La fiche fait partie du plancher : la carte s'arrêtait au-dessus de
+           la seule barre d'actions et recouvrait le bandeau, si bien qu'on
+           éteignait la fiche pour ne pas superposer deux parchemins. Lire les
+           chiffres d'une attaque coûtait alors la fiche de sa propre pile. */
+        panneauBas: this.hauteurPanneauBas() + this.plan.fiche,
         largeurCarte: w,
         hauteurCarte: h,
         entete: this.enteteCarte,
@@ -807,11 +1075,12 @@ class VueCombat implements BattleView {
     this.ficheG.position.set(marge, this.plan.barre + marge);
     this.journalD.position.set(this.largeur - this.plan.droite + 2, this.plan.barre + marge);
     this.barreActions.position.set(0, this.hauteur - this.hauteurPanneauBas());
-    /* la carte amarrée dépliée recouvre le bandeau : on ne laisse pas deux
-       parchemins se chevaucher par les bords */
     const carteDepliee = this.carteAmarree && this.carte.estOuverte && !this.carteRepliee;
-    this.infoBas.visible =
-      this.plan.fiche > 0 && this.hauteurPanneauBas() <= this.plan.bas && !carteDepliee;
+    /* La fiche ne s'éteint plus quand la carte se déplie : la carte s'arrête
+       maintenant AU-DESSUS du bandeau (`placerCarte`), les deux parchemins ne
+       se chevauchent plus, et on ne perd plus sa propre pile de vue pour lire
+       les chiffres d'une attaque. */
+    this.infoBas.visible = this.plan.fiche > 0 && this.hauteurPanneauBas() <= this.plan.bas;
     /* Le rappel des commandes se pose au même endroit que la carte amarrée :
        dépliée, elle le recouvrait et il n'en dépassait que trois lettres au
        bord gauche de l'écran. Un texte qu'on ne peut pas lire n'aide personne. */
@@ -956,7 +1225,10 @@ class VueCombat implements BattleView {
 
   private hauteurPanneauBas(): number {
     if (!this.plan.compact) return this.plan.bas;
-    return this.panneauReplie ? 74 : Math.min(this.hauteur * 0.52, 320);
+    /* `this.plan.bas` et non un 74 recopié : `disposerIhm` compare cette
+       hauteur à `plan.bas` pour savoir si le panneau est rétracté, et les
+       deux valeurs avaient divergé une fois déjà. */
+    return this.panneauReplie ? this.plan.bas : Math.min(this.hauteur * 0.52, 320);
   }
 
   /** Fiche de la pile sélectionnée : ce qu'elle est, ce qu'elle porte. */
@@ -1220,6 +1492,7 @@ class VueCombat implements BattleView {
       this.largeur,
       this.hauteur,
       this.combat.finished ? 'f' : 'e',
+      this.adversaireDoitJouer ? 'ia' : 'moi',
     ].join('|');
     if (cle === this.cleActions) return;
     this.cleActions = cle;
@@ -1244,31 +1517,37 @@ class VueCombat implements BattleView {
       const px = (this.largeur - pw) / 2;
       this.poignee.roundRect(px, 6, pw, 6, 3).fill({ color: melanger(PALETTE.parcheminOmbre, LIGHT.chaude, 0.2), alpha: 0.75 });
       this.poignee.roundRect(px, 6, pw, 2.4, 3).fill({ color: LIGHT.chaude, alpha: 0.25 });
-      this.poignee.rect(px - 40, 0, pw + 80, 26).fill({ color: LIGHT.chaude, alpha: 0.001 });
+      this.poignee.rect(px - 40, 0, pw + 80, POIGNEE_TACTILE).fill({ color: LIGHT.chaude, alpha: 0.001 });
     }
 
     const libelles = this.listeActions(u);
     const compact = this.plan.compact;
-    const dispo = compact ? Math.min(this.largeur - 16, 420) : Math.min(this.largeur - this.plan.gauche - this.plan.droite - 40, 760);
-    const debutX = compact ? (this.largeur - dispo) / 2 : this.plan.gauche + (this.largeur - this.plan.gauche - this.plan.droite - dispo) / 2;
-    const n = libelles.length;
-    const ecart = 8;
-    const bw = Math.max(56, Math.floor((dispo - ecart * (n - 1)) / n));
-    const bh = 52;
-    const by = compact ? (this.panneauReplie ? 16 : h - bh - 12) : (h - bh) / 2;
+    /* La pose vient de `amarrage.ts`, qui garantit l'invariant gardé par
+       `actions.test.ts` : chaque bouton tient dans l'écran, sous la bande de
+       bascule, et ne descend pas sous 44 points de côté. */
+    const pose = poserBoutonsActions({
+      largeur: this.largeur,
+      panneauBas: h,
+      gauche: this.plan.gauche,
+      droite: this.plan.droite,
+      compact,
+      replie: this.panneauReplie,
+      nombre: libelles.length,
+    });
+    this.zonePoignee = pose.zonePoignee;
 
-    for (let i = 0; i < n; i += 1) {
+    for (let i = 0; i < libelles.length; i += 1) {
       const a = libelles[i];
+      const r = pose.rectangles[i];
       const noeud = bouton(this.deps.atlas.materials, {
-        largeur: bw,
-        hauteur: bh,
+        largeur: r.w,
+        hauteur: r.h,
         libelle: a.libelle,
         note: a.note,
         actif: a.actif,
         teinte: a.teinte,
       });
-      const x = debutX + i * (bw + ecart);
-      noeud.position.set(x, by);
+      noeud.position.set(r.x, r.y);
       this.actionsCorps.addChild(noeud);
       this.boutons.push({
         cle: a.cle,
@@ -1276,7 +1555,7 @@ class VueCombat implements BattleView {
         note: a.note,
         actif: a.actif,
         noeud,
-        zone: new Rectangle(x, by, bw, bh),
+        zone: new Rectangle(r.x, r.y, r.w, r.h),
       });
     }
 
@@ -1308,14 +1587,19 @@ class VueCombat implements BattleView {
       );
       this.actionsCorps.addChild(g);
     } else if (compact && this.panneauReplie && u) {
+      /* Le nom se range désormais DANS la bande de bascule, à gauche de la
+         poignée : la rangée de boutons occupe tout le reste du panneau, et le
+         nom posé à `y = 20` passait dessous. On ne l'écrit que s'il tient
+         dans la place libre — un nom tronqué par la poignée n'apprend rien. */
       const nom = donneeClaire(
         `${unitLabel(u)} — ${this.camps[u.side].nom}`,
-        13,
+        11.5,
         melanger(PALETTE.parchemin, LIGHT.chaude, 0.3),
         true,
       );
-      nom.position.set(14, 20);
-      this.actionsCorps.addChild(nom);
+      nom.position.set(12, 5);
+      if (nom.width <= (this.largeur - 96) / 2 - 16) this.actionsCorps.addChild(nom);
+      else nom.destroy();
     }
     this.figer(this.barreActions);
   }
@@ -1336,6 +1620,19 @@ class VueCombat implements BattleView {
         { cle: 'sorts', libelle: 'Grimoire', actif: false },
       ];
     }
+    /* La pile qui joue n'est pas la nôtre : le moteur s'en charge, et aucun
+       bouton ne doit laisser croire au joueur qu'il pilote le camp d'en face. */
+    if (this.adversaireDoitJouer) {
+      return [
+        {
+          cle: 'adversaire',
+          libelle: 'L’adversaire réfléchit',
+          note: `${this.camps[u.side].nom} — ${unitLabel(u)}`,
+          actif: false,
+        },
+        { cle: 'auto', libelle: 'Résoudre', note: 'automatiquement', actif: true },
+      ];
+    }
     const def = unitDef(u);
     const capacite = canUseAbility(this.combat, u);
     const sortDispo =
@@ -1346,12 +1643,27 @@ class VueCombat implements BattleView {
     const cible = this.apercu?.uidCible ? findUnit(this.combat, this.apercu.uidCible) : null;
     const tir = def.shooter === true && u.shots > 0;
 
+    /*
+     * Le bouton restait allumé sur une cible qu'on ne pouvait pas rejoindre :
+     * le clic partait, le moteur refusait, et l'erreur s'affichait hors du
+     * champ. L'atteignabilité se lit maintenant AVANT, dans `choisirApproche`.
+     */
+    const aTirer = tir && cible !== null && hexDistance(u.at, cible.at) > 1;
+    const approche = cible && !aTirer ? choisirApproche(this.combat, u, cible) : null;
+    const assautPossible = cible !== null && (aTirer || approche !== null);
+
     return [
       {
         cle: 'attaquer',
-        libelle: tir && cible && hexDistance(u.at, cible.at) > 1 ? 'Tirer' : 'Attaquer',
-        note: cible ? unitLabel(cible) : 'choisir une cible',
-        actif: cible !== null,
+        libelle: aTirer ? 'Tirer' : 'Attaquer',
+        note: !cible
+          ? 'choisir une cible'
+          : !assautPossible
+            ? 'hors d’atteinte'
+            : approche && approche.cout > 0
+              ? `${unitLabel(cible)} · ${approche.cout} hex.`
+              : unitLabel(cible),
+        actif: assautPossible,
         teinte: melanger(PALETTE.parchemin, PALETTE.grenat, 0.1),
       },
       {
@@ -1376,14 +1688,17 @@ class VueCombat implements BattleView {
 
   /** Rappel des commandes, discret, posé au-dessus de la barre d'actions. */
   private majAide(): void {
-    const cle = this.plan.compact ? 'c' : 'l';
+    const adverse = this.adversaireDoitJouer;
+    const cle = `${this.plan.compact ? 'c' : 'l'}${adverse ? 'a' : ''}`;
     if (cle === this.cleAide) return;
     this.cleAide = cle;
     this.aide.cacheAsTexture(false);
     this.aide.removeChildren().forEach((c) => c.destroy({ children: true }));
-    const texte = this.plan.compact
-      ? 'Touchez une case pour marcher, une pile ennemie pour la viser.'
-      : 'Clic : marcher ou frapper · maintenir M : zones de menace · Échap : annuler';
+    const texte = adverse
+      ? 'L’adversaire réfléchit…'
+      : this.plan.compact
+        ? 'Marcher : touchez. Viser : touchez l’ennemi, encore pour frapper. Menaces : maintenez.'
+        : 'Clic : marcher ou frapper · maintenir M : zones de menace · Échap : annuler';
     const t = donneeClaire(texte, 12, melanger(PALETTE.bleuBrume, PALETTE.parchemin, 0.35));
     const g = new Graphics();
     g.roundRect(-6, -3, t.width + 12, t.height + 6, 3).fill({
@@ -1401,7 +1716,11 @@ class VueCombat implements BattleView {
     this.container.on('pointermove', (e: FederatedPointerEvent) => this.surDeplacement(e));
     this.container.on('pointerdown', (e: FederatedPointerEvent) => this.surAppui(e));
     this.container.on('pointertap', (e: FederatedPointerEvent) => this.surClic(e));
+    this.container.on('pointerup', () => this.relacherMaintien());
+    this.container.on('pointerupoutside', () => this.relacherMaintien());
+    this.container.on('pointercancel', () => this.relacherMaintien());
     this.container.on('pointerleave', () => {
+      this.relacherMaintien();
       this.survol = null;
       this.marques.set({ survol: null, chemin: null });
     });
@@ -1460,6 +1779,11 @@ class VueCombat implements BattleView {
   private surDeplacement(e: FederatedPointerEvent): void {
     if (this.detruit) return;
     const p = this.local(e);
+    const m = this.maintien;
+    if (m) {
+      const d = Math.hypot(p.x - m.x, p.y - m.y);
+      if (d > m.ecart) m.ecart = d;
+    }
     if (!this.dansLePlateau(p)) {
       if (this.survol) {
         this.survol = null;
@@ -1484,7 +1808,10 @@ class VueCombat implements BattleView {
       (x) => x.alive && x.at.col === this.survol?.col && x.at.row === this.survol?.row,
     );
     if (cible && cible.side !== u.side) {
-      this.cibleForcee = null;
+      /* En compact la visée est SANGLÉE : un `pointermove` de doigt précède
+         chaque `pointertap`, et l'effacer ici ramènerait chaque appui au
+         rang de premier appui — la cible ne serait jamais frappée. */
+      if (!this.plan.compact) this.cibleForcee = null;
       this.marques.set({ chemin: null });
       this.majApercu();
       this.majActions();
@@ -1509,11 +1836,45 @@ class VueCombat implements BattleView {
       return;
     }
     const yBas = this.hauteur - this.hauteurPanneauBas();
-    if (p.y >= yBas && p.y <= yBas + 26) {
+    /* La même bande que celle laissée libre par `poserBoutonsActions` : c'est
+       leur divergence qui faisait basculer le panneau quand on visait le haut
+       d'un bouton, avant que le relâché ne tombe sur un bouton déplacé. */
+    if (p.y >= yBas && p.y < yBas + this.zonePoignee) {
       this.panneauReplie = !this.panneauReplie;
       this.majActions();
       this.disposerIhm();
+      return;
     }
+    /* Doigt posé sur le champ : c'est peut-être une demande de menaces. */
+    if (this.dansLePlateau(p)) this.maintien = { x: p.x, y: p.y, ms: 0, ecart: 0 };
+  }
+
+  /** Le doigt se lève : fin du maintien, et repli des menaces qu'il montrait. */
+  private relacherMaintien(): void {
+    this.maintien = null;
+    if (!this.menacesParMaintien) return;
+    this.menacesParMaintien = false;
+    this.menacesVisibles = false;
+    this.majPortee();
+  }
+
+  /**
+   * Fait mûrir le maintien du doigt. Le seuil et la tolérance sont dans
+   * `maintienMontreLesMenaces`, testée à part : ici on ne fait que compter.
+   */
+  private avancerMaintien(dt: number): void {
+    const m = this.maintien;
+    if (!m || this.menacesParMaintien) return;
+    m.ms += dt;
+    if (!maintienMontreLesMenaces(m.ms, m.ecart)) return;
+    const u = this.actif ? findUnit(this.combat, this.actif) : null;
+    if (!u) return;
+    this.menacesParMaintien = true;
+    this.menacesVisibles = true;
+    /* Le relâché qui clôt le maintien n'est pas un coup : sans ce garde-fou,
+       lever le doigt dépenserait l'activation qu'on cherchait à protéger. */
+    this.avalerLeClic = true;
+    this.majPortee();
   }
 
   private surClic(e: FederatedPointerEvent): void {
@@ -1529,6 +1890,12 @@ class VueCombat implements BattleView {
      * l'hexagone qui se trouvait dessous — et consommait l'action du tour.
      */
     if (this.gardePince.avaleLeClic()) return;
+    /* Le relâché qui clôt un maintien n'est pas un coup non plus : le doigt
+       demandait à VOIR les menaces, pas à dépenser l'activation. */
+    if (this.avalerLeClic) {
+      this.avalerLeClic = false;
+      return;
+    }
     const p = this.local(e);
 
     /* 1 — les boutons d'action */
@@ -1537,7 +1904,9 @@ class VueCombat implements BattleView {
       const local = { x: p.x, y: p.y - yBas };
       for (const b of this.boutons) {
         if (b.zone.contains(local.x, local.y)) {
-          this.declencher(b.cle);
+          /* Un bouton éteint ne fait rien. Il partait quand même, et l'action
+             refusée revenait en bulle hors du champ de bataille. */
+          if (b.actif) this.declencher(b.cle);
           return;
         }
       }
@@ -1569,7 +1938,8 @@ class VueCombat implements BattleView {
     if (cible) this.deps.onPickUnit?.(cible);
 
     const u = this.actif ? findUnit(this.combat, this.actif) : null;
-    if (!u || this.combat.finished) {
+    /* Pile adverse en train de jouer : le clic ne sert qu'à regarder. */
+    if (!u || this.combat.finished || this.adversaireDoitJouer) {
       if (cible) this.selection = cible.uid;
       this.cleFiche = '';
       this.appliquer();
@@ -1582,11 +1952,17 @@ class VueCombat implements BattleView {
     }
 
     if (cible && cible.side !== u.side) {
+      const geste = gesteSurEnnemi(this.plan.compact, this.cibleForcee, cible.uid);
       this.cibleForcee = cible.uid;
       this.selection = cible.uid;
       this.majApercu();
       this.majActions();
-      this.emettre({ kind: this.estUnTir(u, cible) ? 'shoot' : 'attack', unit: u.uid, target: cible.uid });
+      this.cleFiche = '';
+      this.majInfoPortrait();
+      /* Au doigt, le premier appui ne fait que viser : il pose l'aperçu et le
+         curseur. C'est le second appui sur la MÊME pile — ou le bouton
+         « Attaquer » — qui dépense le tour. */
+      if (geste === 'frapper') this.assaillir(u, cible);
       return;
     }
     if (cible) {
@@ -1600,9 +1976,16 @@ class VueCombat implements BattleView {
     }
   }
 
-  private estUnTir(u: CombatUnit, cible: CombatUnit): boolean {
-    const def = unitDef(u);
-    return def.shooter === true && u.shots > 0 && hexDistance(u.at, cible.at) > 1;
+  /**
+   * Le geste de HMM3 : on désigne l'ennemi, la pile marche jusqu'à lui et
+   * frappe. L'attaque emporte sa case de départ (`from`), faute de quoi le
+   * moteur refuse tout ce qui n'est pas déjà au contact. Si aucune case
+   * d'approche n'est atteignable, RIEN ne part : l'aperçu et le bouton l'ont
+   * déjà dit, il n'y a pas d'erreur à faire remonter.
+   */
+  private assaillir(u: CombatUnit, cible: CombatUnit): void {
+    const action = actionAssaut(this.combat, u, cible);
+    if (action) this.emettre(action);
   }
 
   private dansLePlateau(p: { x: number; y: number }): boolean {
@@ -1616,16 +1999,12 @@ class VueCombat implements BattleView {
 
   private declencher(cle: string): void {
     const u = this.actif ? findUnit(this.combat, this.actif) : null;
+    /* Seul « Résoudre » reste offert pendant que le moteur joue l'adversaire. */
+    if (this.adversaireDoitJouer && cle !== 'auto') return;
     switch (cle) {
       case 'attaquer': {
         const cible = this.apercu?.uidCible ? findUnit(this.combat, this.apercu.uidCible) : null;
-        if (u && cible) {
-          this.emettre({
-            kind: this.estUnTir(u, cible) ? 'shoot' : 'attack',
-            unit: u.uid,
-            target: cible.uid,
-          });
-        }
+        if (u && cible) this.assaillir(u, cible);
         break;
       }
       case 'capacite':

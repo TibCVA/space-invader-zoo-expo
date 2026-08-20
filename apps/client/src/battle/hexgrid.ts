@@ -25,10 +25,13 @@ import {
   hexKey,
   hexToPixel,
   clampHex,
+  livingUnits,
   neighbor,
+  neighbors,
   pixelToHex,
+  reachableHexes,
 } from '@auvergne/engine';
-import type { HexCoord } from '@auvergne/engine';
+import type { CombatState, CombatUnit, HexCoord } from '@auvergne/engine';
 import {
   LIGHT,
   PALETTE,
@@ -47,6 +50,49 @@ import type { Poly, Pt } from '../art/shading.js';
  * `i + 1`. Les directions du moteur sont, elles, indexées depuis l'est.
  */
 const ARETE_DE_DIRECTION: readonly number[] = [1, 0, 5, 4, 3, 2];
+
+/* ═════════════════════════════ Zones de menace ═══════════════════════════ */
+
+/**
+ * Les cases où la pile `pour` se ferait frapper au prochain tour adverse.
+ *
+ * Deux erreurs se corrigeaient ici l'une l'autre, et se cumulaient :
+ *
+ *  – LES TIREURS ÉTAIENT SAUTÉS, sur un commentaire qui promettait « on
+ *    marque sa ligne de mire » et un `continue` qui ne marquait rien. Un
+ *    tireur reste une pile qui se déplace et frappe au contact : sa menace de
+ *    mêlée est aussi réelle que celle d'un fantassin. Sa ligne de mire, elle,
+ *    couvre le champ entier — la peindre reviendrait à tout peindre, et la
+ *    barre d'initiative la signale déjà d'un carquois.
+ *
+ *  – LA ZONE RENDUE ÉTAIT `reachableHexes` SEUL, c'est-à-dire les cases où
+ *    l'ennemi peut ARRIVER, non celles qu'il MENACE. Il frappe au contact :
+ *    la menace est l'arrivée PLUS son voisinage. Un hexagone entier était
+ *    sous-estimé tout autour de chaque pile ennemie — précisément la marge
+ *    qui décide si l'on se met à portée ou non.
+ *
+ * Rien n'est calculé ici : la portée vient de `reachableHexes`, le voisinage
+ * de `neighbors`, tous deux du moteur.
+ */
+export function zonesDeMenace(combat: CombatState, pour: CombatUnit): HexCoord[] {
+  const out: HexCoord[] = [];
+  const vus = new Set<number>();
+  const poser = (h: HexCoord): void => {
+    const k = hexKey(h);
+    if (vus.has(k)) return;
+    vus.add(k);
+    out.push(h);
+  };
+  for (const e of livingUnits(combat, pour.side === 0 ? 1 : 0)) {
+    /* `reachMap` pose toujours la case de départ, budget nul compris : une
+       pile immobilisée menace donc ses voisins par cette boucle seule. */
+    for (const arrivee of reachableHexes(combat, e)) {
+      poser(arrivee);
+      for (const v of neighbors(arrivee)) poser(v);
+    }
+  }
+  return out;
+}
 
 /* ═══════════════════════════════ Géométrie ═══════════════════════════════ */
 

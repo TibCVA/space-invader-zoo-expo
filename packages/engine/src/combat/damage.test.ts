@@ -126,6 +126,116 @@ describe('damageRange — explication complète avant l’attaque', () => {
   });
 });
 
+/**
+ * L'aperçu mentait pour tout assaut demandant un déplacement : `damageRange`
+ * n'acceptait pas de case d'approche, `planDamage` retombait sur la position
+ * actuelle, et l'angle, la riposte conditionnelle et la charge étaient tous
+ * calculés depuis la case où la pile se tenait encore. Le joueur lisait un
+ * chiffre, avançait, et en récoltait un autre.
+ */
+describe('aperçu depuis la case d’approche', () => {
+  /** Cible au milieu du champ, face à un assaillant posé à l'ouest. */
+  function duel(attaquant: string, cible: string) {
+    const { state, combat } = makeBattle({
+      attackerArmy: army([attaquant as never, 10]),
+      defenderArmy: army([cible as never, 40]),
+    });
+    const a = combat.units[0];
+    const c = combat.units[1];
+    a.at = { col: 3, row: 5 };
+    c.at = { col: 8, row: 5 };
+    c.facing = directionTo(c.at, a.at);
+    /* La case d'approche est à l'opposé : le coup y prendra la cible de dos. */
+    return { state, combat, a, c, dos: { col: 9, row: 5 } as const };
+  }
+
+  it('compte l’angle de dos et la charge depuis la case où le coup partira', () => {
+    const { combat, a, c, dos } = duel('granit_t5', 'ermitage_t1');
+    const surPlace = damageRange(combat, a, c, false);
+    const apresApproche = damageRange(combat, a, c, false, dos, 5);
+
+    expect(surPlace.modifiers.some((m) => m.label === 'Attaque dans le dos')).toBe(false);
+    expect(surPlace.modifiers.some((m) => m.label.startsWith('Charge'))).toBe(false);
+    expect(apresApproche.modifiers.some((m) => m.label === 'Attaque dans le dos')).toBe(true);
+    expect(apresApproche.modifiers.some((m) => m.label === 'Charge sur 5 hexagones')).toBe(true);
+    /* Le dos vaut +2000 BP et la charge 5 × 500 BP : le chiffre annoncé
+       change, et c'est précisément ce que l'aperçu taisait. */
+    expect(apresApproche.max).toBeGreaterThan(surPlace.max);
+  });
+
+  it('suit la riposte conditionnelle : le Loup des Brumes ne la subit pas de dos', () => {
+    const { combat, a, c, dos } = duel('ermitage_t3_up', 'ermitage_t1');
+    expect(damageRange(combat, a, c, false).retaliation).toBe(true);
+    expect(damageRange(combat, a, c, false, dos).retaliation).toBe(false);
+    expect(damageRange(combat, a, c, false, dos).retaliationDamage).toBeNull();
+  });
+
+  it('un tir garde l’angle de face : la case d’approche ne le concerne pas', () => {
+    const { combat, a, c, dos } = duel('granit_t3', 'ermitage_t1');
+    const tir = damageRange(combat, a, c, true, dos);
+    expect(tir.modifiers.some((m) => m.label === 'Attaque dans le dos')).toBe(false);
+    expect(tir.retaliation).toBe(false);
+    expect(tir.retaliationDamage).toBeNull();
+  });
+});
+
+/**
+ * « Riposte attendue » n'était qu'un booléen. Sans le nombre, on ne peut pas
+ * décider d'un assaut : c'est le renseignement qui manque le plus.
+ */
+describe('la riposte est chiffrée', () => {
+  it('annonce une fourchette et les pertes qu’elle coûtera', () => {
+    const { combat } = makeBattle({
+      attackerArmy: army(['granit_t1', 10]),
+      defenderArmy: army(['ermitage_t1', 40]),
+    });
+    const a = combat.units[0];
+    const c = combat.units[1];
+    const res = damageRange(combat, a, c, false);
+    expect(res.retaliation).toBe(true);
+    const riposte = res.retaliationDamage;
+    expect(riposte).not.toBeNull();
+    if (!riposte) return;
+    expect(riposte.min).toBeGreaterThan(0);
+    expect(riposte.max).toBeGreaterThanOrEqual(riposte.min);
+    expect(riposte.kills[0]).toBeLessThanOrEqual(riposte.kills[1]);
+  });
+
+  it('n’annonce rien quand la cible n’a plus de riposte', () => {
+    const { combat } = makeBattle({
+      attackerArmy: army(['granit_t1', 10]),
+      defenderArmy: army(['ermitage_t1', 10]),
+    });
+    const a = combat.units[0];
+    const c = combat.units[1];
+    c.retaliationsLeft = 0;
+    expect(damageRange(combat, a, c, false).retaliationDamage).toBeNull();
+  });
+
+  it('ne fait riposter que les survivants du coup', () => {
+    /*
+     * Douze Sangliers Cuirassés contre cinquante Pèlerins : le coup minimal
+     * en couche quarante, le coup maximal les emporte tous. La riposte doit
+     * donc s'annoncer « de 0 à quelque chose » — un aperçu qui la chiffrerait
+     * sur la pile intacte conseillerait l'inverse de ce qu'il faut faire.
+     */
+    const { combat } = makeBattle({
+      attackerArmy: army(['granit_t5', 12]),
+      defenderArmy: army(['ermitage_t1', 50]),
+    });
+    const a = combat.units[0];
+    const c = combat.units[1];
+    c.facing = directionTo(c.at, a.at);
+    const res = damageRange(combat, a, c, false);
+    expect(res.kills).toEqual([40, 50]);
+    const riposte = res.retaliationDamage;
+    expect(riposte).not.toBeNull();
+    if (!riposte) return;
+    expect(riposte.min).toBe(0);
+    expect(riposte.max).toBeGreaterThan(0);
+  });
+});
+
 describe('fortune bornée', () => {
   it('ne dépasse jamais ±3000 BP', () => {
     const rng = createRng(7);

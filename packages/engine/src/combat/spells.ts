@@ -18,7 +18,7 @@ import type {
   SpellEffect,
   SpellId,
 } from '../types.js';
-import { HEX_COLS, HEX_ROWS } from '../types.js';
+import { HEX_COLS } from '../types.js';
 import { hexDistance, hexLine, inBounds } from './hex.js';
 import {
   FX,

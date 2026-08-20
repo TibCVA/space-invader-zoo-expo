@@ -22,7 +22,7 @@ import type {
   RngState,
 } from '../types.js';
 import { nextChance, nextInt } from '../rng.js';
-import { attackAngle, hexDistance, hexLine, type AttackAngle } from './hex.js';
+import { attackAngle, directionTo, hexDistance, hexLine, type AttackAngle } from './hex.js';
 import {
   COMBAT_TUNING,
   FX,
@@ -384,25 +384,49 @@ export function applyDamage(target: CombatUnit, damage: number): KillResult {
 
 /* ────────────────────────── Interface publique ──────────────────────────── */
 
+/** Fourchette de dégâts et pertes correspondantes. */
+export interface DamageSpan {
+  min: number;
+  max: number;
+  kills: [number, number];
+}
+
 export interface DamageRangeResult {
   min: number;
   max: number;
   kills: [number, number];
   retaliation: boolean;
+  /**
+   * Ce que la riposte rendra, chiffré. `null` quand la cible ne riposte pas.
+   *
+   * Corrige un aveuglement de l'aperçu : la riposte n'était qu'un booléen
+   * alors que le moteur sait la calculer. Sans le nombre, on ne peut pas
+   * décider d'un assaut — c'est le renseignement qui manque le plus.
+   */
+  retaliationDamage: DamageSpan | null;
   modifiers: DamageModifier[];
 }
 
 /**
  * Fourchette de dégâts, pertes probables, riposte et explication complète des
  * modificateurs. Affichée **avant** l'attaque, ne consomme aucun aléa.
+ *
+ * `fromHex` est la case d'où le coup partira : sans elle, l'angle de flanc ou
+ * de dos, la riposte conditionnelle (`no_retaliation_flank`) et le bonus de
+ * charge étaient calculés depuis la case ACTUELLE. L'aperçu annonçait alors un
+ * chiffre, la pile avançait, et le coup en donnait un autre. `chargeHexes` est
+ * la longueur du trajet d'approche, celle que `moveAlong` inscrira dans
+ * `lastMoveDistance`.
  */
 export function damageRange(
   combat: CombatState,
   attacker: CombatUnit,
   target: CombatUnit,
   ranged: boolean,
+  fromHex?: HexCoord,
+  chargeHexes?: number,
 ): DamageRangeResult {
-  const plan = planDamage(combat, attacker, target, { ranged });
+  const plan = planDamage(combat, attacker, target, { ranged, fromHex, chargeHexes });
   const min = damageForRoll(plan, plan.rollMin);
   const max = damageForRoll(plan, plan.rollMax);
   const kMin = killsFor(target, min).kills;
@@ -412,8 +436,55 @@ export function damageRange(
     max,
     kills: [kMin, kMax],
     retaliation: plan.retaliation,
+    retaliationDamage: plan.retaliation
+      ? retaliationSpan(combat, attacker, target, fromHex ?? attacker.at, min, max)
+      : null,
     modifiers: plan.modifiers,
   };
+}
+
+/**
+ * Ce que les survivants de la cible rendront. Le coup le plus faible laisse le
+ * plus de rispostants debout : la borne haute de la riposte se calcule donc à
+ * partir des dégâts MINIMUM, et réciproquement.
+ *
+ * `resolveAttack` tourne l'assaillant vers sa cible avant de frapper : la
+ * riposte le prend toujours de face, depuis la case d'approche. On projette
+ * donc l'assaillant sur cette case, sans jamais toucher à l'état réel.
+ */
+function retaliationSpan(
+  combat: CombatState,
+  attacker: CombatUnit,
+  target: CombatUnit,
+  fromHex: HexCoord,
+  degatsMin: number,
+  degatsMax: number,
+): DamageSpan | null {
+  const frappeur: CombatUnit = {
+    ...attacker,
+    at: fromHex,
+    facing: directionTo(fromHex, target.at),
+  };
+  const apresMin = killsFor(target, degatsMin);
+  const apresMax = killsFor(target, degatsMax);
+  const debout = (res: KillResult): number => Math.max(0, target.count - res.kills);
+
+  const rendu = (survivants: number, res: KillResult, fort: boolean): [number, number] => {
+    if (survivants <= 0) return [0, 0];
+    const riposteur: CombatUnit = { ...target, count: survivants, topHp: res.topHp };
+    const plan = planDamage(combat, riposteur, frappeur, {
+      ranged: false,
+      retaliation: true,
+      fromHex: target.at,
+    });
+    const degats = damageForRoll(plan, fort ? plan.rollMax : plan.rollMin);
+    return [degats, killsFor(frappeur, degats).kills];
+  };
+
+  const [haut, tueHaut] = rendu(debout(apresMin), apresMin, true);
+  const [bas, tueBas] = rendu(debout(apresMax), apresMax, false);
+  if (haut === 0 && bas === 0) return null;
+  return { min: bas, max: haut, kills: [tueBas, tueHaut] };
 }
 
 /* ──────────────────────────── Fortune et moral ──────────────────────────── */

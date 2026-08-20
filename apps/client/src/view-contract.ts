@@ -195,12 +195,29 @@ export type CreateMapView = (deps: MapViewDeps) => Promise<MapView>;
 export interface AttackPreview {
   readonly attacker: string;
   readonly target: string;
-  /** case de départ de l'attaque au corps à corps */
+  /**
+   * Case de départ de l'attaque au corps à corps. Ce n'est pas un détail
+   * d'affichage : l'angle, la riposte conditionnelle et la charge se comptent
+   * depuis elle, et c'est elle qui part dans `{kind:'attack', …, from}`.
+   */
   readonly from?: HexCoord;
+  /** hexagones à parcourir pour l'atteindre ; 0 si la pile y est déjà */
+  readonly approach?: number;
+  /**
+   * Faux quand aucune case d'approche n'est atteignable ce tour-ci. L'assaut
+   * doit alors être visiblement impossible, jamais tenté puis refusé.
+   */
+  readonly reachable?: boolean;
   readonly ranged: boolean;
   readonly damage: { readonly min: number; readonly max: number };
   readonly kills: readonly [number, number];
   readonly retaliation: boolean;
+  /** ce que la riposte rendra, chiffré ; `null` quand la cible ne riposte pas */
+  readonly retaliationDamage?: {
+    readonly min: number;
+    readonly max: number;
+    readonly kills: readonly [number, number];
+  } | null;
   readonly modifiers: readonly { readonly label: string; readonly bp: number }[];
 }
 

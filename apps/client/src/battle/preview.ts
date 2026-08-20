@@ -12,7 +12,7 @@
 
 import { Container, Graphics, Sprite } from 'pixi.js';
 import { damageRange, findUnit, unitDef, unitLabel, unitTotalHp } from '@auvergne/engine';
-import type { CombatEffect, CombatState, CombatUnit } from '@auvergne/engine';
+import type { CombatEffect, CombatState, CombatUnit, HexCoord } from '@auvergne/engine';
 import type { ArtAtlas } from '../art/index.js';
 import type { AttackPreview } from '../view-contract.js';
 import {
@@ -85,14 +85,24 @@ export interface ApercuComplet extends AttackPreview {
  * Construit la carte depuis le moteur. **Aucune règle n'est réécrite** :
  * `damageRange` fournit la fourchette, les pertes, la riposte et le détail
  * chiffré de chaque modificateur.
+ *
+ * `approche` est la case d'où le coup partira réellement. Sans elle, l'angle
+ * de flanc ou de dos, la riposte conditionnelle et le bonus de charge étaient
+ * comptés depuis la case actuelle : le joueur lisait un chiffre, avançait, et
+ * en récoltait un autre.
  */
 export function construireApercu(
   combat: CombatState,
   attaquant: CombatUnit,
   cible: CombatUnit,
   distance: boolean,
+  approche?: { at: HexCoord; cout: number } | null,
 ): ApercuComplet {
-  const r = damageRange(combat, attaquant, cible, distance);
+  const depuis = approche ? approche.at : attaquant.at;
+  const marche = approche ? approche.cout : 0;
+  const r = distance
+    ? damageRange(combat, attaquant, cible, true)
+    : damageRange(combat, attaquant, cible, false, depuis, marche > 0 ? marche : undefined);
   const effets: { texte: string; camp: 0 | 1 }[] = [];
   for (const e of attaquant.effects) effets.push({ texte: libelleEffet(e), camp: attaquant.side });
   for (const e of cible.effects) effets.push({ texte: libelleEffet(e), camp: cible.side });
@@ -100,11 +110,14 @@ export function construireApercu(
   return {
     attacker: unitLabel(attaquant),
     target: unitLabel(cible),
-    from: attaquant.at,
+    from: depuis,
+    approach: marche,
+    reachable: distance || approche !== null,
     ranged: distance,
     damage: { min: r.min, max: r.max },
     kills: r.kills,
     retaliation: r.retaliation,
+    retaliationDamage: r.retaliationDamage,
     modifiers: r.modifiers,
     uidAttaquant: attaquant.uid,
     uidCible: cible.uid,
@@ -124,8 +137,11 @@ export function enrichirApercu(combat: CombatState, apercu: AttackPreview): Aper
       damage: apercu.damage,
       kills: apercu.kills,
       retaliation: apercu.retaliation,
+      retaliationDamage: apercu.retaliationDamage ?? null,
       modifiers: apercu.modifiers,
       from: apercu.from ?? a.at,
+      approach: apercu.approach,
+      reachable: apercu.reachable,
     };
   }
   return { ...apercu };
@@ -195,7 +211,11 @@ export class CarteApercu {
     this.corps.addChild(entete);
 
     const mode = donnee(
-      apercu.ranged ? 'à distance' : 'au corps à corps',
+      apercu.ranged
+        ? 'à distance'
+        : apercu.approach && apercu.approach > 0
+          ? `après ${apercu.approach} hexagone${apercu.approach > 1 ? 's' : ''}`
+          : 'au corps à corps',
       13,
       melanger(PALETTE.encre, PALETTE.brunFougere, 0.45),
     );
@@ -203,6 +223,26 @@ export class CarteApercu {
     mode.position.set(LARGEUR - marge, y + 2);
     this.corps.addChild(mode);
     y += 24;
+
+    /*
+     * Hors d'atteinte : la cible est trop loin pour être rejointe ce tour-ci.
+     * Le bandeau le dit dans le champ de bataille, avant le clic — l'ancien
+     * comportement laissait cliquer, puis refusait dans une bulle React posée
+     * hors du champ. Le bouton « Attaquer » est éteint en même temps.
+     */
+    if (apercu.reachable === false) {
+      const bandeau = new Graphics();
+      bandeau.roundRect(marge, y - 2, LARGEUR - marge * 2, 24, 3).fill({
+        color: melanger(PALETTE.parcheminOmbre, PALETTE.grenat, 0.25),
+        alpha: 0.95,
+      });
+      bandeau.rect(marge + 1, y - 1, 2.8, 22).fill({ color: PALETTE.grenat, alpha: 0.9 });
+      this.corps.addChild(bandeau);
+      const t = donnee('Hors d’atteinte ce tour-ci', 13, PALETTE.grenat, true);
+      t.position.set(marge + 12, y + 3);
+      this.corps.addChild(t);
+      y += 30;
+    }
 
     const ligne = new Container();
     ligne.position.set(marge, y);
@@ -296,7 +336,14 @@ export class CarteApercu {
       y += 28;
     }
 
-    /* ── riposte ── */
+    /*
+     * ── riposte, CHIFFRÉE ──
+     *
+     * « Riposte attendue » n'était qu'un booléen, alors que le moteur sait la
+     * calculer. C'est pourtant le renseignement qui décide d'un assaut : on
+     * n'engage pas une pile fragile contre une riposte qui l'emportera.
+     */
+    const rendu = apercu.retaliationDamage ?? null;
     const riposte = donnee(
       apercu.retaliation ? 'Riposte attendue' : 'Aucune riposte',
       14,
@@ -306,6 +353,29 @@ export class CarteApercu {
     riposte.position.set(marge + 14, y);
     this.corps.addChild(riposte);
     pastille(g, marge + 5, y + 8, 4.4, apercu.retaliation ? PALETTE.grenat : PALETTE.vertHetre);
+    if (rendu) {
+      const chiffreRiposte = donnee(
+        rendu.min === rendu.max ? nombreFr(rendu.min) : `${nombreFr(rendu.min)} – ${nombreFr(rendu.max)}`,
+        15,
+        PALETTE.grenat,
+        true,
+      );
+      chiffreRiposte.anchor.set(1, 0);
+      chiffreRiposte.position.set(LARGEUR - marge, y - 1);
+      this.corps.addChild(chiffreRiposte);
+      y += 20;
+      const [rMin, rMax] = rendu.kills;
+      const pertes = donnee(
+        rMax > 0
+          ? `soit ${rMin === rMax ? rMin : `${rMin} à ${rMax}`} des nôtres`
+          : 'sans perte pour nous',
+        12,
+        melanger(PALETTE.encre, PALETTE.brunFougere, 0.4),
+      );
+      pertes.anchor.set(1, 0);
+      pertes.position.set(LARGEUR - marge, y - 2);
+      this.corps.addChild(pertes);
+    }
     y += 24;
 
     /* ── effets en cours ── */

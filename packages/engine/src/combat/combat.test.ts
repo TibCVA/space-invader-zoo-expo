@@ -20,7 +20,8 @@ import {
   updateOathFormations,
 } from './units.js';
 import { hexPath, reachableHexes } from './move.js';
-import { hexDistance } from './hex.js';
+import { damageRange } from './damage.js';
+import { directionTo, hexDistance } from './hex.js';
 import { army, makeBattle, makeHero } from './testkit.js';
 
 describe('file d’initiative', () => {
@@ -347,6 +348,78 @@ describe('validation des actions', () => {
     });
     expect(res.ok).toBe(false);
     expect(res.error).toBe('Plus aucune munition.');
+  });
+});
+
+/**
+ * Le geste fondateur de HMM3 : cliquer l'ennemi, marcher jusqu'à lui, frapper.
+ * Le moteur le sait faire depuis toujours — encore faut-il lui donner la case
+ * de départ, et que l'aperçu compte le coup depuis cette case-là.
+ */
+describe('assaut avec case d’approche', () => {
+  /** Sanglier à l'ouest, Pèlerins au centre, tournés vers l'assaillant. */
+  function duel() {
+    const { state, combat } = makeBattle({
+      attackerArmy: army(['granit_t5', 12]),
+      defenderArmy: army(['ermitage_t1', 120]),
+      seed: 20260820,
+    });
+    const a = combat.units[0];
+    const c = combat.units[1];
+    combat.obstacles = []; // champ dégagé : on mesure l'approche, pas le semis
+    a.at = { col: 3, row: 5 };
+    c.at = { col: 8, row: 5 };
+    c.facing = directionTo(c.at, a.at);
+    combat.order = [a.uid, c.uid];
+    combat.activeIndex = 0;
+    /* Le Sanglier occupe deux cases : posé en {10,5} il déborde en {9,5} et
+       touche donc la cible par l'arrière. */
+    return { state, combat, a, c, dos: { col: 10, row: 5 } };
+  }
+
+  it('sans case de départ, la cible éloignée n’est tout simplement pas au contact', () => {
+    /* La mesure du défaut : le client émettait l'attaque sans `from`, et le
+       moteur refusait — l'erreur remontait dans une bulle hors du champ. */
+    const { state, combat, a, c } = duel();
+    expect(hexDistance(a.at, c.at)).toBe(5);
+    const res = applyCombatAction(state, { kind: 'attack', unit: a.uid, target: c.uid });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe("La cible n'est pas au contact.");
+    expect(combat.units[0].at).toEqual({ col: 3, row: 5 });
+  });
+
+  it('avec la case de départ, la pile marche puis frappe dans le dos', () => {
+    const { state, combat, a, c, dos } = duel();
+    const res = applyCombatAction(state, { kind: 'attack', unit: a.uid, target: c.uid, from: dos });
+    expect(res.ok).toBe(true);
+    expect(a.at).toEqual(dos);
+    const coup = combat.log.find((l) => l.kind === 'attaque' && l.detail?.attaquant === a.uid);
+    expect(coup?.detail?.angle).toBe('dos');
+  });
+
+  it('l’aperçu chiffré depuis la case d’approche annonce le coup réellement porté', () => {
+    const { state, combat, a, c, dos } = duel();
+    const chemin = hexPath(combat, a, dos);
+    expect(chemin).not.toBeNull();
+    if (!chemin) return;
+    const cout = chemin.length - 1;
+
+    /* Ce que l'aperçu montrait avant : le coup calculé sur place. */
+    const mensonge = damageRange(combat, a, c, false);
+    /* Ce qu'il montre maintenant : le coup calculé depuis la case d'approche. */
+    const annonce = damageRange(combat, a, c, false, dos, cout);
+
+    const res = applyCombatAction(state, { kind: 'attack', unit: a.uid, target: c.uid, from: dos });
+    expect(res.ok).toBe(true);
+    const coup = combat.log.find((l) => l.kind === 'attaque' && l.detail?.attaquant === a.uid);
+    const reel = coup?.detail?.degats;
+    expect(typeof reel).toBe('number');
+    if (typeof reel !== 'number') return;
+
+    expect(reel).toBeGreaterThanOrEqual(annonce.min);
+    expect(reel).toBeLessThanOrEqual(annonce.max);
+    /* Et l'ancien aperçu se serait trompé : le dos et la charge lui échappaient. */
+    expect(reel).toBeGreaterThan(mensonge.max);
   });
 });
 

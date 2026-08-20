@@ -29,6 +29,47 @@ interface Vignette {
   phase: number;
 }
 
+/* ═══════════════════════ Qui a déjà joué ce round ════════════════════════ */
+
+/** Une entrée de la file, telle qu'on doit la peindre. */
+export interface RangFile {
+  readonly uid: string;
+  /** la pile a déjà agi dans ce round : elle est derrière le curseur */
+  readonly dejaJoue: boolean;
+  /** c'est la pile qui joue en ce moment */
+  readonly actif: boolean;
+}
+
+/**
+ * Découpe la file en « déjà joué » / « à venir ».
+ *
+ * `combat.activeIndex` est le curseur du moteur dans `combat.order`
+ * (`combat/order.ts` : `endActivation` l'incrémente, `beginRound` le remet à
+ * zéro). Il n'était lu NULLE PART côté client — la barre reprenait
+ * `combat.order` en entier et peignait quatorze vignettes identiques au round
+ * 3. Impossible de savoir lesquelles avaient déjà agi, alors que c'est une
+ * information que HMM3 donne d'un coup d'œil.
+ *
+ * Le rang se lit sur `order` COMPLET, avant tout filtrage : `activeIndex`
+ * indexe cette liste-là, morts compris. Filtrer d'abord décalerait le
+ * curseur d'autant de morts qu'il y en a devant lui.
+ */
+export function rangsDeLaFile(combat: CombatState, actif: string | null): RangFile[] {
+  const out: RangFile[] = [];
+  for (let i = 0; i < combat.order.length; i += 1) {
+    const uid = combat.order[i];
+    const u = findUnit(combat, uid);
+    if (!u || !u.alive || u.count <= 0) continue;
+    out.push({
+      uid,
+      /* La pile active n'a pas fini son tour, quoi que dise l'index. */
+      dejaJoue: i < combat.activeIndex && uid !== actif,
+      actif: uid === actif,
+    });
+  }
+  return out;
+}
+
 /** La barre d'initiative complète : cartouche de round + file de vignettes. */
 export class BarreInitiative {
   readonly container = new Container();
@@ -77,7 +118,9 @@ export class BarreInitiative {
    * les effectifs ou le round ont changé.
    */
   sync(combat: CombatState, actif: string | null): void {
-    const cle = `${combat.round}|${combat.order.join(',')}|${actif ?? ''}|${combat.units
+    /* `activeIndex` fait partie de la clef : c'est lui qui décide du voile
+       des piles déjà jouées, et la barre ne se repeignait pas sans lui. */
+    const cle = `${combat.round}|${combat.activeIndex}|${combat.order.join(',')}|${actif ?? ''}|${combat.units
       .map((u) => `${u.uid}:${u.count}:${u.hasWaited ? 1 : 0}`)
       .join(',')}`;
     if (cle === this.cleAffichee) return;
@@ -92,10 +135,11 @@ export class BarreInitiative {
     this.vignettes.length = 0;
     this.file.removeChildren();
 
+    const rangs = rangsDeLaFile(combat, actif);
     const unites: CombatUnit[] = [];
-    for (const uid of combat.order) {
-      const u = findUnit(combat, uid);
-      if (u && u.alive && u.count > 0) unites.push(u);
+    for (const r of rangs) {
+      const u = findUnit(combat, r.uid);
+      if (u) unites.push(u);
     }
 
     const t = this.tailleVignette;
@@ -120,6 +164,13 @@ export class BarreInitiative {
 
       if (u.hasWaited) noeud.addChild(marqueSablier(t));
       if (unitDef(u).shooter) noeud.addChild(marqueTir(t));
+      /* Voile d'ardoise sur les piles qui ont déjà agi : la file cesse d'être
+         quatorze vignettes identiques, on voit d'un coup d'œil ce qui reste
+         à jouer dans le round. */
+      if (rangs[i].dejaJoue) {
+        noeud.addChild(voileJouee(t));
+        noeud.alpha = 0.55;
+      }
 
       const s = estActif ? 1.16 : 1;
       const x = debut + t / 2 + i * pas;
@@ -218,7 +269,11 @@ export class BarreInitiative {
     etiquette.position.set(12 + w / 2, (large ? 12 : 9) + 8);
     hote.addChild(etiquette);
 
-    const chiffre = titre(String(combat.round), large ? 32 : 25, melanger(PALETTE.parchemin, LIGHT.chaude, 0.5));
+    const chiffre = titre(
+      libelleRound(combat.round),
+      large ? 32 : 25,
+      melanger(PALETTE.parchemin, LIGHT.chaude, 0.5),
+    );
     chiffre.anchor.set(0.5, 0);
     chiffre.position.set(12 + w / 2, (large ? 12 : 9) + (large ? 24 : 20));
     chiffre.style.dropShadow = {
@@ -307,6 +362,20 @@ function marqueSablier(t: number): Graphics {
   return g;
 }
 
+/** Voile d'ardoise : la pile a déjà agi dans ce round. */
+function voileJouee(t: number): Graphics {
+  const g = new Graphics();
+  g.roundRect(0, 0, t, t, 3).fill({
+    color: ombreBleutee(PALETTE.granitAnthracite, 0.9),
+    alpha: 0.6,
+  });
+  /* barre en biais : le voile seul se confond avec une vignette sombre */
+  g.moveTo(t * 0.18, t * 0.82)
+    .lineTo(t * 0.82, t * 0.18)
+    .stroke({ color: melanger(PALETTE.bleuBrume, LIGHT.rim, 0.3), width: 1.6, alpha: 0.55 });
+  return g;
+}
+
 /** Carquois : la pile est un tireur. */
 function marqueTir(t: number): Graphics {
   const g = new Graphics();
@@ -336,6 +405,18 @@ const ROMAINS: readonly (readonly [number, string])[] = [
   [4, 'IV'],
   [1, 'I'],
 ];
+
+/**
+ * Ce que le cartouche du round inscrit.
+ *
+ * `romain` était exporté, documenté « Le round s'affiche en chiffres
+ * romains » — et mort : la barre écrivait `String(combat.round)`. Le code se
+ * contredisait. Le round 0 n'existe que le temps d'ouvrir la bataille : il n'a
+ * pas de chiffre, on pose un tiret plutôt qu'un « I » mensonger.
+ */
+export function libelleRound(round: number): string {
+  return round > 0 ? romain(round) : '—';
+}
 
 /** Le round s'affiche en chiffres romains : c'est une chronique, pas un score. */
 export function romain(n: number): string {
