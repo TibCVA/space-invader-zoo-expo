@@ -537,13 +537,35 @@ rend absolue à partir de l'hôte de la requête, aucun domaine en dur) et les
 dimensions DÉCLARÉES, faute de quoi un client rogne — et tout rognage coupe le
 titre, un visage ou l'un des trois noms de lieux.
 
+### Quatre impressions visuelles que la mesure a REFUSÉES
+
+Ce paragraphe vaut autant que la liste des correctifs : chaque fois, j'étais sur
+le point de « réparer » quelque chose qui allait bien.
+
+1. **« Le sol se lit comme un défaut d'éclairage. »** Les grandes taches claires
+   et sombres sont le biome `lande` (teinte 48°, clarté 108) contre la forêt
+   (124°, 64). C'est du TERRAIN et du relief.
+2. **« C'est la dérive basse fréquence (`nappe`) qui fait ces taches. »** Coupée,
+   puis recapturée : l'écart entre blocs de 64 pixels passe de 28,14 à 28,86 —
+   c'est-à-dire rien. Le terme n'y est pour rien.
+3. **« Le brouillard laisse deviner le réseau de routes. »** Mesuré sur la
+   capture d'une vraie partie : en territoire jamais exploré, la structure
+   résiduelle vaut 3,0 à 3,4 d'écart-type contre 20,8 en terrain vu, soit une
+   amplitude de ±7 niveaux sur une base de 41. Le voile à 0,92 fait exactement
+   ce que son en-tête annonce. Rien à corriger.
+4. **« La Dame au Fil d'Or reste une masse rouge. »** À trois fois la taille de
+   la vignette : coiffe blanche, robe, surcot galonné, bannière, bras tendu
+   tenant sa fusée. Elle se lit. C'était la planche réduite qui mentait — la
+   même erreur que pour la trame hexagonale du champ de bataille.
+
+**La règle qui en sort** : une impression tirée d'une planche RÉDUITE n'est pas
+une mesure. Recadrer à trois fois la taille, ou mesurer, avant de toucher.
+
 ### Ce qui reste, honnêtement
 
 | Ce qui reste | Ce qui est mesuré |
 |---|---|
-| **Les deux Colosses** lisent encore comme des empilements de pierres rondes à la vignette | vu sur `shots/final-soir/planche_art_bas--bureau.png`. Ils vivent dans `ermitage.ts` (ce sont `ermitage_t6`/`_up`, PAS des créatures de Granit — j'ai fait l'erreur, un agent l'a corrigée par la mesure) |
-| **La Dame au Fil d'Or** reste une masse verticale rouge, quoique améliorée | jupe raccourcie, cape d'ardoise, bras sorti de 12,5 unités contre 2 — mais la silhouette d'ensemble ne se lit toujours pas d'un coup |
-| **Le brouillard** assombrit au lieu de masquer : on devine le réseau de routes en territoire jamais exploré | vu sur la capture de partie en ligne. HMM3 masque en noir. Piste, non instruite |
+| **Les deux Colosses** restent les plus schématiques des vingt-huit | corrigés d'un cran : rapport du plus petit au plus grand rayon d'une pierre porté de 1,6 à 2,1 (un pentagone presque régulier était un galet), et groupement de valeurs de −30 % à +34 % selon la place de la pierre dans le membre, là où toutes recevaient le même ton à six pour cent près. Vérifié sur capture avant/après. Reste que la silhouette est un empilement, et qu'aller plus loin demanderait une autre approche, pas une meilleure pierre. Ils vivent dans `ermitage.ts` (`ermitage_t6`/`_up`, PAS des créatures de Granit — j'ai fait l'erreur, un agent l'a corrigée par la mesure) |
 | **Le zoom large** laisse du vide à côté d'une carte en portrait sur un écran en paysage | 113 × 184 sur 1920 × 1080 : le vide est géométrique. Relever le plancher de zoom réglerait l'un et coûterait l'autre — arbitrage à demander au propriétaire |
 | **L'asymétrie des capitales** 44 / 20 / 20 / 8 / 8 % | deux hypothèses mesurées et éliminées (richesse, accès aux bourgs neutres). Décrit honnêtement dans l'écran de nouvelle partie plutôt que masqué |
 | **`combat_pont`** livré et inemployé | `CombatState` ne porte aucune coordonnée de carte : impossible de savoir qu'on se bat sur un franchissement |

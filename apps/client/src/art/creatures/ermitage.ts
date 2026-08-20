@@ -2031,20 +2031,72 @@ function blocPierre(
       const cy = -h * 0.4 + ((r + 0.5) / RANGS) * h * 0.82;
       const pw = (w * 0.9) / par;
       const ph = (h * 0.86) / RANGS;
-      /* Cinq à six côtés, sans lissage : c'est l'angle qui fait la pierre. */
+      /*
+       * Une pierre TAILLÉE, et non un caillou.
+       *
+       * L'ancienne face était un polygone de cinq ou six côtés dont le rayon
+       * variait de 0,34 à 0,54 : à un dixième près, un pentagone régulier. Vu
+       * à trois fois la taille de la vignette, chaque pierre était donc un
+       * galet, et le colosse restait un tas de galets malgré ses épaules, ses
+       * poings et sa mâchoire. Ce qui fait la pierre de taille, ce n'est pas
+       * le nombre de côtés : c'est que les côtés soient de LONGUEURS TRÈS
+       * INÉGALES, avec une face large tournée vers la lumière et deux ou trois
+       * arêtes courtes qui la referment.
+       *
+       * On tire donc les rayons entre 0,26 et 0,66 — un rapport de deux et
+       * demi contre un rapport de un et demi — et l'on force la face du
+       * nord-ouest à être la plus large des quatre.
+       */
       const n = 5 + ((seed + r * 7 + i * 3) % 2);
       const face: Poly = [];
       for (let s = 0; s < n; s += 1) {
         const a = (s / n) * Math.PI * 2 + (r + i) * 0.7;
-        /* Rayon irrégulier, mais jamais lissé : on garde les arêtes vives. */
-        const rr = 0.34 + (((seed + s * 13 + r * 5 + i) % 7) / 7) * 0.2;
+        const brut = 0.24 + (((seed + s * 13 + r * 5 + i) % 11) / 11) * 0.26;
+        /* La face tournée vers le soleil (nord-ouest) est allongée : c'est
+           elle qui prend la lumière, et une face large est ce qui distingue
+           une pierre équarrie d'un galet roulé. */
+        const versSoleil = Math.max(0, -Math.cos(a) * 0.5 - Math.sin(a) * 0.5);
+        /*
+         * Allonger vers le soleil sans GROSSIR : le facteur est centré pour que
+         * le rayon moyen ne bouge pas. La première version multipliait par
+         * 1 + 0,42·versSoleil, ce qui enflait chaque pierre de sept pour cent
+         * en moyenne — assez pour que les deux jambes du colosse se touchent.
+         * `art.test.ts` l'a dit tout de suite : « jour entre les jambes :
+         * −0,77 attendu > 2 ». Le jour entre les jambes est le trapèze qui fait
+         * le colosse et il se lit en négatif ; on ne l'échange pas contre une
+         * facette.
+         *
+         * Ce qui borne la silhouette n'est pas le rayon MOYEN mais le rayon
+         * MAXIMAL : les bornes sont donc calées pour que le plus grand rayon
+         * reste celui d'avant (0,55 contre 0,54), pendant que le rapport entre
+         * le plus petit et le plus grand passe de 1,6 à 2,1. C'est ce rapport,
+         * et lui seul, qui transforme un pentagone presque régulier — un galet
+         * — en une pierre équarrie.
+         */
+        const rr = brut * (0.94 + versSoleil * 0.16);
         face.push(pt(cx + Math.cos(a) * pw * rr * 1.25, cy + Math.sin(a) * ph * rr * 1.3));
       }
-      const ton = melanger(
-        (r + i) % 2 ? eclaircir(c, 0.16) : assombrir(c, 0.14),
-        r === 0 ? eclaircir(c, 0.22) : c,
-        0.4,
-      );
+      /*
+       * LE GROUPEMENT DE VALEURS, qui manquait entièrement.
+       *
+       * Chaque pierre recevait le même ton à six pour cent près : le membre
+       * entier rendait donc un aplat gris, et aucune arête ne se lisait à la
+       * vignette. Or c'est exactement ce que la loi de lumière unique demande
+       * — les pierres du haut à gauche d'un membre sont au soleil, celles du
+       * bas à droite sont dans l'ombre de la masse — et c'est ce qui, dans
+       * n'importe quel golem de pierre bien peint, fait qu'on voit un VOLUME
+       * et non une texture.
+       *
+       * L'écart va donc de −0,30 à +0,34, soit un rapport de valeur d'environ
+       * deux, au lieu de ±0,06. Le damier de ton d'origine est conservé
+       * par-dessus, mais réduit : il désordonne, il ne structure plus.
+       */
+      const u2 = i / (par - 1);
+      const v2 = RANGS === 1 ? 0.5 : r / (RANGS - 1);
+      /* +1 en haut à gauche, −1 en bas à droite. */
+      const jour = (0.5 - u2) + (0.5 - v2);
+      const base = jour > 0 ? eclaircir(c, jour * 0.68) : assombrir(c, -jour * 0.6);
+      const ton = (r + i) % 2 ? eclaircir(base, 0.07) : assombrir(base, 0.06);
       poser(g, k, perturber(face, Math.min(pw, ph) * 0.03, seed + r * 11 + i * 5), {
         couleur: ton,
         matiere: 'granit',
