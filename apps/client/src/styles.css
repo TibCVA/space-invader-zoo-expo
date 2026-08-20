@@ -306,7 +306,14 @@ body {
 
 /* ========================= 5. SCÈNE ACCÉLÉRÉE ============================ */
 
+/*
+ * Réserve prise sur le bas de la scène par la barre de pouce. Nulle par
+ * défaut ; la requête média du téléphone lui donne la hauteur de la barre.
+ * Tout ce qui est posé au bas de la scène la retranche — voir plus bas
+ * pourquoi un `padding-bottom` sur `.jeu-scene` n'y suffit pas.
+ */
 .jeu-scene {
+  --hmm-reserve-pouce: 0px;
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
@@ -318,6 +325,7 @@ body {
 .jeu-scene__toile {
   position: absolute;
   inset: 0;
+  bottom: var(--hmm-reserve-pouce);
 }
 
 .jeu-scene__toile > canvas {
@@ -509,26 +517,32 @@ body {
    * La scène accélérée doit s'arrêter AU-DESSUS de la barre de pouce, comme
    * les pages de données le font déjà.
    *
-   * La barre est `position: fixed; bottom: 0` : sans cette réserve, la toile
-   * courait sous elle et la scène perdait ses quatre-vingt-dix derniers
-   * pixels — c'est-à-dire, au combat, **toute la barre des six actions**,
-   * dessinée dans le bas de la toile. Mesuré par sonde : la toile faisait
-   * 778 px de haut et la barre d'actions occupait 704 à 778, exactement la
-   * bande masquée par la barre de pouce. Un combat dont on ne peut plus
-   * toucher les actions n'est pas jouable ; la carte d'aventure et la cité
-   * y perdaient de la même façon leur bas d'écran.
+   * La barre est `position: fixed; bottom: 0` : sans réserve, la toile court
+   * sous elle et la scène perd ses quatre-vingt-dix derniers pixels —
+   * c'est-à-dire, au combat, **toute la barre des six actions**, dessinée
+   * dans le bas de la toile. Mesuré sur `combat--iphone.png` : la toile
+   * finissait à 784 pt et les six boutons étaient posés de 786 à 838, tous
+   * sous le filet d'or. Un combat dont on ne peut plus toucher les actions
+   * n'est pas jouable.
    *
-   * `.jeu-scene__toile` est en `inset: 0` : son bloc conteneur est la boîte
-   * de rembourrage de `.jeu-scene`, si bien que ce `padding-bottom` réduit
-   * réellement la toile — et donc la hauteur que la scène Pixi reçoit.
+   * La réserve était posée en `padding-bottom` sur `.jeu-scene`, sur la foi
+   * d'un raisonnement FAUX : le bloc conteneur d'un élément absolument
+   * positionné est bien la boîte de rembourrage de son ancêtre positionné,
+   * mais c'est précisément pour cela que `inset: 0` s'étale PAR-DESSUS le
+   * rembourrage — `bottom: 0` vise le bord bas de la boîte de rembourrage,
+   * padding compris. Le padding n'enlevait rien à la toile, et
+   * `overflow: hidden` découpe lui aussi à cette même boîte.
+   *
+   * La réserve est donc portée par une variable, que les enfants absolus
+   * retranchent EUX-MÊMES de leur `bottom`. C'est le seul endroit où elle
+   * mord vraiment.
    */
   .jeu-racine--avec-pouce .jeu-scene {
-    padding-bottom: calc(var(--hmm-touch-ample) + var(--hmm-space-2) + var(--hmm-safe-bas));
+    --hmm-reserve-pouce: calc(var(--hmm-touch-ample) + var(--hmm-space-2) + var(--hmm-safe-bas));
   }
-  /* La légende se pose désormais dans la boîte réduite : plus besoin de la
-     remonter de la hauteur de la barre, elle la doublerait. */
+  /* La légende se pose au-dessus de la barre, comme la toile. */
   .jeu-racine--avec-pouce .jeu-scene__legende {
-    bottom: var(--hmm-space-4);
+    bottom: calc(var(--hmm-space-4) + var(--hmm-reserve-pouce));
   }
 }
 
