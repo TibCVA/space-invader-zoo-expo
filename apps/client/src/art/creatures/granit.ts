@@ -1292,33 +1292,138 @@ const dameFilDor: Fabrique = (k) => {
       posture: 0.9,
       largeur: 0.94,
       epaules: 0.9,
-      ecart: 1.25,
-      coude: 0.5,
-      brasDRot: -0.5,
+      ecart: 1.4,
+      /*
+       * ── Le BRAS LIBRE sort de la masse ──
+       *
+       * Les deux bras étaient rentrés — coude fléchi d'un demi-radian, bras
+       * d'ombre à −0,5 — donc entièrement contenus dans le gabarit de la cape.
+       * Rendue en noir à quatre-vingt-seize pixels, la Dame n'avait pas de
+       * bras du tout : une masse pleine, sans une découpe. Un bras ne compte
+       * dans une silhouette que s'il SORT du tronc, et le rendu de référence
+       * l'a tendu de tout son long, la main au fil.
+       */
+      coude: 0.2,
+      brasDRot: -0.95,
       brasGRot: 0.22,
       epaulement: { couleur: surcot, largeur: H * 0.17 },
       basque: { couleur: surcot, hauteur: H * 0.18, largeur: H * 0.32, bord: LIGHT.rim },
       jambiere: { couleur: assombrir(CHENE, 0.26), hauteur: H * 0.1 },
       visage: { sourcils: 0.3, age: 0.55 },
       cheveux: { couleur: 0x3f2c1a, longueur: 1.3, volume: 1.1 },
-      robe: { couleur: gown, haut: H * 0.22, bas: H * 0.46, hauteur: H * 0.5 },
-      cape: { couleur: melanger(gown, ARDOISE, 0.4), w: H * 0.4, h: H * 0.56, bord: LIGHT.rim },
+      /*
+       * ── La jupe s'ARRÊTE au-dessus des bottes ──
+       *
+       * Elle mesurait 0,5 H de haut pour un buste haut de 0,44 H : mesurée sur
+       * le rig, elle occupait y[−57 .. +2] quand les pieds sont posés à −3.
+       * L'ourlet passait donc SOUS la semelle, et il n'y avait pas un pixel de
+       * jambe : la Dame était une cloche rouge posée sur rien, la seule des
+       * quatorze formes de la faction à ne rien montrer de son appui. On coupe
+       * la jupe à 0,38 H et on l'évase davantage — les molletières et les
+       * bottes sortent, l'étoffe balance au-dessus d'un corps qui touche terre.
+       */
+      robe: { couleur: gown, haut: H * 0.17, bas: H * 0.52, hauteur: H * 0.38 },
+      /* La cape passe du côté SOMBRE. Elle valait `melanger(gown, ARDOISE, 0,4)`,
+         c'est-à-dire un grenat un peu grisé posé derrière un grenat : à la
+         vignette, la cape, la robe, la basque et le corsage ne faisaient qu'une
+         seule masse rouge verticale, et c'est le défaut n°1 de cette créature.
+         Une masse de valeur franche derrière la robe donne d'un coup la
+         silhouette d'épaules, et le galon d'or la borde. */
+      cape: { couleur: melanger(ARDOISE, gown, 0.22), w: H * 0.27, h: H * 0.46, bord: LIGHT.rim },
       coiffe: (g, kk) => {
-        coiffeLin(g, kk, rayonTete(H), k.seed + 12, true);
-        // voile long, il vit dans le vent
-        sous(g, H * 0.02, H * 0.02, (h) => {
+        const rt = rayonTete(H);
+        coiffeLin(g, kk, rt, k.seed + 12, true);
+        /*
+         * Le voile : DEUX PANS DE CÔTÉ, et non un bavoir.
+         *
+         * Il était peint d'un seul tenant de (−0,08 H ; 0) à (0,12 H ; 0,2 H),
+         * c'est-à-dire vingt et un pixels d'ivoire tombant droit du menton sur
+         * la poitrine, au droit du visage. Rendu à la taille où la créature
+         * s'affiche, ce n'était pas un voile : c'était une BARBE BLANCHE, et
+         * c'est ce qu'on voyait sur la planche — une vieille femme qui a l'air
+         * d'un vieil homme. C'est la même faute que la barbe-bâillon corrigée
+         * dans `visage`, commise une seconde fois deux étages plus haut.
+         *
+         * La règle des coiffes vaut aussi pour l'étoffe qui en pend : rien ne
+         * descend devant la figure, les pans tombent au-delà de ±1,1 rayon, là
+         * où il n'y a plus de joue — ils commencent ici à 1,2, c'est-à-dire
+         * juste en dehors de la chevelure, qui va à 1,17. Deux pans encadrent
+         * alors le visage au lieu de le couvrir, et le rendu de référence ne
+         * montre rien d'autre.
+         */
+        for (const cote of [-1, 1] as const) {
           const v = lisser(
             perturber(
-              densifier([pt(-H * 0.08, 0), pt(H * 0.09, 0), pt(H * 0.12, H * 0.2), pt(H * 0.02, H * 0.16), pt(-H * 0.09, H * 0.22)], H * 0.06),
-              0.6,
-              27,
+              densifier(
+                [
+                  pt(cote * rt * 1.2, -rt * 0.62),
+                  pt(cote * rt * 1.5, -rt * 0.2),
+                  pt(cote * rt * (1.58 + (cote > 0 ? 0.16 : 0)), rt * 1.35),
+                  pt(cote * rt * 1.22, rt * 1.15),
+                  pt(cote * rt * 1.28, rt * 0.3),
+                ],
+                rt * 0.5,
+              ),
+              0.5,
+              27 + cote * 3,
             ),
             1,
           );
-          poser(h, kk, v, { couleur: IVOIRE, matiere: 'tissu', matiereAlpha: 0.26, echelle: 0.5, modele: 0.8 });
-        });
+          poser(g, kk, v, {
+            couleur: cote > 0 ? assombrir(IVOIRE, 0.2) : IVOIRE,
+            matiere: 'tissu',
+            matiereAlpha: 0.26,
+            echelle: 0.5,
+            modele: 0.9,
+            seed: 27,
+          });
+        }
       },
       surTorse: (g, kk) => {
+        /*
+         * ── LE SURCOT, la valeur qui casse le rectangle rouge ──
+         *
+         * Tout ce que portait la Dame était grenat : corsage, robe, cape,
+         * bannière. Quatre pièces de la même teinte empilées ne font qu'une
+         * masse, et à la vignette la planche de contact ne montrait rien
+         * d'autre — un rectangle rouge avec un fanion, sans épaules, sans
+         * taille, sans bras. Le rendu de référence, lui, superpose un surcot
+         * SOMBRE au grenat, ouvert par-devant, dont l'ourlet part en biais
+         * au-dessus de la jambe qui avance : c'est cette diagonale d'étoffe qui
+         * donne la taille, le mouvement, et le seul contraste de valeur de la
+         * figure.
+         *
+         * On le peint donc ici, entre l'orfroi et le panneau de la grenade :
+         * un pan d'ardoise du haut de la poitrine à mi-jupe, plus haut du côté
+         * du soleil, galonné d'or sur son bord biais.
+         */
+        const pans: [number, number][] = [
+          [-0.155, -0.25],
+          [0.145, -0.245],
+          [0.2, 0.02],
+          [0.235, 0.235], // pointe basse, côté ombre
+          [0.05, 0.185],
+          [-0.115, 0.075], // remontée du biais, côté soleil
+          [-0.185, -0.03],
+        ];
+        const surcotPan = lisser(
+          perturber(densifier(pans.map(([x, y]) => pt(H * x, H * y)), H * 0.05), H * 0.004, k.seed + 91),
+          1,
+        );
+        poser(g, kk, surcotPan, {
+          couleur: surcot,
+          matiere: 'tissu',
+          matiereAlpha: 0.24,
+          echelle: 0.6,
+          modele: 1,
+          seed: k.seed + 93,
+        });
+        // le biais galonné : l'ourlet qui monte vers la jambe d'appui
+        orfevrerie(
+          g,
+          [pt(H * 0.235, H * 0.235), pt(H * 0.05, H * 0.185), pt(-H * 0.115, H * 0.075), pt(-H * 0.185, -H * 0.03)],
+          { epaisseur: Math.max(1.2, H * 0.016), alpha: 0.85 },
+        );
         // orfroi complet : la matière ajoutée par rapport à la Grenadière
         orfevrerie(g, [pt(-H * 0.1, -H * 0.28), pt(-H * 0.04, -H * 0.06)], { epaisseur: H * 0.013 });
         orfevrerie(g, [pt(H * 0.08, -H * 0.28), pt(H * 0.035, -H * 0.06)], { epaisseur: H * 0.013 });
@@ -1395,7 +1500,30 @@ const dameFilDor: Fabrique = (k) => {
           }
         });
       },
-      armeAncre: { rot: 0.03 },
+      /* La hampe s'incline de 0,18 rad vers l'arrière, c'est-à-dire du côté
+         opposé au visage. À 0,03 elle montait droite et passait à un pixel de
+         la tempe : le bois coupait la figure en deux, et sur la planche on ne
+         savait plus si la tache claire du haut était un visage ou un nœud de la
+         hampe. Mesuré, le sommet de la hampe passe de x = −13 à x = −27 quand
+         le crâne occupe x[−10 .. +9] : la tête est dégagée, et l'étendard prend
+         la diagonale qu'il n'avait pas. */
+      armeAncre: { rot: -0.18 },
+      /* Au bout du bras tendu, la fusée de fil d'or et le fil qui court : le
+         rendu de référence la montre tirant son fil à bout de bras, et c'est
+         ce qui donne à la main tendue une raison d'être là. */
+      mainDroite: (g, kk) =>
+        sous(g, H * 0.004, H * 0.33, (h) => {
+          poser(h, kk, blob(0, 0, H * 0.024, H * 0.036, { seed: 8, points: 12, wobble: 0.16 }), {
+            couleur: LIGHT.rim,
+            matiere: 'tissu',
+            matiereAlpha: 0.26,
+            echelle: 0.3,
+            speculaire: { x: 0.3, y: 0.28, r: 0.18 },
+          });
+          h.moveTo(0, H * 0.02);
+          h.quadraticCurveTo(-H * 0.05, H * 0.07, -H * 0.13, H * 0.05);
+          h.stroke({ color: LIGHT.rim, width: Math.max(1, H * 0.008), alpha: 0.8, cap: 'round' });
+        }),
     }),
     k,
     (r) => {
@@ -1426,6 +1554,29 @@ const PENTE_SANGLIER = 0.2;
  * museau, celui du bas long et recourbé, celui du haut court. C'est la seule
  * chose qu'on lise à seize pixels, et c'est ce qui distingue un sanglier d'un
  * gros chien.
+ *
+ * ─── Deuxième passe : le GROIN et les DÉFENSES, tels que la planche les a
+ * démentis ───
+ *
+ * Le triangle était bon, les deux pièces qui le terminent ne l'étaient pas, et
+ * c'est ce qui faisait dire « âne bâté » devant les deux rangs cinq.
+ *
+ *  1. **Le groin.** Il finissait en OGIVE — trois sommets qui se rejoignaient en
+ *     pointe arrondie, avec par-dessus un blob rose de 0,19 S. À la vignette
+ *     cela ne fait pas un groin, cela fait un museau d'équidé. Un groin est un
+ *     TRAPÈZE : un disque cartilagineux presque plat, coupé net, plus haut que
+ *     l'attache du museau, tendu vers l'avant. On termine donc la hure sur
+ *     quatre sommets qui dessinent cette face plate, et on pose le disque comme
+ *     un quadrilatère et non comme une boule.
+ *  2. **Les défenses.** Elles étaient deux arcs centrés SOUS la mâchoire :
+ *     l'arc partait en (0,97 S ; 0,83 S), c'est-à-dire un demi-S plus bas que
+ *     l'auge, et remontait vers l'avant. Rendu à l'écran, on n'en voyait que la
+ *     partie basse — un croissant blafard pendu sous la tête, qu'on lisait
+ *     comme une corne molle ou une bride qui traîne, et une seule, parce que la
+ *     petite disparaissait dans la grande. Une défense de sanglier SORT DE LA
+ *     LÈVRE et remonte DEVANT le groin : elle doit se détacher sur le fond, pas
+ *     sur la gorge. Les deux arcs repartent donc de la commissure et montent
+ *     au-dessus de la ligne du chanfrein, la grande dépassant le front.
  */
 function teteSanglier(g: Graphics, k: Kit, S: number, ferre: boolean, seed: number): void {
   const soie = melanger(CHENE, 0x2f2a22, 0.45);
@@ -1436,9 +1587,10 @@ function teteSanglier(g: Graphics, k: Kit, S: number, ferre: boolean, seed: numb
           pt(-S * 0.56, -S * 0.62), // nuque haute
           pt(-S * 0.02, -S * 0.56),
           pt(S * 0.62, -S * 0.36), // arête du chanfrein
-          pt(S * 1.12, -S * 0.2),
-          pt(S * 1.24, S * 0.06), // bout du groin
-          pt(S * 1.02, S * 0.24),
+          pt(S * 1.16, -S * 0.26), // montant du groin
+          pt(S * 1.32, -S * 0.24), // ARÊTE HAUTE de la face du groin
+          pt(S * 1.36, S * 0.14), // arête basse : la face est coupée net
+          pt(S * 1.06, S * 0.28),
           pt(S * 0.4, S * 0.34),
           pt(-S * 0.24, S * 0.44), // auge
           pt(-S * 0.62, S * 0.14),
@@ -1460,17 +1612,31 @@ function teteSanglier(g: Graphics, k: Kit, S: number, ferre: boolean, seed: numb
     modele: 0.75,
     rim: false,
   });
-  // groin proprement dit : le disque cartilagineux, plus clair et plus lisse
-  poser(g, k, blob(S * 1.1, S * 0.0, S * 0.19, S * 0.17, { seed: seed + 3, points: 13, wobble: 0.16 }), {
-    couleur: melanger(soie, 0xb08e84, 0.5),
-    matiere: 'grain',
-    matiereAlpha: 0.18,
-    speculaire: { x: 0.32, y: 0.28, r: 0.16 },
-  });
-  for (const dy of [-0.06, 0.06]) {
-    g.poly(flat(blob(S * 1.16, dy * S, S * 0.035, S * 0.045, { seed: 9, points: 8, wobble: 0.24 }))).fill({
-      color: assombrir(soie, 0.62),
-      alpha: 0.85,
+  /* Le disque du groin : un TRAPÈZE, plat, tendu vers l'avant, plus clair que
+     la hure. C'est la pièce qui dit « suidé » avant même les défenses. */
+  poser(
+    g,
+    k,
+    perturber(
+      densifier(
+        [pt(S * 1.14, -S * 0.24), pt(S * 1.34, -S * 0.22), pt(S * 1.37, S * 0.14), pt(S * 1.12, S * 0.2)],
+        S * 0.09,
+      ),
+      S * 0.012,
+      seed + 3,
+    ),
+    {
+      couleur: melanger(soie, 0xb08e84, 0.55),
+      matiere: 'grain',
+      matiereAlpha: 0.18,
+      modele: 1,
+      speculaire: { x: 0.3, y: 0.26, r: 0.14 },
+    },
+  );
+  for (const dy of [-0.12, 0.04]) {
+    g.poly(flat(blob(S * 1.27, dy * S, S * 0.045, S * 0.055, { seed: 9, points: 8, wobble: 0.24 }))).fill({
+      color: assombrir(soie, 0.68),
+      alpha: 0.9,
     });
   }
   // œil : petit, enfoncé, mauvais, haut et loin en arrière
@@ -1486,39 +1652,47 @@ function teteSanglier(g: Graphics, k: Kit, S: number, ferre: boolean, seed: numb
     color: LIGHT.chaude,
     alpha: 0.6,
   });
-  // oreille : pavillon et conque, rejetée en arrière
+  /* Oreille : pavillon et conque, COURTE et large, rejetée en arrière. Le
+     suidé n'a pas l'oreille dressée du cheval — c'est un triangle épais rabattu
+     sur la nuque, et une oreille longue suffit à faire lire un âne. */
   oreilleAnimale(g, k, {
-    base: pt(-S * 0.26, -S * 0.52),
-    pointe: pt(-S * 0.48, -S * 0.94),
-    largeur: S * 0.26,
+    base: pt(-S * 0.26, -S * 0.5),
+    pointe: pt(-S * 0.46, -S * 0.8),
+    largeur: S * 0.34,
     couleur: assombrir(soie, 0.18),
     seed: seed + 5,
   });
   /*
-   * Les DÉFENSES, hors du contour. Deux par côté visible : la grande du bas,
-   * qui sort de la lèvre et remonte devant le chanfrein, et la petite du haut
-   * qui l'accompagne. Elles font désormais 0,58 S — presque la moitié de la
-   * hure — parce qu'à la vignette une défense de 0,3 S est un pixel d'ivoire.
+   * Les DÉFENSES, hors du contour, DEUX, et toutes deux au-dessus de la ligne
+   * du museau.
+   *
+   * Elles partent de la commissure — (1,0 S ; 0,28 S), c'est-à-dire à la lèvre
+   * et non sous la gorge — et remontent DEVANT le groin en croisant la ligne du
+   * chanfrein. La grande passe au-dessus du front, la petite s'arrête à
+   * mi-chanfrein : deux crocs clairs sur un fond de ciel, ce qui est la seule
+   * façon qu'ils ont d'exister à seize pixels. Le centre d'arc est posé
+   * au-DESSUS du museau (cy négatif) : c'est ce signe-là qui retourne la
+   * courbure et fait remonter la pointe au lieu de la laisser pendre.
    */
   corne(g, k, {
-    cx: S * 0.86,
-    cy: S * 0.26,
-    rx: S * 0.5,
-    ry: S * 0.58,
-    a0: 1.35,
-    a1: -0.55,
-    ep: S * 0.15,
+    cx: S * 1.12,
+    cy: -S * 0.16,
+    rx: S * 0.2,
+    ry: S * 0.52,
+    a0: 1.62,
+    a1: -0.18,
+    ep: S * 0.26,
     couleur: ferre ? melanger(IVOIRE, LIGHT.rim, 0.4) : IVOIRE,
     seed: seed + 7,
   });
   corne(g, k, {
-    cx: S * 0.94,
-    cy: S * 0.02,
-    rx: S * 0.3,
+    cx: S * 1.02,
+    cy: -S * 0.02,
+    rx: S * 0.14,
     ry: S * 0.34,
-    a0: 1.3,
-    a1: -0.3,
-    ep: S * 0.1,
+    a0: 1.6,
+    a1: -0.1,
+    ep: S * 0.15,
     couleur: ferre ? melanger(IVOIRE, LIGHT.rim, 0.25) : assombrir(IVOIRE, 0.12),
     seed: seed + 9,
   });
@@ -1564,9 +1738,26 @@ function sanglierPieces(k: Kit, Hs: number, L: number, ferre: boolean): PieceDef
      * degrés : un sanglier qui hurle à la lune. Le suidé porte sa hure basse,
      * groin près du sol, épaules hautes — c'est la même ligne que la pente du
      * dos, et les deux ensemble font le coin.
+     *
+     * ── Deuxième passe : la hure était encore trop HAUTE ──
+     *
+     * À 0,5 rad, l'ancre de tête tombait 0,39 Hs sous le repère du corps pour
+     * un dos qui culmine à 0,62 Hs : le crâne se posait à quatre unités du
+     * garrot, sur une encolure qu'on voyait courir en travers. C'est cela, et
+     * pas le poil, qui faisait lire un ÉQUIDÉ — cheval et âne portent la tête
+     * au-dessus de la ligne du dos, le suidé la porte au niveau du POITRAIL.
+     * On couche donc l'encolure de 1,05 rad au lieu de 0,5 : l'ancre descend à
+     * 0,12 Hs, soit à mi-hauteur du tronc, et il ne reste plus d'encolure
+     * visible entre la bosse d'épaule et la nuque — ce que montre le rendu de
+     * référence, où la hure est plantée dans le garrot.
+     *
+     * `avance` monte à 1,15 pour que la hure sorte franchement devant le
+     * poitrail malgré ce couchage (l'épreuve d'anatomie mesure ce rapport), et
+     * `teteRot` reprend en négatif ce que l'encolure a ajouté, sans quoi le
+     * groin piquerait dans le sol à soixante degrés.
      */
-    cou: { longueur: Hs * 0.3, largeur: Hs * 0.52, angle: 0.5, avance: 0.7 },
-    teteRot: 0.24,
+    cou: { longueur: Hs * 0.26, largeur: Hs * 0.6, angle: 1.05, avance: 1.15 },
+    teteRot: -0.62,
     pente: PENTE_SANGLIER,
     /* Le suidé est un TONNEAU : poitrail profond, flanc presque plein. Les deux
        valeurs sont dites ici parce que le squelette partage désormais un creux
@@ -1576,7 +1767,7 @@ function sanglierPieces(k: Kit, Hs: number, L: number, ferre: boolean): PieceDef
     flanc: 0.05,
     patte: { canon: 0.5, jarret: 0.19, pied: 0.15 },
     queue: { longueur: L * 0.16, epaisseur: Hs * 0.09, courbe: 1.2 },
-    tete: (g, kk) => teteSanglier(g, kk, Hs * 0.55, ferre, k.seed + 33),
+    tete: (g, kk) => teteSanglier(g, kk, Hs * 0.6, ferre, k.seed + 33),
     surTronc: (g, kk) => {
       /*
        * Le GARROT, d'abord. C'est la silhouette du sanglier : une bête haute de
@@ -1628,8 +1819,22 @@ function sanglierPieces(k: Kit, Hs: number, L: number, ferre: boolean): PieceDef
        * l'échine et les avant s'enfonçaient dans l'épaule. `ligneDos` donne la
        * hauteur du dos en tout point ; toutes les pièces d'acier s'y accrochent.
        */
+      /*
+       * ── Deuxième passe : `ligneDos` ne passait pas par le dos ──
+       *
+       * Elle valait −0,34 Hs plus une correction de pente, soit −0,28 Hs à
+       * l'épaule et −0,15 Hs à la croupe. Or l'échine du tronc court de
+       * −0,54 Hs à l'épaule à −0,20 Hs à la croupe, et la bosse de garrot
+       * peinte juste au-dessus monte à −0,62 Hs. Toute la barde était donc
+       * posée un quart de hauteur SOUS le dos, au milieu du flanc : le dos
+       * lui-même restait nu, sans arête, sans crête, sans soies — un cylindre
+       * brun, et c'est ce cylindre qui faisait « âne bâté » autant que la hure
+       * haute. La ligne se déduit maintenant de l'échine réelle du tronc, et
+       * les trois familles de pièces (barde de flanc, dossière, soies) s'y
+       * accrochent ensemble.
+       */
       const acierChaud = melanger(ACIER, CHENE, ferre ? 0.26 : 0.4);
-      const ligneDos = (x: number): number => -Hs * 0.34 + PENTE_SANGLIER * Hs * (0.5 - x / L) * 1.2;
+      const ligneDos = (x: number): number => -Hs * (0.38 + PENTE_SANGLIER * 3.1 * (x / L));
       for (let i = 0; i < 3; i += 1) {
         const x = -L * 0.2 + i * L * 0.2;
         const flanc = lisser(
@@ -1654,7 +1859,7 @@ function sanglierPieces(k: Kit, Hs: number, L: number, ferre: boolean): PieceDef
       // bardes rivetées le long de l'échine, par-dessus le caparaçon
       const n = ferre ? 5 : 4;
       for (let i = 0; i < n; i += 1) {
-        const x = -L * 0.3 + (i / (n - 1)) * L * 0.62;
+        const x = -L * 0.32 + (i / (n - 1)) * L * 0.56;
         const h0 = ligneDos(x);
         const plaque = lisser(
           perturber(
@@ -1682,17 +1887,39 @@ function sanglierPieces(k: Kit, Hs: number, L: number, ferre: boolean): PieceDef
           });
         }
       }
-      // soies dressées entre les plaques
-      for (let i = 0; i < 12; i += 1) {
-        const x = -L * 0.34 + (i / 11) * L * 0.66;
-        const h0 = ligneDos(x) + Hs * 0.02;
-        g.moveTo(x, h0);
-        g.quadraticCurveTo(x - L * 0.012, h0 - Hs * 0.12, x - L * 0.025, h0 - Hs * 0.18);
-        g.stroke({
-          color: i % 2 ? eclaircir(soie, 0.25) : ombreBleutee(soie, 0.5),
-          width: Hs * 0.018,
-          alpha: 0.65,
-          cap: 'round',
+      /*
+       * La CRÊTE DE SOIES, sur toute la ligne du dos.
+       *
+       * C'était douze traits de 0,018 Hs de large — moins d'un pixel à la
+       * taille où la bête est affichée — hauts de 0,18 Hs, et posés au milieu
+       * du flanc puisque `ligneDos` s'y trouvait. Autant dire rien : la
+       * silhouette du dos restait un arc lisse, et un dos lisse en pente douce
+       * est un dos d'équidé. Le rendu de référence montre l'inverse — une
+       * crinière de soies dressées qui hérisse toute l'échine, du toupet à la
+       * croupe, la plus haute au garrot.
+       *
+       * On les peint donc en FUSEAUX pleins et non en traits : seule une
+       * surface franchit la réduction. Longueur en cloche, maximum au garrot,
+       * inclinaison vers l'arrière, une sur deux éclaircie — c'est le même
+       * moyen que `criniereMeches` emploie pour l'encolure du cheval, appliqué
+       * ici à une ligne qui n'est pas droite.
+       */
+      const SOIES = 17;
+      for (let i = 0; i < SOIES; i += 1) {
+        const t = i / (SOIES - 1);
+        const x = -L * 0.4 + t * L * 0.74;
+        const h0 = ligneDos(x) + Hs * 0.03;
+        /* Cloche centrée sur le garrot (t ≈ 0,72), là où la bosse est la plus
+           haute : la crête est un profil, pas une brosse régulière. */
+        const l = Hs * (0.08 + 0.3 * Math.exp(-(((t - 0.78) / 0.42) ** 2)));
+        poser(g, kk, fuseau(x, h0, x - L * 0.035, h0 - l, Hs * 0.05, { seed: i * 7 + 3, taper: 0.72 }), {
+          couleur: i % 2 ? eclaircir(soie, 0.28) : melanger(soie, 0x241f19, 0.45),
+          matiere: 'fourrure',
+          matiereAlpha: 0.3,
+          echelle: 0.3,
+          modele: 0.9,
+          rim: i % 2 === 0,
+          contour: false,
         });
       }
       if (ferre) {
@@ -1849,16 +2076,43 @@ function teteCheval(g: Graphics, k: Kit, S: number, robe: number, chanfrein: boo
     seed: seed + 23,
   });
 
-  // bride : têtière, montant de mors et muserolle
-  g.moveTo(-S * 0.24, -S * 0.5);
-  g.quadraticCurveTo(-S * 0.34, -S * 0.1, -S * 0.24, S * 0.3);
-  g.stroke({ color: assombrir(CHENE, 0.3), width: S * 0.055, alpha: 0.85, cap: 'round' });
-  g.moveTo(-S * 0.2, -S * 0.42);
-  g.quadraticCurveTo(S * 0.3, -S * 0.2, S * 0.82, S * 0.02);
-  g.stroke({ color: assombrir(CHENE, 0.3), width: S * 0.05, alpha: 0.85, cap: 'round' });
-  g.moveTo(S * 0.74, -S * 0.4);
-  g.quadraticCurveTo(S * 0.86, -S * 0.1, S * 0.78, S * 0.16);
-  g.stroke({ color: assombrir(CHENE, 0.34), width: S * 0.045, alpha: 0.8, cap: 'round' });
+  /*
+   * La BRIDE : têtière, montant de mors, muserolle — et elle doit se VOIR.
+   *
+   * Elle était tracée en `assombrir(CHENE, 0,3)`, c'est-à-dire un brun sombre
+   * posé sur une robe brune, à 0,05 S d'épaisseur : deux pixels d'un ton qui
+   * n'est pas le sien. À la vignette il n'y avait pas de bride, et une tête de
+   * cheval sans bride n'est plus une monture, c'est un animal. Le rendu de
+   * référence livré pour ce rang la donne en cuir ROUSSI, clair sur le gris de
+   * la robe, cloutée d'or aux jonctions — un harnais qu'on lit avant l'œil.
+   *
+   * On la passe donc à l'ocre de la faction éclairci, on l'épaissit d'un tiers,
+   * on double chaque courroie d'un filet chaud du côté du soleil, et on pose la
+   * bossette d'or à l'angle de la joue, là où les trois courroies se croisent.
+   */
+  const cuir = melanger(k.pal.appoint, CHENE, 0.42);
+  const courroie = (
+    ax: number, ay: number, cx: number, cy: number, bx: number, by: number, ep: number,
+  ): void => {
+    g.moveTo(S * ax, S * ay);
+    g.quadraticCurveTo(S * cx, S * cy, S * bx, S * by);
+    g.stroke({ color: assombrir(cuir, 0.4), width: S * ep, alpha: 0.9, cap: 'round' });
+    g.moveTo(S * ax, S * (ay - 0.03));
+    g.quadraticCurveTo(S * cx, S * (cy - 0.03), S * bx, S * (by - 0.03));
+    g.stroke({ color: eclaircir(cuir, 0.3), width: S * ep * 0.42, alpha: 0.85, cap: 'round' });
+  };
+  courroie(-0.24, -0.5, -0.34, -0.1, -0.24, 0.3, 0.075); // têtière
+  courroie(-0.2, -0.42, 0.3, -0.2, 0.82, 0.02, 0.07); // montant de mors
+  courroie(0.74, -0.4, 0.86, -0.1, 0.78, 0.16, 0.062); // muserolle
+  // bossette : le clou d'or au croisement, seul point vraiment brillant du harnais
+  poser(g, k, blob(-S * 0.22, -S * 0.06, S * 0.085, S * 0.08, { seed: seed + 29, points: 11, wobble: 0.2 }), {
+    couleur: LIGHT.rim,
+    matiere: 'metal',
+    matiereAlpha: 0.24,
+    modele: 1,
+    speculaire: { x: 0.3, y: 0.26, r: 0.2 },
+    contour: false,
+  });
   if (chanfrein) {
     ferrure(
       g,
@@ -2085,15 +2339,25 @@ function monturePieces(k: Kit, banneret: boolean): PieceDef[] {
     ordreMort: 5,
     dessin: (g, kk) => {
       /* Des MÈCHES le long de la crête, jamais l'aplat qui y était : un
-         polygone sombre d'un seul ton collé au cou, que la loi n°1 refuse. */
+         polygone sombre d'un seul ton collé au cou, que la loi n°1 refuse.
+
+         Elles étaient trop courtes et trop proches de la robe pour exister :
+         `assombrir(robe, 0,34)` d'un brun de chêne sur un brun de chêne, longues
+         de 0,72 couW, soit dix-sept unités — à la vignette, une frange sombre
+         collée à un cou sombre, donc rien. Le rendu de référence livré pour ce
+         rang montre exactement l'inverse : une crinière NOIRE et longue qui
+         déborde largement la crête, retombe devant l'épaule et se détache sur
+         la robe grise. On double la longueur, on pousse la teinte deux crans
+         sous la robe, et on garde l'alternance de valeur des mèches — c'est
+         elle qui empêche le noir de redevenir un aplat. */
       criniereMeches(g, kk, {
-        a: pt(-couW * 0.8, -couL * 0.04),
-        b: pt(-couW * 0.44, -couL * 0.98),
-        nombre: banneret ? 8 : 7,
-        longueur: couW * 0.72,
-        largeur: couW * 0.24,
-        couleur: assombrir(robeCheval, 0.34),
-        inclinaison: 0.34,
+        a: pt(-couW * 0.84, couL * 0.06),
+        b: pt(-couW * 0.4, -couL * 1.02),
+        nombre: banneret ? 14 : 13,
+        longueur: couW * 1.24,
+        largeur: couW * 0.38,
+        couleur: melanger(assombrir(robeCheval, 0.62), 0x241f19, 0.4),
+        inclinaison: 1.16,
         seed: k.seed + 67,
       });
     },
@@ -2133,7 +2397,33 @@ function monturePieces(k: Kit, banneret: boolean): PieceDef[] {
 
   pieces.push({ nom: 'cavalier', parent: 'corps', x: -L * 0.04, y: -Hs * 0.42, ordreMort: 9, dessin: () => {} });
 
-  const HB = Hs * 0.92;
+  /*
+   * ── L'ÉCHELLE DU CAVALIER, mesurée ──
+   *
+   * Le cavalier était réglé sur `Hs × 0,92`, et l'homme entier — cuisses,
+   * tronc, tête, heaume — en découlait. Mesuré sur `granit_t6` : le buste
+   * tenait dans x[−27..22], soit quarante-neuf unités de large, pour un tronc
+   * de cheval large de cent cinq ; le heaume faisait dix-sept unités de large,
+   * et le sommet du plumail arrivait exactement à la hauteur des oreilles du
+   * cheval. À la vignette cela ne fait pas « un chevalier », cela fait « un
+   * cheval avec quelque chose dessus » — le mot est du propriétaire, et la
+   * mesure lui donne raison : l'homme occupait un sixième de la silhouette.
+   *
+   * On sépare donc deux échelles, ce qui n'existait pas :
+   *
+   *  — `HB`, le CORPS du cavalier (tronc, épaulières, bras, heaume, écu,
+   *    arme), porté à `Hs × 1,15` : un quart de plus, ce qui met le heaume
+   *    franchement au-dessus de la ligne d'oreilles et donne à l'écu une masse
+   *    qu'on lit avant le caparaçon ;
+   *  — `HJ`, ses JAMBES, qui restent à l'ancienne valeur. Elles enfourchent le
+   *    cheval, pas le cavalier : allongées d'un quart elles seraient passées
+   *    sous le ventre, et l'étrier aurait pendu dans le vide.
+   *
+   * La boîte du sprite n'y perd rien : elle est fixée par l'ombre portée
+   * (290 × 270 pour un contenu de 178 × 171), donc la place était là.
+   */
+  const HB = Hs * 1.15;
+  const HJ = Hs * 0.92;
   pieces.push({
     nom: 'bras_d',
     parent: 'cavalier',
@@ -2162,15 +2452,15 @@ function monturePieces(k: Kit, banneret: boolean): PieceDef[] {
     dessin: (g, kk) => {
       // jambes du cavalier, repliées de part et d'autre de la selle, genou marqué
       for (const cote of [1, -1] as const) {
-        sous(g, cote * HB * 0.05, HB * 0.02, (h) => {
-          membre(h, kk, pt(0, 0), pt(cote * HB * 0.12, HB * 0.24), HB * 0.1, {
+        sous(g, cote * HJ * 0.05, HJ * 0.02, (h) => {
+          membre(h, kk, pt(0, 0), pt(cote * HJ * 0.12, HJ * 0.24), HJ * 0.1, {
             couleur: cote > 0 ? assombrir(ARDOISE, 0.2) : ARDOISE,
             matiere: 'metal',
             matiereAlpha: 0.2,
             echelle: 0.4,
             seed: k.seed + cote,
           });
-          membre(h, kk, pt(cote * HB * 0.12, HB * 0.22), pt(cote * HB * 0.18, HB * 0.44), HB * 0.075, {
+          membre(h, kk, pt(cote * HJ * 0.12, HJ * 0.22), pt(cote * HJ * 0.18, HJ * 0.44), HJ * 0.075, {
             couleur: cote > 0 ? assombrir(ARDOISE, 0.28) : assombrir(ARDOISE, 0.08),
             matiere: 'metal',
             matiereAlpha: 0.2,
@@ -2178,19 +2468,19 @@ function monturePieces(k: Kit, banneret: boolean): PieceDef[] {
             seed: k.seed + cote * 3,
           });
           // genouillère : une écaille de plates, avec son point de lumière
-          poser(h, kk, blob(cote * HB * 0.13, HB * 0.23, HB * 0.05, HB * 0.042, { seed: 7 + cote, points: 12, wobble: 0.2 }), {
+          poser(h, kk, blob(cote * HJ * 0.13, HJ * 0.23, HJ * 0.05, HJ * 0.042, { seed: 7 + cote, points: 12, wobble: 0.2 }), {
             couleur: melanger(ACIER, ARDOISE, 0.2),
             matiere: 'metal',
             matiereAlpha: 0.24,
             speculaire: { x: 0.3, y: 0.24, r: 0.16 },
           });
-          sous(h, cote * HB * 0.2, HB * 0.46, (c) =>
-            pied(c, kk, { l: HB * 0.14, h: HB * 0.05, couleur: assombrir(ARDOISE, 0.38), seed: 3 }),
+          sous(h, cote * HJ * 0.2, HJ * 0.46, (c) =>
+            pied(c, kk, { l: HJ * 0.14, h: HJ * 0.05, couleur: assombrir(ARDOISE, 0.38), seed: 3 }),
           );
           // étrier : l'anneau sous la botte, qui dit que l'homme est en selle
           if (cote < 0) {
-            sous(h, cote * HB * 0.2, HB * 0.5, (c) =>
-              poser(c, kk, arcBande(0, 0, HB * 0.05, HB * 0.04, 0.2, 2.94, HB * 0.02, 0), {
+            sous(h, cote * HJ * 0.2, HJ * 0.5, (c) =>
+              poser(c, kk, arcBande(0, 0, HJ * 0.05, HJ * 0.04, 0.2, 2.94, HJ * 0.02, 0), {
                 couleur: melanger(ACIER, LIGHT.rim, banneret ? 0.3 : 0.1),
                 matiere: 'metal',
                 matiereAlpha: 0.24,
@@ -2276,15 +2566,19 @@ function monturePieces(k: Kit, banneret: boolean): PieceDef[] {
   pieces.push({
     nom: 'bouclier',
     parent: 'bras_d',
-    x: HB * 0.16,
-    y: HB * 0.2,
+    x: HB * 0.2,
+    y: HB * 0.22,
     rot: -0.2,
     lumiere: -0.7,
     ordreMort: 3,
     dessin: (g, kk) =>
+      /* L'écu, à la taille qui en fait une MASSE. À 0,42 × 0,54 HB il tenait
+         dans quarante unités de large sur un cheval qui en fait cent cinq : un
+         jeton. Un écu de cavalerie couvre l'homme de l'épaule à la cuisse, et
+         c'est la seule pièce de couleur franche que porte le rang six. */
       ecu(g, kk, {
-        w: HB * 0.42,
-        h: HB * 0.54,
+        w: HB * 0.54,
+        h: HB * 0.7,
         couleur: k.pal.primaire,
         bord: banneret ? LIGHT.rim : melanger(ACIER, LIGHT.rim, 0.3),
         meuble: banneret ? 'borne' : 'croix',
@@ -2300,7 +2594,11 @@ function monturePieces(k: Kit, banneret: boolean): PieceDef[] {
     lumiere: 0.5,
     ordreMort: 10,
     dessin: (g, kk) => {
-      const r = HB * 0.11;
+      /* Le heaume passe de 0,11 à 0,135 HB : avec l'échelle du corps, il fait
+         désormais vingt-cinq unités de large là où il en faisait dix-sept, et
+         il se découpe au-dessus de la ligne d'oreilles du cheval au lieu de
+         s'y confondre. */
+      const r = HB * 0.135;
       // heaume fermé : la Châtellenie ne montre pas ses visages en bataille
       const heaume = lisser(
         perturber(
@@ -2400,17 +2698,35 @@ function monturePieces(k: Kit, banneret: boolean): PieceDef[] {
     ordreMort: 0,
     dessin: (g, kk) => {
       if (banneret) {
-        hampe(g, kk, pt(0, HB * 0.2), pt(-HB * 0.04, -HB * 1.35), HB * 0.035, CHENE, 13);
-        sous(g, -HB * 0.04, -HB * 1.35, (h) => {
-          poser(h, kk, blob(0, -HB * 0.03, HB * 0.04, HB * 0.05, { seed: 6, points: 12, wobble: 0.2 }), {
+        /*
+         * Le gonfanon : PENCHÉ, et deux fois plus grand.
+         *
+         * La hampe montait tout droit — de (0 ; 0,2 HB) à (−0,04 HB ;
+         * −1,35 HB), soit un écart latéral de quatre centièmes sur une
+         * verticale de cent cinquante : une antenne. Deux conséquences
+         * mesurées. D'abord la silhouette du banneret n'avait aucune diagonale
+         * et rien ne le distinguait du chevalier autre que la couleur du pan.
+         * Ensuite elle poussait la boîte du sprite à 335 de haut pour 291 de
+         * large, si bien que l'empaqueteur réduisait la bête à 0,61 quand le
+         * chevalier passait à 0,65 — l'AMÉLIORÉ était rendu plus petit que sa
+         * forme de base.
+         *
+         * On couche donc la hampe de trente degrés vers l'arrière. La hauteur
+         * rendue baisse, la largeur monte — et la largeur, elle, avait de la
+         * marge. Le pan double de surface et retombe en travers de la croupe :
+         * c'est cette diagonale-là qu'on lit à la vignette, avant l'homme.
+         */
+        hampe(g, kk, pt(HB * 0.16, HB * 0.28), pt(-HB * 0.74, -HB * 0.86), HB * 0.042, CHENE, 13);
+        sous(g, -HB * 0.74, -HB * 0.86, (h) => {
+          poser(h, kk, blob(0, -HB * 0.03, HB * 0.05, HB * 0.06, { seed: 6, points: 12, wobble: 0.2 }), {
             couleur: LIGHT.rim,
             matiere: 'metal',
             matiereAlpha: 0.24,
             speculaire: { x: 0.3, y: 0.24, r: 0.16 },
           });
         });
-        sous(g, -HB * 0.03, -HB * 1.3, (h) =>
-          banniereTissu(h, kk, { w: HB * 0.5, h: HB * 0.46, couleur: k.pal.primaire, accent: LIGHT.rim, seed: 2 }),
+        sous(g, -HB * 0.72, -HB * 0.82, (h) =>
+          banniereTissu(h, kk, { w: HB * 0.76, h: HB * 0.56, couleur: k.pal.primaire, accent: LIGHT.rim, seed: 2 }),
         );
       } else {
         // lance couchée : la longue diagonale qui signe le rang 6
