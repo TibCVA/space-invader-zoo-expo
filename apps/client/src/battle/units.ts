@@ -68,6 +68,12 @@ export function couleurDeCss(css: string | undefined, secours: number): number {
  */
 const GEL_DES_GREEMENTS = false;
 
+/**
+ * Bande de profondeur des dépouilles : sous toute pile vivante, au-dessus du
+ * halo de la pile active (qui est à −10).
+ */
+export const PROFONDEUR_DEPOUILLE = -900;
+
 /** Ce que la vue affiche d'une pile, indépendamment de l'état du moteur. */
 export class PileVue {
   readonly container = new Container();
@@ -185,7 +191,9 @@ export class PileVue {
     this.majCartouche(unit);
     this.majVie(unit);
     if (!this.mise && !figer) {
-      this.container.zIndex = unit.at.row * 1000 + unit.at.col * 4 + (unit.side === 0 ? 0 : 1);
+      this.container.zIndex = this.morte
+        ? PROFONDEUR_DEPOUILLE + unit.at.row
+        : unit.at.row * 1000 + unit.at.col * 4 + (unit.side === 0 ? 0 : 1);
     }
     /* Perspective atmosphérique : les piles du fond tirent vers la brume. */
     const profondeur = 1 - unit.at.row / (HEX_ROWS - 1);
@@ -252,6 +260,16 @@ export class PileVue {
     this.cartoucheHote.visible = false;
     this.cadran.visible = false;
     this.banniere.visible = false;
+    /*
+     * La dépouille passe sous les vivants.
+     *
+     * Le tri en profondeur range les piles par `ligne × 1000`, toutes
+     * positives ; une bande négative met donc tout corps abattu sous toute
+     * troupe debout, quelle que soit sa ligne — sans quoi un cadavre de la
+     * ligne neuf se dessinerait par-dessus une pile vivante de la ligne deux
+     * venue occuper le terrain. Les dépouilles restent triées entre elles.
+     */
+    this.container.zIndex = PROFONDEUR_DEPOUILLE + this.hex.row;
   }
 
   get estMorte(): boolean {

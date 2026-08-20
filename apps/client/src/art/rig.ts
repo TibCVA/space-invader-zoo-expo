@@ -70,6 +70,19 @@ export interface PoseRepos {
  * Une articulation : un conteneur qui mémorise sa pose de repos et son
  * exposition à la lumière (utilisée pour compenser le retournement).
  */
+/**
+ * Ce qu'il reste d'une pile abattue, en part d'opacité.
+ *
+ * La dissolution menait chaque articulation à l'alpha zéro : au bout d'une
+ * seconde et trois quarts, la case était nue et le champ de bataille n'avait
+ * plus de mémoire. HMM3 laisse la créature abattue couchée sur son hexagone
+ * jusqu'à la fin de la bataille, et c'est ce qui permet de lire un front d'un
+ * coup d'œil : où l'on a payé cher, où l'on a percé. On garde donc une
+ * dépouille — assez présente pour se voir, assez effacée pour qu'on ne la
+ * prenne jamais pour une troupe debout.
+ */
+export const DEPOUILLE_ALPHA = 0.3;
+
 export class Joint extends Container {
   readonly nom: string;
   readonly repos: PoseRepos;
@@ -496,7 +509,7 @@ export class Rig extends Container implements CreatureRig {
 
   /**
    * Dissolution à la mort : la silhouette s'affaisse, se refroidit et se défait
-   * en cendres. Aucune disparition brutale, aucun fondu gris.
+   * en cendres — mais pas jusqu'au néant : il reste la dépouille.
    */
   private appliquerDissolution(pas: number): void {
     const c = this.clips.get('mort');
@@ -508,11 +521,12 @@ export class Rig extends Container implements CreatureRig {
       const j = this.ordreJoints[i];
       const retard = (j.ordreMort || i) / (n * 1.6);
       const k = Math.max(0, Math.min(1, (t - retard) / 0.55));
-      j.alpha *= 1 - k;
+      j.alpha *= 1 - k * (1 - DEPOUILLE_ALPHA);
       j.y += k * 3.4;
       j.rotation += k * 0.06 * (i % 2 ? 1 : -1);
     }
-    this.ombre.alpha = 1 - t * 0.9;
+    /* L'ombre s'efface presque : un corps couché porte peu d'ombre. */
+    this.ombre.alpha = 1 - t * 0.78;
 
     const teinte = this.opts.teinteMort ?? LIGHT.brume;
     const g = this.aura;
