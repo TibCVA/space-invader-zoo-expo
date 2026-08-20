@@ -54,6 +54,7 @@ import {
   lueurFroide,
   membre,
   mousse,
+  oreilleAnimale,
   orfevrerie,
   poser,
   queue as dessinerQueue,
@@ -1033,81 +1034,109 @@ const gardeFutaie: Fabrique = (k) =>
 
 /* ─────────────────────── Rang 5 — les cerfs des sources ─────────────────── */
 
+/**
+ * La RAMURE — le seul trait qui doive faire dire « cerf » à la vignette.
+ *
+ * **Ce qu'elle était, et pourquoi elle ratait.** Deux merrains en arc de
+ * cercle, l'un ouvert vers l'avant, l'autre vers l'arrière, symétriques par
+ * rapport à l'axe du crâne : c'est une ramure vue DE FACE, posée sur une tête
+ * vue DE PROFIL. Les deux lectures se contredisent, et ce qui reste à seize
+ * pixels est un râteau de jardin — mot pour mot ce que montre la planche, avec
+ * en prime les deux merrains couchés vers la croupe parce que l'encolure elle
+ * aussi partait à l'envers. Mesuré : la boîte tête + ramure du cerf tenait en
+ * x[−87..46], c'est-à-dire trente-sept unités DERRIÈRE la fesse de la bête.
+ *
+ * **Ce qu'elle est.** De profil, une ramure de cerf se lit ainsi : le MERRAIN
+ * monte de la meule, au-dessus de l'œil, et part en arrière au-dessus de
+ * l'encolure ; les ANDOUILLERS s'en détachent vers l'AVANT et le haut, de plus
+ * en plus courts ; l'andouiller de massacre passe seul devant le front ; la
+ * couronne se refourche au sommet. Les deux bois ne se superposent pas tout à
+ * fait : le lointain, plus sombre et décalé, double la silhouette — c'est ce
+ * dédoublement qui dit « bois » plutôt que « branche ».
+ */
 function ramure(g: Graphics, k: Kit, S: number, miraculeux: boolean, seed: number): void {
   const bois = miraculeux ? melanger(PIERRE_CLAIRE, CUIVRE, 0.3) : melanger(BOIS, PIERRE_CLAIRE, 0.35);
-  for (const cote of [-1, 1] as const) {
-    const merrain = arcBande(cote * S * 0.5, S * 0.2, S * 1.1, S * 1.35, cote > 0 ? -1.9 : -1.25, cote > 0 ? -0.35 : -2.8, S * 0.2, 0.62);
-    poser(g, k, merrain, {
-      couleur: cote > 0 ? assombrir(bois, 0.14) : bois,
-      matiere: 'ecorce',
-      matiereAlpha: 0.26,
-      echelle: 0.3,
-      seed: seed + cote,
-    });
-    const n = miraculeux ? 5 : 4;
+  /** Le merrain, de la meule au sommet : monte, puis part en arrière. */
+  const MERRAIN = [pt(0.06, 0.04), pt(0.08, -0.72), pt(-0.24, -1.32), pt(-0.6, -1.72)];
+  /** Andouillers : [x,y de départ sur le merrain, x,y de pointe], vers l'avant. */
+  const ANDOUILLERS: readonly (readonly [number, number, number, number])[] = [
+    [0.06, -0.06, 0.78, -0.46], // massacre, devant le front
+    [0.07, -0.5, 0.74, -1.02], // chevillure
+    [0.02, -0.98, 0.5, -1.56], // trochure
+    [-0.24, -1.32, 0.08, -1.98], // couronne, montant
+    [-0.42, -1.54, -0.34, -2.1], // couronne, fourche haute
+    [-0.6, -1.72, -0.98, -2.02], // époi arrière
+  ];
+
+  /* Le bois LOINTAIN d'abord : décalé, réduit, assombri. */
+  for (const loin of [true, false]) {
+    const dx = loin ? -0.2 : 0;
+    const dy = loin ? 0.1 : 0;
+    const ech = loin ? 0.9 : 1;
+    const ton = loin ? ombreBleutee(bois, 0.55) : bois;
+    const P = (q: readonly [number, number] | { x: number; y: number }): { x: number; y: number } => {
+      const qx = Array.isArray(q) ? q[0] : (q as { x: number }).x;
+      const qy = Array.isArray(q) ? q[1] : (q as { y: number }).y;
+      return pt(S * (qx * ech + dx), S * (qy * ech + dy));
+    };
+    for (let i = 0; i < MERRAIN.length - 1; i += 1) {
+      const a = P(MERRAIN[i]);
+      const b = P(MERRAIN[i + 1]);
+      poser(g, k, fuseau(a.x, a.y, b.x, b.y, S * (0.22 - i * 0.04) * ech, { seed: seed + i * 3 + (loin ? 40 : 0), taper: 0.3 }), {
+        couleur: i % 2 ? eclaircir(ton, 0.12) : ton,
+        matiere: 'ecorce',
+        matiereAlpha: 0.26,
+        echelle: 0.3,
+        rim: !loin,
+        seed: seed + i,
+      });
+    }
+    const n = miraculeux ? ANDOUILLERS.length : ANDOUILLERS.length - 1;
     for (let i = 0; i < n; i += 1) {
-      const t = 0.16 + (i / n) * 0.78;
-      const a = cote > 0 ? -1.9 + t * 1.55 : -1.25 - t * 1.55;
-      const bx = cote * S * 0.5 + Math.cos(a) * S * 1.1;
-      const by = S * 0.2 + Math.sin(a) * S * 1.35;
-      const len = S * (0.4 + (1 - t) * 0.5);
-      /*
-       * Les andouillers en ÉVENTAIL, et refourchés en haut.
-       *
-       * Ils partaient tous dans la même direction — un demi vers l'extérieur,
-       * un vers le haut — donc parallèles : sur la planche de contact, les deux
-       * cerfs portaient un râteau de jardin. Une ramure ne fait pas cela. Ses
-       * andouillers s'ouvrent progressivement, le premier vers l'avant, le
-       * dernier vers l'arrière, et les hauts se refourchent. C'est le seul de
-       * ces trois traits qu'on ne peut pas économiser : sans fourche, une pointe
-       * reste un piquet.
-       */
-      const phi = -Math.PI / 2 + cote * (0.62 - t * 1.24);
-      const tx = bx + Math.cos(phi) * len;
-      const ty = by + Math.sin(phi) * len;
-      poser(g, k, fuseau(bx, by, tx, ty, S * 0.14, { seed: i + seed, taper: 0.62 }), {
-        couleur: i % 2 ? eclaircir(bois, 0.2) : bois,
+      const [bx0, by0, tx0, ty0] = ANDOUILLERS[i];
+      const a = P([bx0, by0] as const);
+      const b = P([tx0, ty0] as const);
+      poser(g, k, fuseau(a.x, a.y, b.x, b.y, S * (0.15 - i * 0.012) * ech, { seed: seed + i * 7 + (loin ? 60 : 0), taper: 0.66 }), {
+        couleur: i % 2 ? eclaircir(ton, 0.2) : ton,
         matiere: 'ecorce',
         matiereAlpha: 0.24,
         echelle: 0.28,
+        rim: !loin,
       });
-      if (i >= n - 2) {
-        /* La fourche part aux deux tiers de l'andouiller, vers l'extérieur. */
-        const fx = bx + Math.cos(phi) * len * 0.64;
-        const fy = by + Math.sin(phi) * len * 0.64;
-        const psi = phi + cote * 0.62;
-        poser(
-          g,
-          k,
-          fuseau(fx, fy, fx + Math.cos(psi) * len * 0.56, fy + Math.sin(psi) * len * 0.56, S * 0.1, {
-            seed: i + seed + 31,
-            taper: 0.6,
-          }),
-          { couleur: eclaircir(bois, 0.12), matiere: 'ecorce', matiereAlpha: 0.24, echelle: 0.26 },
-        );
-      }
-      if (!miraculeux) {
+      if (loin) continue;
+      if (!miraculeux && i < 3) {
         // gouttes d'eau claire des sept vallons, suspendues sous la pointe
-        g.poly(flat(blob(tx, ty + S * 0.08, S * 0.06, S * 0.08, { seed: i * 3 + 5, points: 10, wobble: 0.22 }))).fill({
+        g.poly(flat(blob(b.x, b.y + S * 0.1, S * 0.06, S * 0.08, { seed: i * 3 + 5, points: 10, wobble: 0.22 }))).fill({
           color: melanger(BRUME, LIGHT.chaude, 0.3),
           alpha: 0.66,
         });
       }
       /* Un peu de mousse sur le bois : la ramure du cerf des sources en porte,
          et c'est ce qui la rattache au pays plutôt qu'à un trophée. */
-      for (let m = 0; m < 2; m += 1) {
-        const u = 0.3 + m * 0.34;
-        g.poly(
-          flat(
-            blob(bx + Math.cos(phi) * len * u, by + Math.sin(phi) * len * u, S * 0.05, S * 0.04, {
-              seed: i * 5 + m + 3,
-              points: 9,
-              wobble: 0.34,
-            }),
-          ),
-        ).fill({ color: melanger(SAUGE, MOUSSE, 0.4 + m * 0.2), alpha: 0.6 });
-      }
+      g.poly(
+        flat(
+          blob(a.x + (b.x - a.x) * 0.36, a.y + (b.y - a.y) * 0.36, S * 0.05, S * 0.04, {
+            seed: i * 5 + 3,
+            points: 9,
+            wobble: 0.34,
+          }),
+        ),
+      ).fill({ color: melanger(SAUGE, MOUSSE, 0.4 + (i % 2) * 0.2), alpha: 0.6 });
     }
+  }
+  /* Les MEULES : les deux bourrelets d'où sortent les bois. Sans elles, la
+     ramure a l'air posée sur le crâne au lieu d'en sortir. */
+  for (const [mx, my, r] of [
+    [0.06, 0.06, 0.19],
+    [-0.14, 0.14, 0.15],
+  ] as const) {
+    poser(g, k, blob(S * mx, S * my, S * r, S * r * 0.78, { seed: seed + 71, points: 11, wobble: 0.24 }), {
+      couleur: assombrir(bois, 0.2),
+      matiere: 'ecorce',
+      matiereAlpha: 0.3,
+      echelle: 0.26,
+      modele: 1.1,
+    });
   }
   if (miraculeux) {
     lueurFroide(g, 0, -S * 0.85, S * 0.42, melanger(BRUME, CUIVRE, 0.35), 1);
@@ -1123,11 +1152,34 @@ function ramure(g: Graphics, k: Kit, S: number, miraculeux: boolean, seed: numbe
 
 function teteCerf(g: Graphics, k: Kit, S: number, miraculeux: boolean, seed: number): void {
   const poil = miraculeux ? melanger(PIERRE_CLAIRE, SAUGE, 0.42) : melanger(BOIS, SAUGE, 0.35);
+  /*
+   * Une tête de cervidé est LONGUE : mufle étroit, front large, ganache
+   * marquée. Celle-ci tenait en 1,44 S sur 0,94 S — presque ronde —, et sous la
+   * ramure on ne lisait qu'une bosse. On l'allonge à 1,86 S et on lui met la
+   * ganache derrière, comme au cheval : c'est le même animal de fond.
+   */
+  poser(g, k, blob(-S * 0.1, S * 0.04, S * 0.4, S * 0.36, { seed: seed + 41, points: 14, wobble: 0.2 }), {
+    couleur: assombrir(poil, 0.16),
+    matiere: 'fourrure',
+    matiereAlpha: 0.26,
+    echelle: 0.32,
+    modele: 1.05,
+  });
   const forme = lisser(
     perturber(
       densifier(
-        [pt(-S * 0.46, -S * 0.44), pt(0, -S * 0.6), pt(S * 0.56, -S * 0.4), pt(S * 0.98, -S * 0.06), pt(S * 0.9, S * 0.2), pt(S * 0.2, S * 0.34), pt(-S * 0.4, S * 0.16)],
-        S * 0.2,
+        [
+          pt(-S * 0.5, -S * 0.42),
+          pt(-S * 0.04, -S * 0.6),
+          pt(S * 0.5, -S * 0.46),
+          pt(S * 1.0, -S * 0.26),
+          pt(S * 1.3, -S * 0.02),
+          pt(S * 1.18, S * 0.18),
+          pt(S * 0.66, S * 0.22),
+          pt(S * 0.16, S * 0.36),
+          pt(-S * 0.44, S * 0.2),
+        ],
+        S * 0.18,
       ),
       S * 0.016,
       seed,
@@ -1135,10 +1187,23 @@ function teteCerf(g: Graphics, k: Kit, S: number, miraculeux: boolean, seed: num
     1,
   );
   poser(g, k, forme, { couleur: poil, matiere: 'fourrure', matiereAlpha: 0.26, echelle: 0.36, seed });
-  g.poly(flat(blob(S * 0.94, -S * 0.02, S * 0.08, S * 0.07, { seed: seed + 3, points: 10, wobble: 0.22 }))).fill({
-    color: assombrir(poil, 0.6),
-    alpha: 0.86,
+  /* Le chanfrein clair, du front au mufle : la bande éclairée du côté soleil. */
+  poser(g, k, fuseau(-S * 0.02, -S * 0.48, S * 1.1, -S * 0.14, S * 0.17, { seed: seed + 43, taper: 0.5 }), {
+    couleur: melanger(poil, LIGHT.chaude, 0.22),
+    matiere: 'fourrure',
+    matiereAlpha: 0.2,
+    echelle: 0.3,
+    modele: 0.75,
+    rim: false,
   });
+  // mufle noir humide, et la fente des lèvres
+  g.poly(flat(blob(S * 1.14, -S * 0.04, S * 0.11, S * 0.1, { seed: seed + 3, points: 12, wobble: 0.2 }))).fill({
+    color: assombrir(poil, 0.66),
+    alpha: 0.9,
+  });
+  g.moveTo(S * 0.86, S * 0.12);
+  g.quadraticCurveTo(S * 1.06, S * 0.16, S * 1.2, S * 0.06);
+  g.stroke({ color: ombreBleutee(poil, 0.9), width: S * 0.05, alpha: 0.75, cap: 'round' });
   // grand œil doux, cerné de clair
   g.poly(flat(blob(S * 0.26, -S * 0.24, S * 0.13, S * 0.1, { seed: seed + 5, points: 12, wobble: 0.18 }))).fill({
     color: melanger(PIERRE_CLAIRE, poil, 0.4),
@@ -1152,18 +1217,21 @@ function teteCerf(g: Graphics, k: Kit, S: number, miraculeux: boolean, seed: num
     color: LIGHT.chaude,
     alpha: 0.7,
   });
-  for (const [dx, dy] of [
-    [-0.2, -0.4],
-    [0.06, -0.48],
+  /* Les oreilles, larges et pivotées vers l'arrière — un cervidé les porte
+     grandes. Pavillon et conque, comme le cheval. */
+  for (const [bx, by, tx, ty] of [
+    [-0.3, -0.36, -0.74, -0.6],
+    [-0.16, -0.5, -0.5, -0.86],
   ] as const) {
-    poser(g, k, fuseau(S * dx, S * dy, S * (dx - 0.3), S * (dy - 0.3), S * 0.28, { seed: seed + dx * 20, taper: 0.5 }), {
+    oreilleAnimale(g, k, {
+      base: pt(S * bx, S * by),
+      pointe: pt(S * tx, S * ty),
+      largeur: S * 0.3,
       couleur: assombrir(poil, 0.2),
-      matiere: 'fourrure',
-      matiereAlpha: 0.28,
-      echelle: 0.28,
+      seed: seed + bx * 20,
     });
   }
-  sous(g, 0, -S * 0.5, (h) => ramure(h, k, S * 1.15, miraculeux, seed + 21));
+  sous(g, -S * 0.06, -S * 0.5, (h) => ramure(h, k, S * 1.05, miraculeux, seed + 21));
 }
 
 function cerfPieces(k: Kit, miraculeux: boolean): PieceDef[] {
@@ -1178,7 +1246,11 @@ function cerfPieces(k: Kit, miraculeux: boolean): PieceDef[] {
     matiere: 'fourrure',
     patteCouleur: assombrir(poil, 0.26),
     seed: k.seed + (miraculeux ? 290 : 280),
-    cou: { longueur: Hs * 0.4, largeur: Hs * 0.26, angle: -1.05 },
+    /* Encolure haute et PORTÉE EN AVANT : un cerf tient sa tête devant son
+       poitrail, pas au-dessus de ses omoplates. C'est ce que corrigeait
+       `avance` ; sans elle la ramure retombait sur la croupe. */
+    cou: { longueur: Hs * 0.52, largeur: Hs * 0.26, angle: -0.14, avance: 0.42 },
+    teteRot: -0.2,
     queue: { longueur: L * 0.12, epaisseur: Hs * 0.1, courbe: 0.8 },
     tete: (g, kk) => teteCerf(g, kk, Hs * 0.38, miraculeux, k.seed + 71),
     surTronc: (g) => {

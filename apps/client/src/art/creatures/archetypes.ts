@@ -908,6 +908,107 @@ export function corne(
   });
 }
 
+/**
+ * Oreille d'animal : un PAVILLON, pas un fuseau.
+ *
+ * Chevaux, cerfs et sangliers portaient chacun leur oreille, et tous la même :
+ * un fuseau plein d'un seul ton, planté sur le crâne. À la vignette cela ne fait
+ * pas une oreille, cela fait une corne molle — deux valeurs manquent. Une
+ * oreille se lit à sa CONQUE : le creux intérieur, plus court, rentré, dans
+ * l'ombre froide, qui dit que le pavillon est une coquille et non un piquet.
+ * C'est le même détail que le creux orbital sur un visage : deux valeurs, pas
+ * un dessin.
+ */
+export function oreilleAnimale(
+  g: Graphics,
+  k: Kit,
+  o: {
+    base: Pt;
+    pointe: Pt;
+    largeur: number;
+    couleur: number;
+    matiere?: MaterialKey;
+    /** couleur de la conque ; par défaut l'ombre bleutée de la robe */
+    conque?: number;
+    seed?: number;
+  },
+): void {
+  const mat = o.matiere ?? 'fourrure';
+  const s = o.seed ?? 1;
+  poser(g, k, fuseau(o.base.x, o.base.y, o.pointe.x, o.pointe.y, o.largeur, { seed: s + 3, taper: 0.62 }), {
+    couleur: o.couleur,
+    matiere: mat,
+    matiereAlpha: 0.28,
+    echelle: 0.3,
+    seed: s,
+  });
+  const le = (t: number): Pt =>
+    pt(o.base.x + (o.pointe.x - o.base.x) * t, o.base.y + (o.pointe.y - o.base.y) * t);
+  poser(g, k, fuseau(le(0.14).x, le(0.14).y, le(0.8).x, le(0.8).y, o.largeur * 0.48, { seed: s + 7, taper: 0.72 }), {
+    couleur: o.conque ?? ombreBleutee(o.couleur, 0.75),
+    matiere: mat,
+    matiereAlpha: 0.18,
+    echelle: 0.26,
+    modele: 0.6,
+    rim: false,
+  });
+}
+
+/**
+ * Crinière en MÈCHES le long d'une ligne d'implantation.
+ *
+ * L'encolure du cheval portait un unique polygone lissé d'un seul ton : un
+ * aplat, ce que la loi n°1 interdit, et à la vignette une tache sombre collée
+ * au cou. Une crinière se lit parce qu'elle est faite de mèches qui se
+ * recouvrent et alternent de valeur — c'est déjà ce qu'on a fait des poils du
+ * loup, et il n'y avait aucune raison de le refaire à la main pour chaque bête.
+ * Les mèches retombent le long de la normale à la ligne, inclinées vers
+ * l'arrière, et une sur deux prend le liseré.
+ */
+export function criniereMeches(
+  g: Graphics,
+  k: Kit,
+  o: {
+    /** ligne d'implantation, du garrot vers la nuque */
+    a: Pt;
+    b: Pt;
+    nombre?: number;
+    longueur: number;
+    largeur: number;
+    couleur: number;
+    /** inclinaison des mèches par rapport à la normale, en radians */
+    inclinaison?: number;
+    matiere?: MaterialKey;
+    seed?: number;
+  },
+): void {
+  const n = o.nombre ?? 7;
+  const s = o.seed ?? 1;
+  const dx = o.b.x - o.a.x;
+  const dy = o.b.y - o.a.y;
+  const norme = Math.hypot(dx, dy) || 1;
+  /* Normale à gauche de la ligne, puis inclinée : c'est de ce côté que le poil
+     retombe. */
+  const inc = o.inclinaison ?? 0;
+  const nx = (dy / norme) * Math.cos(inc) - (-dx / norme) * Math.sin(inc);
+  const ny = (-dx / norme) * Math.cos(inc) + (dy / norme) * Math.sin(inc);
+  for (let i = 0; i < n; i += 1) {
+    const t = n === 1 ? 0.5 : i / (n - 1);
+    const bx = o.a.x + dx * t;
+    const by = o.a.y + dy * t;
+    /* Cloche : la mèche la plus longue au milieu de l'encolure. */
+    const l = o.longueur * (0.6 + 0.5 * Math.sin(Math.PI * (0.12 + t * 0.82)));
+    poser(g, k, fuseau(bx, by, bx + nx * l, by + ny * l, o.largeur, { seed: s + i * 5, taper: 0.66 }), {
+      couleur: i % 2 ? eclaircir(o.couleur, 0.2) : assombrir(o.couleur, 0.22),
+      matiere: o.matiere ?? 'fourrure',
+      matiereAlpha: 0.3,
+      echelle: 0.28,
+      modele: 0.9,
+      rim: i % 2 === 0,
+    });
+  }
+}
+
 /** Aile membraneuse ou emplumée. */
 /**
  * L'aile emplumée : un éventail de rémiges, et non une palette festonnée.
@@ -2443,7 +2544,29 @@ export interface QuadrupedeOptions {
   tete: (g: Graphics, k: Kit) => void;
   machoire?: (g: Graphics, k: Kit) => void;
   machoireAncre?: { x?: number; y?: number };
-  cou?: { longueur?: number; largeur?: number; angle?: number };
+  /**
+   * L'encolure. `angle` fait pivoter l'articulation entière (c'est sur lui que
+   * portent les animations) ; `avance` penche le fût de l'encolure vers l'AVANT,
+   * en fraction de sa longueur, sans faire piquer le nez.
+   *
+   * **Pourquoi les deux, et pas seulement l'angle.** L'encolure partait tout
+   * droit vers le haut dans son repère, et l'articulation était tournée de
+   * −1,15 rad pour la coucher. Or une rotation déplace le sommet du fût vers
+   * l'ARRIÈRE : mesuré sur le cerf, l'encolure s'attachait en x = +35 et sa tête
+   * retombait en x = −5, c'est-à-dire au-dessus du MILIEU DU DOS de la bête. Le
+   * cerf portait donc sa ramure entre ses omoplates, couchée vers la croupe, et
+   * la planche de contact rendait un râteau posé sur une pomme de terre. Un
+   * quadrupède porte sa tête DEVANT son poitrail : `avance` fait ce travail, et
+   * `angle` ne sert plus qu'au port de tête.
+   */
+  cou?: { longueur?: number; largeur?: number; angle?: number; avance?: number };
+  /** Inclinaison propre de la tête, en plus de celle de l'encolure. */
+  teteRot?: number;
+  /**
+   * Pente de la ligne du dos, en fraction de `Hs` : > 0 = haut du garrot, bas
+   * de la croupe (suidé) ; 0 = dos droit (cervidé, loup).
+   */
+  pente?: number;
   queue?: { longueur?: number; epaisseur?: number; courbe?: number; matiere?: MaterialKey } | null;
   dos?: (g: Graphics, k: Kit) => void;
   seed: number;
@@ -2457,6 +2580,7 @@ export function squeletteQuadrupede(o: QuadrupedeOptions): PieceDef[] {
   const mat = o.matiere ?? 'fourrure';
   const couL = o.cou?.longueur ?? Hs * 0.34;
   const couA = o.cou?.angle ?? -1.15;
+  const couAv = o.cou?.avance ?? 0;
   const pieces: PieceDef[] = [];
 
   pieces.push({ nom: 'corps', x: 0, y: -Hs, ordreMort: 7, dessin: () => {} });
@@ -2483,23 +2607,27 @@ export function squeletteQuadrupede(o: QuadrupedeOptions): PieceDef[] {
   });
 
   /*
-   * QUATRE pattes, pas deux.
+   * QUATRE pattes, pas deux — et pas six.
    *
    * `clipsQuadrupede` anime `patte_ag`, `patte_ad`, `patte_pg` et `patte_pd`
    * depuis toujours — c'est écrit dans son propre contrat quelques lignes plus
    * haut — mais le squelette n'en posait que deux, celles du côté proche.
    * Chaque ligne d'animation visant une patte du fond était donc gardée par
    * `si(rig, …)` et ne trouvait rien : tous les quadrupèdes du jeu, loups,
-   * sangliers et cerfs, marchaient sur deux pattes. Vu sur la planche de contact
-   * une fois les bêtes affichées à taille lisible, un cerf ressemblait à une
-   * masse posée sur deux piquets.
+   * sangliers et cerfs, marchaient sur deux pattes.
    *
-   * Les pattes du fond sont poussées EN PREMIER, donc peintes derrière tout le
-   * reste, décalées d'un peu et assombries : c'est la perspective d'un animal vu
-   * de flanc, où l'on aperçoit les deux pattes opposées entre les proches.
+   * Le correctif d'alors a poussé QUATRE pattes ici — dont deux du côté proche,
+   * qui existaient déjà en fin de liste. Chaque quadrupède du jeu en avait donc
+   * six, deux paires portant le même nom : `assembler` indexe par nom, si bien
+   * que la copie poussée en premier n'était jamais animée. À l'arrêt on voyait
+   * un jambage doublé et flou, décalé de quatre pour cent de la longueur ; en
+   * marche, une patte fantôme restait plantée pendant que sa jumelle avançait.
+   * Mesuré sur `granit_t5` : `patte_ag` en x[15..25] ET en x[19..29].
+   *
+   * On ne pousse donc ICI que les pattes du FOND, peintes avant tout le reste,
+   * décalées et assombries : c'est la perspective d'un animal vu de flanc. Les
+   * deux pattes proches restent en fin de liste, devant le tronc.
    */
-  pieces.push(jambe('patte_ag', L * 0.22, Hs * 0.88, Hs * 0.12, -1));
-  pieces.push(jambe('patte_pg', -L * 0.38, Hs * 0.86, Hs * 0.14, -1));
   pieces.push(jambe('patte_ad', L * 0.3, Hs * 0.92, Hs * 0.14, 1));
   pieces.push(jambe('patte_pd', -L * 0.3, Hs * 0.9, Hs * 0.16, 1));
 
@@ -2533,19 +2661,29 @@ export function squeletteQuadrupede(o: QuadrupedeOptions): PieceDef[] {
     y: 0,
     ordreMort: 8,
     dessin: (g, k) => {
+      /*
+       * La PENTE du dos. Le tronc par défaut est un tonneau symétrique : juste
+       * pour un loup, faux pour un suidé, qui est haut de l'épaule et bas de la
+       * croupe — un coin lancé en avant. Tant que la masse restait symétrique,
+       * la bosse de garrot peinte par-dessus se battait contre elle et le
+       * sanglier rendait « une caisse sur pattes », ce qu'a dit le propriétaire
+       * et ce que montre la planche. `pente` relève l'avant et abaisse
+       * l'arrière : c'est la ligne du dos, et elle se lit avant tout détail.
+       */
+      const p0 = (o.pente ?? 0) * Hs;
       const corps: Poly = lisser(
         perturber(
           densifier(
             [
-              pt(-L * 0.5, -Hs * 0.1),
-              pt(-L * 0.3, -Hs * 0.34),
-              pt(0, -Hs * 0.4),
-              pt(L * 0.32, -Hs * 0.36),
-              pt(L * 0.5, -Hs * 0.12),
+              pt(-L * 0.5, -Hs * 0.1 + p0 * 0.7),
+              pt(-L * 0.3, -Hs * 0.34 + p0 * 0.9),
+              pt(0, -Hs * 0.4 + p0 * 0.2),
+              pt(L * 0.32, -Hs * 0.36 - p0 * 0.72),
+              pt(L * 0.5, -Hs * 0.12 - p0 * 0.42),
               pt(L * 0.44, Hs * 0.16),
               pt(L * 0.1, Hs * 0.26),
-              pt(-L * 0.28, Hs * 0.22),
-              pt(-L * 0.48, Hs * 0.06),
+              pt(-L * 0.28, Hs * 0.22 - p0 * 0.5),
+              pt(-L * 0.48, Hs * 0.06 - p0 * 0.4),
             ],
             Hs * 0.16,
           ),
@@ -2606,7 +2744,7 @@ export function squeletteQuadrupede(o: QuadrupedeOptions): PieceDef[] {
     lumiere: 0.4,
     ordreMort: 6,
     dessin: (g, k) => {
-      membre(g, k, pt(0, 0), pt(0, -couL), o.cou?.largeur ?? Hs * 0.26, {
+      membre(g, k, pt(0, 0), pt(couL * couAv, -couL), o.cou?.largeur ?? Hs * 0.26, {
         couleur: o.robe,
         matiere: mat,
         matiereAlpha: 0.22,
@@ -2620,8 +2758,9 @@ export function squeletteQuadrupede(o: QuadrupedeOptions): PieceDef[] {
   pieces.push({
     nom: 'tete',
     parent: 'cou',
-    x: 0,
+    x: couL * couAv * 0.94,
     y: -couL * 0.94,
+    rot: o.teteRot ?? 0,
     lumiere: 0.6,
     ordreMort: 10,
     dessin: (g, k) => o.tete(g, k),
@@ -2673,7 +2812,10 @@ export interface VolantOptions {
   };
   tete: (g: Graphics, k: Kit) => void;
   machoire?: (g: Graphics, k: Kit) => void;
-  cou?: { longueur?: number; largeur?: number; angle?: number };
+  /** Voir `QuadrupedeOptions.cou` : `avance` penche le fût vers l'avant. */
+  cou?: { longueur?: number; largeur?: number; angle?: number; avance?: number };
+  /** Inclinaison propre de la tête, en plus de celle de l'encolure. */
+  teteRot?: number;
   queue?: (g: Graphics, k: Kit) => void;
   serres?: (g: Graphics, k: Kit) => void;
   surTronc?: (g: Graphics, k: Kit) => void;
@@ -2687,6 +2829,7 @@ export function squeletteVolant(o: VolantOptions): PieceDef[] {
   const Hc = o.corpsH;
   const mat = o.matiere ?? 'plumes';
   const couL = o.cou?.longueur ?? Hc * 0.5;
+  const couAv = o.cou?.avance ?? 0;
   const pieces: PieceDef[] = [];
 
   pieces.push({ nom: 'corps', x: 0, y: -A, ordreMort: 7, dessin: () => {} });
@@ -2721,26 +2864,6 @@ export function squeletteVolant(o: VolantOptions): PieceDef[] {
         doigts: o.aile.doigts,
         sens: -1,
         seed: o.seed + 23,
-      }),
-  });
-
-  pieces.push({
-    nom: 'aile_d',
-    parent: 'corps',
-    x: L * pose.x,
-    y: Hc * pose.y,
-    rot: pose.rot,
-    lumiere: -0.7,
-    ordreMort: 2,
-    dessin: (g, k) =>
-      aile(g, k, {
-        envergure: o.aile.envergure * 0.92,
-        corde: o.aile.corde * 0.94,
-        couleur: assombrir(o.aile.couleur, 0.2),
-        plume: o.aile.plume,
-        doigts: o.aile.doigts,
-        sens: -1,
-        seed: o.seed + 7,
       }),
   });
 
@@ -2837,7 +2960,7 @@ export function squeletteVolant(o: VolantOptions): PieceDef[] {
     lumiere: 0.4,
     ordreMort: 6,
     dessin: (g, k) => {
-      membre(g, k, pt(0, 0), pt(0, -couL), o.cou?.largeur ?? Hc * 0.34, {
+      membre(g, k, pt(0, 0), pt(couL * couAv, -couL), o.cou?.largeur ?? Hc * 0.34, {
         couleur: o.robe,
         matiere: mat,
         matiereAlpha: 0.22,
@@ -2851,8 +2974,9 @@ export function squeletteVolant(o: VolantOptions): PieceDef[] {
   pieces.push({
     nom: 'tete',
     parent: 'cou',
-    x: 0,
+    x: couL * couAv * 0.92,
     y: -couL * 0.92,
+    rot: o.teteRot ?? 0,
     lumiere: 0.6,
     ordreMort: 10,
     dessin: (g, k) => o.tete(g, k),
@@ -2870,12 +2994,28 @@ export function squeletteVolant(o: VolantOptions): PieceDef[] {
     });
   }
 
+  /*
+   * L'aile PROCHE, peinte en dernier donc devant tout le corps — et posée à
+   * l'épaule comme sa jumelle.
+   *
+   * Il y avait ici une TROISIÈME aile, et elle portait le nom de la lointaine.
+   * Deux dégâts. D'abord `assembler` indexe par nom : `aile_g` désignait cette
+   * copie-ci, la lointaine ne recevait plus une seule piste et restait figée
+   * pendant que les deux autres battaient. Ensuite et surtout, elle ignorait
+   * `pose` : plantée en dur au milieu du flanc, envergure pleine, c'est elle
+   * qu'on voyait. Mesuré sur `granit_t7` : le tronc du griffon tient en
+   * x[−39..38], cette aile en x[−123..13] — elle couvrait la bête entière. Le
+   * réglage d'épaule ajouté juste au-dessus pour « qu'on voie l'arrière-train de
+   * lion » ne s'appliquait donc qu'aux deux ailes cachées derrière le corps, et
+   * les deux rangs sept de la Châtellenie rendaient toujours de grands oiseaux
+   * sombres. Une aile de moins, et celle qui reste obéit à la pose.
+   */
   pieces.push({
-    nom: 'aile_g',
+    nom: 'aile_d',
     parent: 'corps',
-    x: -L * 0.02,
-    y: -Hc * 0.3,
-    rot: -0.22,
+    x: L * pose.x,
+    y: Hc * pose.y,
+    rot: pose.rot,
     lumiere: 0.9,
     ordreMort: 5,
     dessin: (g, k) =>

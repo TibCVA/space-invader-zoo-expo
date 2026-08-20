@@ -57,12 +57,14 @@ import {
   clipsVolant,
   corne,
   creatureRig,
+  criniereMeches,
   ecu,
   fer,
   ferrure,
   hampe,
   main,
   membre,
+  oreilleAnimale,
   orfevrerie,
   pied,
   pointeLance,
@@ -1406,21 +1408,42 @@ const dameFilDor: Fabrique = (k) => {
 
 /* ──────────────────── Rang 5 — les sangliers cuirassés ──────────────────── */
 
+/** Pente du dos du suidé : haut du garrot, bas de la croupe. */
+const PENTE_SANGLIER = 0.2;
+
+/**
+ * La hure du sanglier : un COIN, un groin plat au bout, deux défenses relevées.
+ *
+ * **Ce qu'elle était.** Un ovale de 1,46 S sur 0,92 S, presque aussi haut que
+ * long, avec un groin posé dessus et deux petites défenses de 0,3 S enroulées
+ * dans le contour. Rendu à la vignette, la hure disparaissait dans la masse du
+ * corps : les deux rangs cinq ne montraient qu'une caisse sur pattes.
+ *
+ * **Ce qu'elle est.** Une hure de suidé est un TRIANGLE : large et haut à la
+ * nuque, se rétrécissant régulièrement jusqu'au disque du groin. On l'allonge à
+ * 1,9 S, on lui donne l'arête frontale claire du côté du soleil, et surtout on
+ * sort les DÉFENSES du contour — deux crocs d'ivoire qui remontent devant le
+ * museau, celui du bas long et recourbé, celui du haut court. C'est la seule
+ * chose qu'on lise à seize pixels, et c'est ce qui distingue un sanglier d'un
+ * gros chien.
+ */
 function teteSanglier(g: Graphics, k: Kit, S: number, ferre: boolean, seed: number): void {
   const soie = melanger(CHENE, 0x2f2a22, 0.45);
   const groin = lisser(
     perturber(
       densifier(
         [
-          pt(-S * 0.5, -S * 0.5),
-          pt(S * 0.2, -S * 0.62),
-          pt(S * 0.86, -S * 0.34),
-          pt(S * 0.96, S * 0.06),
-          pt(S * 0.5, S * 0.34),
-          pt(-S * 0.3, S * 0.42),
-          pt(-S * 0.6, S * 0.06),
+          pt(-S * 0.56, -S * 0.62), // nuque haute
+          pt(-S * 0.02, -S * 0.56),
+          pt(S * 0.62, -S * 0.36), // arête du chanfrein
+          pt(S * 1.12, -S * 0.2),
+          pt(S * 1.24, S * 0.06), // bout du groin
+          pt(S * 1.02, S * 0.24),
+          pt(S * 0.4, S * 0.34),
+          pt(-S * 0.24, S * 0.44), // auge
+          pt(-S * 0.62, S * 0.14),
         ],
-        S * 0.24,
+        S * 0.2,
       ),
       S * 0.02,
       seed,
@@ -1428,51 +1451,77 @@ function teteSanglier(g: Graphics, k: Kit, S: number, ferre: boolean, seed: numb
     1,
   );
   poser(g, k, groin, { couleur: soie, matiere: 'fourrure', matiereAlpha: 0.28, echelle: 0.4, seed });
-  // groin proprement dit
-  poser(g, k, blob(S * 0.86, -S * 0.06, S * 0.2, S * 0.16, { seed: seed + 3, points: 13, wobble: 0.18 }), {
-    couleur: melanger(soie, 0xb08e84, 0.45),
+  /* L'arête frontale, éclairée : du haut du crâne au groin. */
+  poser(g, k, fuseau(-S * 0.24, -S * 0.52, S * 1.04, -S * 0.14, S * 0.22, { seed: seed + 21, taper: 0.5 }), {
+    couleur: melanger(soie, LIGHT.chaude, 0.2),
+    matiere: 'fourrure',
+    matiereAlpha: 0.24,
+    echelle: 0.34,
+    modele: 0.75,
+    rim: false,
+  });
+  // groin proprement dit : le disque cartilagineux, plus clair et plus lisse
+  poser(g, k, blob(S * 1.1, S * 0.0, S * 0.19, S * 0.17, { seed: seed + 3, points: 13, wobble: 0.16 }), {
+    couleur: melanger(soie, 0xb08e84, 0.5),
     matiere: 'grain',
     matiereAlpha: 0.18,
+    speculaire: { x: 0.32, y: 0.28, r: 0.16 },
   });
-  for (const dy of [-0.05, 0.05]) {
-    g.poly(flat(blob(S * 0.93, dy * S, S * 0.03, S * 0.04, { seed: 9, points: 8, wobble: 0.24 }))).fill({
-      color: assombrir(soie, 0.6),
-      alpha: 0.8,
+  for (const dy of [-0.06, 0.06]) {
+    g.poly(flat(blob(S * 1.16, dy * S, S * 0.035, S * 0.045, { seed: 9, points: 8, wobble: 0.24 }))).fill({
+      color: assombrir(soie, 0.62),
+      alpha: 0.85,
     });
   }
-  // œil : petit, enfoncé, mauvais
-  g.poly(flat(blob(S * 0.24, -S * 0.3, S * 0.07, S * 0.05, { seed: 11, points: 9, wobble: 0.2 }))).fill({
+  // œil : petit, enfoncé, mauvais, haut et loin en arrière
+  g.poly(flat(blob(S * 0.1, -S * 0.3, S * 0.11, S * 0.085, { seed: 19, points: 11, wobble: 0.2 }))).fill({
+    color: ombreBleutee(soie, 0.9),
+    alpha: 0.62,
+  });
+  g.poly(flat(blob(S * 0.12, -S * 0.29, S * 0.065, S * 0.05, { seed: 11, points: 9, wobble: 0.2 }))).fill({
     color: melanger(0x6e1f2a, 0x2a3242, 0.4),
-    alpha: 0.92,
+    alpha: 0.95,
   });
-  g.poly(flat(blob(S * 0.22, -S * 0.31, S * 0.026, S * 0.02, { seed: 13, points: 7, wobble: 0.26 }))).fill({
+  g.poly(flat(blob(S * 0.09, -S * 0.32, S * 0.026, S * 0.02, { seed: 13, points: 7, wobble: 0.26 }))).fill({
     color: LIGHT.chaude,
-    alpha: 0.55,
+    alpha: 0.6,
   });
-  // oreille
-  poser(g, k, fuseau(-S * 0.08, -S * 0.5, -S * 0.24, -S * 0.86, S * 0.2, { seed: seed + 5, taper: 0.5 }), {
+  // oreille : pavillon et conque, rejetée en arrière
+  oreilleAnimale(g, k, {
+    base: pt(-S * 0.26, -S * 0.52),
+    pointe: pt(-S * 0.48, -S * 0.94),
+    largeur: S * 0.26,
     couleur: assombrir(soie, 0.18),
-    matiere: 'fourrure',
-    matiereAlpha: 0.26,
-    echelle: 0.35,
+    seed: seed + 5,
   });
-  // défenses recourbées
-  for (const [dy, sc] of [
-    [0.16, 1],
-    [0.28, 0.72],
-  ] as const) {
-    corne(g, k, {
-      cx: S * 0.66,
-      cy: S * dy,
-      rx: S * 0.3 * sc,
-      ry: S * 0.3 * sc,
-      a0: 1.1,
-      a1: -0.7,
-      ep: S * 0.11 * sc,
-      couleur: ferre ? melanger(IVOIRE, LIGHT.rim, 0.4) : IVOIRE,
-      seed: seed + 7,
-    });
-  }
+  /*
+   * Les DÉFENSES, hors du contour. Deux par côté visible : la grande du bas,
+   * qui sort de la lèvre et remonte devant le chanfrein, et la petite du haut
+   * qui l'accompagne. Elles font désormais 0,58 S — presque la moitié de la
+   * hure — parce qu'à la vignette une défense de 0,3 S est un pixel d'ivoire.
+   */
+  corne(g, k, {
+    cx: S * 0.86,
+    cy: S * 0.26,
+    rx: S * 0.5,
+    ry: S * 0.58,
+    a0: 1.35,
+    a1: -0.55,
+    ep: S * 0.15,
+    couleur: ferre ? melanger(IVOIRE, LIGHT.rim, 0.4) : IVOIRE,
+    seed: seed + 7,
+  });
+  corne(g, k, {
+    cx: S * 0.94,
+    cy: S * 0.02,
+    rx: S * 0.3,
+    ry: S * 0.34,
+    a0: 1.3,
+    a1: -0.3,
+    ep: S * 0.1,
+    couleur: ferre ? melanger(IVOIRE, LIGHT.rim, 0.25) : assombrir(IVOIRE, 0.12),
+    seed: seed + 9,
+  });
   if (ferre) {
     // chanfrein : plaque d'ardoise rivetée sur le front
     ferrure(
@@ -1509,7 +1558,16 @@ function sanglierPieces(k: Kit, Hs: number, L: number, ferre: boolean): PieceDef
     matiere: 'fourrure',
     patteCouleur: assombrir(soie, 0.3),
     seed: k.seed + (ferre ? 90 : 80),
-    cou: { longueur: Hs * 0.16, largeur: Hs * 0.5, angle: -0.85 },
+    /*
+     * Encolure courte, épaisse, PENCHÉE VERS L'AVANT ET LE BAS. Elle était
+     * tournée de −0,85 rad, ce qui pointait la hure vers le CIEL à cinquante
+     * degrés : un sanglier qui hurle à la lune. Le suidé porte sa hure basse,
+     * groin près du sol, épaules hautes — c'est la même ligne que la pente du
+     * dos, et les deux ensemble font le coin.
+     */
+    cou: { longueur: Hs * 0.3, largeur: Hs * 0.52, angle: 0.5, avance: 0.7 },
+    teteRot: 0.24,
+    pente: PENTE_SANGLIER,
     queue: { longueur: L * 0.16, epaisseur: Hs * 0.09, courbe: 1.2 },
     tete: (g, kk) => teteSanglier(g, kk, Hs * 0.55, ferre, k.seed + 33),
     surTronc: (g, kk) => {
@@ -1556,17 +1614,25 @@ function sanglierPieces(k: Kit, Hs: number, L: number, ferre: boolean): PieceDef
        * plaques larges, rivetées, d'un acier chaud qui a pris la mousse. Le
        * bleu venait de l'ardoise : on garde l'acier et on le réchauffe au chêne.
        */
+      /*
+       * La barde suit désormais la LIGNE DU DOS, qui descend vers la croupe
+       * (`pente`). Elle était posée à hauteur constante : sur un dos droit cela
+       * passait, sur un dos en pente les plaques arrière flottaient au-dessus de
+       * l'échine et les avant s'enfonçaient dans l'épaule. `ligneDos` donne la
+       * hauteur du dos en tout point ; toutes les pièces d'acier s'y accrochent.
+       */
       const acierChaud = melanger(ACIER, CHENE, ferre ? 0.26 : 0.4);
+      const ligneDos = (x: number): number => -Hs * 0.34 + PENTE_SANGLIER * Hs * (0.5 - x / L) * 1.2;
       for (let i = 0; i < 3; i += 1) {
         const x = -L * 0.2 + i * L * 0.2;
         const flanc = lisser(
           perturber(
             densifier(
               [
-                pt(x - L * 0.1, -Hs * (0.3 - i * 0.04)),
-                pt(x + L * 0.1, -Hs * (0.34 - i * 0.04)),
-                pt(x + L * 0.09, Hs * 0.06),
-                pt(x - L * 0.09, Hs * 0.08),
+                pt(x - L * 0.1, ligneDos(x - L * 0.1) + Hs * (0.04 + i * 0.04)),
+                pt(x + L * 0.1, ligneDos(x + L * 0.1) + Hs * (0.0 + i * 0.04)),
+                pt(x + L * 0.09, Hs * (0.06 - i * 0.03)),
+                pt(x - L * 0.09, Hs * (0.08 - i * 0.03)),
               ],
               Hs * 0.16,
             ),
@@ -1582,10 +1648,11 @@ function sanglierPieces(k: Kit, Hs: number, L: number, ferre: boolean): PieceDef
       const n = ferre ? 5 : 4;
       for (let i = 0; i < n; i += 1) {
         const x = -L * 0.3 + (i / (n - 1)) * L * 0.62;
+        const h0 = ligneDos(x);
         const plaque = lisser(
           perturber(
             densifier(
-              [pt(x - L * 0.07, -Hs * 0.34), pt(x + L * 0.07, -Hs * 0.36), pt(x + L * 0.06, -Hs * 0.06), pt(x - L * 0.06, -Hs * 0.04)],
+              [pt(x - L * 0.07, h0), pt(x + L * 0.07, h0 - Hs * 0.02), pt(x + L * 0.06, h0 + Hs * 0.28), pt(x - L * 0.06, h0 + Hs * 0.3)],
               Hs * 0.14,
             ),
             Hs * 0.012,
@@ -1600,7 +1667,7 @@ function sanglierPieces(k: Kit, Hs: number, L: number, ferre: boolean): PieceDef
         });
         if (ferre) {
           // pointes de la dossière
-          poser(g, kk, fuseau(x, -Hs * 0.34, x - L * 0.01, -Hs * 0.56, Hs * 0.09, { seed: i + 2, taper: 0.6 }), {
+          poser(g, kk, fuseau(x, h0, x - L * 0.01, h0 - Hs * 0.22, Hs * 0.09, { seed: i + 2, taper: 0.6 }), {
             couleur: melanger(ACIER, LIGHT.rim, 0.2),
             matiere: 'metal',
             matiereAlpha: 0.24,
@@ -1611,8 +1678,9 @@ function sanglierPieces(k: Kit, Hs: number, L: number, ferre: boolean): PieceDef
       // soies dressées entre les plaques
       for (let i = 0; i < 12; i += 1) {
         const x = -L * 0.34 + (i / 11) * L * 0.66;
-        g.moveTo(x, -Hs * 0.32);
-        g.quadraticCurveTo(x - L * 0.012, -Hs * 0.44, x - L * 0.025, -Hs * 0.5);
+        const h0 = ligneDos(x) + Hs * 0.02;
+        g.moveTo(x, h0);
+        g.quadraticCurveTo(x - L * 0.012, h0 - Hs * 0.12, x - L * 0.025, h0 - Hs * 0.18);
         g.stroke({
           color: i % 2 ? eclaircir(soie, 0.25) : ombreBleutee(soie, 0.5),
           width: Hs * 0.018,
@@ -1652,67 +1720,148 @@ const verratGranit: Fabrique = (k) =>
 
 /* ─────────────────── Rang 6 — la chevalerie du Forez ────────────────────── */
 
+/**
+ * La tête du cheval — le morceau qui décidait de la lecture des deux rangs six.
+ *
+ * **Ce qu'elle était.** Un heptagone lissé de 1,3 S de long sur 0,9 S de haut,
+ * c'est-à-dire un GALET : ni chanfrein, ni ganache, ni encolure attachée. À la
+ * vignette on lisait « un cheval avec quelque chose dessus », et encore : la
+ * mesure a montré que ce galet tombait en x[−8..48] y[−161..−107], exactement
+ * sous l'écu du cavalier (x[−13..27] y[−142..−93]) et peint AVANT lui. La tête
+ * du cheval n'était pas seulement mal dessinée, elle était cachée derrière le
+ * bouclier de l'homme qu'elle porte. C'est l'encolure qui l'y mettait, et c'est
+ * elle qu'on redresse en premier (voir `monturePieces`).
+ *
+ * **Ce qu'elle est.** Un profil de cheval tient en quatre choses, dans cet
+ * ordre d'importance à seize pixels : la LONGUEUR (deux fois plus long que
+ * haut), le CHANFREIN (l'arête droite et claire du front au naseau, côté
+ * soleil), la GANACHE (la joue lourde à l'arrière, dans l'ombre froide, qui
+ * dit où s'attache l'encolure) et les OREILLES dressées à la nuque. Le naseau
+ * en virgule et la bouche fendue font le reste. Le tout mesure 1,95 S sur
+ * 1,15 S : c'est ce rapport-là, et non le détail, qui fait lire un cheval.
+ */
 function teteCheval(g: Graphics, k: Kit, S: number, robe: number, chanfrein: boolean, seed: number): void {
+  /* La ganache d'abord, derrière tout : la joue déborde du crâne vers le bas et
+     l'arrière, et c'est ce qui empêche la tête d'être un fuseau. */
+  poser(g, k, blob(-S * 0.12, S * 0.06, S * 0.44, S * 0.42, { seed: seed + 11, points: 15, wobble: 0.18 }), {
+    couleur: assombrir(robe, 0.16),
+    matiere: 'fourrure',
+    matiereAlpha: 0.26,
+    echelle: 0.36,
+    modele: 1.05,
+    seed: seed + 2,
+  });
+
   const forme = lisser(
     perturber(
       densifier(
         [
-          pt(-S * 0.34, -S * 0.5),
-          pt(S * 0.16, -S * 0.62),
-          pt(S * 0.82, -S * 0.3),
-          pt(S * 0.94, S * 0.02),
-          pt(S * 0.66, S * 0.24),
-          pt(-S * 0.06, S * 0.3),
-          pt(-S * 0.4, S * 0.02),
+          pt(-S * 0.5, -S * 0.48), // nuque
+          pt(-S * 0.14, -S * 0.6), // front
+          pt(S * 0.32, -S * 0.55), // haut du chanfrein
+          pt(S * 0.78, -S * 0.42), // chanfrein
+          pt(S * 1.16, -S * 0.26), // montant du naseau
+          pt(S * 1.34, S * 0.0), // bout du nez
+          pt(S * 1.2, S * 0.18), // lèvre inférieure
+          pt(S * 0.84, S * 0.2), // commissure
+          pt(S * 0.34, S * 0.34), // auge
+          pt(-S * 0.16, S * 0.46), // ganache
+          pt(-S * 0.54, S * 0.16), // gorge
         ],
-        S * 0.22,
+        S * 0.18,
       ),
-      S * 0.018,
+      S * 0.016,
       seed,
     ),
     1,
   );
   poser(g, k, forme, { couleur: robe, matiere: 'fourrure', matiereAlpha: 0.24, echelle: 0.4, seed });
-  // naseaux et bouche
-  g.poly(flat(blob(S * 0.86, -S * 0.02, S * 0.06, S * 0.05, { seed: 5, points: 9, wobble: 0.22 }))).fill({
-    color: assombrir(robe, 0.55),
-    alpha: 0.8,
+
+  /* Le chanfrein : l'arête claire du front au naseau, du côté du soleil. C'est
+     la seule bande vraiment éclairée de la tête, et c'est elle qu'on lit de
+     loin. */
+  poser(g, k, fuseau(S * 0.06, -S * 0.5, S * 1.14, -S * 0.16, S * 0.2, { seed: seed + 13, taper: 0.5 }), {
+    couleur: melanger(robe, LIGHT.chaude, 0.24),
+    matiere: 'fourrure',
+    matiereAlpha: 0.2,
+    echelle: 0.34,
+    modele: 0.75,
+    rim: false,
   });
-  g.moveTo(S * 0.62, S * 0.16);
-  g.quadraticCurveTo(S * 0.8, S * 0.2, S * 0.9, S * 0.1);
-  g.stroke({ color: assombrir(robe, 0.5), width: S * 0.045, alpha: 0.7, cap: 'round' });
-  // œil
-  g.poly(flat(blob(S * 0.18, -S * 0.26, S * 0.075, S * 0.06, { seed: 7, points: 10, wobble: 0.2 }))).fill({
-    color: melanger(0x2a3242, CHENE, 0.3),
-    alpha: 0.92,
+  /* L'ombre de l'auge, sous la joue : la valeur froide qui creuse la tête. */
+  g.moveTo(-S * 0.3, S * 0.24);
+  g.quadraticCurveTo(S * 0.3, S * 0.36, S * 0.86, S * 0.16);
+  g.stroke({ color: ombreBleutee(robe, 0.7), width: S * 0.12, alpha: 0.45, cap: 'round' });
+
+  // naseau en virgule, et sa lèvre
+  g.poly(flat(blob(S * 1.12, -S * 0.06, S * 0.1, S * 0.08, { seed: 5, points: 11, wobble: 0.3 }))).fill({
+    color: assombrir(robe, 0.62),
+    alpha: 0.88,
   });
-  g.poly(flat(blob(S * 0.15, -S * 0.28, S * 0.028, S * 0.022, { seed: 9, points: 7, wobble: 0.26 }))).fill({
+  g.moveTo(S * 0.9, S * 0.12);
+  g.quadraticCurveTo(S * 1.1, S * 0.16, S * 1.26, S * 0.04);
+  g.stroke({ color: ombreBleutee(robe, 0.9), width: S * 0.055, alpha: 0.8, cap: 'round' });
+
+  // œil : creux orbital, prunelle, étincelle au nord-ouest
+  g.poly(flat(blob(S * 0.14, -S * 0.3, S * 0.15, S * 0.12, { seed: 17, points: 12, wobble: 0.2 }))).fill({
+    color: ombreBleutee(robe, 0.85),
+    alpha: 0.7,
+  });
+  g.poly(flat(blob(S * 0.16, -S * 0.29, S * 0.085, S * 0.07, { seed: 7, points: 10, wobble: 0.2 }))).fill({
+    color: melanger(0x2a3242, CHENE, 0.22),
+    alpha: 0.95,
+  });
+  g.poly(flat(blob(S * 0.12, -S * 0.33, S * 0.03, S * 0.024, { seed: 9, points: 7, wobble: 0.26 }))).fill({
     color: LIGHT.chaude,
-    alpha: 0.6,
+    alpha: 0.72,
   });
-  // oreilles
-  for (const dx of [-0.16, -0.02]) {
-    poser(g, k, fuseau(S * dx, -S * 0.5, S * (dx - 0.04), -S * 0.86, S * 0.14, { seed: seed + dx * 10, taper: 0.62 }), {
-      couleur: assombrir(robe, 0.2),
-      matiere: 'fourrure',
-      matiereAlpha: 0.26,
-      echelle: 0.3,
+
+  // oreilles dressées à la nuque, pavillon et conque
+  for (const [bx, by, tx, ty] of [
+    [-0.34, -0.5, -0.5, -0.94],
+    [-0.08, -0.58, -0.12, -1.0],
+  ] as const) {
+    oreilleAnimale(g, k, {
+      base: pt(S * bx, S * by),
+      pointe: pt(S * tx, S * ty),
+      largeur: S * 0.22,
+      couleur: assombrir(robe, 0.18),
+      seed: seed + bx * 40,
     });
   }
-  // bride et mors
-  g.moveTo(-S * 0.2, -S * 0.1);
-  g.quadraticCurveTo(S * 0.3, -S * 0.06, S * 0.76, -S * 0.02);
+  /* Le toupet : trois mèches entre les oreilles, retombant sur le front. Sans
+     lui, la crinière s'arrête net à la nuque et la tête paraît rapportée. */
+  criniereMeches(g, k, {
+    a: pt(-S * 0.3, -S * 0.54),
+    b: pt(-S * 0.02, -S * 0.6),
+    nombre: 3,
+    longueur: S * 0.42,
+    largeur: S * 0.13,
+    couleur: assombrir(robe, 0.34),
+    inclinaison: -0.9,
+    seed: seed + 23,
+  });
+
+  // bride : têtière, montant de mors et muserolle
+  g.moveTo(-S * 0.24, -S * 0.5);
+  g.quadraticCurveTo(-S * 0.34, -S * 0.1, -S * 0.24, S * 0.3);
+  g.stroke({ color: assombrir(CHENE, 0.3), width: S * 0.055, alpha: 0.85, cap: 'round' });
+  g.moveTo(-S * 0.2, -S * 0.42);
+  g.quadraticCurveTo(S * 0.3, -S * 0.2, S * 0.82, S * 0.02);
   g.stroke({ color: assombrir(CHENE, 0.3), width: S * 0.05, alpha: 0.85, cap: 'round' });
-  g.moveTo(S * 0.32, -S * 0.42);
-  g.quadraticCurveTo(S * 0.38, -S * 0.02, S * 0.34, S * 0.2);
-  g.stroke({ color: assombrir(CHENE, 0.3), width: S * 0.045, alpha: 0.8, cap: 'round' });
+  g.moveTo(S * 0.74, -S * 0.4);
+  g.quadraticCurveTo(S * 0.86, -S * 0.1, S * 0.78, S * 0.16);
+  g.stroke({ color: assombrir(CHENE, 0.34), width: S * 0.045, alpha: 0.8, cap: 'round' });
   if (chanfrein) {
     ferrure(
       g,
       k,
       lisser(
         perturber(
-          densifier([pt(-S * 0.16, -S * 0.5), pt(S * 0.3, -S * 0.48), pt(S * 0.78, -S * 0.24), pt(S * 0.7, -S * 0.06), pt(S * 0.2, -S * 0.16), pt(-S * 0.2, -S * 0.28)], S * 0.2),
+          densifier(
+            [pt(-S * 0.08, -S * 0.58), pt(S * 0.44, -S * 0.52), pt(S * 1.06, -S * 0.24), pt(S * 0.98, -S * 0.04), pt(S * 0.36, -S * 0.22), pt(-S * 0.1, -S * 0.34)],
+            S * 0.18,
+          ),
           S * 0.014,
           seed + 3,
         ),
@@ -1853,48 +2002,92 @@ function monturePieces(k: Kit, banneret: boolean): PieceDef[] {
     },
   });
 
+  /*
+   * ── l'encolure, et la place de la tête ──
+   *
+   * L'encolure partait tout droit vers le haut de son repère, articulation
+   * tournée de −0,9 rad pour la coucher. Une rotation négative emmène le sommet
+   * du fût vers l'ARRIÈRE : mesurée, l'encolure s'attachait en x = +40 et
+   * retombait en x = 0, si bien que la tête du cheval se posait au-dessus du
+   * MILIEU DU DOS — c'est-à-dire sous l'écu du cavalier, et peinte avant lui,
+   * donc invisible. C'est la vraie raison de « la tête du cheval est un galet » :
+   * on n'en voyait qu'un bout de joue dépassant du bouclier.
+   *
+   * On tourne donc l'articulation dans l'AUTRE sens : le fût monte vers l'avant,
+   * la nuque passe devant le poitrail, et la tête sort franchement du gabarit du
+   * cavalier. Le port de tête (le nez qui pique un peu vers le bas, comme un
+   * cheval de guerre rassemblé) est repris par la rotation propre de `tete`.
+   *
+   * Le fût lui-même n'est plus un fuseau symétrique mais un polygone : encolure
+   * large au garrot, CRÊTE convexe au-dessus, gorge creuse en dessous. Un
+   * fuseau ne peut pas faire cela, et c'est ce galbe qui distingue une encolure
+   * de cheval d'un tuyau.
+   */
+  const couL = Hs * 0.42;
+  const couW = Hs * 0.3;
   pieces.push({
     nom: 'cou',
     parent: 'corps',
-    x: L * 0.36,
-    y: -Hs * 0.28,
-    rot: -0.9,
+    x: L * 0.4,
+    y: -Hs * 0.3,
+    rot: 0.52,
     lumiere: 0.4,
     ordreMort: 6,
-    dessin: (g, kk) =>
-      membre(g, kk, pt(0, 0), pt(0, -Hs * 0.42), Hs * 0.3, {
+    dessin: (g, kk) => {
+      const fut = lisser(
+        perturber(
+          densifier(
+            [
+              pt(couW * 0.62, Hs * 0.08), // attache basse, côté poitrail
+              pt(couW * 0.34, -couL * 0.5), // gorge creuse
+              pt(couW * 0.2, -couL * 1.0), // auge, sous la nuque
+              pt(-couW * 0.48, -couL * 1.02), // nuque
+              pt(-couW * 0.95, -couL * 0.44), // crête convexe
+              pt(-couW * 0.86, Hs * 0.04), // garrot
+            ],
+            couW * 0.24,
+          ),
+          couW * 0.02,
+          k.seed + 65,
+        ),
+        1,
+      );
+      poser(g, kk, fut, {
         couleur: robeCheval,
         matiere: 'fourrure',
         matiereAlpha: 0.22,
         echelle: 0.4,
-        taper: 0.3,
         seed: k.seed + 65,
-      }),
+      });
+      /* La gouttière jugulaire : l'ombre froide qui sépare l'encolure de
+         l'épaule. Sans elle, cou et poitrail se fondent en une seule masse. */
+      g.moveTo(couW * 0.5, Hs * 0.04);
+      g.quadraticCurveTo(couW * 0.36, -couL * 0.5, couW * 0.2, -couL * 0.94);
+      g.stroke({ color: ombreBleutee(robeCheval, 0.8), width: couW * 0.16, alpha: 0.4, cap: 'round' });
+    },
   });
 
   pieces.push({
     nom: 'criniere',
     parent: 'cou',
-    x: -Hs * 0.1,
-    y: -Hs * 0.2,
+    x: 0,
+    y: 0,
     lumiere: -0.2,
     ambiance: 1.4,
     periode: 2.8,
     ordreMort: 5,
     dessin: (g, kk) => {
-      const m = lisser(
-        perturber(
-          densifier([pt(0, -Hs * 0.24), pt(Hs * 0.06, -Hs * 0.2), pt(Hs * 0.02, Hs * 0.14), pt(-Hs * 0.12, Hs * 0.22), pt(-Hs * 0.1, -Hs * 0.1)], Hs * 0.1),
-          Hs * 0.014,
-          k.seed + 67,
-        ),
-        1,
-      );
-      poser(g, kk, m, {
-        couleur: assombrir(robeCheval, 0.32),
-        matiere: 'fourrure',
-        matiereAlpha: 0.3,
-        echelle: 0.3,
+      /* Des MÈCHES le long de la crête, jamais l'aplat qui y était : un
+         polygone sombre d'un seul ton collé au cou, que la loi n°1 refuse. */
+      criniereMeches(g, kk, {
+        a: pt(-couW * 0.8, -couL * 0.04),
+        b: pt(-couW * 0.44, -couL * 0.98),
+        nombre: banneret ? 8 : 7,
+        longueur: couW * 0.72,
+        largeur: couW * 0.24,
+        couleur: assombrir(robeCheval, 0.34),
+        inclinaison: 0.34,
+        seed: k.seed + 67,
       });
     },
   });
@@ -1902,9 +2095,9 @@ function monturePieces(k: Kit, banneret: boolean): PieceDef[] {
   pieces.push({
     nom: 'tete',
     parent: 'cou',
-    x: 0,
-    y: -Hs * 0.4,
-    rot: 0.55,
+    x: couW * 0.06,
+    y: -couL * 1.0,
+    rot: -0.22,
     lumiere: 0.6,
     ordreMort: 10,
     dessin: (g, kk) => teteCheval(g, kk, Hs * 0.42, robeCheval, banneret, k.seed + 69),
@@ -2297,29 +2490,72 @@ function teteAigle(g: Graphics, k: Kit, S: number, couronne: boolean, seed: numb
     1,
   );
   poser(g, k, forme, { couleur: plume, matiere: 'plumes', matiereAlpha: 0.26, echelle: 0.45, seed });
-  // bec crochu : la signature du griffon
+  /*
+   * LE BEC CROCHU — le trait qui doit faire dire « griffon » à la vignette.
+   *
+   * Il était un pentagone doré collé au bord de la tête : long de 0,64 S, sans
+   * crochet marqué, du même or que la collerette du couronné, et l'on ne
+   * distinguait pas la mandibule de la joue. Sur la planche, les deux rangs sept
+   * rendaient un oiseau sombre à tache jaune.
+   *
+   * Un bec de rapace se lit à trois choses : le CULMEN, l'arête bombée qui court
+   * de la cire à la pointe ; le CROCHET, qui redescend franchement sous la
+   * mandibule inférieure ; et la ligne de commissure, sombre, qui sépare les
+   * deux mandibules. On l'allonge à 0,95 S, on le sort du contour de la tête, et
+   * on lui donne un dessous plus sombre — un bec d'un seul ton est une tache.
+   */
+  const becClair = melanger(LIGHT.rim, LIGHT.chaude, 0.3);
   const bec = lisser(
     perturber(
-      densifier([pt(S * 0.42, -S * 0.24), pt(S * 1.06, -S * 0.08), pt(S * 0.92, S * 0.3), pt(S * 0.66, S * 0.16), pt(S * 0.44, S * 0.06)], S * 0.16),
-      S * 0.014,
+      densifier(
+        [
+          pt(S * 0.3, -S * 0.3), // cire, à la racine
+          pt(S * 0.78, -S * 0.24), // culmen
+          pt(S * 1.18, -S * 0.02), // pointe amorcée
+          pt(S * 1.12, S * 0.3), // crochet, qui redescend
+          pt(S * 0.9, S * 0.24),
+          pt(S * 0.86, S * 0.02), // tomium
+          pt(S * 0.34, S * 0.0),
+        ],
+        S * 0.12,
+      ),
+      S * 0.01,
       seed + 3,
     ),
     1,
   );
   poser(g, k, bec, {
-    couleur: LIGHT.rim,
+    couleur: becClair,
     matiere: 'metal',
     matiereAlpha: 0.2,
     echelle: 0.4,
     speculaire: { x: 0.3, y: 0.22, r: 0.1 },
   });
-  g.moveTo(S * 0.46, S * 0.03);
-  g.quadraticCurveTo(S * 0.74, S * 0.08, S * 0.94, S * 0.14);
-  g.stroke({ color: assombrir(LIGHT.rim, 0.45), width: S * 0.04, alpha: 0.75, cap: 'round' });
+  // mandibule inférieure, plus sombre : c'est elle qui creuse le bec
+  poser(
+    g,
+    k,
+    lisser(
+      perturber(densifier([pt(S * 0.34, S * 0.02), pt(S * 0.94, S * 0.14), pt(S * 0.86, S * 0.3), pt(S * 0.32, S * 0.22)], S * 0.1), S * 0.008, seed + 5),
+      1,
+    ),
+    {
+      couleur: assombrir(becClair, 0.4),
+      matiere: 'metal',
+      matiereAlpha: 0.2,
+      echelle: 0.35,
+      modele: 0.8,
+      rim: false,
+    },
+  );
+  // commissure : la fente sombre entre les deux mandibules
+  g.moveTo(S * 0.3, S * 0.02);
+  g.quadraticCurveTo(S * 0.66, S * 0.08, S * 0.98, S * 0.16);
+  g.stroke({ color: ombreBleutee(becClair, 1), width: S * 0.05, alpha: 0.8, cap: 'round' });
   // cire et narine
-  g.poly(flat(blob(S * 0.5, -S * 0.16, S * 0.05, S * 0.035, { seed: 5, points: 8, wobble: 0.24 }))).fill({
-    color: assombrir(LIGHT.rim, 0.3),
-    alpha: 0.8,
+  g.poly(flat(blob(S * 0.44, -S * 0.22, S * 0.06, S * 0.045, { seed: 5, points: 8, wobble: 0.24 }))).fill({
+    color: assombrir(becClair, 0.45),
+    alpha: 0.85,
   });
   // œil, jaune froid et fixe
   g.poly(flat(blob(S * 0.16, -S * 0.24, S * 0.13, S * 0.115, { seed: 7, points: 12, wobble: 0.16 }))).fill({
@@ -2418,13 +2654,23 @@ function griffonPieces(k: Kit, couronne: boolean): PieceDef[] {
       couleur: plume,
       plume: true,
       doigts: 5,
-      /* À l'épaule et relevées : le griffon a un arrière-train de lion, et il
-         faut qu'on le voie. */
-      pose: { x: 0.16, y: -0.58, rot: -0.5 },
+      /*
+       * À l'épaule et RELEVÉES.
+       *
+       * La rotation était négative, et le mesuré l'a montrée pour ce qu'elle
+       * était : l'aile descendait jusqu'à y = +11, c'est-à-dire SOUS le ventre
+       * de la bête, en balayant tout l'arrière-train. Une aile déployée monte.
+       * Le signe inversé lève la pointe au-dessus de la croupe et laisse voir
+       * le lion, ce que la ligne précédente promettait sans le faire.
+       */
+      pose: { x: 0.16, y: -0.52, rot: 0.52 },
     },
     seed: k.seed + (couronne ? 110 : 100),
-    cou: { longueur: 30 * S, largeur: 26 * S, angle: -0.75 },
-    tete: (g, kk) => teteAigle(g, kk, 26 * S, couronne, k.seed + 41),
+    /* La tête DEVANT le poitrail : sans `avance`, l'encolure la ramenait
+       au-dessus du dos, sous l'aile, et le bec n'existait plus. */
+    cou: { longueur: 32 * S, largeur: 26 * S, angle: -0.42, avance: 0.62 },
+    teteRot: 0.12,
+    tete: (g, kk) => teteAigle(g, kk, 28 * S, couronne, k.seed + 41),
     surTronc: (g, kk) => {
       // avant-train emplumé, arrière-train de lion : la jonction est visible
       const jonction = lisser(
