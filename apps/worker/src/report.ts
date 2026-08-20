@@ -46,7 +46,7 @@ function bannerLine(banner: BannerOutcome, winner: string | null): string {
     `  ${mark} ${pad(banner.id, 3)}${pad(banner.profile, 11)}${pad(banner.faction, 10)}` +
     `${pad(banner.start, 12)}` +
     `cités ${padLeft(banner.towns, 2)}  bât ${padLeft(banner.buildings, 3)}  ` +
-    `gis ${padLeft(banner.mines, 2)} / ${padLeft(banner.minesMax, 2)}  sceaux ${padLeft(banner.seals, 1)}  ` +
+    `gis ${padLeft(banner.mines, 2)} / ${padLeft(banner.minesMax, 2)}  sceaux ${padLeft(banner.seals, 1)}  ` +
     `force ${padLeft(banner.power, 7)}  niv ${padLeft(banner.heroLevel, 2)}  ` +
     /* Gagnés sur livrés : c'est ce rapport, et non le nombre de combats, qui
        dit si une maison joue ou se cogne. */
