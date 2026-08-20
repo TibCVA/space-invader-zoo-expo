@@ -113,35 +113,63 @@ export function deploymentZone(side: 0 | 1, rows: number, siege: boolean): HexCo
 
 /* ──────────────────────────────── Obstacles ─────────────────────────────── */
 
+/*
+ * Ce qui encombre le champ, selon la région où l'on se bat.
+ *
+ * Chaque région tire d'au moins trois natures. Elles n'en avaient parfois que
+ * deux, et la Grande Chaussée une seule : un champ de ronces et rien d'autre.
+ * La répétition d'une nature est voulue là où elle dit quelque chose — deux
+ * `souche` aux Futaies de Viscomtat, parce qu'on s'y bat dans les coupes — mais
+ * une région ne doit jamais offrir un seul décor, sans quoi deux batailles au
+ * même endroit se ressemblent trait pour trait.
+ */
 const REGION_OBSTACLES: Record<RegionId, CombatObstacle['kind'][]> = {
   hauts_arconsat: ['souche', 'rocher', 'ronce'],
-  vallee_durolle: ['souche', 'ronce'],
-  lac_sagnes: ['rocher', 'ronce'],
-  maison_tresor: ['rocher', 'mur'],
-  chatellenie_cervieres: ['mur', 'rocher'],
-  futaies_viscomtat: ['souche', 'souche', 'ronce'],
+  vallee_durolle: ['souche', 'ronce', 'mur'],
+  lac_sagnes: ['rocher', 'ronce', 'souche'],
+  maison_tresor: ['rocher', 'mur', 'ronce'],
+  chatellenie_cervieres: ['mur', 'rocher', 'ronce'],
+  futaies_viscomtat: ['souche', 'souche', 'ronce', 'rocher'],
   coeur_bois_noirs: ['souche', 'ronce', 'rocher'],
-  pays_noiretable: ['ronce', 'rocher'],
-  hermitage_peyrotine: ['rocher', 'souche'],
-  vollore_pamole: ['rocher', 'rocher'],
-  marche_renaudie: ['ronce', 'souche'],
-  grande_chaussee: ['ronce'],
+  pays_noiretable: ['ronce', 'rocher', 'souche'],
+  hermitage_peyrotine: ['rocher', 'souche', 'mur'],
+  vollore_pamole: ['rocher', 'rocher', 'ronce', 'souche'],
+  marche_renaudie: ['ronce', 'souche', 'rocher'],
+  /* La chaussée des marchands : ce qu'on y trouve est ce qu'on y a laissé
+     tomber — un muret de bord de route, une souche, des ronces. */
+  grande_chaussee: ['ronce', 'mur', 'souche'],
 };
 
+/*
+ * Combien d'obstacles par champ, selon le terrain.
+ *
+ * Mesuré à l'audit : 3,1 en moyenne sur la prairie et la lande, les deux
+ * terrains les plus fréquents de la carte. Un champ à trois obstacles sur cent
+ * soixante-cinq hexagones n'est pas un terrain, c'est une table rase — on y
+ * marche en ligne droite, la couverture ne veut rien dire et le tireur ne
+ * choisit jamais son angle. HMM3 encombre bien davantage ses champs, et c'est
+ * de là que vient la moitié de sa tactique.
+ *
+ * Les terrains ouverts montent donc, sans jamais rejoindre le chaos rocheux :
+ * une prairie reste plus dégagée qu'une pierraille, mais elle cesse d'être
+ * vide. Le semis garde sa règle d'or — jamais plus de deux obstacles sur une
+ * même ligne — de sorte qu'aucune ligne ne peut se fermer.
+ */
 const TERRAIN_OBSTACLE_COUNT: Record<Terrain, [number, number]> = {
-  route: [1, 3],
-  chemin: [2, 4],
-  prairie: [2, 4],
-  foret: [5, 8],
-  pente: [3, 6],
-  humide: [3, 5],
-  rocher: [5, 8],
-  /* Lande rase : quelques touffes de callune, un bloc erratique. */
-  lande: [2, 4],
-  eau: [2, 4],
+  /* La chaussée est dégagée par usage : c'est le seul terrain qui reste maigre. */
+  route: [2, 4],
+  chemin: [3, 5],
+  prairie: [4, 7],
+  foret: [7, 11],
+  pente: [5, 8],
+  humide: [4, 7],
+  rocher: [7, 11],
+  /* Lande rase : touffes de callune, murets de pierre sèche, blocs erratiques. */
+  lande: [4, 6],
+  eau: [3, 5],
   /* On ne se bat jamais SUR une falaise — infranchissable — mais à son pied :
      un champ éboulé, aussi encombré qu'un chaos rocheux. */
-  falaise: [5, 8],
+  falaise: [7, 11],
 };
 
 /**
