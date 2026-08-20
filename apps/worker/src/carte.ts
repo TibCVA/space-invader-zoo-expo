@@ -176,6 +176,19 @@ export interface Rapport {
    */
   economie: { depart: string; valeur: number }[];
   ecartEconomique: number;
+  /**
+   * L'ISOLEMENT de chaque capitale : le coût de marche jusqu'à la rivale la plus
+   * proche, et le nombre de rivales à portée d'une semaine.
+   *
+   * Il fallait cette mesure parce que l'équité ÉCONOMIQUE, une fois obtenue, n'a
+   * pas suffi : à moins de trois pour cent d'écart de richesse accessible, le
+   * taux de victoire par capitale allait encore de 44 % à 8 % sur vingt-cinq
+   * parties à cinq. La richesse n'est donc pas la seule chose que la géographie
+   * distribue : une capitale qui n'a qu'une frontière se bat sur un front, une
+   * capitale au milieu s'en défend de quatre. C'est la piste que ce tableau
+   * ouvre, et l'ancien tableau de bord ne l'imprimait pas.
+   */
+  isolement: { depart: string; plusProche: string; cout: number; rivalesProches: number }[];
 }
 
 /** Ce qu'un héros ramasse depuis un départ, en jeu parfait. */
@@ -204,6 +217,59 @@ interface Glanage {
  * Dijkstra sur les coûts de terrain réels, huit voisins, diagonale à ×141/100,
  * exactement le barème du moteur.
  */
+/**
+ * Champ de coût de marche depuis une case, avec le même barème que le glaneur.
+ *
+ * Un Dijkstra ordinaire, tas binaire à plat : il sert à dire quelle capitale est
+ * voisine de quelle autre, et le RELIEF en décide — la distance à vol d'oiseau
+ * dirait n'importe quoi sur une carte murée sur ses crêtes.
+ */
+function champDeMarche(
+  praticable: Uint8Array,
+  terrain: ArrayLike<number>,
+  cols: number,
+  rows: number,
+  depart: { col: number; row: number },
+): Int32Array {
+  const n = cols * rows;
+  const dist = new Int32Array(n).fill(0x3fffffff);
+  const tas: number[] = [];
+  const debut = depart.row * cols + depart.col;
+  dist[debut] = 0;
+  tas.push(0, debut);
+  while (tas.length) {
+    let min = 0;
+    for (let k = 2; k < tas.length; k += 2) if (tas[k] < tas[min]) min = k;
+    const cout = tas[min];
+    const i = tas[min + 1];
+    tas[min] = tas[tas.length - 2];
+    tas[min + 1] = tas[tas.length - 1];
+    tas.length -= 2;
+    if (cout > dist[i]) continue;
+    const col = i % cols;
+    const row = (i / cols) | 0;
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (!dr && !dc) continue;
+        const c = col + dc;
+        const r = row + dr;
+        if (c < 0 || r < 0 || c >= cols || r >= rows) continue;
+        const j = r * cols + c;
+        if (!praticable[j]) continue;
+        let pas = COUT_PAR_TERRAIN[terrain[j]] ?? 100;
+        if (!Number.isFinite(pas) || pas > 1e6) continue;
+        if (dc && dr) pas = Math.floor((pas * DIAGONAL_NUM) / DIAGONAL_DEN);
+        const nd = cout + pas;
+        if (nd < dist[j]) {
+          dist[j] = nd;
+          tas.push(nd, j);
+        }
+      }
+    }
+  }
+  return dist;
+}
+
 function glaner(
   praticable: Uint8Array,
   terrain: ArrayLike<number>,
@@ -530,6 +596,41 @@ export function mesurer(graine: number): Rapport {
     glaner(praticable, w.terrain, cols, rows, objetIndex, s.at, s.label),
   );
 
+  /*
+   * L'ISOLEMENT des capitales : coût de marche d'une capitale à l'autre.
+   *
+   * Le coût, et non la distance à vol d'oiseau : c'est le relief qui décide de
+   * qui est voisin de qui, et la carte est murée sur ses crêtes.
+   */
+  const isolement: Rapport['isolement'] = [];
+  {
+    const departs = Object.values(START_POSITIONS);
+    const UNE_SEMAINE = BASE_MOVEMENT * 7;
+    for (const s of departs) {
+      const champ = champDeMarche(praticable, w.terrain, cols, rows, s.at);
+      let meilleur = Number.MAX_SAFE_INTEGER;
+      let qui = '—';
+      let proches = 0;
+      for (const autre of departs) {
+        if (autre.label === s.label) continue;
+        const c = champ[autre.at.row * cols + autre.at.col];
+        if (c >= 0x3fffffff) continue;
+        if (c < meilleur) {
+          meilleur = c;
+          qui = autre.label;
+        }
+        if (c <= UNE_SEMAINE) proches++;
+      }
+      isolement.push({
+        depart: s.label,
+        plusProche: qui,
+        cout: meilleur >= Number.MAX_SAFE_INTEGER ? -1 : meilleur,
+        rivalesProches: proches,
+      });
+    }
+    isolement.sort((a, b) => b.cout - a.cout);
+  }
+
   /* L'équité économique des cinq départs, telle que la passe la laisse. */
   const eco = startEconomy(graine);
   const economie = Object.entries(START_POSITIONS).map(([key, s]) => ({
@@ -587,6 +688,7 @@ export function mesurer(graine: number): Rapport {
     glanage,
     economie,
     ecartEconomique: ecart,
+    isolement,
   };
 }
 
@@ -1110,6 +1212,15 @@ function imprimer(r: Rapport): void {
     `≥ ${String(CIBLE_OBJETS_PAR_JOUR)}`);
   ligne('coût médian entre deux objets', `${coutMedian.toFixed(0)} pts`);
   console.log('     (colonnes : objets ramassés à 7 jours / 14 jours / 28 jours)');
+
+  console.log('\n▸ Isolement des capitales — qui se bat sur combien de fronts');
+  for (const i of r.isolement) {
+    ligne(
+      `  ${i.depart}`,
+      `${String(i.cout)} pts jusqu'à ${i.plusProche} · ` +
+        `${String(i.rivalesProches)} rivale(s) à une semaine`,
+    );
+  }
 
   console.log('\n▸ Équité économique des cinq départs');
   for (const e of r.economie) ligne(`  ${e.depart}`, `${String(e.valeur)} écus accessibles`);

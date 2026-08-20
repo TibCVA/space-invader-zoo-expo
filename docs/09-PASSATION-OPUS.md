@@ -311,6 +311,47 @@ crête de poils du loup, et la maçonnerie des colosses (`blocPierre` dessinait 
 galet lissé). **Restent frustes :** les vouivres, les humains de la Châtellenie
 (silhouettes très simples), les curés, le veneur.
 
+## 1 sexies. Session du 20/08 (après-midi) — les neuf demandes du propriétaire
+
+Le propriétaire a listé neuf reproches. Voici où en est chacun, avec la
+mesure en face — et, quand la mesure a démenti une impression, le démenti.
+
+| Sa demande | Où c'en est | La mesure |
+|---|---|---|
+| « je ne veux pas 2 fois le même asset trop proches » | **fait** | zéro paire semée sous l'écart voulu, toutes familles confondues, sur sept graines — contre 149 avant. Densité tenue : une case sur 37, zéro bloc vide, glaneur 3,6/j |
+| « suffisamment de mines de ressources » | **fait** | 46 gisements, dont 9 qui rendent des écus. Une XL de HMM3 en porte 40 à 50 |
+| « les mines et items répartis de manière intelligente et réfléchie » | **fait** | un répartiteur donne chaque lot au voisinage le plus pauvre. Équité économique des cinq départs : 50,6 % d'écart → **1,8 à 2,8 %** sur huit graines |
+| « les assets les plus importants gardés par des gardes assez forts » | **fait** | la garde se dose par l'anneau (proximité du départ) ET par le poids de ce qu'elle garde. Zéro artefact nu, gisement d'or à 18 900 de puissance, scierie à 1 700 |
+| « difficulté bien dosée selon la proximité du départ » | **fait** | médiane de garde par distance : 1 176 sous 12 cases, 3 103 de 12 à 25, 8 400 de 25 à 45 — monotone, ce qu'elle n'était pas |
+| « drapeaux de couleurs sur les assets pris » | **fait** | pavois + cocarde au sol, sur les sept genres que le moteur fait changer de main ; taille ramenée de 0,74 à 0,46 fois le lieu après lecture d'une capture |
+| « en cliquant, une indication de force, d'unités et de difficulté » | **fait** | fiche d'inspection : paquets flous à neuf crans, fourchette de force, appréciation de difficulté, jugée sur l'armée du héros courant |
+| « améliorer grandement la représentation de chaque créature » | **en cours** | les quatorze humains resculptés (visages, articulations, gestes) ; les bêtes en cours |
+| « zones bien délimitées visuellement, beaucoup de détails » | **commencé** | douze pays avec teinte, densité et signature de décor ; quatre silhouettes bâties tirées de l'atlas où elles dormaient. Le SOL reste procédural et sans matière : c'est la vague 3 d'ImageGen (`docs/10-BRIEF-IMAGEGEN-VAGUE-3.md`) |
+
+**Et deux défauts de fond que la chasse a levés, tous deux invisibles sans
+mesure :**
+
+1. **Une place gardée se traversait.** L'entrée d'un lieu est franchissable
+   pour qu'on puisse le visiter — mais elle l'était aussi pour le TRANSIT, et
+   les postes de garde sont posés exprès sur les transitions de voie. Un héros
+   qui longeait une route se retrouvait donc en combat en allant ailleurs.
+   Mesuré sur une partie qui s'endormait : **soixante-quatre combats livrés,
+   zéro gagné**, héros resté au niveau 2 après quatre cent cinquante jours.
+   L'IA ne jugeait pas mal ses combats : elle ne les choisissait pas. Depuis
+   qu'une place gardée bloque le transit — la règle de HMM3, où un monstre
+   errant bloque sa case —, **les parties réglées par conquête passent de 2/20
+   à 17/20**.
+2. **Une place assiégée prenait toute l'armée.** `garrisonTarget` faisait
+   `min(totalPower, threat)` : dès qu'un ennemi aussi fort passait dans le
+   rayon de vigilance du profil — vingt-sept cases pour le prudent —, la maison
+   verrouillait tout dans ses murs, des deux côtés en même temps. Plafonné aux
+   trois cinquièmes.
+
+**Ce que la mesure a démenti** : la trame hexagonale du champ de bataille
+paraissait invisible sur capture. Mesurée, elle vaut +44 de luminance sur le
+sol d'une sapinière : c'est la réduction de l'image pour l'examen qui mangeait
+les traits de 1,2 pixel. Rien à corriger.
+
 ## 2. LA LISTE — par importance pour le feeling HMM3
 
 ### P0 — le cœur du jeu (sans quoi ce n'est pas HMM3)
