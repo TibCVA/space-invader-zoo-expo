@@ -41,6 +41,11 @@ export type { EcranCiteProps, EcranPartieProps } from './vues.js';
 export { PanneauMobile } from './panneaux.js';
 export type { PanneauProps } from './panneaux.js';
 
+export { FicheInspection, ficheDe } from './inspection.js';
+export type { FicheInspectionProps } from './inspection.js';
+export type { Cible } from './cible.js';
+export * from './estimation.js';
+
 export { EcranIntrouvable } from './introuvable.js';
 
 export { ScenePixi } from './scene.js';

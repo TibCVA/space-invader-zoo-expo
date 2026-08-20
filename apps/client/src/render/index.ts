@@ -41,6 +41,7 @@ import { Camera, ZOOM_DEFAUT, ZOOM_MAX, ZOOM_MIN } from './camera.js';
 import { PeintreTerrain } from './terrain.js';
 import { SemisProps } from './props.js';
 import { ObjetsCarte } from './objects.js';
+import { pavoisDemonstration } from './pavois.js';
 import { JetonsHeros } from './heroes.js';
 import { Brouillard } from './fog.js';
 import { CheminPerles } from './path.js';
@@ -192,7 +193,28 @@ class CarteAventure implements MapView {
     this.minicarte.sync(state);
     this.meteo.poser(state.weather.current);
     this.majFog();
+    this.majPavois(state);
   }
+
+  /**
+   * Pavois des routes de démonstration.
+   *
+   * Même procédé que `fogDemonstration` juste en dessous, et même justification :
+   * `createGame` ouvre le premier jour d'une partie, où aucun gisement n'a
+   * changé de main. `#/demo/carte` annonce pourtant la semaine 6 — la revue
+   * visuelle photographiait donc une carte politique vierge, une seule bannière
+   * dans tout le cadre, celle de Cervières, cachée derrière le jeton de
+   * Clotilde. La table est déterministe et **ne touche jamais l'état du
+   * moteur** ; `screens/vues.tsx` construit la même par la même fonction, pour
+   * que le drapeau planté et la fiche d'inspection ne se contredisent pas.
+   */
+  private majPavois(state: GameState): void {
+    if (!this.deps.demo || this.pavoisPose) return;
+    this.pavoisPose = true;
+    this.objets.poserPavoisDemo(pavoisDemonstration(this.deps.world, state));
+  }
+
+  private pavoisPose = false;
 
   /* ──────────────────────────── Brouillard ─────────────────────────────── */
 

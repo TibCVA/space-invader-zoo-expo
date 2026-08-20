@@ -399,9 +399,11 @@ function poidsDeGarde(kind: string, data: Record<string, unknown>): number {
     case 'demeure': {
       const creature = (data.creature as string | undefined) ?? '';
       const tier = Number(creature.slice(-1));
-      /* Une demeure recrute chaque semaine : le rang décide, et l'on compte
-         quatre semaines comme pour un gisement. */
-      return Number.isFinite(tier) && tier > 0 ? tier * 700 : 700;
+      /* Une demeure recrute chaque semaine, mais on paie les troupes : le lot
+         est moindre qu'un gisement de même rang. Quatre cent cinquante par rang
+         place un rang 3 au milieu de sa fourchette et un rang 5 aux trois
+         quarts, là où sept cents les collait tous au sommet. */
+      return Number.isFinite(tier) && tier > 0 ? tier * 450 : 700;
     }
     case 'ressource': {
       const resource = data.resource as ResourceKey | undefined;
@@ -412,10 +414,21 @@ function poidsDeGarde(kind: string, data: Record<string, unknown>): number {
       const ecus = (data.ecus as number | undefined) ?? 0;
       return ecus;
     }
-    /* Un poste de garde ne garde rien d'autre que le passage : c'est l'anneau
-       seul qui le dose, donc le poids plein — on ne veut pas d'un péage mou. */
+    /*
+     * Un poste de garde ne garde rien d'autre que le passage : l'anneau seul le
+     * dose, donc le MILIEU de sa fourchette — et c'est une correction mesurée.
+     *
+     * Le poids plein l'avait mis en haut de fourchette, et les postes sont la
+     * famille la plus nombreuse de la carte : cinquante-six péages passés d'un
+     * coup du milieu au sommet de leur anneau. Le duel de vingt parties l'a dit
+     * sans ambiguïté — l'expert est tombé de 15/20 à 10/20 et les parties
+     * réglées par conquête de 9 à 2 : la carte entière était devenue trop dure
+     * pour qu'une armée traverse, et le plafond de tours décidait à la place des
+     * joueurs. Doser la garde par ce qu'elle garde ne veut pas dire durcir tout
+     * ce qui garde quelque chose.
+     */
     case 'garde':
-      return POIDS_PLEIN;
+      return Math.trunc(POIDS_PLEIN / 2);
     default:
       return 600;
   }

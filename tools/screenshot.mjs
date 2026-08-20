@@ -47,7 +47,29 @@ const SCENES = {
      carte a été photographiée sur son écran de chargement — carton de
      parchemin, barre de progression, « on peint les vingt-huit créatures ».
      Une telle capture ne montre pas une régression, elle ne montre rien. */
-  carte: { hash: '#/demo/carte', wait: 20000, label: "Carte d'aventure" },
+  carte: { hash: '#/demo/carte', wait: 60000, label: "Carte d'aventure" },
+  /*
+   * Deux cadrages de plus sur la carte, et ce sont des instruments, pas des
+   * jolies vues : la demande du propriétaire porte sur deux échelles qui ne se
+   * jugent pas sur la même image. « Beaucoup de détails, même si items non
+   * jouables » se voit de PRÈS — un hameau, une croix de chemin, un muret de
+   * pierre sèche —, et « les différentes zones bien délimitées visuellement » ne
+   * se voit que de LOIN, quand trois cantons tiennent dans le cadre. La molette
+   * est écoutée par la scène Pixi : un cran négatif rapproche, un cran positif
+   * éloigne.
+   */
+  carte_pres: {
+    hash: '#/demo/carte',
+    wait: 60000,
+    defile: -900,
+    label: "Carte — au ras du décor",
+  },
+  carte_loin: {
+    hash: '#/demo/carte',
+    wait: 60000,
+    defile: 1400,
+    label: 'Carte — trois cantons dans le cadre',
+  },
   cite_granit: { hash: '#/demo/cite/granit', wait: 11000, label: 'Cité — Châtellenie de Granit' },
   cite_ermitage: { hash: '#/demo/cite/ermitage', wait: 11000, label: 'Cité — Ermitage des Bois Noirs' },
   combat: { hash: '#/demo/combat', wait: 22000, label: 'Combat tactique' },

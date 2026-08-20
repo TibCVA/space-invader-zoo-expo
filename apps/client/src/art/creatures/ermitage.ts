@@ -6,14 +6,14 @@
  * sombre `#2F3B2E`.
  *
  * Règle de silhouette, à 64 px et en négatif :
- *   Pèlerin        — capuche molle, bourdon plus haut que lui, besace
- *   Pénitent Blanc — cagoule en cône, pieds nus, croix de bois portée
+ *   Pèlerin        — capuche ouverte, grande cape en loques, coquille, bourdon
+ *   Pénitent Blanc — cagoule en cône à pointe retombée, lin en lambeaux, croix
  *   Hulotte        — disque facial rond, ailes courtes et larges
  *   Oraculaire     — aigrettes dressées, nimbe de brume
  *   Loup           — ligne basse, échine longue, queue touffue
  *   Loup des Brumes— même ligne, arrière-train qui se défait en brume
- *   Veneur         — grand arc vertical, capuche de feuilles
- *   Garde-Futaie   — arc plus lourd, cor en bandoulière, manteau de mousse
+ *   Veneur         — arc BANDÉ : un D profond, corde en V tirée à la joue
+ *   Garde-Futaie   — même geste, arc plus lourd, manteau de feuilles galonné
  *   Cerf           — ramure haute et ouverte
  *   Cerf Miraculeux— ramure double portant la lampe froide
  *   Colosse        — blocs empilés, aucune articulation lisible
@@ -57,6 +57,7 @@ import {
   orfevrerie,
   poser,
   queue as dessinerQueue,
+  rayonTete,
   sous,
   squeletteBipede,
   squeletteQuadrupede,
@@ -99,22 +100,70 @@ function bourdon(g: Graphics, k: Kit, H: number, gourde: boolean, seed: number):
       h.stroke({ color: assombrir(BOIS, 0.3), width: H * 0.009, alpha: 0.85 });
     });
   }
-  // coquille cousue : le signe des chemins
-  sous(g, -H * 0.03, -H * 0.62, (h) => {
-    const c = blob(0, 0, H * 0.022, H * 0.02, { seed: seed + 7, points: 11, wobble: 0.22 });
-    poser(h, k, c, { couleur: PIERRE_CLAIRE, matiere: 'grain', matiereAlpha: 0.18 });
-    for (let i = 0; i < 4; i += 1) {
-      const a = -1 + i * 0.66;
-      h.moveTo(0, H * 0.008);
-      h.lineTo(Math.cos(a) * H * 0.02, H * 0.008 - Math.sin(a) * H * 0.018);
-      h.stroke({ color: assombrir(PIERRE_CLAIRE, 0.35), width: H * 0.006, alpha: 0.7 });
-    }
+  // coquille pendue au bourdon, à sa vraie taille cette fois
+  sous(g, -H * 0.032, -H * 0.6, (h) => {
+    h.moveTo(0, 0);
+    h.lineTo(-H * 0.01, H * 0.03);
+    h.stroke({ color: assombrir(BOIS, 0.3), width: H * 0.008, alpha: 0.85 });
+    sous(h, -H * 0.012, H * 0.038, (c) => coquille(c, k, H * 0.03, seed + 7));
   });
 }
 
+/**
+ * La coquille Saint-Jacques : le signe des chemins.
+ *
+ * Elle est cousue sur la besace ET pendue au bourdon dans le rendu de référence
+ * du Pèlerin, et c'est à elle qu'on reconnaît un pèlerin plutôt qu'un vagabond
+ * avec un bâton. Il en existait déjà une sur la hampe, de 0,022 H de rayon —
+ * deux pixels, indistincts d'un nœud du bois. On la double et on lui donne ses
+ * côtes rayonnantes, qui sont la seule chose qui la fait lire comme coquille.
+ */
+function coquille(g: Graphics, k: Kit, R: number, seed: number): void {
+  const nacre = melanger(PIERRE_CLAIRE, 0xf0e8d4, 0.45);
+  const eventail: Poly = [pt(0, R * 0.42)];
+  for (let i = 0; i <= 8; i += 1) {
+    const a = -Math.PI * 0.94 + (i / 8) * Math.PI * 0.88;
+    const dent = i % 2 ? 1 : 0.86;
+    eventail.push(pt(Math.cos(a) * R * 1.06 * dent, R * 0.36 + Math.sin(a) * R * 1.14 * dent));
+  }
+  poser(g, k, lisser(perturber(densifier(eventail, R * 0.3), R * 0.03, seed), 0), {
+    couleur: nacre,
+    matiere: 'grain',
+    matiereAlpha: 0.16,
+    echelle: 0.3,
+    speculaire: { x: 0.3, y: 0.34, r: 0.14 },
+    seed,
+  });
+  for (let i = 0; i < 5; i += 1) {
+    const a = -Math.PI * 0.86 + (i / 4) * Math.PI * 0.72;
+    g.moveTo(0, R * 0.34);
+    g.lineTo(Math.cos(a) * R * 0.94, R * 0.34 + Math.sin(a) * R * 1.0);
+    g.stroke({ color: ombreBleutee(nacre, 0.7), width: R * 0.12, alpha: 0.55, cap: 'round' });
+  }
+  // charnière : le point sombre qui ferme l'éventail
+  g.poly(flat(blob(0, R * 0.36, R * 0.2, R * 0.14, { seed: seed + 3, points: 9, wobble: 0.24 }))).fill({
+    color: assombrir(nacre, 0.4),
+    alpha: 0.7,
+  });
+}
+
+/**
+ * Le Pèlerin : **la coquille, et la grande cape en loques qui traîne derrière**.
+ *
+ * Son rendu de référence est fait de deux choses : un manteau vert-de-gris
+ * énorme, mangé aux mites, dont l'ourlet part en langues déchiquetées derrière
+ * lui — il occupe la moitié de l'image —, et la coquille, cousue sur la besace,
+ * pendue au bourdon. Tout le reste est de la marche.
+ *
+ * La planche de contact en donnait l'exact contraire : un cône de bure étroit,
+ * sans cape du tout, une capuche qui effaçait la figure et une coquille de deux
+ * pixels sur la hampe. On ne pouvait pas dire s'il montait à l'Hermitage ou s'il
+ * gardait des chèvres.
+ */
 const pelerin: Fabrique = (k) => {
   const H = 94;
   const bure = melanger(BOIS, MOUSSE, 0.4);
+  const manteau = melanger(VERT_PROFOND, SAUGE, 0.34);
   return creatureRig(
     { hauteur: H, empriseSol: H * 0.21, respiration: 'buste', graine: k.seed + 20, teinteMort: SAUGE },
     squeletteBipede({
@@ -123,29 +172,67 @@ const pelerin: Fabrique = (k) => {
       teint: TEINTS[2],
       tunique: bure,
       jambeCouleur: melanger(bure, MOUSSE, 0.4),
-      chausse: null,
+      chausse: assombrir(BOIS, 0.38),
       ceinture: melanger(BOIS, 0x9c8f6a, 0.4),
       posture: -0.6,
       largeur: 0.95,
       epaules: 0.9,
-      visage: { age: 0.6, sourcils: 0.25, barbe: 0.5, barbeCouleur: 0x8d8578 },
+      ecart: 1.5,
+      coude: 0.6,
+      brasDRot: -0.62,
+      brasGRot: 0.26,
+      epaulement: { couleur: manteau, largeur: H * 0.18 },
+      basque: { couleur: melanger(bure, 0x9c8f6a, 0.35), dents: 0.9, hauteur: H * 0.15 },
+      jambiere: { couleur: melanger(BOIS, PIERRE_CLAIRE, 0.3), hauteur: H * 0.13 },
+      /* Le manteau du chemin : large, et déchiré à fond — c'est le vêtement de
+         qui marche depuis trop longtemps, et la moitié de sa silhouette. */
+      cape: { couleur: manteau, w: H * 0.46, h: H * 0.56, dents: 1 },
+      visage: { age: 0.6, sourcils: 0.25, barbe: 0.5, barbeCouleur: 0x6f665a },
       cheveux: { couleur: 0x8d8578, longueur: 0.7, volume: 0.95 },
-      robe: { couleur: bure, haut: H * 0.2, bas: H * 0.3, hauteur: H * 0.42 },
-      coiffe: (g, kk) => capuche(g, kk, { r: H * 0.086, couleur: assombrir(bure, 0.18), pointe: 0.25, ouverture: 0.6, seed: 3 }),
+      robe: { couleur: bure, haut: H * 0.2, bas: H * 0.3, hauteur: H * 0.42, dents: 0.5 },
+      coiffe: (g, kk) => capuche(g, kk, { r: rayonTete(H), couleur: assombrir(bure, 0.18), pointe: 0.25, ouverture: 0.6, seed: 3 }),
       dos: (g, kk) =>
-        sous(g, H * 0.04, H * 0.03, (h) => {
-          poser(h, kk, blob(0, 0, H * 0.07, H * 0.08, { seed: 9, points: 15, wobble: 0.2 }), {
+        sous(g, H * 0.05, H * 0.02, (h) => {
+          // rouleau de couverture sanglé au ballot : le rendu le montre en haut
+          poser(h, kk, blob(0, 0, H * 0.075, H * 0.085, { seed: 9, points: 15, wobble: 0.2 }), {
             couleur: melanger(BOIS, PIERRE_CLAIRE, 0.28),
             matiere: 'tissu',
             matiereAlpha: 0.26,
             echelle: 0.5,
           });
+          poser(h, kk, blob(H * 0.005, -H * 0.075, H * 0.062, H * 0.03, { seed: 15, points: 14, wobble: 0.22 }), {
+            couleur: melanger(BOIS, 0x9c8f6a, 0.5),
+            matiere: 'tissu',
+            matiereAlpha: 0.3,
+            echelle: 0.4,
+          });
           h.moveTo(-H * 0.06, -H * 0.05);
           h.quadraticCurveTo(0, -H * 0.11, H * 0.06, -H * 0.04);
           h.stroke({ color: assombrir(BOIS, 0.34), width: H * 0.012, alpha: 0.8 });
         }),
+      surTorse: (g, kk) => {
+        // la besace, et la coquille cousue dessus : le signe, à sa vraie taille
+        sous(g, -H * 0.085, H * 0.01, (h) => {
+          poser(h, kk, blob(0, H * 0.02, H * 0.05, H * 0.048, { seed: 17, points: 14, wobble: 0.2 }), {
+            couleur: melanger(BOIS, 0x8a7550, 0.4),
+            matiere: 'grain',
+            matiereAlpha: 0.22,
+            echelle: 0.4,
+          });
+          h.moveTo(-H * 0.036, -H * 0.02);
+          h.quadraticCurveTo(0, -H * 0.05, H * 0.036, -H * 0.018);
+          h.stroke({ color: assombrir(BOIS, 0.3), width: H * 0.012, alpha: 0.85 });
+          sous(h, 0, H * 0.012, (c) => coquille(c, kk, H * 0.032, 19));
+        });
+        // la courroie de la besace, en travers de la poitrine
+        g.moveTo(H * 0.1, -H * 0.27);
+        g.quadraticCurveTo(0, -H * 0.16, -H * 0.09, -H * 0.03);
+        g.stroke({ color: assombrir(BOIS, 0.26), width: H * 0.022, alpha: 0.88, cap: 'round' });
+      },
       arme: (g, kk) => bourdon(g, kk, H, true, 11),
-      armeAncre: { rot: 0.12 },
+      /* Le bourdon planté en avant : dans le rendu il porte le poids du marcheur
+         et barre l'image en diagonale. Vertical, il n'était qu'un manche. */
+      armeAncre: { rot: 0.62 },
     }),
     k,
     (r) => {
@@ -155,9 +242,31 @@ const pelerin: Fabrique = (k) => {
   );
 };
 
+/**
+ * Le Pénitent Blanc : **le lin en lambeaux et les pieds nus**.
+ *
+ * On garde la cagoule pointue : elle est juste — les confréries de pénitents
+ * blancs du Midi et du Massif la portent —, et c'est la silhouette qu'on ne
+ * confond avec rien à soixante-quatre pixels. Ce qui était faux, c'est TOUT LE
+ * RESTE : le rendu de référence montre un vêtement dont chaque ourlet est
+ * déchiqueté, mangé, effiloché, une croix rouge sur l'épaule, un cordage tressé
+ * qui pend jusqu'au genou, et deux pieds nus dans la poussière. La planche de
+ * contact, elle, donnait un cône de lin parfaitement lisse, ourlet net, du
+ * sommet du capuchon jusqu'au sol : un fantôme de conte, pas un homme qui a
+ * marché pieds nus jusqu'à ce que la source recoule.
+ *
+ * On lui rend donc les lambeaux — basque à dents pleines, ourlet de robe
+ * déchiré —, la croix rouge, le cordage, et les pieds nus visibles sous
+ * l'ourlet.
+ */
 const penitentBlanc: Fabrique = (k) => {
   const H = 102;
-  const lin = melanger(PIERRE_CLAIRE, 0xf0ead9, 0.55);
+  /* Le lin sali par la route. Il valait 0,55 de blanc pur : à l'écran, un drap
+     de lit sortant de l'armoire, alors que le rendu de référence montre une
+     étoffe tachée, jaunie, portée depuis des années. Un pénitent qui marche
+     pieds nus depuis que la source s'est tarie n'a pas de linge propre. */
+  const lin = melanger(PIERRE_CLAIRE, 0xe6dcc2, 0.42);
+  const cordage = melanger(BOIS, PIERRE_CLAIRE, 0.5);
   return creatureRig(
     { hauteur: H, empriseSol: H * 0.22, respiration: 'buste', graine: k.seed + 21, teinteMort: PIERRE_CLAIRE },
     squeletteBipede({
@@ -171,54 +280,114 @@ const penitentBlanc: Fabrique = (k) => {
       posture: 0.7,
       largeur: 0.92,
       epaules: 0.88,
+      ecart: 1.4,
+      coude: 0.58,
+      brasDRot: -0.56,
+      brasGRot: 0.24,
+      manche: lin,
+      epaulement: { couleur: assombrir(lin, 0.1), largeur: H * 0.17 },
+      /* L'ourlet mangé : `dents: 1` déchire la basque à fond, et c'est le seul
+         détail du pénitent qui doit se voir avant la cagoule. */
+      basque: { couleur: assombrir(lin, 0.06), dents: 1, hauteur: H * 0.17, largeur: H * 0.3 },
       visage: null,
       cheveux: null,
-      robe: { couleur: lin, haut: H * 0.21, bas: H * 0.34, hauteur: H * 0.5 },
+      /* L'ourlet de la robe part en langues jusqu'au mollet : le rendu de
+         référence n'a pas dix centimètres d'étoffe intacte, et l'ourlet net
+         était ce qui restait de plus faux sur le pénitent. */
+      robe: { couleur: lin, haut: H * 0.21, bas: H * 0.34, hauteur: H * 0.5, dents: 0.85 },
       coiffe: (g, kk) => {
-        const r = H * 0.086;
-        // cagoule pointue : la silhouette qu'on ne confond avec rien
-        const cone = lisser(
+        const r = rayonTete(H);
+        /*
+         * La cagoule reste — elle est juste et c'est la silhouette du rang —
+         * mais elle devient de l'ÉTOFFE et non un cône de géométrie. Le cône
+         * régulier, parfaitement rectiligne du bord jusqu'à la pointe, ne
+         * ressemblait à rien de cousu : la pointe RETOMBE ici sur le côté, sous
+         * son propre poids, le bord inférieur porte un bourrelet roulé, et le
+         * lin est sali. Trois écarts à la géométrie, et l'on passe d'une forme
+         * abstraite à un capuchon qu'un homme a mis ce matin.
+         */
+        const cagoule = lisser(
           perturber(
             densifier(
               [
-                pt(-r * 1.08, r * 0.92),
-                pt(-r * 0.86, -r * 0.6),
-                pt(-r * 0.3, -r * 1.9),
-                pt(r * 0.06, -r * 2.35),
-                pt(r * 0.44, -r * 1.7),
-                pt(r * 0.98, -r * 0.42),
-                pt(r * 1.14, r * 0.98),
-                pt(0, r * 0.72),
+                pt(-r * 1.1, r * 0.92),
+                pt(-r * 0.92, -r * 0.62),
+                pt(-r * 0.46, -r * 1.66),
+                pt(-r * 0.28, -r * 2.12),
+                pt(-r * 0.62, -r * 2.34),
+                pt(-r * 0.34, -r * 2.5),
+                pt(r * 0.22, -r * 2.24),
+                pt(r * 0.5, -r * 1.62),
+                pt(r * 1.0, -r * 0.44),
+                pt(r * 1.16, r * 0.98),
+                pt(0, r * 0.74),
               ],
-              r * 0.4,
+              r * 0.34,
             ),
-            r * 0.035,
+            r * 0.05,
             7,
           ),
           1,
         );
-        poser(g, kk, cone, { couleur: lin, matiere: 'tissu', matiereAlpha: 0.26, echelle: 0.55 });
+        poser(g, kk, cagoule, { couleur: lin, matiere: 'tissu', matiereAlpha: 0.26, echelle: 0.55 });
+        // bourrelet roulé du bord inférieur : le lin est ourlé, pas coupé net
+        g.moveTo(-r * 1.06, r * 0.78);
+        g.quadraticCurveTo(0, r * 1.06, r * 1.12, r * 0.84);
+        g.stroke({ color: ombreBleutee(lin, 0.8), width: r * 0.16, alpha: 0.5, cap: 'round' });
         // deux fentes d'yeux, rien d'autre
         for (const dx of [-0.38, 0.3]) {
-          g.poly(flat(blob(dx * r, -r * 0.22, r * 0.2, r * 0.075, { seed: dx * 10 + 3, points: 10, wobble: 0.2 }))).fill({
+          g.poly(flat(blob(dx * r, -r * 0.22, r * 0.24, r * 0.09, { seed: dx * 10 + 3, points: 10, wobble: 0.2 }))).fill({
             color: ombreBleutee(lin, 1),
-            alpha: 0.86,
+            alpha: 0.9,
           });
         }
-        // couture de la cagoule
-        g.moveTo(r * 0.02, -r * 2.2);
-        g.quadraticCurveTo(-r * 0.2, -r * 0.9, -r * 0.5, r * 0.6);
-        g.stroke({ color: ombreBleutee(lin, 0.55), width: r * 0.07, alpha: 0.4 });
+        // le pli de la pointe retombée, et la couture qui court jusqu'au bord
+        g.moveTo(-r * 0.42, -r * 2.3);
+        g.quadraticCurveTo(-r * 0.18, -r * 1.5, -r * 0.5, r * 0.6);
+        g.stroke({ color: ombreBleutee(lin, 0.6), width: r * 0.08, alpha: 0.45 });
+        g.moveTo(-r * 0.56, -r * 2.36);
+        g.quadraticCurveTo(-r * 0.16, -r * 2.2, -r * 0.24, -r * 2.02);
+        g.stroke({ color: ombreBleutee(lin, 0.9), width: r * 0.11, alpha: 0.5, cap: 'round' });
       },
-      surTorse: (g) => {
-        // corde à trois nœuds : matière ajoutée, remplace la ceinture de cuir
+      surTorse: (g, kk) => {
+        /* La croix rouge sur l'épaule gauche : la marque de la confrérie. C'est
+           le seul rouge autorisé sur tout ce blanc, et c'est précisément pour
+           cela qu'il porte — sans lui, le pénitent est un drap. */
+        sous(g, -H * 0.022, -H * 0.225, (h) => {
+          const br = H * 0.011;
+          const croix: Poly = [
+            pt(-br, -H * 0.035), pt(br, -H * 0.035), pt(br, -br), pt(H * 0.032, -br),
+            pt(H * 0.032, br), pt(br, br), pt(br, H * 0.035), pt(-br, H * 0.035),
+            pt(-br, br), pt(-H * 0.032, br), pt(-H * 0.032, -br), pt(-br, -br),
+          ];
+          poser(h, kk, perturber(croix, H * 0.0025, 23), {
+            couleur: melanger(0x8c2030, 0x6e1f2a, 0.4),
+            matiere: 'tissu',
+            matiereAlpha: 0.24,
+            echelle: 0.3,
+            modele: 0.8,
+          });
+        });
+        // le cordage tressé, trois nœuds, et deux brins qui pendent au genou
         g.moveTo(-H * 0.1, -H * 0.06);
-        g.quadraticCurveTo(0, -H * 0.02, H * 0.1, -H * 0.07);
-        g.stroke({ color: melanger(BOIS, PIERRE_CLAIRE, 0.5), width: H * 0.016, alpha: 0.9, cap: 'round' });
+        g.quadraticCurveTo(0, -H * 0.015, H * 0.1, -H * 0.07);
+        g.stroke({ color: cordage, width: H * 0.018, alpha: 0.92, cap: 'round' });
         for (let i = 0; i < 3; i += 1) {
-          g.poly(flat(blob(-H * 0.04 + i * H * 0.04, -H * 0.035 + i * H * 0.006, H * 0.012, H * 0.011, { seed: i + 2, points: 9, wobble: 0.26 }))).fill({
-            color: melanger(BOIS, PIERRE_CLAIRE, 0.42),
-            alpha: 0.92,
+          g.poly(flat(blob(-H * 0.04 + i * H * 0.04, -H * 0.035 + i * H * 0.006, H * 0.013, H * 0.012, { seed: i + 2, points: 9, wobble: 0.26 }))).fill({
+            color: assombrir(cordage, 0.14),
+            alpha: 0.94,
+          });
+        }
+        for (const [dx, len] of [
+          [-H * 0.028, H * 0.19],
+          [H * 0.012, H * 0.15],
+        ] as const) {
+          g.moveTo(dx, -H * 0.03);
+          g.quadraticCurveTo(dx - H * 0.012, -H * 0.03 + len * 0.6, dx + H * 0.008, -H * 0.03 + len);
+          g.stroke({ color: cordage, width: H * 0.011, alpha: 0.85, cap: 'round' });
+          g.poly(flat(blob(dx + H * 0.008, -H * 0.028 + len, H * 0.011, H * 0.014, { seed: dx * 100 + 5, points: 10, wobble: 0.26 }))).fill({
+            color: assombrir(cordage, 0.12),
+            alpha: 0.9,
           });
         }
         // traces de route sur la bure : le vœu dure depuis longtemps
@@ -240,8 +409,18 @@ const penitentBlanc: Fabrique = (k) => {
             alpha: 0.9,
           });
         });
+        sous(g, -H * 0.008, -H * 0.18, (h) =>
+          poser(h, kk, blob(0, 0, H * 0.03, H * 0.033, { seed: 27, points: 11, wobble: 0.24 }), {
+            couleur: assombrir(TEINTS[1], 0.12),
+            matiere: 'grain',
+            matiereAlpha: 0.1,
+            modele: 0.8,
+          }),
+        );
       },
-      armeAncre: { rot: 0.04 },
+      /* La croix penche en avant, comme une charge qu'on porte et non un
+         totem qu'on brandit : verticale et centrée, elle sciait la cagoule. */
+      armeAncre: { rot: 0.44 },
     }),
     k,
     (r) => {
@@ -594,57 +773,128 @@ const loupDesBrumes: Fabrique = (k) =>
 
 /* ─────────────────────── Rang 4 — les veneurs ───────────────────────────── */
 
+/**
+ * L'arc BANDÉ : un grand D dont la corde est tirée jusqu'à la joue.
+ *
+ * **Ce que l'ancien arc coûtait, vu sur la planche de contact.** Il était dessiné
+ * comme une baguette presque droite — la courbure valait 0,11 L pour une hauteur
+ * de L, soit onze pour cent, invisible — avec la corde peinte en LIGNE DROITE
+ * de pointe à pointe, superposée au bois. À l'écran, les deux veneurs de
+ * l'Ermitage tenaient donc un bâton vertical devant eux, et la flèche
+ * horizontale ressemblait à une brochette. Rien ne disait l'archer, et l'archer
+ * est tout ce qu'ils sont : les deux seuls tireurs de la faction.
+ *
+ * Les deux rendus de référence montrent la même chose et c'est la forme la plus
+ * lisible du jeu : le bois se creuse en un **D** profond, la corde forme un **V**
+ * dont la pointe est ramenée en arrière jusqu'au visage, et la flèche part de
+ * cette pointe. Trois traits, aucune ambiguïté possible.
+ *
+ * On construit donc : le bois en arc de cercle (0,42 L de flèche, quatre fois
+ * l'ancienne), les deux poupées recourbées à l'envers comme sur un arc de
+ * chasse, puis la corde en deux segments passant par le point d'armement — qui
+ * est en ARRIÈRE du bois, ce que l'ancienne corde droite ne pouvait pas dire.
+ */
 function arcLong(g: Graphics, k: Kit, L: number, garde: boolean, seed: number): void {
-  const bras: Poly = [];
-  const dos: Poly = [];
-  for (let i = 0; i <= 16; i += 1) {
-    const t = i / 16;
+  const bois = garde ? melanger(BOIS, MOUSSE, 0.4) : melanger(BOIS, PIERRE_CLAIRE, 0.22);
+  /** Creux du D, vers l'avant (+x) : c'est lui qui fait lire l'arc. */
+  const fleche = L * (garde ? 0.46 : 0.42);
+  /** Où la corde est tirée : en arrière du bois, à hauteur de joue. */
+  const armement = pt(-L * 0.3, -L * 0.04);
+  const ventre: Poly = [];
+  const dosArc: Poly = [];
+  for (let i = 0; i <= 18; i += 1) {
+    const t = i / 18;
     const y = (t - 0.5) * L;
-    const courbure = Math.cos((t - 0.5) * Math.PI) * L * (garde ? 0.14 : 0.11);
-    const w = L * (garde ? 0.022 : 0.018) * (1 - Math.abs(t - 0.5) * 1.1);
-    bras.push(pt(courbure - w, y));
-    dos.push(pt(courbure + w, y));
+    const x = Math.cos((t - 0.5) * Math.PI) * fleche;
+    const w = L * (garde ? 0.03 : 0.026) * (1 - Math.abs(t - 0.5) * 0.85);
+    ventre.push(pt(x - w, y));
+    dosArc.push(pt(x + w, y));
   }
-  dos.reverse();
-  poser(g, k, [...bras, ...dos], {
-    couleur: garde ? melanger(BOIS, MOUSSE, 0.4) : melanger(BOIS, PIERRE_CLAIRE, 0.22),
+  dosArc.reverse();
+  poser(g, k, [...ventre, ...dosArc], {
+    couleur: bois,
     matiere: 'ecorce',
     matiereAlpha: 0.28,
     echelle: 0.28,
     seed,
   });
-  g.moveTo(0, -L * 0.5);
-  g.lineTo(0, L * 0.5);
-  g.stroke({ color: melanger(PIERRE_CLAIRE, BOIS, 0.4), width: L * 0.012, alpha: 0.85 });
-  // poignée gainée
-  poser(g, k, blob(L * 0.06, 0, L * 0.03, L * 0.09, { seed: seed + 3, points: 13, wobble: 0.16 }), {
+  // les deux poupées, recourbées vers l'extérieur : la signature de l'if de futaie
+  for (const s of [-1, 1] as const) {
+    poser(g, k, arcBande(0, s * L * 0.5, L * 0.09, L * 0.09, s > 0 ? -1.5 : 1.5, s > 0 ? -0.1 : 0.1, L * 0.05, 0.5), {
+      couleur: assombrir(bois, 0.16),
+      matiere: 'ecorce',
+      matiereAlpha: 0.26,
+      echelle: 0.25,
+      seed: seed + s,
+    });
+  }
+  // poignée gainée, au creux du D
+  poser(g, k, blob(fleche * 0.98, 0, L * 0.036, L * 0.1, { seed: seed + 3, points: 13, wobble: 0.16 }), {
     couleur: assombrir(BOIS, 0.32),
     matiere: 'grain',
     matiereAlpha: 0.2,
   });
-  // flèche encochée
-  const fl = fuseau(0, 0, L * 0.46, -L * 0.02, L * 0.022, { seed: seed + 5, taper: 0.4 });
-  poser(g, k, fl, { couleur: melanger(BOIS, PIERRE_CLAIRE, 0.35), matiere: 'grain', matiereAlpha: 0.16 });
-  sous(g, L * 0.46, -L * 0.02, (h) =>
-    fer(h, k, lisser(perturber(densifier([pt(0, 0), pt(L * 0.07, -L * 0.02), pt(L * 0.06, L * 0.02)], L * 0.03), 0.4, 9), 1), garde ? melanger(CUIVRE, 0x8f99a4, 0.4) : 0x8f99a4),
+  /* La corde : deux segments jusqu'au point d'armement. Le V est la moitié de
+     l'information ; une droite de pointe à pointe n'en donnait aucune. */
+  for (const dy of [-1, 1] as const) {
+    g.moveTo(L * 0.02, dy * L * 0.55);
+    g.lineTo(armement.x, armement.y);
+    g.stroke({ color: melanger(PIERRE_CLAIRE, BOIS, 0.34), width: L * 0.016, alpha: 0.9, cap: 'round' });
+  }
+  // la flèche : de l'armement à travers la poignée, empennée en arrière
+  const fl = fuseau(armement.x, armement.y, fleche + L * 0.24, armement.y - L * 0.02, L * 0.026, {
+    seed: seed + 5,
+    taper: 0.35,
+  });
+  poser(g, k, fl, { couleur: melanger(BOIS, PIERRE_CLAIRE, 0.4), matiere: 'grain', matiereAlpha: 0.16 });
+  for (const dy of [-1, 1] as const) {
+    g.poly(
+      flat(fuseau(armement.x + L * 0.02, armement.y, armement.x - L * 0.06, armement.y + dy * L * 0.05, L * 0.026, { seed: seed + dy, taper: 0.5 })),
+    ).fill({ color: dy > 0 ? melanger(PIERRE_CLAIRE, BOIS, 0.3) : melanger(SAUGE, PIERRE_CLAIRE, 0.35), alpha: 0.9 });
+  }
+  sous(g, fleche + L * 0.24, armement.y - L * 0.02, (h) =>
+    fer(
+      h,
+      k,
+      lisser(perturber(densifier([pt(0, -L * 0.035), pt(L * 0.11, 0), pt(0, L * 0.035), pt(L * 0.02, 0)], L * 0.03), 0.4, 9), 1),
+      garde ? melanger(CUIVRE, 0x8f99a4, 0.4) : 0x8f99a4,
+    ),
   );
   if (garde) {
     // barbelures : la flèche du garde-futaie ne ressort pas
-    sous(g, L * 0.5, -L * 0.02, (h) => {
+    sous(g, fleche + L * 0.26, armement.y - L * 0.02, (h) => {
       for (const dy of [-1, 1]) {
-        h.poly(flat(fuseau(0, 0, -L * 0.05, dy * L * 0.04, L * 0.016, { seed: dy + 3, taper: 0.6 }))).fill({
+        h.poly(flat(fuseau(0, 0, -L * 0.06, dy * L * 0.05, L * 0.018, { seed: dy + 3, taper: 0.6 }))).fill({
           color: melanger(CUIVRE, 0x8f99a4, 0.4),
           alpha: 0.9,
         });
       }
     });
-    orfevrerie(g, [pt(L * 0.1, -L * 0.34), pt(L * 0.12, L * 0.34)], { epaisseur: L * 0.01, alpha: 0.5 });
+    // damasquinure sur le dos de l'arc : la marque du prieuré
+    orfevrerie(
+      g,
+      [pt(fleche * 0.72, -L * 0.32), pt(fleche * 1.0, 0), pt(fleche * 0.72, L * 0.32)],
+      { epaisseur: L * 0.012, alpha: 0.55 },
+    );
   }
 }
 
+/**
+ * Les veneurs : **le bras tendu qui porte l'arc bandé**.
+ *
+ * L'arc, aussi bien dessiné soit-il, ne dit rien s'il pend au bout d'un bras
+ * collé au corps. Les deux rendus de référence tiennent la même pose exacte : le
+ * bras d'arc TENDU à l'horizontale devant soi, l'autre replié, la corde à la
+ * joue. `brasGRot` tend le bras porteur, `armeAncre.rot` annule cette rotation
+ * pour que l'arc reste vertical, et le manteau de feuilles part derrière comme
+ * dans le rendu — c'est la même mécanique que pour l'arbalète des Farges, parce
+ * que c'est le même problème : un tireur est un geste avant d'être un homme.
+ */
 function veneurPieces(k: Kit, garde: boolean): PieceDef[] {
   const H = garde ? 106 : 100;
   const manteau = garde ? melanger(VERT_PROFOND, MOUSSE, 0.45) : melanger(VERT_PROFOND, SAUGE, 0.28);
+  /** Bras d'arc tendu vers l'avant. */
+  const BRAS_TENDU = -1.32;
   return squeletteBipede({
     H,
     seed: k.seed + (garde ? 270 : 260),
@@ -652,18 +902,40 @@ function veneurPieces(k: Kit, garde: boolean): PieceDef[] {
     tunique: manteau,
     jambeCouleur: melanger(BOIS, MOUSSE, 0.45),
     brasCouleur: garde ? melanger(BOIS, MOUSSE, 0.35) : TEINTS[0],
+    manche: melanger(manteau, SAUGE, 0.3),
     chausse: assombrir(BOIS, 0.4),
     ceinture: BOIS,
     posture: 0.35,
     largeur: garde ? 1.06 : 0.98,
     epaules: garde ? 1.06 : 0.96,
+    ecart: 1.75,
+    coude: 0.3,
+    brasGRot: BRAS_TENDU,
+    brasDRot: -0.86,
+    epaulement: { couleur: melanger(manteau, SAUGE, 0.42), largeur: H * (garde ? 0.2 : 0.18) },
+    /* La cotte de feuilles : ourlet déchiqueté à fond, c'est le camouflage de
+       futaie du rendu — des feuilles cousues bord à bord, pas un ourlet net. */
+    basque: {
+      couleur: melanger(manteau, MOUSSE, 0.3),
+      dents: 1,
+      hauteur: H * 0.17,
+      largeur: H * 0.3,
+      bord: garde ? LIGHT.rim : null,
+    },
+    jambiere: { couleur: melanger(BOIS, MOUSSE, 0.25), hauteur: H * 0.15 },
     visage: { sourcils: 0.5, age: garde ? 0.7 : 0.2, barbe: garde ? 0.42 : 0.15, barbeCouleur: 0x5d5142 },
     cheveux: { couleur: garde ? 0x5d5142 : 0x3f2c1a, longueur: 0.5, volume: 0.9 },
-    cape: { couleur: manteau, w: H * 0.34, h: H * (garde ? 0.52 : 0.42) },
+    cape: {
+      couleur: manteau,
+      w: H * (garde ? 0.44 : 0.38),
+      h: H * (garde ? 0.56 : 0.46),
+      dents: 1,
+      bord: garde ? LIGHT.rim : null,
+    },
     coiffe: (g, kk) => {
-      capuche(g, kk, { r: H * 0.086, couleur: assombrir(manteau, 0.16), pointe: 0.4, ouverture: 0.5, seed: 5 });
+      capuche(g, kk, { r: rayonTete(H), couleur: assombrir(manteau, 0.16), pointe: 0.4, ouverture: 0.5, seed: 5 });
       // feuilles cousues sur la capuche : camouflage de futaie
-      const r = H * 0.086;
+      const r = rayonTete(H);
       for (let i = 0; i < (garde ? 7 : 4); i += 1) {
         const a = -2.5 + i * 0.5;
         const x = Math.cos(a) * r * 1.05;
@@ -731,7 +1003,9 @@ function veneurPieces(k: Kit, garde: boolean): PieceDef[] {
       }
     },
     arme: (g, kk) => sous(g, 0, -H * 0.02, (h) => arcLong(h, kk, H * (garde ? 0.86 : 0.8), garde, 19)),
-    armeAncre: { rot: 0.06, y: H * 0.28 },
+    /* Annule la rotation du bras tendu : l'arc reste vertical, le D toujours
+       lisible, quelle que soit la pose du bras. */
+    armeAncre: { rot: -BRAS_TENDU },
   });
 }
 

@@ -16,9 +16,22 @@ export const NBSP = ' ';
 
 const NOMBRE = new Intl.NumberFormat('fr-FR');
 
-/** « 18 450 », avec l'espace insécable de groupement. */
+/**
+ * « 18 450 », avec l'espace insécable de groupement.
+ *
+ * Le séparateur est ramené à l'espace insécable normale (U+00A0), et non laissé
+ * à l'espace fine insécable (U+202F) que rend `Intl` pour le français.
+ *
+ * Ce n'est pas une coquetterie typographique : **aucune des trois familles du
+ * jeu ne dessine U+202F**. Mesuré sur la capture de la carte d'aventure —
+ * « entre 85225 et 170526 » et « puissance 1682 » — le caractère tombe sur un
+ * glyphe absent, de largeur nulle, et le séparateur de milliers disparaît
+ * purement et simplement. Tous les nombres au-dessus du millier s'affichaient
+ * donc collés, sur tous les écrans du client : trésor, revenus, puissance
+ * d'armée, expérience.
+ */
 export function nombre(valeur: number): string {
-  return NOMBRE.format(Math.trunc(valeur));
+  return NOMBRE.format(Math.trunc(valeur)).replace(/\u202F/g, NBSP);
 }
 
 /** « +240 » ou « −18 » ; le zéro reste « 0 » sans signe. */

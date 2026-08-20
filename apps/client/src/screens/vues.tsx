@@ -9,17 +9,20 @@
  * moteur.
  */
 
-import { useCallback, useMemo, type ReactElement } from 'react';
-import { dayOf, weekOf, type TownState } from '@auvergne/engine';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { dayOf, weekOf, type HeroUid, type PlayerId, type TownState } from '@auvergne/engine';
 import type { AppState, PathPreview } from '../state/types.js';
 import { annulerChemin, confirmerChemin, selectionner } from '../state/store.js';
 import { dispatch, viewStore } from '../state/store.js';
 import { createMapView } from '../render/index.js';
+import { pavoisDemonstration } from '../render/pavois.js';
 import { createTownView } from '../town/index.js';
 import { createBattleView } from '../battle/index.js';
 import type { DemoTownKey } from '../router.js';
 import { ScenePixi, type FabriqueScene } from './scene.js';
 import { calendrierLong, nombre, pluriel } from './format.js';
+import { FicheInspection } from './inspection.js';
+import type { Cible } from './cible.js';
 import { ConfirmBar } from '@auvergne/ui';
 
 /* ─────────────────────── Rythme de confirmation ──────────────────────────── */
@@ -72,6 +75,25 @@ export interface EcranPartieProps {
 export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactElement {
   const { game, world, localPlayer, demo } = state;
 
+  /**
+   * Ce qu'on regarde, distinct de ce avec quoi on agit.
+   *
+   * `AppState.selection` désigne le héros qu'on met en route ; la cible
+   * d'inspection désigne le lieu dont on jauge la force. Les confondre faisait
+   * perdre le héros sélectionné au moment même où l'on cliquait une garde neutre
+   * pour la comparer à son armée — soit perdre la mesure de la difficulté qu'on
+   * venait demander. Dans HMM3 les deux cohabitent ; ici aussi.
+   */
+  const [cible, setCible] = useState<Cible | null>(null);
+
+  /*
+   * Le héros de référence est tenu dans une **référence** et non dans un état :
+   * la fabrique de la scène PixiJS est mémorisée sur ses dépendances, et un
+   * état supplémentaire dans cette liste ferait remonter toute la carte — vingt
+   * secondes de reconstruction d'atlas — à chaque clic sur un héros.
+   */
+  const herosRef = useRef<HeroUid | null>(null);
+
   const fabrique = useCallback<FabriqueScene>(
     async ({ app, atlas, width, height }) => {
       if (!game || !world || !localPlayer) throw new Error("Aucune partie n'est chargée.");
@@ -88,15 +110,57 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
         quality: 'haute',
         demo,
         focus: CADRAGE_DEMO,
-        onPickCell: (at): void => selectionner({ kind: 'case', at }),
-        onPickHero: (uid): void => selectionner({ kind: 'heros', uid }),
-        onPickTown: (uid): void => selectionner({ kind: 'cite', uid }),
+        onPickCell: (at): void => {
+          setCible(null);
+          selectionner({ kind: 'case', at });
+        },
+        onPickHero: (uid): void => {
+          herosRef.current = uid;
+          selectionner({ kind: 'heros', uid });
+          setCible({ kind: 'heros', uid });
+        },
+        onPickTown: (uid): void => {
+          selectionner({ kind: 'cite', uid });
+          setCible({ kind: 'cite', uid });
+        },
+        /* Le rappel du contrat des vues n'était pas branché : cliquer une garde
+           neutre, un gisement ou un repaire ne produisait rien. */
+        onPickObject: (objet): void => {
+          setCible({ kind: 'objet', uid: objet.uid });
+        },
       });
     },
     [game, world, localPlayer, demo, reducedMotion],
   );
 
+  /**
+   * Le pavois de démonstration, construit par la même fonction que la carte.
+   *
+   * La carte ne peut pas le transmettre : sa fabrique est régie par
+   * `view-contract.ts`, qu'on ne modifie pas. Les deux le déduisent donc du même
+   * état par la même fonction déterministe, et disent la même chose.
+   */
+  const pavoisDemo = useMemo(
+    () => (demo && game && world ? pavoisDemonstration(world, game) : undefined),
+    [demo, game, world],
+  );
+
+  /**
+   * `#/demo/carte` doit **montrer** la fiche, pas seulement la rendre
+   * atteignable : le harnais de capture ne clique pas. On ouvre donc celle de la
+   * Maison du Trésor, le lieu que la légende de la route annonce déjà cadrer, et
+   * le mieux gardé de la carte — soixante créatures de rang 5 à 7, ce qui donne
+   * à voir les paquets flous, la fourchette de force et l'appréciation de
+   * difficulté d'un seul coup d'œil.
+   */
+  useEffect(() => {
+    if (!demo || !world || cible) return;
+    const tresor = world.objects.find((o) => o.kind === 'maison_tresor');
+    if (tresor) setCible({ kind: 'objet', uid: tresor.uid });
+  }, [demo, world, cible]);
+
   const banniere = game && localPlayer ? game.players[localPlayer] : null;
+  const herosMesure = herosDeMesure(state, herosRef.current);
 
   return (
     <ScenePixi
@@ -115,9 +179,50 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
         ) : null
       }
     >
+      {game && world && localPlayer && cible ? (
+        <FicheInspection
+          game={game}
+          world={world}
+          localPlayer={localPlayer}
+          cible={cible}
+          heros={herosMesure}
+          pavoisDemo={pavoisDemo}
+          onFermer={(): void => setCible(null)}
+        />
+      ) : null}
       {state.pathPreview ? <BarreDeChemin preview={state.pathPreview} /> : null}
     </ScenePixi>
   );
+}
+
+/**
+ * L'armée qui sert de mesure à la difficulté affichée.
+ *
+ * Le dernier héros cliqué d'abord, puis le héros sélectionné, puis — à défaut —
+ * **le plus fort** de la bannière locale. Ce dernier repli n'est pas un détail :
+ * sans lui, la toute première fiche d'une partie annoncerait « aucun héros pour
+ * juger » alors que le joueur en a un sous les yeux, et la moitié de la demande
+ * (« la difficulté ») resterait lettre morte tant qu'on n'aurait pas pensé à
+ * cliquer son propre jeton.
+ */
+function herosDeMesure(state: AppState, dernier: HeroUid | null) {
+  const game = state.game;
+  const moi = state.localPlayer;
+  if (!game || !moi) return null;
+  const aMoi = (uid: HeroUid | null): boolean =>
+    !!uid && game.heroes[uid]?.owner === moi;
+  if (aMoi(dernier)) return game.heroes[dernier as HeroUid];
+  if (state.selection?.kind === 'heros' && aMoi(state.selection.uid)) {
+    return game.heroes[state.selection.uid];
+  }
+  const miens = game.players[moi as PlayerId]?.heroes ?? [];
+  let meilleur = null as (typeof game.heroes)[string] | null;
+  for (const uid of miens) {
+    const h = game.heroes[uid];
+    if (!h) continue;
+    if (!meilleur || h.level > meilleur.level) meilleur = h;
+  }
+  return meilleur;
 }
 
 /* ──────────────────────────────── Cité ───────────────────────────────────── */

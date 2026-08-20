@@ -10,11 +10,13 @@
  */
 
 import { Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
-import type { GameState, MapObject, MapObjectKind, WorldMap } from '@auvergne/engine';
+import type { GameState, MapObject, MapObjectKind, PlayerId, WorldMap } from '@auvergne/engine';
 import type { ArtAtlas } from '../art/index.js';
-import { LIGHT, PALETTE, melanger } from '../art/palette.js';
+import { LIGHT, PALETTE, faceEclairee, melanger, ombreBleutee } from '../art/palette.js';
+import { couleurDepuisCss } from '../art/banners.js';
 import { borne, xEcran, yEcran } from './commun.js';
 import type { Cadrage } from './commun.js';
+import { pavoise, proprietaireLieu } from './pavois.js';
 
 const BLOC = 32;
 
@@ -90,6 +92,18 @@ const NOMMES: ReadonlySet<MapObjectKind> = new Set<MapObjectKind>([
   'sceau',
 ]);
 
+/**
+ * Hauteur plancher d'une bannière plantée, en pixels.
+ *
+ * Au zoom minimal (7 px la case), une bannière proportionnelle mesurait 15 px
+ * de haut hampe comprise, soit une étoffe de neuf pixels : la couleur ne se
+ * lisait plus, et le motif d'accessibilité encore moins. On lui donne un
+ * plancher — c'est le seul élément de la carte qui en reçoive un, parce qu'il
+ * est le seul à porter un renseignement **politique** que la carte doit
+ * conserver jusqu'à sa vue la plus large.
+ */
+export const BANNIERE_MIN_PX = 26;
+
 interface Entree {
   objet: MapObject;
   sprite: Sprite;
@@ -97,7 +111,18 @@ interface Entree {
   /** Dalle permanente : ce qui dit « ceci se visite » sans qu'on survole. */
   socle: Graphics;
   banniere: Sprite;
+  /** Cocarde du propriétaire posée sur la terre foulée, lisible au zoom large. */
+  cocarde: Graphics;
   halo: Graphics;
+  /**
+   * Bannière effectivement peinte sur le sprite.
+   *
+   * Sans cette trace, la texture n'était posée qu'à la première apparition : une
+   * mine prise à l'adversaire gardait ses anciennes couleurs jusqu'à sortir du
+   * cadre et y revenir — juste après une prise, c'est-à-dire au moment où le
+   * renseignement compte le plus.
+   */
+  pavois: PlayerId | null;
   /** Jeton de la ressource produite, pour distinguer les trente-deux mines. */
   embleme: Sprite | null;
   nom: Text | null;
@@ -144,6 +169,26 @@ function ombreDouce(): Texture {
   return ombreTexture;
 }
 
+/**
+ * Ce qui est **peint** pour un lieu, tel qu'on peut l'observer du dehors.
+ *
+ * Port d'observation, et rien d'autre. Il existe parce que le pavois est un
+ * renseignement de jeu et non un ornement : il faut pouvoir prouver qu'une mine
+ * prise change de couleur *sans* que son sprite sorte du cadre, et que la hampe
+ * ne se plante pas sur le jeton de ressource. Aucun code de rendu ne le lit.
+ */
+export interface PavoisPeint {
+  readonly proprietaire: PlayerId | null;
+  readonly visible: boolean;
+  readonly texture: Texture | null;
+  /** abscisse écran de la hampe */
+  readonly x: number;
+  /** abscisse écran du jeton de ressource, s'il y en a un */
+  readonly xEmbleme: number | null;
+  /** hauteur de l'étoffe à l'écran, hampe comprise, en pixels */
+  readonly hauteur: number;
+}
+
 export class ObjetsCarte {
   readonly ombres = new Container();
   readonly couche = new Container();
@@ -153,6 +198,8 @@ export class ObjetsCarte {
   private etat: GameState | null = null;
   private visibles: MapObject[] = [];
   private survol: string | null = null;
+  /** Pavois d'affichage des routes de démonstration. Vide en partie réelle. */
+  private pavoisDemo: ReadonlyMap<string, PlayerId> = new Map();
 
   constructor(
     private readonly world: WorldMap,
@@ -176,17 +223,58 @@ export class ObjetsCarte {
     this.survol = uid;
   }
 
+  /**
+   * Pose un pavois d'**affichage** : quel lieu montre quelle bannière, sans que
+   * l'état du moteur soit touché d'une virgule.
+   *
+   * Réservé aux routes `#/demo/*`, exactement comme `fogDemonstration` de
+   * `render/index.ts` ouvre les terres arpentées d'une carte que l'état factice
+   * laisserait noire. La raison est la même : `createGame` ouvre le **premier**
+   * jour, où aucun gisement n'a encore changé de main — mesuré sur la carte de
+   * démonstration, zéro lieu possédé sur les quarante-cinq mines, trente-deux
+   * demeures, cinq sceaux et quatre villages de la carte. La revue visuelle
+   * photographiait donc une semaine 6 sans une seule bannière plantée, ce qui ne
+   * démontre rien.
+   *
+   * En partie réelle, la table reste vide et la propriété vient du moteur seul.
+   */
+  poserPavoisDemo(pavois: ReadonlyMap<string, PlayerId>): void {
+    this.pavoisDemo = pavois;
+    /* Les entrées déjà vivantes doivent relire leur bannière à la prochaine
+       image : `pavois` est la trace de ce qui est peint, on l'invalide. */
+    for (const e of this.entrees.values()) e.pavois = null;
+  }
+
+  /** Le pavois peint pour ce lieu, ou `null` s'il n'est pas dessiné en ce moment. */
+  pavoisPeint(uid: string): PavoisPeint | null {
+    const e = this.entrees.get(uid);
+    if (!e) return null;
+    return {
+      proprietaire: e.pavois,
+      visible: e.banniere.visible,
+      texture: e.banniere.visible ? e.banniere.texture : null,
+      x: e.banniere.position.x,
+      xEmbleme: e.embleme ? e.embleme.position.x : null,
+      hauteur: e.banniere.texture.height * e.banniere.scale.y,
+    };
+  }
+
   /** État vivant d'un objet : le moteur peut l'avoir capturé ou vidé. */
   private vivant(objet: MapObject): MapObject {
     return this.etat?.objects?.[objet.uid] ?? objet;
   }
 
-  private proprietaire(objet: MapObject): string | null {
-    const vif = this.vivant(objet);
-    if (vif.owner) return vif.owner;
-    const uid = vif.data?.townUid as string | undefined;
-    if (uid && this.etat?.towns?.[uid]) return this.etat.towns[uid].owner;
-    return null;
+  /**
+   * La bannière que porte ce lieu, ou `null` s'il est neutre.
+   *
+   * La règle du pavois — quels genres de lieu se pavoisent, et sous quelle
+   * bannière — vit dans `pavois.ts` : le rendu et la fiche d'inspection doivent
+   * répondre la même chose, sans quoi le drapeau et le carton se
+   * contrediraient.
+   */
+  private proprietaire(objet: MapObject): PlayerId | null {
+    if (!pavoise(objet.kind)) return null;
+    return proprietaireLieu(this.etat, objet, this.pavoisDemo);
   }
 
   /** L'objet sous un point écran, ou `null`. */
@@ -245,6 +333,8 @@ export class ObjetsCarte {
       if (e.embleme) this.couche.addChild(e.embleme);
       if (e.nom) this.couche.addChild(e.nom);
       this.couche.addChild(e.halo);
+      /* La bannière passe en dernier : c'est le seul élément d'un lieu qu'un
+         voisin du premier plan ne doit jamais recouvrir. */
       if (e.banniere.visible) this.couche.addChild(e.banniere);
     }
     for (const [uid, e] of this.entrees) {
@@ -252,6 +342,7 @@ export class ObjetsCarte {
       e.sprite.destroy();
       e.ombre.destroy();
       e.socle.destroy();
+      e.cocarde.destroy();
       e.banniere.destroy();
       e.halo.destroy();
       e.embleme?.destroy();
@@ -276,6 +367,11 @@ export class ObjetsCarte {
        celui qui est derrière lui. */
     const socle = new Graphics();
     this.ombres.addChild(socle);
+
+    /* La cocarde vit avec le socle, sous les objets : c'est une marque peinte
+       sur le sol, pas une pastille d'interface posée par-dessus le décor. */
+    const cocarde = new Graphics();
+    this.ombres.addChild(cocarde);
 
     const banniere = new Sprite();
     banniere.anchor.set(0.5, 0.05);
@@ -319,7 +415,7 @@ export class ObjetsCarte {
       }
     }
     void v;
-    return { objet, sprite, ombre, socle, banniere, halo, embleme, nom };
+    return { objet, sprite, ombre, socle, cocarde, banniere, pavois: null, halo, embleme, nom };
   }
 
   private placer(e: Entree, v: Cadrage, temps: number): void {
@@ -385,21 +481,73 @@ export class ObjetsCarte {
       .ellipse(x - rx * 0.1, y - ry * 0.22, rx * 0.92, ry * 0.8)
       .stroke({ color: LIGHT.chaude, width: Math.max(1, v.zoom * 0.035), alpha: 0.22 });
 
+    /*
+     * ─────────────────────────── Le pavois ───────────────────────────────
+     *
+     * « Il faut que l'on voit avec ses drapeaux de couleurs visuellement les
+     * Assets types mines ou châteaux ou autres qui sont pris par un joueur. »
+     *
+     * Deux signaux, et non un seul, parce qu'ils ne se lisent pas au même zoom :
+     *
+     *  - **la bannière plantée**, hampe et étoffe, à gauche du lieu et
+     *    par-dessus lui, à hauteur d'homme du bâtiment. Elle porte la couleur ET
+     *    le motif d'accessibilité, donc elle suffit dès qu'elle mesure ses
+     *    vingt-six pixels ;
+     *  - **la cocarde**, un anneau de la couleur du maître peint sur la terre
+     *    foulée. C'est elle qui répond au zoom large, quand l'étoffe n'est plus
+     *    qu'un confetti : à 7 px la case, une carte pavoisée reste une carte
+     *    politique lisible.
+     *
+     * Trois défauts corrigés au passage, tous mesurés sur `#/demo/carte` :
+     * la texture n'était posée qu'à la première apparition (une mine prise
+     * gardait les couleurs de l'ancien maître) ; la bannière tombait au même
+     * endroit que le jeton de ressource d'une mine, à 0,20 case près, et le
+     * recouvrait ; et sa hauteur, 0,52 fois celle du lieu, la rendait plus
+     * petite que le jeton de ressource qu'elle chevauchait.
+     */
     const owner = this.proprietaire(objet);
-    if (owner && this.etat) {
-      const joueur = this.etat.players[owner as keyof typeof this.etat.players];
-      if (joueur) {
-        if (!e.banniere.visible) {
-          e.banniere.texture = this.atlas.banner(joueur.color, joueur.pattern);
-          e.banniere.visible = true;
-        }
-        const hb = taille * 0.52;
-        e.banniere.scale.set(hb / Math.max(1, e.banniere.texture.height));
-        e.banniere.position.set(x + taille * 0.3, y - taille * 0.82);
-        e.banniere.rotation = -0.05 + Math.sin(temps * 1.9 + objet.at.row * 0.7) * 0.04;
+    const joueur = owner && this.etat ? this.etat.players[owner] : null;
+    const cocarde = e.cocarde;
+    cocarde.clear();
+    if (owner && joueur) {
+      if (e.pavois !== owner) {
+        e.pavois = owner;
+        e.banniere.texture = this.atlas.banner(joueur.color, joueur.pattern);
+        e.banniere.visible = true;
       }
-    } else if (e.banniere.visible) {
-      e.banniere.visible = false;
+      /* La hampe se plante à l'ouest du lieu : le jeton de ressource garde
+         l'est, et les deux renseignements cessent de se disputer la place. */
+      const hb = Math.max(taille * 0.74, BANNIERE_MIN_PX);
+      e.banniere.scale.set(hb / Math.max(1, e.banniere.texture.height));
+      e.banniere.position.set(x - taille * 0.34, y - taille * 0.9);
+      e.banniere.rotation = -0.05 + Math.sin(temps * 1.9 + objet.at.row * 0.7) * 0.04;
+
+      /* Cocarde : trois strates, comme toute surface du jeu. Le liseré clair
+         reste au nord-ouest (loi de la lumière unique), l'ombre au sud-est. */
+      const teinte = couleurDepuisCss(joueur.color);
+      /*
+       * Réglage repris après lecture de la capture : à pleine saturation et à
+       * 0,85 d'opacité, l'anneau lisait comme une pastille d'interface posée sur
+       * l'herbe — le défaut exact que la terre foulée avait déjà coûté une fois
+       * (voir le socle ci-dessus). On le teinte de la terre du lieu et on
+       * l'atténue : ce doit être une **borne peinte**, pas un cerne.
+       */
+      const bord = melanger(teinte, TERRE_FOULEE, 0.22);
+      cocarde
+        .ellipse(x, y, rx * 1.16, ry * 1.16)
+        .stroke({ color: ombreBleutee(bord, 0.7), width: Math.max(1.2, v.zoom * 0.07), alpha: 0.34 });
+      cocarde
+        .ellipse(x, y, rx * 1.07, ry * 1.07)
+        .stroke({ color: bord, width: Math.max(1, v.zoom * 0.06), alpha: 0.58 });
+      /* Le point de lumière : le même anneau décalé d'un cheveu vers le
+         nord-ouest, comme la terre foulée juste au-dessus. Un arc de cercle
+         serait faux — la cocarde est une ellipse vue en oblique. */
+      cocarde
+        .ellipse(x - rx * 0.07, y - ry * 0.16, rx * 1.0, ry * 1.0)
+        .stroke({ color: faceEclairee(bord, 0.85), width: Math.max(1, v.zoom * 0.035), alpha: 0.4 });
+    } else {
+      e.pavois = null;
+      if (e.banniere.visible) e.banniere.visible = false;
     }
 
     const g = e.halo;

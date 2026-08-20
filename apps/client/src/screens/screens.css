@@ -473,3 +473,162 @@
   color: var(--hmm-texte-clair-doux, #cfc6b4);
   overflow-wrap: anywhere;
 }
+
+/* ═══════════ Fiche d'inspection posée sur la carte d'aventure ═════════════
+ *
+ * « En cliquant sur un château ou un ennemi ou un héros concurrent on ait une
+ * indication de sa force et du type d'unités et de la difficulté comme dans
+ * HMM3. » Le carton se pose en HAUT À GAUCHE, seul coin que l'habillage de la
+ * carte laisse libre : la rose des vents tient le haut-droit, la minicarte le
+ * bas-droit, la légende le bas-gauche et la barre de confirmation le bas au
+ * centre. Il ne prend jamais plus du tiers de la largeur utile, et il rend les
+ * clics à la carte partout où il n'y a pas d'encre.
+ * ========================================================================= */
+
+.carte-fiche {
+  position: absolute;
+  left: calc(var(--hmm-space-4) + var(--hmm-safe-gauche));
+  top: calc(var(--hmm-space-4) + var(--hmm-safe-haut));
+  width: min(340px, calc(100% - var(--hmm-space-8)));
+  max-height: min(66%, 620px);
+  display: flex;
+  z-index: var(--hmm-z-colle);
+}
+
+/*
+ * Le défilement vit DANS le corps du panneau, pas sur le cadre.
+ *
+ * Posé sur l'enveloppe, il tranchait le carton net au bas de la scène :
+ * ferrures, biseau et ombre portée disparaissaient, et le panneau semblait
+ * cassé plutôt que défilant. Vu sur la capture iPhone, où la fiche occupe
+ * quatre dixièmes de la hauteur utile.
+ */
+.carte-fiche > .hmm-panneau {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+.carte-fiche > .hmm-panneau > .hmm-panneau__entete {
+  flex: 0 0 auto;
+}
+
+.carte-fiche > .hmm-panneau > .hmm-panneau__corps {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* La bannière et le nom du maître des lieux : la couleur ne porte jamais seule
+   l'information, le nom de la maison est écrit à côté du gonfanon. */
+.carte-fiche__banniere {
+  display: flex;
+  align-items: center;
+  gap: var(--hmm-space-3);
+  min-height: 40px;
+}
+
+.carte-fiche__tenu {
+  font-size: var(--hmm-fs-petit);
+  line-height: var(--hmm-lh-normal);
+}
+
+.carte-fiche__tenu--neutre {
+  color: var(--hmm-texte-doux);
+  font-style: italic;
+}
+
+.carte-fiche__mesures {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--hmm-space-2);
+  margin-top: var(--hmm-space-2);
+  padding-top: var(--hmm-space-2);
+  border-top: var(--hmm-filet-fin) solid var(--hmm-separateur);
+}
+
+/* Une pile par ligne : le paquet flou à gauche, la créature à droite. Le
+   quantificateur porte l'or, parce que c'est lui qu'on vient lire. */
+.carte-fiche__piles {
+  list-style: none;
+  margin: var(--hmm-space-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.carte-fiche__pile {
+  display: flex;
+  align-items: baseline;
+  gap: var(--hmm-space-2);
+  padding: 2px 0;
+  font-size: var(--hmm-fs-petit);
+  border-bottom: var(--hmm-filet-fin) solid var(--hmm-separateur);
+}
+
+.carte-fiche__pile:last-child {
+  border-bottom: 0;
+}
+
+.carte-fiche__quantite {
+  flex: 0 0 auto;
+  font-family: var(--hmm-font-titre);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: var(--hmm-encre, #241c14);
+}
+
+.carte-fiche__creature {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--hmm-texte-doux);
+}
+
+.carte-fiche__vide,
+.carte-fiche__juge {
+  margin: var(--hmm-space-2) 0 0;
+  font-size: var(--hmm-fs-micro);
+  color: var(--hmm-texte-doux);
+  font-style: italic;
+}
+
+.carte-fiche__notes {
+  list-style: none;
+  margin: var(--hmm-space-2) 0 0;
+  padding-top: var(--hmm-space-2);
+  padding-inline-start: 0;
+  border-top: var(--hmm-filet-fin) solid var(--hmm-separateur);
+  display: grid;
+  gap: var(--hmm-space-1);
+  font-size: var(--hmm-fs-micro);
+  line-height: var(--hmm-lh-recit);
+  color: var(--hmm-texte-doux);
+}
+
+/* Sur un téléphone, le carton prend toute la largeur moins les marges : à
+   340 px sur un cadre de 390, il ne resterait rien de la carte à sa droite —
+   autant dire qu'on ne verrait plus ce qu'on inspecte.
+ *
+ * La hauteur, en revanche, se resserre. Mesuré sur la capture iPhone : à 52 %
+ * de la scène, le carton et la minicarte ne laissaient plus qu'un bandeau de
+ * carte entre eux — on inspectait un lieu qu'on ne voyait plus. Le chapeau du
+ * panneau y est pour beaucoup (un titre de 30 px sur trois lignes de ferrure) :
+ * on le ramène à la taille du corps de texte. */
+@media (max-width: 719px) {
+  .carte-fiche {
+    width: calc(100% - var(--hmm-space-6));
+    max-height: 42%;
+  }
+
+  .carte-fiche .hmm-panneau__titre {
+    font-size: var(--hmm-fs-moyen);
+  }
+
+  .carte-fiche .hmm-panneau__entete {
+    padding-block: var(--hmm-space-2);
+  }
+}

@@ -185,7 +185,23 @@ export function crane(
   });
 }
 
-/** Traits du visage : yeux, sourcils, nez, bouche. Jamais de contour noir. */
+/**
+ * Traits du visage : yeux, sourcils, nez, bouche. Jamais de contour noir.
+ *
+ * **Ce que l'ancien visage coûtait, mesuré sur la planche de contact.** Un
+ * humain du jeu fait dans les quatre-vingts pixels de haut ; sa tête en fait
+ * seize. Les yeux étaient posés à 0,20 × 0,13 rayon, soit un pixel six sur un
+ * pixel : à l'écran il ne restait RIEN. Chaque humain de la planche était donc
+ * un ovale de chair vide sous un chapeau — manants, gabelous, arbalétriers,
+ * brodeuses, tous le même œuf. Le regard est ce qui distingue un homme d'un
+ * mannequin, et il ne survit à la réduction que s'il est franchement contrasté.
+ *
+ * On tient donc trois valeurs plutôt que des détails : le creux orbital (une
+ * bande d'ombre sous le front, qui installe le volume), la prunelle (le seul
+ * point vraiment sombre autorisé sur la peau) et l'étincelle au nord-ouest. Le
+ * sourcil est une barre, pas un cheveu : à seize pixels, un trait de 0,1 rayon
+ * disparaît quand une barre de 0,17 tient encore.
+ */
 export function visage(
   g: Graphics,
   o: {
@@ -199,30 +215,44 @@ export function visage(
   },
 ): void {
   const r = o.r;
-  const oeil = assombrir(o.teint, 0.72);
+  const oeil = assombrir(o.teint, 0.92);
   const yy = -r * 0.2;
+  // creux orbital : sans cette bande d'ombre, deux points clairs sur une joue
+  // claire ne font pas un regard mais deux salissures.
+  g.poly(flat(blob(0, yy - r * 0.04, r * 0.64, r * 0.26, { seed: 17, points: 15, wobble: 0.16 }))).fill({
+    color: ombreBleutee(o.teint, 0.6),
+    alpha: 0.32,
+  });
   for (const s of [-1, 1]) {
-    const ox = s * r * 0.36;
-    g.poly(flat(blob(ox, yy, r * 0.2, r * 0.13, { seed: 21 + s, points: 9, wobble: 0.18 }))).fill({
-      color: melanger(0xe8dcc0, o.teint, 0.35),
+    const ox = s * r * 0.37;
+    g.poly(flat(blob(ox, yy, r * 0.27, r * 0.185, { seed: 21 + s, points: 11, wobble: 0.16 }))).fill({
+      color: melanger(0xf0e6cc, o.teint, 0.32),
       alpha: 0.9,
     });
     g.poly(
-      flat(blob(ox + s * r * 0.03, yy + r * 0.01, r * 0.1, r * 0.1, { seed: 31 + s, points: 8, wobble: 0.2 })),
-    ).fill({ color: oeil, alpha: 0.92 });
-    // sourcil
-    g.moveTo(ox - r * 0.24, yy - r * (0.26 + (o.sourcils ?? 0) * 0.1));
-    g.quadraticCurveTo(ox, yy - r * (0.36 + (o.sourcils ?? 0) * 0.12), ox + r * 0.24, yy - r * 0.24);
-    g.stroke({ color: assombrir(o.teint, 0.62), width: r * 0.1, alpha: 0.72, cap: 'round' });
+      flat(blob(ox + s * r * 0.05, yy + r * 0.015, r * 0.15, r * 0.15, { seed: 31 + s, points: 10, wobble: 0.16 })),
+    ).fill({ color: oeil, alpha: 0.94 });
+    g.poly(
+      flat(blob(ox - s * r * 0.02, yy - r * 0.06, r * 0.045, r * 0.04, { seed: 37 + s, points: 7, wobble: 0.3 })),
+    ).fill({ color: LIGHT.chaude, alpha: 0.7 });
+    // sourcil : une barre, la seule épaisseur qui survive à la réduction
+    g.moveTo(ox - s * r * 0.3, yy - r * (0.34 + (o.sourcils ?? 0) * 0.1));
+    g.quadraticCurveTo(
+      ox,
+      yy - r * (0.46 + (o.sourcils ?? 0) * 0.14),
+      ox + s * r * 0.27,
+      yy - r * (0.32 + (o.sourcils ?? 0) * 0.06),
+    );
+    g.stroke({ color: assombrir(o.teint, 0.7), width: r * 0.17, alpha: 0.8, cap: 'round' });
   }
-  // nez : une simple arête de valeur, côté ombre
-  g.moveTo(r * 0.04, yy + r * 0.02);
-  g.quadraticCurveTo(r * 0.16, yy + r * 0.28, r * 0.02, yy + r * 0.4);
-  g.stroke({ color: assombrir(o.teint, 0.42), width: r * 0.075, alpha: 0.6, cap: 'round' });
+  // nez : une arête de valeur côté ombre, plus une narine
+  g.moveTo(r * 0.05, yy + r * 0.04);
+  g.quadraticCurveTo(r * 0.2, yy + r * 0.3, r * 0.02, yy + r * 0.44);
+  g.stroke({ color: assombrir(o.teint, 0.5), width: r * 0.1, alpha: 0.7, cap: 'round' });
   // bouche
-  g.moveTo(-r * 0.22, yy + r * 0.62);
-  g.quadraticCurveTo(0, yy + r * (0.68 + (o.regard ?? 0) * 0.06), r * 0.22, yy + r * 0.6);
-  g.stroke({ color: assombrir(melanger(o.teint, 0x6e1f2a, 0.35), 0.34), width: r * 0.085, alpha: 0.66, cap: 'round' });
+  g.moveTo(-r * 0.24, yy + r * 0.62);
+  g.quadraticCurveTo(0, yy + r * (0.72 + (o.regard ?? 0) * 0.06), r * 0.24, yy + r * 0.6);
+  g.stroke({ color: assombrir(melanger(o.teint, 0x6e1f2a, 0.4), 0.4), width: r * 0.11, alpha: 0.76, cap: 'round' });
   if (o.age && o.age > 0.5) {
     for (let i = 0; i < 2; i += 1) {
       g.moveTo(-r * 0.72, yy - r * (0.5 + i * 0.16));
@@ -231,13 +261,63 @@ export function visage(
     }
   }
   if (o.barbe && o.barbe > 0) {
+    /*
+     * La barbe : un collier qui suit la mâchoire, et non un rectangle sur la
+     * bouche.
+     *
+     * L'ancienne était un blob centré à 0,52 rayon, aussi large que haut,
+     * peint en dégradé clair : sur le Pèlerin de l'Ermitage, dont la barbe est
+     * grise, cela donnait à l'écran une BANDE BLANCHE en travers du bas du
+     * visage — un bâillon, littéralement, et c'est ce qu'on voyait sur la
+     * planche de contact avant de voir un vieil homme. Une barbe se lit à son
+     * contour : large aux oreilles, pointue au menton, et fendue d'une
+     * moustache. Trois points, et le bâillon devient un visage.
+     */
     const c = o.barbeCouleur ?? assombrir(o.teint, 0.55);
-    const b = blob(0, r * 0.52, r * 0.72, r * 0.62 * o.barbe, { seed: 44, points: 16, wobble: 0.22 });
-    g.poly(flat(b)).fill({ fill: degradeLineaire([
-      { offset: 0, color: eclaircir(c, 0.3) },
-      { offset: 1, color: ombreBleutee(c, 0.5) },
-    ], ANGLE_LUMIERE), alpha: 0.94 });
-    lisereLumiere(g, b, c, { force: 0.6, largeur: 1.1 });
+    const L = o.barbe;
+    const b = lisser(
+      perturber(
+        densifier(
+          [
+            pt(-r * 0.8, r * 0.02),
+            pt(-r * 0.62, r * (0.6 + L * 0.34)),
+            pt(0, r * (0.9 + L * 0.7)),
+            pt(r * 0.6, r * (0.58 + L * 0.32)),
+            pt(r * 0.78, r * 0.0),
+            pt(r * 0.42, r * 0.34),
+            pt(0, r * 0.24),
+            pt(-r * 0.44, r * 0.36),
+          ],
+          r * 0.24,
+        ),
+        r * 0.035,
+        44,
+      ),
+      1,
+    );
+    g.poly(flat(b)).fill({
+      fill: degradeLineaire(
+        [
+          { offset: 0, color: eclaircir(c, 0.22) },
+          { offset: 1, color: ombreBleutee(c, 0.6) },
+        ],
+        ANGLE_LUMIERE,
+      ),
+      alpha: 0.94,
+    });
+    lisereLumiere(g, b, c, { force: 0.5, largeur: 1.1 });
+    // moustache : deux coups de part et d'autre du philtrum
+    for (const s of [-1, 1]) {
+      g.moveTo(s * r * 0.06, yy + r * 0.5);
+      g.quadraticCurveTo(s * r * 0.3, yy + r * 0.52, s * r * 0.44, yy + r * 0.42);
+      g.stroke({ color: ombreBleutee(c, 0.4), width: r * 0.16, alpha: 0.9, cap: 'round' });
+    }
+    // deux mèches sous le menton : la barbe finit en pointe, pas en bloc
+    for (const s of [-1, 1]) {
+      g.moveTo(s * r * 0.16, r * 0.6);
+      g.quadraticCurveTo(s * r * 0.1, r * (0.82 + L * 0.4), s * r * 0.02, r * (0.92 + L * 0.68));
+      g.stroke({ color: s > 0 ? ombreBleutee(c, 0.7) : eclaircir(c, 0.3), width: r * 0.09, alpha: 0.6, cap: 'round' });
+    }
   }
   // lumière chaude sur la pommette côté nord-ouest
   g.poly(flat(blob(-r * 0.42, yy + r * 0.14, r * 0.26, r * 0.2, { seed: 55, points: 10, wobble: 0.22 }))).fill({
@@ -302,7 +382,24 @@ export function chevelure(
   }
 }
 
-/** Capuche : cône adouci, jamais un triangle net. */
+/**
+ * Capuche : un anneau d'étoffe qui ENCADRE le visage, et non un couvercle.
+ *
+ * **Ce que la capuche pleine coûtait.** Elle était peinte comme une masse
+ * pleine, puis on posait par-dessus un ovale d'ombre bleue à 72 % d'opacité «
+ * pour que le visage soit en retrait ». Le visage n'était pas en retrait : il
+ * était effacé. Sur la planche de contact, le Pèlerin et les deux veneurs de
+ * l'Ermitage étaient trois taches sombres à hauteur de tête, sans un œil, sans
+ * une barbe — et les rendus de référence montrent au contraire un homme dont on
+ * lit l'âge sous le capuchon.
+ *
+ * On construit donc la capuche comme `arcBande` construit une corne : un
+ * contour extérieur qui passe par-dessus le crâne d'une joue à l'autre, puis un
+ * contour intérieur qui redescend en encadrant le front. Le polygone est un C
+ * ouvert vers le bas : ce qui est dans l'ouverture n'est pas peint, donc le
+ * visage traverse. `ouverture` règle la largeur de cet encadrement — plus elle
+ * est grande, plus on voit de figure.
+ */
 export function capuche(
   g: Graphics,
   k: Kit,
@@ -310,27 +407,30 @@ export function capuche(
 ): void {
   const r = o.r;
   const pointe = o.pointe ?? 0.6;
+  const seed = o.seed ?? 4;
+  /* Le bord de l'ouverture : il doit passer AU-DESSUS des sourcils, qui vivent
+     à −0,56 rayon. On le tient à −0,98 : trois pixels de marge à l'échelle où
+     la créature est réellement affichée, et pas un de moins. */
+  const w = r * (0.66 + (o.ouverture ?? 0.52) * 0.42);
+  const exterieur: Poly = [
+    pt(-r * 1.22, r * 0.94),
+    pt(-r * 1.16, -r * 0.36),
+    pt(-r * 0.66, -r * (1.2 + pointe * 0.8)),
+    pt(r * 0.05, -r * (1.46 + pointe * 1.15)),
+    pt(r * 0.64, -r * (1.02 + pointe * 0.5)),
+    pt(r * 1.18, -r * 0.2),
+    pt(r * 1.26, r * 0.98),
+  ];
+  const interieur: Poly = [
+    pt(w * 1.02, r * 0.9),
+    pt(w * 0.98, -r * 0.3),
+    pt(w * 0.54, -r * 0.94),
+    pt(-w * 0.5, -r * 0.98),
+    pt(-w * 0.96, -r * 0.26),
+    pt(-w, r * 0.86),
+  ];
   const forme: Poly = lisser(
-    perturber(
-      densifier(
-        [
-          pt(-r * 1.16, r * 0.78),
-          pt(-r * 1.1, -r * 0.42),
-          pt(-r * 0.62, -r * (1.18 + pointe * 0.8)),
-          pt(r * 0.05, -r * (1.42 + pointe * 1.15)),
-          pt(r * 0.62, -r * (1.0 + pointe * 0.5)),
-          pt(r * 1.14, -r * 0.24),
-          pt(r * 1.2, r * 0.82),
-          pt(r * 0.6, r * 0.6),
-          pt(r * 0.46, -r * 0.34),
-          pt(-r * 0.5, -r * 0.4),
-          pt(-r * 0.62, r * 0.62),
-        ],
-        r * 0.36,
-      ),
-      r * 0.04,
-      (o.seed ?? 4) + 13,
-    ),
+    perturber(densifier([...exterieur, ...interieur], r * 0.3), r * 0.035, seed + 13),
     1,
   );
   poser(g, k, forme, {
@@ -339,15 +439,19 @@ export function capuche(
     matiereAlpha: 0.2,
     echelle: 0.6,
     modele: 1,
-    seed: o.seed,
+    seed,
   });
-  // ombre interne de la capuche : le visage est en retrait
-  const creux = blob(0, -r * 0.02, r * (o.ouverture ?? 0.52), r * 0.62, {
-    seed: (o.seed ?? 4) + 21,
-    points: 14,
-    wobble: 0.13,
-  });
-  g.poly(flat(creux)).fill({ color: ombreBleutee(o.couleur, 1), alpha: 0.72 });
+  /* L'intérieur du capuchon : une ombre étroite le long du bord de
+     l'ouverture, là où l'étoffe passe derrière la tempe. C'est ce qui donne la
+     profondeur que l'ovale plein prétendait donner, sans manger la figure. */
+  g.moveTo(-w * 0.92, r * 0.5);
+  g.quadraticCurveTo(-w * 0.9, -r * 0.86, 0, -r * 0.98);
+  g.quadraticCurveTo(w * 0.9, -r * 0.84, w * 0.94, r * 0.54);
+  g.stroke({ color: ombreBleutee(o.couleur, 1), width: r * 0.2, alpha: 0.6, cap: 'round' });
+  // arête de l'étoffe sur le dessus : le pli qui court du front à la pointe
+  g.moveTo(r * 0.04, -r * (1.4 + pointe * 1.05));
+  g.quadraticCurveTo(-r * 0.4, -r * 0.9, -r * 1.06, -r * 0.1);
+  g.stroke({ color: faceEclairee(o.couleur, 0.6), width: r * 0.11, alpha: 0.42, cap: 'round' });
 }
 
 /** Torse habillé, avec ceinture et éventuel plastron. */
@@ -460,21 +564,37 @@ export function torse(
   return forme;
 }
 
-/** Jupe, robe, bure : masse conique tombante. */
+/**
+ * Jupe, robe, bure : masse conique tombante. `dents` déchire l'ourlet du bas —
+ * c'est la bure du pèlerin et le lin mangé du pénitent, dont les rendus de
+ * référence montrent l'ourlet parti en langues jusqu'au mollet.
+ */
 export function robe(
   g: Graphics,
   k: Kit,
-  o: { largeurHaut: number; largeurBas: number; hauteur: number; couleur: number; seed?: number; plis?: number },
+  o: {
+    largeurHaut: number;
+    largeurBas: number;
+    hauteur: number;
+    couleur: number;
+    seed?: number;
+    plis?: number;
+    dents?: number;
+  },
 ): void {
   const wh = o.largeurHaut;
   const wb = o.largeurBas;
   const h = o.hauteur;
+  const dents = o.dents ?? 0;
   const base: Poly = [pt(-wh * 0.5, 0), pt(wh * 0.5, 0), pt(wb * 0.52, h * 0.72), pt(wb * 0.56, h)];
   const ourlet: Poly = [];
-  const n = 7;
+  const n = dents > 0 ? 11 : 7;
   for (let i = 0; i <= n; i += 1) {
     const t = i / n;
-    ourlet.push(pt(wb * (0.56 - t * 1.12), h + Math.sin(t * Math.PI * 3 + (o.seed ?? 0)) * h * 0.035));
+    const creux = dents > 0 && i % 2 === 1 ? h * 0.2 * dents : 0;
+    ourlet.push(
+      pt(wb * (0.56 - t * 1.12), h + Math.sin(t * Math.PI * 3 + (o.seed ?? 0)) * h * 0.035 - creux),
+    );
   }
   const forme = lisser(
     perturber(
@@ -482,7 +602,7 @@ export function robe(
       wh * 0.014,
       (o.seed ?? 8) + 11,
     ),
-    1,
+    dents > 0 ? 0 : 1,
   );
   poser(g, k, forme, {
     couleur: o.couleur,
@@ -508,15 +628,43 @@ export function robe(
   }
 }
 
-/** Cape ou manteau flottant, accroché aux épaules. */
+/**
+ * Cape ou manteau flottant, accroché aux épaules.
+ *
+ * `dents` déchire l'ourlet en pointes — c'est le manteau du manant, la cape
+ * mangée aux mites du pèlerin, le caparaçon en loques du chevalier ; `bord` le
+ * galonne, et c'est le grand manteau du prévôt du sel. Les rendus de référence
+ * n'ont pas une seule cape à ourlet net : ou elle est en lambeaux, ou elle est
+ * bordée.
+ */
 export function cape(
   g: Graphics,
   k: Kit,
-  o: { largeur: number; hauteur: number; couleur: number; seed?: number; vol?: number },
+  o: {
+    largeur: number;
+    hauteur: number;
+    couleur: number;
+    seed?: number;
+    vol?: number;
+    dents?: number;
+    bord?: number | null;
+  },
 ): void {
   const w = o.largeur;
   const h = o.hauteur;
   const v = o.vol ?? 1;
+  const dents = o.dents ?? 0;
+  /* L'ourlet : sept festons entre les deux pointes basses. Les creux montent de
+     `dents` × 0,3 hauteur, ce qui suffit à faire une guenille et pas une frange
+     décorative. */
+  const ourlet: Poly = [];
+  const n = 7;
+  for (let i = 0; i <= n; i += 1) {
+    const t = i / n;
+    const x = w * (0.5 - t * 1.06);
+    const creux = dents > 0 && i % 2 === 1 ? h * 0.3 * dents : 0;
+    ourlet.push(pt(x, h * (0.9 + Math.sin(t * 4.4 + (o.seed ?? 0)) * 0.09) - creux));
+  }
   const forme = lisser(
     perturber(
       densifier(
@@ -524,9 +672,7 @@ export function cape(
           pt(-w * 0.46, 0),
           pt(w * 0.46, 0),
           pt(w * (0.58 + v * 0.12), h * 0.52),
-          pt(w * 0.5, h * 0.95),
-          pt(w * 0.14, h * 0.86),
-          pt(-w * 0.2, h * 0.98),
+          ...ourlet,
           pt(-w * (0.56 + v * 0.1), h * 0.6),
         ],
         h * 0.16,
@@ -534,7 +680,7 @@ export function cape(
       w * 0.016,
       (o.seed ?? 9) + 19,
     ),
-    1,
+    dents > 0 ? 0 : 1,
   );
   poser(g, k, forme, {
     couleur: o.couleur,
@@ -549,6 +695,21 @@ export function cape(
     g.moveTo(x, h * 0.06);
     g.quadraticCurveTo(x + w * 0.05, h * 0.5, x + w * 0.02, h * 0.9);
     g.stroke({ color: ombreBleutee(o.couleur, 0.7), width: w * 0.022, alpha: 0.36, cap: 'round' });
+  }
+  if (o.bord != null) {
+    /* Le galon court sur l'ourlet ET sur les deux bords d'ouverture. Sans les
+       verticales, un manteau large se lit comme une plaque : c'est ce que le
+       prévôt du sel rendait à l'écran — une ardoise posée derrière lui. Les deux
+       montants disent que l'étoffe s'OUVRE, et le rendu de référence les montre
+       galonnés sur toute leur longueur. */
+    orfevrerie(g, ourlet, { epaisseur: Math.max(1.2, h * 0.035), couleur: o.bord, alpha: 0.8 });
+    for (const s of [-1, 1] as const) {
+      orfevrerie(
+        g,
+        [pt(s * w * 0.2, h * 0.02), pt(s * w * 0.3, h * 0.5), pt(s * w * 0.34, h * 0.88)],
+        { epaisseur: Math.max(1, h * 0.03), couleur: o.bord, alpha: 0.7 },
+      );
+    }
   }
 }
 
@@ -1586,16 +1747,26 @@ export function ferrure(
   }
 }
 
-/** Filet d'or appliqué : broderie, orfroi, damasquinure. */
+/**
+ * Filet appliqué : broderie, orfroi, damasquinure. Or ancien par défaut — la
+ * `couleur` ne se change que pour un galon d'argent sur des plates, et le
+ * rehaut chaud du dessus reste celui du soleil unique dans tous les cas.
+ */
 export function orfevrerie(
   g: Graphics,
   chemin: Poly,
-  o: { epaisseur?: number; alpha?: number } = {},
+  o: { epaisseur?: number; alpha?: number; couleur?: number } = {},
 ): void {
   if (chemin.length < 2) return;
   g.moveTo(chemin[0].x, chemin[0].y);
   for (let i = 1; i < chemin.length; i += 1) g.lineTo(chemin[i].x, chemin[i].y);
-  g.stroke({ color: LIGHT.rim, width: o.epaisseur ?? 1.6, alpha: o.alpha ?? 0.85, cap: 'round', join: 'round' });
+  g.stroke({
+    color: o.couleur ?? LIGHT.rim,
+    width: o.epaisseur ?? 1.6,
+    alpha: o.alpha ?? 0.85,
+    cap: 'round',
+    join: 'round',
+  });
   g.moveTo(chemin[0].x, chemin[0].y - 0.6);
   for (let i = 1; i < chemin.length; i += 1) g.lineTo(chemin[i].x, chemin[i].y - 0.6);
   g.stroke({ color: LIGHT.chaude, width: (o.epaisseur ?? 1.6) * 0.4, alpha: (o.alpha ?? 0.85) * 0.6, cap: 'round' });
@@ -1702,7 +1873,13 @@ export interface BipedeOptions {
   tunique: number;
   tuniqueMat?: MaterialKey;
   jambeCouleur: number;
+  /** Couleur de l'avant-bras : la peau, ou le gantelet. */
   brasCouleur?: number;
+  /**
+   * Couleur de la MANCHE, qui habille l'humérus. Vaut la tunique par défaut ;
+   * `null` laisse le bras nu sur toute sa longueur (pénitent, manant en été).
+   */
+  manche?: number | null;
   chausse?: number | null;
   ceinture?: number | null;
   plastron?: number | null;
@@ -1719,16 +1896,85 @@ export interface BipedeOptions {
   bouclierAncre?: { x?: number; y?: number; rot?: number };
   dos?: (g: Graphics, k: Kit) => void;
   surTorse?: (g: Graphics, k: Kit) => void;
-  cape?: { couleur: number; w?: number; h?: number } | null;
-  robe?: { couleur: number; haut?: number; bas?: number; hauteur?: number } | null;
+  cape?: { couleur: number; w?: number; h?: number; dents?: number; bord?: number | null } | null;
+  robe?: { couleur: number; haut?: number; bas?: number; hauteur?: number; dents?: number } | null;
   mainDroite?: (g: Graphics, k: Kit) => void;
+  /**
+   * Écartement des pieds, en multiples de l'écartement de base. 1 = debout au
+   * repos, 1,6 = campé sur ses jambes comme tous les rendus de référence.
+   */
+  ecart?: number;
+  /**
+   * Flexion du coude, en radians. Positif = l'avant-bras rentre vers le ventre,
+   * ce qui est la pose de qui tient une hampe à deux mains.
+   */
+  coude?: number;
+  /** Rotation de repos du bras porteur (gauche) et du bras libre (droit). */
+  brasGRot?: number;
+  brasDRot?: number;
+  /** Épaulement : la masse qui donne une carrure au lieu d'un tuyau. */
+  epaulement?: { couleur: number; matiere?: MaterialKey; largeur?: number } | null;
+  /**
+   * Basque : la jupe courte du vêtement, tombant de la ceinture. `dents` la
+   * déchire en pointes (haillons du manant, feuilles du veneur), `bord` la
+   * galonne (officiers de la Châtellenie).
+   */
+  basque?: {
+    couleur: number;
+    hauteur?: number;
+    largeur?: number;
+    dents?: number;
+    bord?: number | null;
+  } | null;
+  /** Jambière : la bande molletière ou la tige de botte, au mollet. */
+  jambiere?: { couleur: number; hauteur?: number } | null;
   seed: number;
+}
+
+/**
+ * Rayon de la tête d'un bipède. Les coiffes en dépendent toutes : elles doivent
+ * l'obtenir d'ici, jamais le recopier, sinon un chapeau finit par flotter.
+ */
+export function rayonTete(H: number): number {
+  return H * 0.092;
 }
 
 /**
  * Squelette humanoïde complet, conforme aux noms d'articulations attendus par
  * `clipsBipede`. Chaque créature n'a plus qu'à fournir sa coiffe, son arme et
  * ses attributs propres.
+ *
+ * ─── Ce que le squelette précédent coûtait, vu sur la planche de contact ───
+ *
+ * Le propriétaire l'a nommé exactement : « un chapeau, un tronc, deux jambes
+ * fines ». Le diagnostic était juste au pixel près. Le bipède n'avait
+ * *aucune* articulation intermédiaire : le bras était UN fuseau du moignon
+ * d'épaule jusqu'à la main, la jambe UN fuseau de la hanche jusqu'au pied, et
+ * les deux jambes descendaient parallèles à dix pixels l'une de l'autre. Il n'y
+ * avait ni épaule (le cou sortait d'une planche), ni coude (la main pendait le
+ * long de la cuisse), ni genou, ni écartement. Résultat : dix silhouettes de la
+ * Châtellenie et quatre de l'Ermitage indiscernables l'une de l'autre sauf par
+ * la couleur du chapeau, et une arme tenue d'une seule main pendante alors que
+ * les quatorze rendus de référence montrent, sans exception, un homme CAMPÉ —
+ * pieds écartés, genoux marqués, épaules larges, hampe empoignée des deux mains.
+ *
+ * Ce squelette-ci ajoute donc les quatre articulations qui manquaient, et rien
+ * d'autre :
+ *
+ *  1. **l'épaulement** — une masse d'étoffe ou de plates sur le haut du torse,
+ *     qui fait la carrure et sur laquelle le liseré doré a enfin une arête à
+ *     mordre ;
+ *  2. **le coude** — le bras est peint en deux tronçons, humérus puis
+ *     avant-bras, la main au bout du second. `coude` amène l'avant-bras vers le
+ *     ventre, ce qui met les deux poings sur la même hampe ;
+ *  3. **le genou** — la jambe est peinte en cuisse puis mollet, avec sa rotule ;
+ *  4. **l'écartement** — la cuisse part en dehors, le mollet revient à la
+ *     verticale, si bien que les pieds s'appuient large. C'est ce qui fait
+ *     tenir un homme debout plutôt que flotter.
+ *
+ * Les noms d'articulations et leur hiérarchie ne changent pas d'un iota : les
+ * sept clips de `clipsBipede` continuent de tourner sur `bassin torse tete
+ * bras_g bras_d jambe_g jambe_d arme bouclier cape`.
  */
 export function squeletteBipede(o: BipedeOptions): PieceDef[] {
   const H = o.H;
@@ -1739,7 +1985,9 @@ export function squeletteBipede(o: BipedeOptions): PieceDef[] {
   const bras = o.brasCouleur ?? o.teint;
   const jambeL = H * 0.42;
   const brasL = H * 0.3;
-  const rTete = H * 0.086;
+  const rTete = rayonTete(H);
+  const ecart = o.ecart ?? 1;
+  const coude = o.coude ?? 0;
   const pieces: PieceDef[] = [];
 
   pieces.push({
@@ -1766,6 +2014,8 @@ export function squeletteBipede(o: BipedeOptions): PieceDef[] {
           largeur: (o.cape?.w ?? H * 0.34) * larg,
           hauteur: o.cape?.h ?? H * 0.46,
           couleur: o.cape?.couleur ?? k.pal.primaire,
+          dents: o.cape?.dents,
+          bord: o.cape?.bord ?? null,
           seed: o.seed + 4,
         }),
     });
@@ -1773,40 +2023,107 @@ export function squeletteBipede(o: BipedeOptions): PieceDef[] {
 
   for (const cote of [1, -1] as const) {
     const nom = cote > 0 ? 'jambe_d' : 'jambe_g';
+    /* La cuisse part en dehors, le mollet redescend à la verticale : c'est cette
+       cassure au genou qui fait un appui, là où le fuseau unique faisait un
+       échasse. Le pied se pose donc large, à `ecart` fois l'écartement de base. */
+    const genouY = jambeL * 0.52;
+    const genouX = cote * H * 0.038 * ecart;
+    const chevilleX = cote * H * 0.052 * ecart;
     pieces.push({
       nom,
       parent: 'bassin',
-      x: cote * H * 0.052,
-      y: -H * 0.01,
+      x: cote * H * 0.046,
+      y: -H * 0.012,
       lumiere: cote > 0 ? -0.6 : 0.6,
       ordreMort: cote > 0 ? 1 : 3,
       dessin: (g, k) => {
-        membre(
-          g,
-          k,
-          pt(0, 0),
-          pt(cote * H * 0.012, jambeL * 0.92),
-          H * (cote > 0 ? 0.072 : 0.078),
-          {
-            couleur: cote > 0 ? assombrir(o.jambeCouleur, 0.14) : o.jambeCouleur,
-            matiere: 'tissu',
-            matiereAlpha: 0.18,
-            echelle: 0.6,
-            seed: o.seed + cote,
-          },
-        );
+        const teinteJambe = cote > 0 ? assombrir(o.jambeCouleur, 0.16) : o.jambeCouleur;
+        // cuisse : la partie épaisse, celle qui porte
+        membre(g, k, pt(0, -H * 0.01), pt(genouX, genouY), H * (cote > 0 ? 0.088 : 0.095), {
+          couleur: teinteJambe,
+          matiere: 'tissu',
+          matiereAlpha: 0.18,
+          echelle: 0.6,
+          taper: 0.34,
+          seed: o.seed + cote,
+        });
+        // mollet
+        membre(g, k, pt(genouX, genouY - H * 0.01), pt(chevilleX, jambeL * 0.94), H * (cote > 0 ? 0.066 : 0.072), {
+          couleur: assombrir(teinteJambe, 0.08),
+          matiere: 'tissu',
+          matiereAlpha: 0.18,
+          echelle: 0.6,
+          taper: 0.3,
+          seed: o.seed + cote * 7,
+        });
+        // rotule : deux valeurs suffisent à faire lire l'articulation, et pas
+        // plus — trop claire, elle se lit comme une genouillère de plates que
+        // ni le manant ni le pèlerin n'ont jamais portée.
+        poser(g, k, blob(genouX, genouY, H * 0.033, H * 0.026, { seed: o.seed + cote * 11, points: 12, wobble: 0.22 }), {
+          couleur: faceEclairee(teinteJambe, 0.16),
+          matiere: 'tissu',
+          matiereAlpha: 0.14,
+          modele: 0.8,
+          rim: false,
+        });
+        if (o.jambiere) {
+          // bande molletière ou tige de botte : le rendu de référence en montre
+          // sur les quatorze humains, et c'est ce qui coupe la jambe en deux
+          /* Une tige de botte s'ÉVASE vers le haut et se resserre à la cheville.
+             Coupée en rectangle, elle rendait un seau : c'est le mot qui venait
+             devant les pieds du manant et du garde-futaie sur la capture. */
+          const hj = o.jambiere.hauteur ?? H * 0.11;
+          const y0 = jambeL * 0.94 - hj;
+          poser(
+            g,
+            k,
+            lisser(
+              perturber(
+                densifier(
+                  [
+                    pt(chevilleX - H * 0.056, y0),
+                    pt(chevilleX + H * 0.054, y0 + H * 0.008),
+                    pt(chevilleX + H * 0.036, y0 + hj),
+                    pt(chevilleX - H * 0.038, y0 + hj * 0.96),
+                  ],
+                  hj * 0.4,
+                ),
+                H * 0.004,
+                o.seed + cote * 13,
+              ),
+              1,
+            ),
+            {
+              couleur: cote > 0 ? assombrir(o.jambiere.couleur, 0.14) : o.jambiere.couleur,
+              matiere: 'grain',
+              matiereAlpha: 0.2,
+              echelle: 0.4,
+              seed: o.seed + cote * 17,
+            },
+          );
+          // les tours de la bande, ou les lacets de la botte : discrets, deux
+          // suffisent, et ils suivent le rétrécissement de la tige
+          for (let i = 0; i < 2; i += 1) {
+            const t = 0.28 + i * 0.38;
+            const demi = H * (0.05 - t * 0.014);
+            const y = y0 + hj * t;
+            g.moveTo(chevilleX - demi, y);
+            g.lineTo(chevilleX + demi, y + H * 0.005);
+            g.stroke({ color: ombreBleutee(o.jambiere.couleur, 0.75), width: H * 0.007, alpha: 0.34 });
+          }
+        }
         if (o.chausse !== null) {
-          sous(g, cote * H * 0.014, jambeL * 0.95, (h) =>
+          sous(g, chevilleX + cote * H * 0.006, jambeL * 0.96, (h) =>
             pied(h, k, {
               l: H * 0.11,
-              h: H * 0.035,
+              h: H * 0.036,
               couleur: o.chausse ?? assombrir(o.jambeCouleur, 0.3),
               seed: o.seed + cote * 3,
             }),
           );
         } else {
-          sous(g, cote * H * 0.014, jambeL * 0.95, (h) =>
-            pied(h, k, { l: H * 0.1, h: H * 0.03, couleur: o.teint, seed: o.seed + cote * 3 }),
+          sous(g, chevilleX + cote * H * 0.006, jambeL * 0.96, (h) =>
+            pied(h, k, { l: H * 0.098, h: H * 0.03, couleur: o.teint, seed: o.seed + cote * 3 }),
           );
         }
       },
@@ -1827,6 +2144,7 @@ export function squeletteBipede(o: BipedeOptions): PieceDef[] {
           largeurBas: (o.robe?.bas ?? H * 0.34) * larg,
           hauteur: o.robe?.hauteur ?? H * 0.48,
           couleur: o.robe?.couleur ?? o.tunique,
+          dents: o.robe?.dents,
           seed: o.seed + 6,
         }),
     });
@@ -1846,25 +2164,80 @@ export function squeletteBipede(o: BipedeOptions): PieceDef[] {
     });
   }
 
+  /**
+   * Un bras en deux tronçons. `sens` = +1 pour le bras d'ombre (droite à
+   * l'écran), −1 pour le bras de lumière. Le coude tombe aux deux tiers du
+   * membre, l'avant-bras rentre de `flexion` radians, et la main est au bout du
+   * SECOND tronçon — plus le long du corps.
+   */
+  const humerus = brasL * 0.54;
+  const avantBras = brasL - humerus;
+  /** Où tombe le poignet, coude fléchi : l'arme et l'écu s'y accrochent. */
+  const poignet = (sens: 1 | -1): Pt =>
+    pt(
+      sens * H * 0.016 - Math.sin(coude) * avantBras * sens,
+      humerus + Math.cos(coude) * avantBras + H * 0.008,
+    );
+  const brasEnDeux = (
+    g: Graphics,
+    k: Kit,
+    sens: 1 | -1,
+    couleurBras: number,
+    rMain: number,
+  ): void => {
+    const coudeX = sens * H * 0.016;
+    const w = poignet(sens);
+    const poignetX = w.x;
+    const poignetY = w.y - H * 0.008;
+    /* La manche habille l'humérus, la peau ne sort qu'à l'avant-bras. C'est ce
+       que montrent les quatorze rendus, et c'est ce qui manquait le plus après
+       le coude : deux fuseaux couleur chair, c'était un homme en bras de
+       chemise sous une cotte de mailles. */
+    const sleeve = o.manche === null ? couleurBras : o.manche ?? o.tunique;
+    membre(g, k, pt(0, 0), pt(coudeX, humerus), H * 0.078, {
+      couleur: sens > 0 ? assombrir(sleeve, 0.16) : sleeve,
+      matiere: o.tuniqueMat ?? 'tissu',
+      matiereAlpha: 0.17,
+      echelle: 0.55,
+      taper: 0.3,
+      seed: o.seed + (sens > 0 ? 11 : 41),
+    });
+    membre(g, k, pt(coudeX, humerus - H * 0.008), pt(poignetX, poignetY), H * 0.056, {
+      couleur: couleurBras,
+      matiere: 'grain',
+      matiereAlpha: 0.12,
+      echelle: 0.5,
+      taper: 0.26,
+      seed: o.seed + (sens > 0 ? 13 : 43),
+    });
+    /* Le poignet de la manche : un bourrelet d'étoffe au coude, qui marque où
+       la manche s'arrête. Sans lui, la peau et l'étoffe se raboutent net. */
+    poser(g, k, blob(coudeX, humerus - H * 0.004, H * 0.038, H * 0.026, { seed: o.seed + sens * 5, points: 12, wobble: 0.22 }), {
+      couleur: sens > 0 ? assombrir(sleeve, 0.06) : faceEclairee(sleeve, 0.3),
+      matiere: o.tuniqueMat ?? 'tissu',
+      matiereAlpha: 0.16,
+      modele: 0.85,
+      rim: sens < 0,
+    });
+    sous(g, poignetX, poignetY + H * 0.008, (h) =>
+      main(h, k, {
+        r: rMain,
+        teint: sens > 0 ? assombrir(o.teint, 0.14) : o.teint,
+        seed: o.seed + (sens > 0 ? 12 : 42),
+      }),
+    );
+  };
+
   pieces.push({
     nom: 'bras_d',
     parent: 'torse',
-    x: H * 0.075 * larg,
-    y: epaule,
-    rot: 0.1,
+    x: H * 0.082 * larg,
+    y: epaule + H * 0.008,
+    rot: o.brasDRot ?? 0.1,
     lumiere: -0.8,
     ordreMort: 1,
     dessin: (g, k) => {
-      membre(g, k, pt(0, 0), pt(H * 0.02, brasL), H * 0.062, {
-        couleur: assombrir(bras, 0.18),
-        matiere: o.tuniqueMat ?? 'tissu',
-        matiereAlpha: 0.17,
-        echelle: 0.55,
-        seed: o.seed + 11,
-      });
-      sous(g, H * 0.024, brasL * 1.02, (h) =>
-        main(h, k, { r: H * 0.032, teint: assombrir(o.teint, 0.14), seed: o.seed + 12 }),
-      );
+      brasEnDeux(g, k, 1, assombrir(bras, 0.18), H * 0.034);
       o.mainDroite?.(g, k);
     },
   });
@@ -1873,8 +2246,8 @@ export function squeletteBipede(o: BipedeOptions): PieceDef[] {
     pieces.push({
       nom: 'bouclier',
       parent: 'bras_d',
-      x: o.bouclierAncre?.x ?? H * 0.03,
-      y: o.bouclierAncre?.y ?? brasL * 0.86,
+      x: o.bouclierAncre?.x ?? poignet(1).x,
+      y: o.bouclierAncre?.y ?? poignet(1).y * 0.9,
       rot: o.bouclierAncre?.rot ?? -0.12,
       lumiere: -0.7,
       ordreMort: 1,
@@ -1899,6 +2272,87 @@ export function squeletteBipede(o: BipedeOptions): PieceDef[] {
         epaules: o.epaules ?? 1,
         seed: o.seed + 21,
       });
+      if (o.basque) {
+        /* La basque : elle tombe de la ceinture et casse la verticale du tronc.
+           Sur les quatorze rendus de référence, aucun humain n'a le tronc nu
+           jusqu'aux cuisses — il y a toujours une jupe de vêtement, déchirée en
+           pointes chez les manants et les veneurs, galonnée chez les officiers.
+           Sans elle, le torse et les jambes ne font qu'une planche. */
+        const bw = (o.basque.largeur ?? H * 0.27) * larg;
+        const bh = o.basque.hauteur ?? H * 0.15;
+        const dents = o.basque.dents ?? 0;
+        const haut: Poly = [pt(-bw * 0.46, -H * 0.03), pt(bw * 0.46, -H * 0.03)];
+        const ourlet: Poly = [];
+        const n = dents > 0 ? 9 : 6;
+        for (let i = 0; i <= n; i += 1) {
+          const t = i / n;
+          const x = bw * (0.52 - t * 1.04);
+          const creux = dents > 0 && i % 2 === 1 ? bh * 0.34 * dents : 0;
+          ourlet.push(pt(x, bh - creux + Math.sin(t * 5.1 + o.seed) * bh * 0.06));
+        }
+        const forme = lisser(
+          perturber(densifier([...haut, ...ourlet], bh * 0.36), bw * 0.012, o.seed + 57),
+          dents > 0 ? 0 : 1,
+        );
+        poser(g, k, forme, {
+          couleur: o.basque.couleur,
+          matiere: o.tuniqueMat ?? 'tissu',
+          matiereAlpha: 0.22,
+          echelle: 0.7,
+          seed: o.seed + 59,
+        });
+        for (let i = 0; i < 3; i += 1) {
+          const x = -bw * 0.26 + i * bw * 0.26;
+          g.moveTo(x, H * 0.0);
+          g.quadraticCurveTo(x + bw * 0.02, bh * 0.6, x, bh * 0.92);
+          g.stroke({ color: ombreBleutee(o.basque.couleur, 0.65), width: bw * 0.022, alpha: 0.4, cap: 'round' });
+        }
+        if (o.basque.bord != null) {
+          /* Sur un ourlet déchiqueté, le galon suit les dents : il faut alors
+             qu'il soit MINCE, sinon les pointes d'or se lisent comme une rangée
+             de dents dorées — c'est ce que rendait le garde-futaie au premier
+             essai. Sur un ourlet net il peut être franc. */
+          const dentele = dents > 0;
+          orfevrerie(g, ourlet, {
+            epaisseur: Math.max(0.9, bh * (dentele ? 0.055 : 0.1)),
+            couleur: o.basque.bord,
+            alpha: dentele ? 0.6 : 0.85,
+          });
+        }
+      }
+      if (o.epaulement) {
+        /* L'épaulement : la carrure. Deux masses posées sur le haut du tronc,
+           celle de gauche prise dans la lumière, celle de droite dans l'ombre —
+           c'est là que le liseré doré trouve enfin une arête à mordre. */
+        const ew = (o.epaulement.largeur ?? H * 0.15) * larg;
+        for (const cote of [-1, 1] as const) {
+          const ep = lisser(
+            perturber(
+              densifier(
+                [
+                  pt(cote * H * 0.02, -H * 0.29),
+                  pt(cote * (H * 0.05 + ew * 0.5), -H * 0.28),
+                  pt(cote * (H * 0.055 + ew * 0.5), -H * 0.21),
+                  pt(cote * (H * 0.03 + ew * 0.3), -H * 0.175),
+                  pt(cote * H * 0.015, -H * 0.2),
+                ],
+                H * 0.03,
+              ),
+              H * 0.004,
+              o.seed + 61 + cote * 3,
+            ),
+            1,
+          );
+          poser(g, k, ep, {
+            couleur: cote > 0 ? assombrir(o.epaulement.couleur, 0.18) : faceEclairee(o.epaulement.couleur, 0.3),
+            matiere: o.epaulement.matiere ?? 'tissu',
+            matiereAlpha: 0.2,
+            echelle: 0.5,
+            speculaire: o.epaulement.matiere === 'metal' ? { x: 0.3, y: 0.24, r: 0.12 } : null,
+            seed: o.seed + 63 + cote,
+          });
+        }
+      }
       o.surTorse?.(g, k);
     },
   });
@@ -1949,31 +2403,22 @@ export function squeletteBipede(o: BipedeOptions): PieceDef[] {
   pieces.push({
     nom: 'bras_g',
     parent: 'torse',
-    x: -H * 0.062 * larg,
+    x: -H * 0.07 * larg,
     y: epaule + H * 0.005,
-    rot: -0.08,
+    rot: o.brasGRot ?? -0.08,
     lumiere: 0.8,
     ordreMort: 5,
-    dessin: (g, k) => {
-      membre(g, k, pt(0, 0), pt(-H * 0.012, brasL), H * 0.066, {
-        couleur: bras,
-        matiere: o.tuniqueMat ?? 'tissu',
-        matiereAlpha: 0.18,
-        echelle: 0.55,
-        seed: o.seed + 41,
-      });
-      sous(g, -H * 0.016, brasL * 1.02, (h) =>
-        main(h, k, { r: H * 0.034, teint: o.teint, seed: o.seed + 42 }),
-      );
-    },
+    dessin: (g, k) => brasEnDeux(g, k, -1, bras, H * 0.036),
   });
 
   if (o.arme) {
     pieces.push({
       nom: 'arme',
+      /* L'arme s'accroche au POIGNET, pas à un point fixe : dès que le coude
+         fléchit, la hampe doit suivre la main, sinon elle flotte à côté. */
       parent: 'bras_g',
-      x: o.armeAncre?.x ?? -H * 0.016,
-      y: o.armeAncre?.y ?? brasL * 1.0,
+      x: o.armeAncre?.x ?? poignet(-1).x,
+      y: o.armeAncre?.y ?? poignet(-1).y,
       rot: o.armeAncre?.rot ?? 0,
       lumiere: 0.3,
       ordreMort: 0,

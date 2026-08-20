@@ -5,25 +5,45 @@
  * ivoire `#EDE3CE`, brun de chêne `#5A4128`, ocre `#C08A3E`.
  *
  * Règle de silhouette : à 64 px, chaque forme doit se reconnaître en noir.
- *   Manant        — dos rond, chapeau de paille très large, fourche courte
- *   Franc-Serf    — vertical, pique haute, chapel de fer à bord
- *   Gabelou       — cape courte, bâton en diagonale, chapeau ciré
- *   Prévôt du Sel — masse basse, bourdon planté, trousseau de clefs
- *   Arbalétrier   — barre horizontale de l'arbalète, pavois dans le dos
- *   Maître-Arb.   — pavois blasonné plus haut, cranequin, carquois en éventail
- *   Grenadière    — jupe en cloche, cercle à broder tenu devant
- *   Dame au Fil   — robe à traîne, hampe brodée, coiffe haute
+ *   Manant        — chapeau de paille très large, fourche en diagonale, haillons
+ *   Franc-Serf    — pique haute inclinée, chapel de fer, baudrier croisé
+ *   Gabelou       — cape courte, bâton en diagonale, mesure de laiton au ceint
+ *   Prévôt du Sel — manteau évasé bordé d'or, bourdon en travers, clefs
+ *   Arbalétrier   — arbalète ÉPAULÉE, barre horizontale à hauteur d'œil
+ *   Maître-Arb.   — même geste, arc plus large, cranequin, ourlet galonné
+ *   Grenadière    — jupe en cloche, cercle à broder devant, panneau de grenade
+ *   Dame au Fil   — grande bannière à la grenade d'or, robe à traîne
  *   Sanglier      — masse horizontale basse, groin et défenses
  *   Verrat        — même masse, chanfrein ferré et dossière à pointes
- *   Chevalier     — cheval + lance couchée en longue diagonale
- *   Banneret      — cheval + grande bannière verticale
+ *   Chevalier     — cheval + lance couchée, écu chargé, heaume à plumail
+ *   Banneret      — cheval + grande bannière verticale, plumail plus haut
  *   Griffon       — arc d'ailes déployées, bec crochu
  *   Griffon Cour. — ailes plus larges, collier d'or, crête blanche
+ *
+ * ─── La loi du corps humain (voir `squeletteBipede`) ─────────────────────────
+ *
+ * Les dix humains de la faction partagent quatre règles, et elles ne se
+ * négocient pas créature par créature : la coiffe ne descend jamais sous −0,72
+ * rayon de tête au droit du visage ; le bras est peint en deux tronçons, manche
+ * puis peau ; la jambe est peinte en deux tronçons, pieds écartés ; et le tronc
+ * porte toujours une basque, déchirée chez la piétaille, galonnée chez les
+ * officiers. Un humain sans ces quatre choses rend « un chapeau, un tronc, deux
+ * jambes fines », et c'est le défaut nommé par le propriétaire.
  */
 import type { Graphics } from 'pixi.js';
 import { LIGHT, assombrir, eclaircir, melanger, ombreBleutee } from '../palette.js';
 import type { Poly } from '../shading.js';
-import { blob, densifier, flat, fuseau, lisser, perturber, pt } from '../shading.js';
+import {
+  arcBande,
+  blob,
+  contourVariable,
+  densifier,
+  flat,
+  fuseau,
+  lisser,
+  perturber,
+  pt,
+} from '../shading.js';
 import { clip, p } from '../rig.js';
 import type { Fabrique, Kit, PieceDef } from './archetypes.js';
 import {
@@ -48,6 +68,7 @@ import {
   pointeLance,
   poser,
   queue as dessinerQueue,
+  rayonTete,
   sous,
   squeletteBipede,
   squeletteQuadrupede,
@@ -63,20 +84,41 @@ const IVOIRE = 0xede3ce;
 
 /* ───────────────────────── Coiffes de la Châtellenie ────────────────────── */
 
+/**
+ * Les coiffes se portent SUR le crâne, pas devant la figure.
+ *
+ * **Ce que le réglage précédent coûtait.** Les cinq coiffes de la Châtellenie
+ * posaient leur bord entre −0,9 et +0,06 rayon — exactement la bande où vivent
+ * les yeux (−0,2), les sourcils (−0,56) et le nez (+0,24). Le bord passait donc
+ * devant la figure et l'effaçait : sur la planche de contact, les dix humains de
+ * la Châtellenie étaient dix ovales de chair vides, et les deux arbalétriers
+ * étaient impossibles à distinguer l'un de l'autre autrement que par la plume.
+ * Les rendus de référence montrent tous l'inverse — chapel de fer et chapeau
+ * ciré s'arrêtent à la hauteur du sourcil, et la figure entière est dessous.
+ *
+ * La règle tenue par les quatre fonctions qui suivent : **rien du couvre-chef ne
+ * descend au-dessous de −0,70 rayon au droit du visage**, la calotte occupe le
+ * dessus (−1,2 à −2,2), et les ailes du bord peuvent retomber tant qu'elles le
+ * font au-delà de ±1,1 rayon, là où il n'y a plus de joue.
+ */
+const BORD_MINIMAL = -0.72;
+
 function chapeauPaille(g: Graphics, k: Kit, r: number, seed: number): void {
   const paille = 0xc9a86a;
+  /* Le bord : il monte de la pointe gauche retombante au sommet, puis
+     redescend ; le retour longe l'intérieur juste au-dessus du front. */
   const bord: Poly = lisser(
     perturber(
       densifier(
         [
-          pt(-r * 2.25, -r * 0.44),
-          pt(-r * 1.1, -r * 0.8),
-          pt(0, -r * 0.9),
-          pt(r * 1.15, -r * 0.76),
-          pt(r * 2.3, -r * 0.38),
-          pt(r * 1.5, -r * 0.08),
-          pt(0, r * 0.06),
-          pt(-r * 1.55, -r * 0.1),
+          pt(-r * 2.32, -r * 0.86),
+          pt(-r * 1.12, -r * 1.46),
+          pt(0, -r * 1.6),
+          pt(r * 1.18, -r * 1.42),
+          pt(r * 2.36, -r * 0.8),
+          pt(r * 1.5, -r * 0.96),
+          pt(0, r * BORD_MINIMAL),
+          pt(-r * 1.55, -r * 0.98),
         ],
         r * 0.42,
       ),
@@ -88,7 +130,7 @@ function chapeauPaille(g: Graphics, k: Kit, r: number, seed: number): void {
   poser(g, k, bord, { couleur: paille, matiere: 'tissu', matiereAlpha: 0.3, echelle: 0.35, seed });
   const calotte = lisser(
     perturber(
-      densifier([pt(-r * 0.95, -r * 0.54), pt(-r * 0.5, -r * 1.3), pt(r * 0.34, -r * 1.38), pt(r * 0.95, -r * 0.64)], r * 0.3),
+      densifier([pt(-r * 0.95, -r * 1.28), pt(-r * 0.5, -r * 2.08), pt(r * 0.34, -r * 2.16), pt(r * 0.95, -r * 1.34)], r * 0.3),
       r * 0.04,
       seed + 7,
     ),
@@ -101,12 +143,17 @@ function chapeauPaille(g: Graphics, k: Kit, r: number, seed: number): void {
     echelle: 0.35,
     seed: seed + 1,
   });
+  // brins de paille tressée, du sommet vers les ailes
   for (let i = 0; i < 5; i += 1) {
     const t = -2.2 + i * 0.42;
-    g.moveTo(Math.cos(t) * r * 0.9, -r * 0.7 + Math.sin(t) * r * 0.2);
-    g.quadraticCurveTo(Math.cos(t) * r * 1.6, -r * 0.6, Math.cos(t) * r * 2.05, -r * 0.3);
+    g.moveTo(Math.cos(t) * r * 0.9, -r * 1.44 + Math.sin(t) * r * 0.2);
+    g.quadraticCurveTo(Math.cos(t) * r * 1.6, -r * 1.28, Math.cos(t) * r * 2.08, -r * 0.86);
     g.stroke({ color: ombreBleutee(paille, 0.5), width: r * 0.06, alpha: 0.4 });
   }
+  // ombre portée du bord sur le front : c'est elle qui fait tenir le chapeau
+  g.moveTo(-r * 0.86, -r * 0.84);
+  g.quadraticCurveTo(0, r * (BORD_MINIMAL + 0.06), r * 0.86, -r * 0.8);
+  g.stroke({ color: ombreBleutee(paille, 1), width: r * 0.22, alpha: 0.5, cap: 'round' });
 }
 
 /** Chapel de fer : calotte bombée et bord rabattu, riveté. */
@@ -114,7 +161,7 @@ function chapelDeFer(g: Graphics, k: Kit, r: number, seed: number, dore = false)
   const bord = lisser(
     perturber(
       densifier(
-        [pt(-r * 1.6, -r * 0.62), pt(0, -r * 0.86), pt(r * 1.62, -r * 0.58), pt(r * 1.2, -r * 0.32), pt(0, -r * 0.2), pt(-r * 1.24, -r * 0.34)],
+        [pt(-r * 1.66, -r * 1.02), pt(0, -r * 1.34), pt(r * 1.68, -r * 0.96), pt(r * 1.24, -r * 0.76), pt(0, r * BORD_MINIMAL), pt(-r * 1.28, -r * 0.78)],
         r * 0.34,
       ),
       r * 0.03,
@@ -124,7 +171,7 @@ function chapelDeFer(g: Graphics, k: Kit, r: number, seed: number, dore = false)
   );
   const calotte = lisser(
     perturber(
-      densifier([pt(-r * 1.02, -r * 0.6), pt(-r * 0.62, -r * 1.3), pt(0, -r * 1.5), pt(r * 0.66, -r * 1.28), pt(r * 1.04, -r * 0.58)], r * 0.28),
+      densifier([pt(-r * 1.04, -r * 1.14), pt(-r * 0.64, -r * 1.96), pt(0, -r * 2.18), pt(r * 0.68, -r * 1.94), pt(r * 1.06, -r * 1.12)], r * 0.28),
       r * 0.025,
       seed + 4,
     ),
@@ -147,17 +194,21 @@ function chapelDeFer(g: Graphics, k: Kit, r: number, seed: number, dore = false)
     seed: seed + 1,
   });
   // nervure centrale
-  g.moveTo(0, -r * 1.48);
-  g.lineTo(0, -r * 0.6);
+  g.moveTo(0, -r * 2.14);
+  g.lineTo(0, -r * 1.16);
   g.stroke({ color: eclaircir(ACIER, 0.4), width: r * 0.08, alpha: 0.6, cap: 'round' });
   for (const dx of [-0.72, 0.7]) {
-    g.poly(flat(blob(dx * r, -r * 0.72, r * 0.09, r * 0.09, { seed: 3, points: 8, wobble: 0.24 }))).fill({
+    g.poly(flat(blob(dx * r, -r * 1.3, r * 0.09, r * 0.09, { seed: 3, points: 8, wobble: 0.24 }))).fill({
       color: dore ? LIGHT.rim : eclaircir(ACIER, 0.3),
       alpha: 0.85,
     });
   }
+  // ombre du bord sur le front, et le camail qui pend sur la nuque
+  g.moveTo(-r * 0.9, -r * 0.82);
+  g.quadraticCurveTo(0, r * (BORD_MINIMAL + 0.08), r * 0.9, -r * 0.78);
+  g.stroke({ color: ombreBleutee(ACIER, 1), width: r * 0.2, alpha: 0.5, cap: 'round' });
   if (dore) {
-    orfevrerie(g, [pt(-r * 1.5, -r * 0.5), pt(0, -r * 0.74), pt(r * 1.52, -r * 0.46)], { epaisseur: r * 0.11 });
+    orfevrerie(g, [pt(-r * 1.56, -r * 0.98), pt(0, -r * 1.28), pt(r * 1.58, -r * 0.94)], { epaisseur: r * 0.11 });
   }
 }
 
@@ -167,7 +218,7 @@ function chapeauCire(g: Graphics, k: Kit, r: number, seed: number, cocarde: numb
   const bord = lisser(
     perturber(
       densifier(
-        [pt(-r * 1.75, -r * 0.52), pt(-r * 0.8, -r * 0.9), pt(r * 0.9, -r * 0.82), pt(r * 1.8, -r * 0.38), pt(r * 0.9, -r * 0.12), pt(-r * 0.9, -r * 0.16)],
+        [pt(-r * 1.82, -r * 0.94), pt(-r * 0.82, -r * 1.42), pt(r * 0.92, -r * 1.34), pt(r * 1.86, -r * 0.82), pt(r * 0.92, -r * 0.76), pt(-r * 0.92, -r * 0.78)],
         r * 0.32,
       ),
       r * 0.045,
@@ -178,7 +229,7 @@ function chapeauCire(g: Graphics, k: Kit, r: number, seed: number, cocarde: numb
   poser(g, k, bord, { couleur: noirci, matiere: 'grain', matiereAlpha: 0.2, seed });
   const calotte = lisser(
     perturber(
-      densifier([pt(-r * 0.92, -r * 0.6), pt(-r * 0.78, -r * 1.42), pt(r * 0.5, -r * 1.5), pt(r * 0.94, -r * 0.62)], r * 0.28),
+      densifier([pt(-r * 0.94, -r * 1.16), pt(-r * 0.8, -r * 2.06), pt(r * 0.52, -r * 2.14), pt(r * 0.96, -r * 1.18)], r * 0.28),
       r * 0.03,
       seed + 9,
     ),
@@ -191,32 +242,44 @@ function chapeauCire(g: Graphics, k: Kit, r: number, seed: number, cocarde: numb
     speculaire: { x: 0.28, y: 0.24, r: 0.09 },
     seed: seed + 2,
   });
-  g.moveTo(-r * 0.94, -r * 0.72);
-  g.lineTo(r * 0.96, -r * 0.7);
+  // cordon de la gabelle, sur la calotte et non sur le front
+  g.moveTo(-r * 0.96, -r * 1.32);
+  g.lineTo(r * 0.98, -r * 1.3);
   g.stroke({ color: 0x6e1f2a, width: r * 0.16, alpha: 0.85, cap: 'round' });
-  g.poly(flat(blob(-r * 0.82, -r * 0.78, r * 0.2, r * 0.2, { seed: 7, points: 10, wobble: 0.26 }))).fill({
+  g.poly(flat(blob(-r * 0.84, -r * 1.38, r * 0.2, r * 0.2, { seed: 7, points: 10, wobble: 0.26 }))).fill({
     color: cocarde,
     alpha: 0.95,
   });
+  g.moveTo(-r * 0.86, -r * 0.86);
+  g.quadraticCurveTo(0, r * (BORD_MINIMAL + 0.02), r * 0.86, -r * 0.82);
+  g.stroke({ color: ombreBleutee(noirci, 1), width: r * 0.2, alpha: 0.52, cap: 'round' });
 }
 
-/** Coiffe de lin des brodeuses : bandeau, voile court, épingle d'or. */
+/**
+ * Coiffe des brodeuses : un TOURON d'étoffe enroulé, pas un capuchon.
+ *
+ * Le rendu de référence de la Grenadière et de la Dame donne la même chose : une
+ * bande de lin roulée autour du front, nouée sur le côté, galonnée d'or chez la
+ * maîtresse — et la figure entière dessous, jusqu'au menton. L'ancienne coiffe
+ * fermait l'ouverture à −0,42 rayon, donc au-dessus de l'œil mais SOUS le
+ * sourcil : les deux brodeuses de la planche n'avaient plus de regard, seulement
+ * un bonnet blanc. Le touron s'arrête ici à −0,78, et les deux rangs de
+ * l'enroulement occupent le dessus du crâne, que la chevelure ne peut pas couvrir
+ * (elle est peinte derrière).
+ */
 function coiffeLin(g: Graphics, k: Kit, r: number, seed: number, or = false): void {
   const forme = lisser(
     perturber(
       densifier(
         [
-          pt(-r * 1.12, -r * 0.2),
-          pt(-r * 1.0, -r * 1.06),
-          pt(-r * 0.2, -r * 1.34),
-          pt(r * 0.68, -r * 1.16),
-          pt(r * 1.1, -r * 0.42),
-          pt(r * 1.18, r * 0.62),
-          pt(r * 0.6, r * 0.5),
-          pt(r * 0.5, -r * 0.3),
-          pt(-r * 0.52, -r * 0.42),
-          pt(-r * 0.68, r * 0.56),
-          pt(-r * 1.2, r * 0.7),
+          pt(-r * 1.16, -r * 0.82),
+          pt(-r * 1.06, -r * 1.5),
+          pt(-r * 0.24, -r * 1.82),
+          pt(r * 0.7, -r * 1.64),
+          pt(r * 1.14, -r * 1.04),
+          pt(r * 1.2, -r * 0.78),
+          pt(r * 0.5, r * BORD_MINIMAL),
+          pt(-r * 0.54, r * BORD_MINIMAL - r * 0.04),
         ],
         r * 0.34,
       ),
@@ -226,54 +289,113 @@ function coiffeLin(g: Graphics, k: Kit, r: number, seed: number, or = false): vo
     1,
   );
   poser(g, k, forme, { couleur: IVOIRE, matiere: 'tissu', matiereAlpha: 0.24, echelle: 0.5, seed });
+  // le pan qui retombe sur l'épaule gauche : ce qui empêche le touron de lire rond
+  const pan = lisser(
+    perturber(
+      densifier(
+        [pt(-r * 1.08, -r * 1.02), pt(-r * 0.64, -r * 0.9), pt(-r * 0.78, r * 0.5), pt(-r * 1.34, r * 0.28)],
+        r * 0.3,
+      ),
+      r * 0.035,
+      seed + 15,
+    ),
+    1,
+  );
+  poser(g, k, pan, {
+    couleur: assombrir(IVOIRE, 0.16),
+    matiere: 'tissu',
+    matiereAlpha: 0.24,
+    echelle: 0.5,
+    seed: seed + 3,
+  });
+  // les deux tours de l'enroulement, et le nœud sur la tempe droite
+  for (let i = 0; i < 2; i += 1) {
+    g.moveTo(-r * 1.0, -r * (1.0 + i * 0.34));
+    g.quadraticCurveTo(0, -r * (1.28 + i * 0.4), r * 1.06, -r * (0.94 + i * 0.3));
+    g.stroke({ color: ombreBleutee(IVOIRE, 0.6), width: r * 0.09, alpha: 0.5, cap: 'round' });
+  }
+  g.poly(flat(blob(r * 0.96, -r * 1.14, r * 0.24, r * 0.2, { seed: 9, points: 12, wobble: 0.24 }))).fill({
+    color: eclaircir(IVOIRE, 0.1),
+    alpha: 0.95,
+  });
   if (or) {
-    orfevrerie(g, [pt(-r * 1.02, -r * 0.5), pt(-r * 0.3, -r * 1.16), pt(r * 0.6, -r * 1.0), pt(r * 1.04, -r * 0.44)], {
-      epaisseur: r * 0.12,
+    orfevrerie(g, [pt(-r * 1.06, -r * 0.94), pt(-r * 0.3, -r * 1.24), pt(r * 0.62, -r * 1.1), pt(r * 1.1, -r * 0.86)], {
+      epaisseur: r * 0.14,
     });
-    g.poly(flat(blob(-r * 0.2, -r * 1.2, r * 0.14, r * 0.14, { seed: 5, points: 9, wobble: 0.24 }))).fill({
+    orfevrerie(g, [pt(-r * 1.0, -r * 1.44), pt(-r * 0.2, -r * 1.72), pt(r * 0.66, -r * 1.56)], {
+      epaisseur: r * 0.1,
+      alpha: 0.7,
+    });
+    g.poly(flat(blob(-r * 0.22, -r * 1.7, r * 0.16, r * 0.16, { seed: 5, points: 9, wobble: 0.24 }))).fill({
       color: LIGHT.rim,
       alpha: 0.95,
     });
   }
+  // ombre du touron sur le front
+  g.moveTo(-r * 0.82, -r * 0.86);
+  g.quadraticCurveTo(0, r * (BORD_MINIMAL + 0.04), r * 0.82, -r * 0.84);
+  g.stroke({ color: ombreBleutee(IVOIRE, 1), width: r * 0.18, alpha: 0.42, cap: 'round' });
 }
 
 /* ─────────────────────────── Armes de la faction ────────────────────────── */
 
+/**
+ * L'arbalète : un fût ÉPAIS et un arc d'acier large, ou elle n'existe pas.
+ *
+ * L'ancienne mesurait 0,1 L d'épaisseur de fût et son arc débordait de 0,12 L :
+ * à l'écran, un bâtonnet et un accent circonflexe. Le rendu de référence donne
+ * l'inverse — un bloc de bois massif, un arc qui fait presque toute la hauteur
+ * du personnage, une corde tendue en V net. C'est une machine, elle doit peser.
+ */
 function arbalete(g: Graphics, k: Kit, L: number, seed: number, maitre: boolean): void {
-  // fût horizontal
+  // fût horizontal, avec sa crosse épaissie à l'arrière
   const fut = lisser(
     perturber(
-      densifier([pt(-L * 0.34, -L * 0.05), pt(L * 0.5, -L * 0.055), pt(L * 0.52, L * 0.03), pt(-L * 0.36, L * 0.045)], L * 0.14),
+      densifier(
+        [
+          pt(-L * 0.4, -L * 0.075),
+          pt(L * 0.5, -L * 0.06),
+          pt(L * 0.53, L * 0.04),
+          pt(-L * 0.36, L * 0.085),
+          pt(-L * 0.44, L * 0.02),
+        ],
+        L * 0.14,
+      ),
       L * 0.008,
       seed,
     ),
     1,
   );
   poser(g, k, fut, { couleur: CHENE, matiere: 'ecorce', matiereAlpha: 0.26, echelle: 0.3, seed });
+  // veine claire le long du fût : sans elle, le bloc de bois est un aplat
+  g.moveTo(-L * 0.38, -L * 0.03);
+  g.lineTo(L * 0.48, -L * 0.02);
+  g.stroke({ color: eclaircir(CHENE, 0.3), width: L * 0.022, alpha: 0.45, cap: 'round' });
   // arc d'acier, courbé, jamais symétrique parfait
   const arc: Poly = [];
   const dos: Poly = [];
-  for (let i = 0; i <= 12; i += 1) {
-    const t = i / 12;
-    const y = (t - 0.5) * L * 1.18;
-    const x = L * 0.42 + Math.cos((t - 0.5) * 2.1) * L * 0.12 - L * 0.1;
-    const w = L * 0.03 * (1 - Math.abs(t - 0.5) * 1.1);
+  for (let i = 0; i <= 14; i += 1) {
+    const t = i / 14;
+    const y = (t - 0.5) * L * 1.62;
+    const x = L * 0.46 + Math.cos((t - 0.5) * 2.2) * L * 0.2 - L * 0.17;
+    const w = L * 0.042 * (1 - Math.abs(t - 0.5) * 1.05);
     arc.push(pt(x - w, y));
     dos.push(pt(x + w, y));
   }
   dos.reverse();
   poser(g, k, [...arc, ...dos], {
-    couleur: maitre ? melanger(ACIER, LIGHT.rim, 0.2) : ACIER,
+    couleur: maitre ? melanger(ACIER, LIGHT.rim, 0.22) : ACIER,
     matiere: 'metal',
     matiereAlpha: 0.24,
     echelle: 0.35,
-    speculaire: { x: 0.3, y: 0.3, r: 0.06 },
+    speculaire: { x: 0.3, y: 0.3, r: 0.08 },
     seed: seed + 1,
   });
-  // corde
-  g.moveTo(L * 0.32, -L * 0.58);
-  g.quadraticCurveTo(-L * 0.06, 0, L * 0.32, L * 0.58);
-  g.stroke({ color: melanger(IVOIRE, CHENE, 0.4), width: L * 0.022, alpha: 0.85 });
+  // corde tendue : un V franc de pointe à pointe, en passant par la noix
+  g.moveTo(L * 0.31, -L * 0.79);
+  g.lineTo(-L * 0.04, 0);
+  g.lineTo(L * 0.31, L * 0.79);
+  g.stroke({ color: melanger(IVOIRE, CHENE, 0.35), width: L * 0.026, alpha: 0.9 });
   // noix et détente
   g.poly(flat(blob(-L * 0.04, 0, L * 0.06, L * 0.05, { seed: 4, points: 9, wobble: 0.22 }))).fill({
     color: eclaircir(ACIER, 0.2),
@@ -309,8 +431,18 @@ function arbalete(g: Graphics, k: Kit, L: number, seed: number, maitre: boolean)
   poser(g, k, carreau, { couleur: melanger(CHENE, IVOIRE, 0.3), matiere: 'grain', matiereAlpha: 0.14 });
 }
 
-/** Pavois : grand bouclier de siège, blasonné. */
+/**
+ * Pavois : grand bouclier de siège, blasonné.
+ *
+ * Il était peint en `melanger(CHENE, IVOIRE, 0.28)` sur la forme de base : à
+ * l'écran, exactement la valeur du parchemin de la planche de contact, donc une
+ * dalle beige indistincte du fond derrière l'épaule de l'arbalétrier. Un pavois
+ * est une planche de bois PEINTE aux couleurs de la place : on le passe au
+ * grenat sombre pour les deux formes et l'on garde l'écart de rang sur le
+ * blason et la ferrure du bord.
+ */
 function pavois(g: Graphics, k: Kit, w: number, h: number, seed: number, blason: boolean): void {
+  const bois = blason ? k.pal.primaire : melanger(k.pal.primaire, CHENE, 0.45);
   const forme = lisser(
     perturber(
       densifier(
@@ -323,16 +455,21 @@ function pavois(g: Graphics, k: Kit, w: number, h: number, seed: number, blason:
     1,
   );
   poser(g, k, forme, {
-    couleur: blason ? k.pal.primaire : melanger(CHENE, IVOIRE, 0.28),
+    couleur: bois,
     matiere: blason ? 'tissu' : 'ecorce',
     matiereAlpha: 0.24,
     echelle: 0.5,
     seed,
   });
+  // bordure ferrée : le pavois est cerclé, sinon il éclate au premier carreau
+  contourVariable(g, forme, melanger(ACIER, CHENE, 0.4), {
+    epaisseur: Math.max(1.4, w * 0.07),
+    couleur: melanger(ACIER, CHENE, 0.4),
+  });
   // arête centrale du pavois
   g.moveTo(0, -h * 0.5);
   g.lineTo(0, h * 0.5);
-  g.stroke({ color: blason ? LIGHT.rim : assombrir(CHENE, 0.34), width: w * 0.055, alpha: 0.75 });
+  g.stroke({ color: blason ? LIGHT.rim : eclaircir(bois, 0.32), width: w * 0.055, alpha: 0.8 });
   if (blason) {
     const br = w * 0.1;
     g.poly(
@@ -360,9 +497,27 @@ function pavois(g: Graphics, k: Kit, w: number, h: number, seed: number, blason:
 
 /* ───────────────────────── Rangs 1 et 2 — piétaille ─────────────────────── */
 
+/**
+ * Le Manant : **le haillon**.
+ *
+ * Ce qui le fait, dans le rendu de référence, n'est ni la fourche ni le
+ * chapeau : c'est que tout ce qu'il porte est DÉCHIRÉ. Sa tunique se termine en
+ * pointes irrégulières sur la cuisse, ses jambes sont emmaillotées de bandes de
+ * toile enroulées jusqu'au genou, un chaperon de laine verte lui tombe sur les
+ * épaules. Sur la planche de contact il n'avait rien de cela : un tronc lisse à
+ * ourlet net, deux jambes de fuseau, et le seul indice de misère était une
+ * rustine de six pixels sur la poitrine — invisible. Un manant qui n'a pas l'air
+ * pauvre n'est pas un manant, c'est un piquier mal peint.
+ *
+ * On lui donne donc les trois couches du rendu : chaperon, basque en lambeaux,
+ * molletières — et la fourche empoignée en diagonale, comme un outil qu'on n'a
+ * pas appris à porter en arme.
+ */
 const manant: Fabrique = (k) => {
   const H = 92;
   const tunique = melanger(k.pal.sombre, 0xa08a5e, 0.4);
+  const chaperon = melanger(CHENE, 0x4a5138, 0.55);
+  const toile = melanger(IVOIRE, CHENE, 0.82);
   return creatureRig(
     { hauteur: H, empriseSol: H * 0.19, respiration: 'buste', graine: k.seed, teinteMort: k.pal.sombre },
     squeletteBipede({
@@ -376,28 +531,71 @@ const manant: Fabrique = (k) => {
       posture: -0.9,
       largeur: 0.92,
       epaules: 0.84,
+      ecart: 1.5,
+      coude: 0.55,
+      brasDRot: -0.5,
+      brasGRot: 0.22,
+      epaulement: { couleur: chaperon, largeur: H * 0.17 },
+      basque: { couleur: assombrir(tunique, 0.2), dents: 1, hauteur: H * 0.15 },
+      jambiere: { couleur: toile, hauteur: H * 0.13 },
       visage: { age: 0.45, sourcils: 0.2, barbe: 0.32, barbeCouleur: 0x6b5433 },
       cheveux: { couleur: 0x6b5433, longueur: 0.6, volume: 0.9 },
-      coiffe: (g, kk) => chapeauPaille(g, kk, H * 0.086, k.seed + 5),
-      surTorse: (g) => {
-        const patch = perturber(
-          densifier([pt(-H * 0.1, -H * 0.17), pt(-H * 0.02, -H * 0.19), pt(-H * 0.01, -H * 0.08), pt(-H * 0.11, -H * 0.06)], 5),
-          0.6,
-          41,
-        );
-        g.poly(flat(patch)).fill({ color: melanger(tunique, 0x8a7a52, 0.5), alpha: 0.7 });
-        g.poly(flat(patch), true).stroke({ color: assombrir(tunique, 0.34), width: 0.9, alpha: 0.6 });
+      coiffe: (g, kk) => chapeauPaille(g, kk, rayonTete(H), k.seed + 5),
+      surTorse: (g, kk) => {
+        // le chaperon proprement dit : une pèlerine courte à ourlet déchiqueté,
+        // par-dessus l'épaulement, nouée au cou par un lacet de chanvre
+        const pel: Poly = [
+          pt(-H * 0.13, -H * 0.28),
+          pt(0, -H * 0.31),
+          pt(H * 0.13, -H * 0.27),
+          pt(H * 0.11, -H * 0.19),
+          pt(H * 0.05, -H * 0.15),
+          pt(H * 0.02, -H * 0.2),
+          pt(-H * 0.03, -H * 0.14),
+          pt(-H * 0.08, -H * 0.19),
+          pt(-H * 0.12, -H * 0.16),
+        ];
+        poser(g, kk, perturber(densifier(pel, H * 0.03), H * 0.004, 43), {
+          couleur: chaperon,
+          matiere: 'tissu',
+          matiereAlpha: 0.24,
+          echelle: 0.5,
+          seed: 43,
+        });
+        g.moveTo(-H * 0.04, -H * 0.29);
+        g.quadraticCurveTo(0, -H * 0.26, H * 0.04, -H * 0.29);
+        g.stroke({ color: toile, width: H * 0.011, alpha: 0.85, cap: 'round' });
+        // deux rustines cousues sur la tunique, aux valeurs franches
+        for (const [px, py] of [
+          [-H * 0.07, -H * 0.14],
+          [H * 0.05, -H * 0.06],
+        ] as const) {
+          const patch = perturber(
+            densifier([pt(px - H * 0.04, py - H * 0.02), pt(px + H * 0.04, py - H * 0.03), pt(px + H * 0.035, py + H * 0.03), pt(px - H * 0.035, py + H * 0.025)], 5),
+            0.7,
+            41 + px,
+          );
+          g.poly(flat(patch)).fill({ color: melanger(tunique, 0x8a7a52, 0.55), alpha: 0.75 });
+          g.poly(flat(patch), true).stroke({ color: assombrir(tunique, 0.4), width: 0.9, alpha: 0.65 });
+        }
       },
       arme: (g, kk) => {
-        hampe(g, kk, pt(0, H * 0.12), pt(-H * 0.03, -H * 0.4), H * 0.026, 0x6b5433, 2);
-        sous(g, -H * 0.03, -H * 0.4, (h) => {
+        hampe(g, kk, pt(0, H * 0.14), pt(-H * 0.03, -H * 0.42), H * 0.026, 0x6b5433, 2);
+        sous(g, -H * 0.03, -H * 0.42, (h) => {
           for (const dx of [-1, 0, 1]) {
-            fer(h, kk, fuseau(dx * H * 0.028, 0, dx * H * 0.05, -H * 0.1, H * 0.017, { seed: dx + 4, taper: 0.6 }), ACIER);
+            fer(h, kk, fuseau(dx * H * 0.028, 0, dx * H * 0.05, -H * 0.11, H * 0.017, { seed: dx + 4, taper: 0.6 }), ACIER);
           }
           fer(h, kk, perturber(densifier([pt(-H * 0.05, 0), pt(H * 0.05, 0), pt(H * 0.04, H * 0.026), pt(-H * 0.04, H * 0.026)], 5), 0.5, 9), assombrir(ACIER, 0.2));
         });
+        // le poing du dessus : la fourche se tient à deux mains
+        sous(g, -H * 0.016, -H * 0.19, (h) =>
+          main(h, kk, { r: H * 0.032, teint: assombrir(TEINTS[1], 0.1), seed: 47 }),
+        );
       },
-      armeAncre: { rot: 0.4 },
+      /* La fourche part en diagonale vers l'avant, comme dans le rendu : hampe
+         couchée, dents en haut à droite. Verticale, elle passait devant la
+         figure et coupait la tête en deux. */
+      armeAncre: { rot: 0.92 },
     }),
     k,
     (r) => {
@@ -423,9 +621,19 @@ const francSerf: Fabrique = (k) => {
       plastron: null,
       posture: 0.5,
       epaules: 1.06,
-      visage: { sourcils: 0.5, age: 0.2 },
+      ecart: 1.45,
+      coude: 0.5,
+      brasDRot: -0.46,
+      brasGRot: 0.18,
+      /* Le baudrier croisé et l'épaulement de jaque : c'est ce qui, dans le
+         rendu, sépare l'affranchi du manant — il est SANGLÉ, il a un
+         équipement, il n'a plus des loques cousues. */
+      epaulement: { couleur: melanger(jaque, ARDOISE, 0.45), largeur: H * 0.16 },
+      basque: { couleur: melanger(jaque, ARDOISE, 0.3), dents: 0.55, hauteur: H * 0.14 },
+      jambiere: { couleur: assombrir(CHENE, 0.2), hauteur: H * 0.13 },
+      visage: { sourcils: 0.5, age: 0.2, barbe: 0.2, barbeCouleur: 0x4a3a24 },
       cheveux: { couleur: 0x4a3a24, longueur: 0.4, volume: 0.85 },
-      coiffe: (g, kk) => chapelDeFer(g, kk, H * 0.086, k.seed + 6),
+      coiffe: (g, kk) => chapelDeFer(g, kk, rayonTete(H), k.seed + 6),
       surTorse: (g, kk) => {
         // brigandine : rangées de clous, la matière ajoutée du franc-serf
         for (let row = 0; row < 4; row += 1) {
@@ -438,6 +646,22 @@ const francSerf: Fabrique = (k) => {
             });
           }
         }
+        // les deux courroies en croix, avec leur boucle : deux valeurs franches
+        // sur le jaque, la seule chose du torse qui se lise à petite taille
+        for (const sens of [1, -1] as const) {
+          g.moveTo(sens * H * 0.11, -H * 0.28);
+          g.quadraticCurveTo(0, -H * 0.17, -sens * H * 0.1, -H * 0.05);
+          g.stroke({ color: assombrir(CHENE, 0.24), width: H * 0.022, alpha: 0.9, cap: 'round' });
+          g.moveTo(sens * H * 0.1, -H * 0.27);
+          g.quadraticCurveTo(0, -H * 0.163, -sens * H * 0.095, -H * 0.045);
+          g.stroke({ color: eclaircir(CHENE, 0.28), width: H * 0.006, alpha: 0.45, cap: 'round' });
+        }
+        poser(g, kk, blob(0, -H * 0.17, H * 0.019, H * 0.017, { seed: 6, points: 10, wobble: 0.22 }), {
+          couleur: LIGHT.rim,
+          matiere: 'metal',
+          matiereAlpha: 0.24,
+          speculaire: { x: 0.3, y: 0.26, r: 0.2 },
+        });
         // charte roulée à la ceinture : sa fierté
         sous(g, H * 0.09, -H * 0.03, (h) => {
           poser(h, kk, blob(0, 0, H * 0.02, H * 0.05, { seed: 4, points: 12, wobble: 0.14 }), {
@@ -452,15 +676,21 @@ const francSerf: Fabrique = (k) => {
         });
       },
       arme: (g, kk) => {
-        hampe(g, kk, pt(0, H * 0.18), pt(0, -H * 0.72), H * 0.024, CHENE, 5);
+        hampe(g, kk, pt(0, H * 0.2), pt(0, -H * 0.72), H * 0.024, CHENE, 5);
         sous(g, 0, -H * 0.72, (h) => fer(h, kk, pointeLance(H * 0.13, H * 0.05), ACIER));
         sous(g, 0, -H * 0.6, (h) => {
           h.moveTo(-H * 0.02, 0);
           h.lineTo(H * 0.02, 0);
           h.stroke({ color: LIGHT.rim, width: H * 0.012, alpha: 0.7 });
         });
+        sous(g, -H * 0.008, -H * 0.24, (h) =>
+          main(h, kk, { r: H * 0.031, teint: assombrir(TEINTS[0], 0.12), seed: 51 }),
+        );
       },
-      armeAncre: { rot: 0.05 },
+      /* La pique reste haute — c'est sa silhouette — mais elle s'incline assez
+         pour dégager la tête : verticale, la hampe passait devant le nez et le
+         franc-serf n'avait plus de visage. */
+      armeAncre: { rot: 0.5 },
     }),
     k,
     (r) => {
@@ -472,8 +702,21 @@ const francSerf: Fabrique = (k) => {
 
 /* ───────────────────────── Rang 2 — gabelle ─────────────────────────────── */
 
+/**
+ * Le Gabelou : **la mesure de laiton pendue à la ceinture**.
+ *
+ * Le rendu de référence l'annonce sans ambiguïté : au centre de l'image, sur la
+ * hanche, un cylindre de laiton poli — l'étalon du grenier à sel — qui capte
+ * toute la lumière et qu'on voit avant le visage. C'est son métier, tenu à la
+ * ceinture. La planche de contact, elle, lui donnait un carré d'acier de quatre
+ * pixels sur la hanche gauche, indiscernable d'une boucle : le commis du sel
+ * n'avait aucune raison lisible d'être un commis du sel plutôt qu'un piquier de
+ * plus. On lui rend donc sa mesure, à la bonne échelle et en laiton chaud, et
+ * la besace de toile de l'autre côté qui l'équilibre.
+ */
 const gabelou: Fabrique = (k) => {
   const H = 98;
+  const laiton = melanger(LIGHT.rim, 0xa87a2c, 0.42);
   return creatureRig(
     { hauteur: H, empriseSol: H * 0.2, respiration: 'buste', graine: k.seed + 2, teinteMort: k.pal.primaire },
     squeletteBipede({
@@ -485,31 +728,79 @@ const gabelou: Fabrique = (k) => {
       chausse: assombrir(CHENE, 0.4),
       ceinture: melanger(CHENE, 0x2a3242, 0.4),
       posture: 0.2,
-      visage: { sourcils: 0.7, age: 0.35, barbe: 0.18, barbeCouleur: 0x3a2f1e },
+      ecart: 1.5,
+      coude: 0.5,
+      brasDRot: -0.5,
+      brasGRot: 0.2,
+      epaulement: { couleur: melanger(ARDOISE, 0x6d767e, 0.5), matiere: 'metal', largeur: H * 0.17 },
+      basque: { couleur: melanger(ARDOISE, 0x4a5138, 0.4), dents: 0.45, hauteur: H * 0.15 },
+      jambiere: { couleur: melanger(ARDOISE, 0x8f99a4, 0.35), hauteur: H * 0.14 },
+      visage: { sourcils: 0.7, age: 0.35, barbe: 0.28, barbeCouleur: 0x3a2f1e },
       cheveux: { couleur: 0x3a2f1e, longueur: 0.5, volume: 0.9 },
-      cape: { couleur: k.pal.primaire, w: H * 0.32, h: H * 0.3 },
-      coiffe: (g, kk) => chapeauCire(g, kk, H * 0.086, k.seed + 7, LIGHT.rim),
+      cape: { couleur: k.pal.primaire, w: H * 0.32, h: H * 0.3, dents: 0.35 },
+      coiffe: (g, kk) => chapeauCire(g, kk, rayonTete(H), k.seed + 7, LIGHT.rim),
       surTorse: (g, kk) => {
-        // bourse à sel et mesure de fer-blanc
-        sous(g, H * 0.085, -H * 0.02, (h) => {
-          poser(h, kk, blob(0, 0, H * 0.036, H * 0.042, { seed: 6, points: 13, wobble: 0.2 }), {
+        // rangées de clous de laiton sur la brigandine : la matière du métier
+        for (let row = 0; row < 4; row += 1) {
+          for (let col = 0; col < 3; col += 1) {
+            g.poly(
+              flat(
+                blob(-H * 0.07 + col * H * 0.07, -H * 0.26 + row * H * 0.06, H * 0.009, H * 0.009, {
+                  seed: row * 7 + col,
+                  points: 7,
+                  wobble: 0.3,
+                }),
+              ),
+            ).fill({ color: laiton, alpha: 0.75 });
+          }
+        }
+        /* La mesure de sel : un cylindre de laiton, cerclé en haut et en bas,
+           accroché par un anneau. Il tombe SOUS la ceinture, devant la basque,
+           là où le rendu le montre — et il est assez grand pour se voir. */
+        sous(g, H * 0.055, H * 0.0, (h) => {
+          h.moveTo(0, -H * 0.05);
+          h.lineTo(0, -H * 0.02);
+          h.stroke({ color: assombrir(laiton, 0.3), width: H * 0.008, alpha: 0.9 });
+          const corps = perturber(
+            densifier(
+              [pt(-H * 0.028, -H * 0.02), pt(H * 0.028, -H * 0.022), pt(H * 0.024, H * 0.058), pt(-H * 0.026, H * 0.056)],
+              H * 0.02,
+            ),
+            H * 0.003,
+            13,
+          );
+          poser(h, kk, corps, {
+            couleur: laiton,
+            matiere: 'metal',
+            matiereAlpha: 0.22,
+            echelle: 0.35,
+            speculaire: { x: 0.28, y: 0.2, r: 0.16 },
+          });
+          for (const y of [-H * 0.012, H * 0.046]) {
+            h.moveTo(-H * 0.028, y);
+            h.lineTo(H * 0.027, y - H * 0.001);
+            h.stroke({ color: eclaircir(laiton, 0.35), width: H * 0.008, alpha: 0.8 });
+          }
+          // le sel qui reste au fond : un croissant clair, pas un aplat
+          h.moveTo(-H * 0.02, -H * 0.014);
+          h.quadraticCurveTo(0, -H * 0.026, H * 0.019, -H * 0.014);
+          h.stroke({ color: IVOIRE, width: H * 0.009, alpha: 0.7, cap: 'round' });
+        });
+        // besace de toile à l'autre hanche, sanglée
+        sous(g, -H * 0.095, -H * 0.02, (h) => {
+          poser(h, kk, blob(0, 0, H * 0.038, H * 0.044, { seed: 6, points: 13, wobble: 0.2 }), {
             couleur: melanger(IVOIRE, CHENE, 0.35),
             matiere: 'tissu',
             matiereAlpha: 0.26,
             echelle: 0.4,
           });
-          h.moveTo(-H * 0.024, -H * 0.03);
-          h.quadraticCurveTo(0, -H * 0.05, H * 0.024, -H * 0.03);
-          h.stroke({ color: CHENE, width: H * 0.009, alpha: 0.8 });
+          h.moveTo(-H * 0.026, -H * 0.032);
+          h.quadraticCurveTo(0, -H * 0.054, H * 0.026, -H * 0.032);
+          h.stroke({ color: CHENE, width: H * 0.01, alpha: 0.85 });
+          h.moveTo(-H * 0.03, -H * 0.006);
+          h.lineTo(H * 0.03, -H * 0.008);
+          h.stroke({ color: assombrir(CHENE, 0.3), width: H * 0.011, alpha: 0.8 });
         });
-        sous(g, -H * 0.085, -H * 0.04, (h) =>
-          poser(h, kk, perturber(densifier([pt(-H * 0.022, -H * 0.028), pt(H * 0.022, -H * 0.03), pt(H * 0.019, H * 0.028), pt(-H * 0.02, H * 0.026)], 4), 0.5, 12), {
-            couleur: ACIER,
-            matiere: 'metal',
-            matiereAlpha: 0.24,
-            speculaire: { x: 0.3, y: 0.26, r: 0.14 },
-          }),
-        );
       },
       arme: (g, kk) => {
         hampe(g, kk, pt(0, H * 0.2), pt(-H * 0.06, -H * 0.58), H * 0.023, CHENE, 3);
@@ -530,8 +821,11 @@ const gabelou: Fabrique = (k) => {
             assombrir(ACIER, 0.15),
           );
         });
+        sous(g, -H * 0.014, -H * 0.2, (h) =>
+          main(h, kk, { r: H * 0.031, teint: assombrir(TEINTS[2], 0.12), seed: 53 }),
+        );
       },
-      armeAncre: { rot: 0.55 },
+      armeAncre: { rot: 0.72 },
     }),
     k,
     (r) => {
@@ -541,9 +835,26 @@ const gabelou: Fabrique = (k) => {
   );
 };
 
+/**
+ * Le Prévôt du Sel : **le grand manteau évasé, bordé d'or**.
+ *
+ * Sur son rendu de référence, le prévôt est presque aussi LARGE que haut : un
+ * manteau d'ardoise semé de fleurs de lys s'ouvre de part et d'autre en deux
+ * pans galonnés d'or qui doublent sa surface, et la doublure grenat se retourne
+ * à l'ourlet. C'est la seule créature de la Châtellenie à occuper le bas de son
+ * cadre horizontalement — un officier qui BARRE le chemin, ce qui est
+ * exactement sa capacité de jeu (`zone_of_control`).
+ *
+ * Sur la planche de contact il ne barrait rien : un cône grenat étroit, plus
+ * mince que l'arbalétrier, coiffé d'un chapeau ciré identique à celui du
+ * gabelou. Rien ne disait le grade. On lui donne donc le manteau à sa vraie
+ * envergure, galonné, avec le col de fourrure au-dessus, et le trousseau de
+ * clefs assez gros pour compter les clefs.
+ */
 const prevotDuSel: Fabrique = (k) => {
   const H = 106;
   const robeC = melanger(k.pal.primaire, 0x3a2430, 0.3);
+  const manteau = melanger(ARDOISE, 0x2c3644, 0.4);
   return creatureRig(
     { hauteur: H, empriseSol: H * 0.23, respiration: 'buste', graine: k.seed + 3, teinteMort: k.pal.primaire },
     squeletteBipede({
@@ -557,11 +868,21 @@ const prevotDuSel: Fabrique = (k) => {
       posture: 0.4,
       largeur: 1.12,
       epaules: 1.1,
+      ecart: 1.35,
+      coude: 0.42,
+      brasDRot: -0.3,
+      brasGRot: 0.12,
+      epaulement: { couleur: manteau, largeur: H * 0.2 },
+      basque: { couleur: manteau, hauteur: H * 0.17, largeur: H * 0.32, bord: LIGHT.rim },
+      jambiere: { couleur: assombrir(CHENE, 0.3), hauteur: H * 0.13 },
       visage: { sourcils: 0.9, age: 0.9, barbe: 0.55, barbeCouleur: 0x8d8578 },
       cheveux: { couleur: 0x8d8578, longueur: 0.7, volume: 1 },
       robe: { couleur: robeC, haut: H * 0.22, bas: H * 0.36, hauteur: H * 0.46 },
+      /* Le manteau : large de la moitié de sa hauteur, ourlet galonné. C'est ce
+         qui donne au prévôt sa masse d'officier. */
+      cape: { couleur: manteau, w: H * 0.44, h: H * 0.54, bord: LIGHT.rim },
       coiffe: (g, kk) => {
-        chapeauCire(g, kk, H * 0.086, k.seed + 8, k.pal.primaire);
+        chapeauCire(g, kk, rayonTete(H), k.seed + 8, k.pal.primaire);
         // col de fourrure : matière ajoutée de la forme améliorée
         sous(g, 0, H * 0.075, (h) => {
           poser(h, kk, blob(0, 0, H * 0.115, H * 0.045, { seed: 9, points: 18, wobble: 0.26 }), {
@@ -573,24 +894,30 @@ const prevotDuSel: Fabrique = (k) => {
         });
       },
       surTorse: (g, kk) => {
-        // trousseau de clefs : trois clefs d'or pendues à la ceinture
-        sous(g, H * 0.075, -H * 0.02, (h) => {
-          h.moveTo(0, -H * 0.02);
-          h.lineTo(0, H * 0.01);
-          h.stroke({ color: LIGHT.rim, width: H * 0.008, alpha: 0.8 });
+        /* Le trousseau : anneau, puis trois clefs à panneton, pendues devant la
+           basque. Elles étaient dessinées à 0,013 H de large — un pixel et demi
+           à l'écran, où l'on ne comptait rien. Doublées, l'anneau posé, on lit
+           enfin « celui qui a les clefs du grenier ». */
+        sous(g, H * 0.085, H * 0.005, (h) => {
+          poser(h, kk, arcBande(0, 0, H * 0.022, H * 0.022, 0, 6.2, H * 0.009, 0), {
+            couleur: LIGHT.rim,
+            matiere: 'metal',
+            matiereAlpha: 0.22,
+            speculaire: { x: 0.3, y: 0.26, r: 0.16 },
+          });
           for (let i = 0; i < 3; i += 1) {
-            const a = -0.5 + i * 0.5;
-            sous(h, Math.sin(a) * H * 0.02, H * 0.012 + Math.cos(a) * H * 0.03, (c) => {
+            const a = -0.42 + i * 0.42;
+            sous(h, Math.sin(a) * H * 0.024, H * 0.018 + Math.cos(a) * H * 0.016, (c) => {
               c.moveTo(0, 0);
-              c.lineTo(0, H * 0.045);
-              c.stroke({ color: LIGHT.rim, width: H * 0.0085, alpha: 0.9, cap: 'round' });
-              c.poly(flat(blob(0, H * 0.05, H * 0.013, H * 0.013, { seed: i + 3, points: 9, wobble: 0.24 }))).fill({
-                color: eclaircir(LIGHT.rim, 0.25),
-                alpha: 0.9,
-              });
-              c.moveTo(0, H * 0.012);
-              c.lineTo(H * 0.014, H * 0.012);
-              c.stroke({ color: LIGHT.rim, width: H * 0.007, alpha: 0.85 });
+              c.lineTo(Math.sin(a) * H * 0.02, H * 0.062);
+              c.stroke({ color: LIGHT.rim, width: H * 0.013, alpha: 0.92, cap: 'round' });
+              // panneton : deux dents, sinon c'est un clou
+              c.moveTo(Math.sin(a) * H * 0.02, H * 0.046);
+              c.lineTo(Math.sin(a) * H * 0.02 + H * 0.02, H * 0.048);
+              c.stroke({ color: LIGHT.rim, width: H * 0.011, alpha: 0.9, cap: 'round' });
+              c.moveTo(Math.sin(a) * H * 0.02, H * 0.062);
+              c.lineTo(Math.sin(a) * H * 0.02 + H * 0.016, H * 0.064);
+              c.stroke({ color: eclaircir(LIGHT.rim, 0.2), width: H * 0.009, alpha: 0.85, cap: 'round' });
             });
           }
         });
@@ -629,7 +956,10 @@ const prevotDuSel: Fabrique = (k) => {
           }),
         );
       },
-      armeAncre: { rot: 0.02 },
+      /* Le bourdon part en travers : c'est un officier qui BARRE le chemin, et
+         c'est aussi sa capacité de jeu. À la verticale, la hampe passait pile
+         devant le nez du prévôt et lui coupait la figure en deux. */
+      armeAncre: { rot: 0.5 },
     }),
     k,
     (r) => {
@@ -641,7 +971,29 @@ const prevotDuSel: Fabrique = (k) => {
 
 /* ─────────────────────── Rang 3 — les Farges ────────────────────────────── */
 
+/**
+ * Les arbalétriers des Farges : **l'arbalète ÉPAULÉE, à hauteur d'œil**.
+ *
+ * Les deux rendus de référence donnent la même chose, et c'est la seule chose
+ * qui compte pour ce rang : l'arbalète est tenue horizontale, la crosse contre
+ * la joue, le bras avant tendu sous le fût, l'arc d'acier vertical au bout de la
+ * ligne. Le tireur EST son geste ; on lit « il tire » avant de lire l'homme.
+ *
+ * Sur la planche de contact, l'arbalète pendait au ventre, pointe vers le bas à
+ * gauche, à peu près là où un homme tiendrait un seau. Rien ne visait. Les deux
+ * arbalétriers étaient donc deux piquiers de plus, distingués l'un de l'autre
+ * par une plume rouge — alors qu'ils sont les seuls tireurs de la faction et que
+ * c'est leur unique raison d'exister sur le champ.
+ *
+ * La pose : `brasGRot` tend le bras avant vers l'avant (rotation négative =
+ * l'avant-bras part vers +x), `armeAncre.rot` annule exactement cette rotation
+ * pour que le fût reste horizontal quoi qu'il arrive, et le bras arrière ramène
+ * son poing à la détente. La crosse est reculée dans le dessin de l'arme pour
+ * venir à l'épaule au lieu de partir devant.
+ */
 function arbaletrierPieces(k: Kit, H: number, maitre: boolean): PieceDef[] {
+  /** Bras avant tendu : la ligne de visée part de là. */
+  const BRAS_TENDU = -1.28;
   return squeletteBipede({
     H,
     seed: k.seed + (maitre ? 50 : 40),
@@ -654,10 +1006,28 @@ function arbaletrierPieces(k: Kit, H: number, maitre: boolean): PieceDef[] {
     posture: 0.25,
     largeur: maitre ? 1.06 : 1,
     epaules: maitre ? 1.08 : 1,
+    ecart: 1.7,
+    coude: 0.34,
+    brasGRot: BRAS_TENDU,
+    brasDRot: -0.92,
+    epaulement: {
+      couleur: maitre ? melanger(ACIER, LIGHT.rim, 0.2) : melanger(ARDOISE, 0x6d767e, 0.4),
+      matiere: 'metal',
+      largeur: H * (maitre ? 0.19 : 0.17),
+    },
+    basque: {
+      couleur: melanger(ARDOISE, CHENE, 0.35),
+      /* Le maître a l'ourlet galonné, donc net : un galon d'or sur une guenille
+         déchirée se lisait comme une rangée de dents. */
+      dents: maitre ? 0 : 0.6,
+      hauteur: H * 0.16,
+      bord: maitre ? LIGHT.rim : null,
+    },
+    jambiere: { couleur: assombrir(CHENE, 0.16), hauteur: H * 0.15 },
     visage: { sourcils: 0.6, age: maitre ? 0.75 : 0.25, barbe: maitre ? 0.4 : 0, barbeCouleur: 0x6b6055 },
     cheveux: { couleur: maitre ? 0x6b6055 : 0x4a3a24, longueur: 0.4, volume: 0.85 },
     coiffe: (g, kk) => {
-      chapelDeFer(g, kk, H * 0.086, k.seed + (maitre ? 9 : 10), maitre);
+      chapelDeFer(g, kk, rayonTete(H), k.seed + (maitre ? 9 : 10), maitre);
       if (maitre) {
         // plume de maîtrise, plantée dans une douille d'or
         sous(g, H * 0.05, -H * 0.1, (h) => {
@@ -692,8 +1062,18 @@ function arbaletrierPieces(k: Kit, H: number, maitre: boolean): PieceDef[] {
         orfevrerie(g, [pt(-H * 0.08, -H * 0.24), pt(H * 0.06, -H * 0.27)], { epaisseur: H * 0.012 });
       }
     },
-    arme: (g, kk) => sous(g, H * 0.02, -H * 0.05, (h) => arbalete(h, kk, H * 0.3, k.seed + 25, maitre)),
-    armeAncre: { rot: -0.18, y: H * 0.25 },
+    /* La crosse est reculée de 0,10 H : le poing avant tient le fût vers son
+       milieu, et le talon de la crosse arrive contre l'épaule. Le poing arrière
+       est peint sur l'arme, à la détente, parce que c'est là qu'il doit être. */
+    arme: (g, kk) => {
+      sous(g, -H * 0.1, -H * 0.01, (h) => arbalete(h, kk, H * 0.32, k.seed + 25, maitre));
+      sous(g, -H * 0.13, H * 0.012, (h) =>
+        main(h, kk, { r: H * 0.031, teint: assombrir(TEINTS[maitre ? 3 : 0], 0.14), seed: 57 }),
+      );
+    },
+    /* Annule exactement la rotation du bras porteur : le fût est horizontal,
+       quelle que soit la pose du bras. */
+    armeAncre: { rot: -BRAS_TENDU },
   });
 }
 
@@ -721,9 +1101,84 @@ const maitreArbaletrier: Fabrique = (k) =>
 
 /* ────────────────────── Rang 4 — le fil d'or ────────────────────────────── */
 
+/**
+ * Le panneau brodé de la grenade, pendu à la ceinture par-dessus la jupe.
+ *
+ * C'est l'objet qui domine les deux rendus de référence du rang 4 : un pan
+ * d'étoffe rectangulaire, galonné d'or sur ses quatre côtés, frangé en bas,
+ * portant au centre une grenade ouverte brodée en fil d'or — et il pend DEVANT
+ * la robe, du nombril au genou. La grenadière et la dame étaient reconnues à un
+ * blob doré de trois pixels sur la poitrine ; c'était l'emblème d'un atelier de
+ * broderie réduit à une tache. À cette taille, un emblème doit occuper le tiers
+ * de la surface visible pour exister — et il l'occupe dans le rendu.
+ */
+function panneauGrenade(g: Graphics, k: Kit, H: number, w: number, h: number, maitresse: boolean): void {
+  const fond = melanger(k.pal.primaire, 0x8c2030, 0.3);
+  const bas: Poly = [];
+  for (let i = 0; i <= 6; i += 1) {
+    const t = i / 6;
+    bas.push(pt(w * (0.5 - t), h + Math.sin(t * 6.4) * h * 0.03));
+  }
+  poser(
+    g,
+    k,
+    lisser(perturber(densifier([pt(-w * 0.5, 0), pt(w * 0.5, 0), ...bas.slice().reverse()], h * 0.22), w * 0.012, 61), 1),
+    { couleur: fond, matiere: 'tissu', matiereAlpha: 0.26, echelle: 0.5, seed: 61 },
+  );
+  orfevrerie(g, [pt(-w * 0.46, h * 0.06), pt(w * 0.46, h * 0.06)], { epaisseur: Math.max(1.1, h * 0.05) });
+  orfevrerie(g, bas, { epaisseur: Math.max(1.1, h * 0.05) });
+  orfevrerie(g, [pt(-w * 0.44, h * 0.06), pt(-w * 0.46, h * 0.94)], { epaisseur: Math.max(1, h * 0.04), alpha: 0.7 });
+  orfevrerie(g, [pt(w * 0.44, h * 0.06), pt(w * 0.46, h * 0.94)], { epaisseur: Math.max(1, h * 0.04), alpha: 0.7 });
+  // la grenade : un corps bombé, une couronne de sépales, des grains
+  const cx = 0;
+  const cy = h * 0.48;
+  poser(g, k, blob(cx, cy, w * 0.26, h * 0.24, { seed: 7, points: 15, wobble: 0.14 }), {
+    couleur: LIGHT.rim,
+    matiere: 'tissu',
+    matiereAlpha: 0.2,
+    echelle: 0.3,
+    speculaire: { x: 0.3, y: 0.26, r: 0.14 },
+  });
+  g.poly(
+    flat(perturber([pt(cx - w * 0.08, cy - h * 0.2), pt(cx + w * 0.08, cy - h * 0.2), pt(cx, cy - h * 0.34)], 0.5, 5)),
+  ).fill({ color: LIGHT.rim, alpha: 0.92 });
+  for (let i = 0; i < 5; i += 1) {
+    g.poly(
+      flat(
+        blob(cx - w * 0.15 + i * w * 0.075, cy + (i % 2 ? h * 0.04 : -h * 0.02), w * 0.035, h * 0.035, {
+          seed: i + 3,
+          points: 8,
+          wobble: 0.28,
+        }),
+      ),
+    ).fill({ color: fond, alpha: 0.9 });
+  }
+  if (maitresse) {
+    // frange de fil d'or : la maîtresse d'atelier signe son ouvrage
+    for (let i = 0; i < 7; i += 1) {
+      const x = -w * 0.4 + (i / 6) * w * 0.8;
+      g.moveTo(x, h * 0.96);
+      g.lineTo(x + (i % 2 ? H * 0.004 : -H * 0.004), h + H * 0.028);
+      g.stroke({ color: LIGHT.rim, width: H * 0.006, alpha: 0.85, cap: 'round' });
+    }
+  }
+}
+
+/**
+ * La Grenadière d'Or : **les ourlets galonnés d'or, et le panneau de la
+ * grenade pendu devant la jupe**.
+ *
+ * Son rendu de référence est une superposition d'étoffes dont CHAQUE bord est
+ * souligné d'un galon d'or : surcot d'ardoise sur robe grenat, panneau brodé
+ * par-dessus, et l'or court sur les six ourlets. Sur la planche de contact elle
+ * était une cloche grenat unie, sans un galon, coiffée d'un bonnet blanc qui lui
+ * mangeait la figure : une silhouette de nonne, pas une brodeuse. L'or est son
+ * métier ; il devait se voir de loin, et il n'y en avait pas.
+ */
 const grenadiere: Fabrique = (k) => {
   const H = 96;
   const corsage = melanger(k.pal.primaire, 0x8c3a3f, 0.25);
+  const surcot = melanger(ARDOISE, 0x3c4048, 0.35);
   return creatureRig(
     { hauteur: H, empriseSol: H * 0.24, respiration: 'buste', graine: k.seed + 6, teinteMort: k.pal.accent },
     squeletteBipede({
@@ -737,24 +1192,23 @@ const grenadiere: Fabrique = (k) => {
       posture: 0.6,
       largeur: 0.9,
       epaules: 0.86,
+      ecart: 1.2,
+      coude: 0.62,
+      brasDRot: -0.62,
+      brasGRot: 0.34,
+      epaulement: { couleur: surcot, largeur: H * 0.15 },
+      basque: { couleur: surcot, hauteur: H * 0.16, largeur: H * 0.3, bord: LIGHT.rim },
+      jambiere: { couleur: assombrir(CHENE, 0.24), hauteur: H * 0.1 },
       visage: { sourcils: 0.15, age: 0.1 },
       cheveux: { couleur: 0x53381f, longueur: 1.2, volume: 1.05 },
       robe: { couleur: melanger(corsage, ARDOISE, 0.35), haut: H * 0.2, bas: H * 0.4, hauteur: H * 0.46 },
-      coiffe: (g, kk) => coiffeLin(g, kk, H * 0.086, k.seed + 11, false),
-      surTorse: (g) => {
-        // grenade ouverte brodée : l'emblème de l'atelier
-        const gr = blob(-H * 0.01, -H * 0.17, H * 0.032, H * 0.036, { seed: 7, points: 13, wobble: 0.18 });
-        g.poly(flat(gr)).fill({ color: LIGHT.rim, alpha: 0.9 });
-        g.poly(flat(perturber([pt(-H * 0.012, -H * 0.2), pt(H * 0.012, -H * 0.2), pt(0, -H * 0.235)], 0.5, 5))).fill({
-          color: LIGHT.rim,
-          alpha: 0.9,
-        });
-        for (let i = 0; i < 4; i += 1) {
-          g.poly(
-            flat(blob(-H * 0.026 + i * H * 0.017, -H * 0.168, H * 0.006, H * 0.007, { seed: i + 2, points: 7, wobble: 0.3 })),
-          ).fill({ color: k.pal.primaire, alpha: 0.85 });
-        }
-        orfevrerie(g, [pt(-H * 0.09, -H * 0.26), pt(0, -H * 0.29), pt(H * 0.08, -H * 0.25)], { epaisseur: H * 0.011 });
+      coiffe: (g, kk) => coiffeLin(g, kk, rayonTete(H), k.seed + 11, false),
+      surTorse: (g, kk) => {
+        // le col galonné et la croix d'orfroi sur le corsage
+        orfevrerie(g, [pt(-H * 0.09, -H * 0.26), pt(0, -H * 0.29), pt(H * 0.08, -H * 0.25)], { epaisseur: H * 0.013 });
+        orfevrerie(g, [pt(-H * 0.06, -H * 0.24), pt(H * 0.05, -H * 0.1)], { epaisseur: H * 0.011, alpha: 0.7 });
+        orfevrerie(g, [pt(H * 0.05, -H * 0.24), pt(-H * 0.06, -H * 0.1)], { epaisseur: H * 0.011, alpha: 0.7 });
+        sous(g, -H * 0.005, H * 0.005, (h) => panneauGrenade(h, kk, H, H * 0.17, H * 0.24, false));
       },
       arme: (g, kk) => {
         // cercle à broder tenu devant : la silhouette la plus reconnaissable du rang
@@ -807,9 +1261,22 @@ const grenadiere: Fabrique = (k) => {
   );
 };
 
+/**
+ * La Dame au Fil d'Or : **la bannière cramoisie chargée de la grenade d'or**.
+ *
+ * Le rendu de référence lui donne, derrière l'épaule, un grand pan de velours
+ * cramoisi galonné et frangé où la grenade est brodée en pleine page : c'est la
+ * chose qu'on voit d'abord, et c'est littéralement son métier — « elle ne brode
+ * plus que trois choses : les serments, les linceuls et les étendards ». Sur la
+ * planche de contact, son étendard mesurait 0,2 H de large et disparaissait
+ * derrière la hampe : la maîtresse d'atelier n'était que la grenadière en plus
+ * grand. On double la bannière, on y met la grenade, et on lui ajoute les
+ * glands d'or de la ceinture que le rendu montre par paires.
+ */
 const dameFilDor: Fabrique = (k) => {
   const H = 106;
   const gown = melanger(k.pal.primaire, 0x5a2038, 0.28);
+  const surcot = melanger(ARDOISE, 0x37333a, 0.4);
   return creatureRig(
     { hauteur: H, empriseSol: H * 0.26, respiration: 'buste', graine: k.seed + 7, teinteMort: LIGHT.rim },
     squeletteBipede({
@@ -823,12 +1290,19 @@ const dameFilDor: Fabrique = (k) => {
       posture: 0.9,
       largeur: 0.94,
       epaules: 0.9,
+      ecart: 1.25,
+      coude: 0.5,
+      brasDRot: -0.5,
+      brasGRot: 0.22,
+      epaulement: { couleur: surcot, largeur: H * 0.17 },
+      basque: { couleur: surcot, hauteur: H * 0.18, largeur: H * 0.32, bord: LIGHT.rim },
+      jambiere: { couleur: assombrir(CHENE, 0.26), hauteur: H * 0.1 },
       visage: { sourcils: 0.3, age: 0.55 },
       cheveux: { couleur: 0x3f2c1a, longueur: 1.3, volume: 1.1 },
       robe: { couleur: gown, haut: H * 0.22, bas: H * 0.46, hauteur: H * 0.5 },
-      cape: { couleur: melanger(gown, ARDOISE, 0.4), w: H * 0.36, h: H * 0.52 },
+      cape: { couleur: melanger(gown, ARDOISE, 0.4), w: H * 0.4, h: H * 0.56, bord: LIGHT.rim },
       coiffe: (g, kk) => {
-        coiffeLin(g, kk, H * 0.086, k.seed + 12, true);
+        coiffeLin(g, kk, rayonTete(H), k.seed + 12, true);
         // voile long, il vit dans le vent
         sous(g, H * 0.02, H * 0.02, (h) => {
           const v = lisser(
@@ -842,7 +1316,7 @@ const dameFilDor: Fabrique = (k) => {
           poser(h, kk, v, { couleur: IVOIRE, matiere: 'tissu', matiereAlpha: 0.26, echelle: 0.5, modele: 0.8 });
         });
       },
-      surTorse: (g) => {
+      surTorse: (g, kk) => {
         // orfroi complet : la matière ajoutée par rapport à la Grenadière
         orfevrerie(g, [pt(-H * 0.1, -H * 0.28), pt(-H * 0.04, -H * 0.06)], { epaisseur: H * 0.013 });
         orfevrerie(g, [pt(H * 0.08, -H * 0.28), pt(H * 0.035, -H * 0.06)], { epaisseur: H * 0.013 });
@@ -858,28 +1332,66 @@ const dameFilDor: Fabrique = (k) => {
             alpha: 0.6,
           });
         }
-        // bandoulière de bobines
-        for (let i = 0; i < 3; i += 1) {
-          g.poly(flat(blob(-H * 0.085 + i * H * 0.03, -H * 0.13 + i * H * 0.035, H * 0.014, H * 0.019, { seed: i + 21, points: 11, wobble: 0.2 }))).fill({
-            color: melanger(LIGHT.rim, IVOIRE, i * 0.3),
-            alpha: 0.9,
+        // glands d'or par paires à la ceinture : le rendu en montre quatre,
+        // deux devant et deux sur la hanche, et ils sonnent le rang
+        for (const dx of [-H * 0.075, H * 0.06]) {
+          sous(g, dx, H * 0.005, (h) => {
+            h.moveTo(0, -H * 0.02);
+            h.lineTo(0, H * 0.01);
+            h.stroke({ color: LIGHT.rim, width: H * 0.007, alpha: 0.85 });
+            poser(h, kk, blob(0, H * 0.028, H * 0.017, H * 0.026, { seed: 23 + dx, points: 12, wobble: 0.2 }), {
+              couleur: LIGHT.rim,
+              matiere: 'tissu',
+              matiereAlpha: 0.24,
+              echelle: 0.3,
+              speculaire: { x: 0.3, y: 0.24, r: 0.16 },
+            });
+            for (let i = 0; i < 3; i += 1) {
+              h.moveTo(-H * 0.012 + i * H * 0.012, H * 0.044);
+              h.lineTo(-H * 0.014 + i * H * 0.013, H * 0.066);
+              h.stroke({ color: eclaircir(LIGHT.rim, 0.15), width: H * 0.005, alpha: 0.8, cap: 'round' });
+            }
           });
         }
+        sous(g, -H * 0.005, H * 0.01, (h) => panneauGrenade(h, kk, H, H * 0.19, H * 0.27, true));
       },
       arme: (g, kk) => {
-        hampe(g, kk, pt(0, H * 0.16), pt(0, -H * 0.62), H * 0.024, CHENE, 11);
-        sous(g, 0, -H * 0.62, (h) => {
-          poser(h, kk, blob(0, -H * 0.02, H * 0.026, H * 0.03, { seed: 5, points: 12, wobble: 0.2 }), {
+        hampe(g, kk, pt(0, H * 0.16), pt(0, -H * 0.66), H * 0.026, CHENE, 11);
+        sous(g, 0, -H * 0.66, (h) => {
+          poser(h, kk, blob(0, -H * 0.02, H * 0.028, H * 0.034, { seed: 5, points: 12, wobble: 0.2 }), {
             couleur: LIGHT.rim,
             matiere: 'metal',
             matiereAlpha: 0.22,
             speculaire: { x: 0.3, y: 0.26, r: 0.18 },
           });
+          // fleuron : la hampe porte une pointe, sinon elle a l'air décapitée
+          h.poly(flat(perturber([pt(-H * 0.012, -H * 0.04), pt(H * 0.012, -H * 0.04), pt(0, -H * 0.09)], 0.5, 9))).fill({
+            color: LIGHT.rim,
+            alpha: 0.92,
+          });
         });
-        // petit étendard brodé de grenades
-        sous(g, H * 0.005, -H * 0.58, (h) =>
-          banniereTissu(h, kk, { w: H * 0.2, h: H * 0.16, couleur: k.pal.primaire, accent: LIGHT.rim, seed: 3 }),
-        );
+        /* La bannière : deux fois l'ancienne, portant la grenade en pleine page.
+           C'est elle qu'on doit voir de l'autre bout de la vallée, pas la hampe. */
+        sous(g, H * 0.02, -H * 0.8, (h) => {
+          banniereTissu(h, kk, { w: H * 0.34, h: H * 0.3, couleur: k.pal.primaire, accent: LIGHT.rim, seed: 3 });
+          const cx = H * 0.17;
+          const cy = H * 0.15;
+          poser(h, kk, blob(cx, cy, H * 0.05, H * 0.055, { seed: 11, points: 15, wobble: 0.14 }), {
+            couleur: LIGHT.rim,
+            matiere: 'tissu',
+            matiereAlpha: 0.2,
+            echelle: 0.3,
+            speculaire: { x: 0.3, y: 0.24, r: 0.14 },
+          });
+          h.poly(
+            flat(perturber([pt(cx - H * 0.014, cy - H * 0.05), pt(cx + H * 0.014, cy - H * 0.05), pt(cx, cy - H * 0.085)], 0.5, 13)),
+          ).fill({ color: LIGHT.rim, alpha: 0.92 });
+          for (let i = 0; i < 4; i += 1) {
+            h.poly(
+              flat(blob(cx - H * 0.026 + i * H * 0.017, cy + (i % 2 ? H * 0.01 : -H * 0.008), H * 0.008, H * 0.008, { seed: i + 5, points: 8, wobble: 0.3 })),
+            ).fill({ color: k.pal.primaire, alpha: 0.9 });
+          }
+        });
       },
       armeAncre: { rot: 0.03 },
     }),
@@ -1398,7 +1910,26 @@ function monturePieces(k: Kit, banneret: boolean): PieceDef[] {
     dessin: (g, kk) => teteCheval(g, kk, Hs * 0.42, robeCheval, banneret, k.seed + 69),
   });
 
-  /* ── le cavalier ── */
+  /* ── le cavalier ──
+   *
+   * **Le cavalier en PLATES : épaulière, heaume à plumail, écu chargé.**
+   *
+   * Le rendu de référence du Chevalier du Forez montre un homme entièrement
+   * harnaché : deux épaulières lamellées qui débordent largement du torse, un
+   * heaume à visière surmonté d'un plumail qui monte aussi haut que la tête, un
+   * écu en amande bordé d'or tenu bien EN AVANT du corps, et la lance couchée
+   * sous l'aisselle. Sur la planche de contact, le cavalier était un piquet
+   * bleu-gris de trente pixels sur la croupe : l'écu était poussé derrière le
+   * buste par l'ordre de dessin, donc invisible ; les épaulières faisaient huit
+   * pixels ; et le plumail n'existait que sur le banneret. On avait deux formes
+   * de rang six où le CHEVAL portait toute la lecture et où l'homme dessus
+   * n'était qu'une tache.
+   *
+   * Trois corrections, dans cet ordre d'importance : l'écu passe DEVANT (il est
+   * empilé après le buste), il double de taille ; les épaulières deviennent des
+   * lames débordantes ; et le chevalier reçoit son plumail, ivoire et grenat,
+   * pour que la tête existe contre le ciel.
+   */
 
   pieces.push({ nom: 'cavalier', parent: 'corps', x: -L * 0.04, y: -Hs * 0.42, ordreMort: 9, dessin: () => {} });
 
@@ -1423,44 +1954,50 @@ function monturePieces(k: Kit, banneret: boolean): PieceDef[] {
   });
 
   pieces.push({
-    nom: 'bouclier',
-    parent: 'bras_d',
-    x: HB * 0.1,
-    y: HB * 0.24,
-    rot: -0.2,
-    lumiere: -0.7,
-    ordreMort: 3,
-    dessin: (g, kk) =>
-      ecu(g, kk, {
-        w: HB * 0.3,
-        h: HB * 0.38,
-        couleur: k.pal.primaire,
-        bord: banneret ? LIGHT.rim : melanger(ACIER, LIGHT.rim, 0.3),
-        meuble: banneret ? 'borne' : 'croix',
-        seed: k.seed + 73,
-      }),
-  });
-
-  pieces.push({
     nom: 'buste',
     parent: 'cavalier',
     x: 0,
     y: 0,
     ordreMort: 9,
     dessin: (g, kk) => {
-      // jambes du cavalier, repliées de part et d'autre de la selle
+      // jambes du cavalier, repliées de part et d'autre de la selle, genou marqué
       for (const cote of [1, -1] as const) {
         sous(g, cote * HB * 0.05, HB * 0.02, (h) => {
-          membre(h, kk, pt(0, 0), pt(cote * HB * 0.16, HB * 0.42), HB * 0.085, {
+          membre(h, kk, pt(0, 0), pt(cote * HB * 0.12, HB * 0.24), HB * 0.1, {
             couleur: cote > 0 ? assombrir(ARDOISE, 0.2) : ARDOISE,
             matiere: 'metal',
             matiereAlpha: 0.2,
             echelle: 0.4,
             seed: k.seed + cote,
           });
-          sous(h, cote * HB * 0.18, HB * 0.44, (c) =>
+          membre(h, kk, pt(cote * HB * 0.12, HB * 0.22), pt(cote * HB * 0.18, HB * 0.44), HB * 0.075, {
+            couleur: cote > 0 ? assombrir(ARDOISE, 0.28) : assombrir(ARDOISE, 0.08),
+            matiere: 'metal',
+            matiereAlpha: 0.2,
+            echelle: 0.4,
+            seed: k.seed + cote * 3,
+          });
+          // genouillère : une écaille de plates, avec son point de lumière
+          poser(h, kk, blob(cote * HB * 0.13, HB * 0.23, HB * 0.05, HB * 0.042, { seed: 7 + cote, points: 12, wobble: 0.2 }), {
+            couleur: melanger(ACIER, ARDOISE, 0.2),
+            matiere: 'metal',
+            matiereAlpha: 0.24,
+            speculaire: { x: 0.3, y: 0.24, r: 0.16 },
+          });
+          sous(h, cote * HB * 0.2, HB * 0.46, (c) =>
             pied(c, kk, { l: HB * 0.14, h: HB * 0.05, couleur: assombrir(ARDOISE, 0.38), seed: 3 }),
           );
+          // étrier : l'anneau sous la botte, qui dit que l'homme est en selle
+          if (cote < 0) {
+            sous(h, cote * HB * 0.2, HB * 0.5, (c) =>
+              poser(c, kk, arcBande(0, 0, HB * 0.05, HB * 0.04, 0.2, 2.94, HB * 0.02, 0), {
+                couleur: melanger(ACIER, LIGHT.rim, banneret ? 0.3 : 0.1),
+                matiere: 'metal',
+                matiereAlpha: 0.24,
+                speculaire: { x: 0.3, y: 0.26, r: 0.14 },
+              }),
+            );
+          }
         });
       }
       const t = lisser(
@@ -1495,18 +2032,64 @@ function monturePieces(k: Kit, banneret: boolean): PieceDef[] {
         orfevrerie(g, [pt(-HB * 0.11, -HB * 0.28), pt(0, -HB * 0.32), pt(HB * 0.11, -HB * 0.27)], { epaisseur: 1.8 });
         orfevrerie(g, [pt(0, -HB * 0.3), pt(0, HB * 0.01)], { epaisseur: 1.6, alpha: 0.7 });
       }
-      // épaulières
+      /* Épaulières lamellées : trois lames par épaule, débordant de moitié
+         au-delà du torse. À huit pixels de large elles ne faisaient rien ; c'est
+         leur DÉBORDEMENT qui donne au cavalier sa carrure de plates, et c'est ce
+         que montre le rendu. */
       for (const cote of [1, -1] as const) {
-        sous(g, cote * HB * 0.14, -HB * 0.31, (h) =>
-          poser(h, kk, blob(0, 0, HB * 0.08, HB * 0.06, { seed: 8, points: 12, wobble: 0.2 }), {
-            couleur: cote > 0 ? assombrir(ACIER, 0.2) : melanger(ACIER, LIGHT.rim, banneret ? 0.28 : 0.05),
+        for (let i = 0; i < 3; i += 1) {
+          const lame = lisser(
+            perturber(
+              densifier(
+                [
+                  pt(cote * HB * 0.06, -HB * (0.33 - i * 0.055)),
+                  pt(cote * HB * (0.24 + i * 0.02), -HB * (0.31 - i * 0.05)),
+                  pt(cote * HB * (0.22 + i * 0.02), -HB * (0.25 - i * 0.05)),
+                  pt(cote * HB * 0.05, -HB * (0.27 - i * 0.055)),
+                ],
+                HB * 0.04,
+              ),
+              HB * 0.006,
+              k.seed + 83 + i * 3 + cote,
+            ),
+            1,
+          );
+          poser(g, kk, lame, {
+            couleur:
+              cote > 0
+                ? assombrir(ACIER, 0.2 + i * 0.05)
+                : melanger(ACIER, LIGHT.rim, (banneret ? 0.28 : 0.06) + i * 0.03),
             matiere: 'metal',
             matiereAlpha: 0.24,
-            speculaire: { x: 0.3, y: 0.24, r: 0.14 },
-          }),
-        );
+            echelle: 0.4,
+            speculaire: { x: 0.3, y: 0.24, r: 0.13 },
+            seed: k.seed + i,
+          });
+        }
       }
     },
+  });
+
+  /* L'écu passe DEVANT le buste : c'est le seul changement qui compte, et il est
+     purement d'ordre d'empilement. Poussé avant `buste`, il disparaissait
+     derrière le torse et le cavalier n'avait pas d'armes parlantes. */
+  pieces.push({
+    nom: 'bouclier',
+    parent: 'bras_d',
+    x: HB * 0.16,
+    y: HB * 0.2,
+    rot: -0.2,
+    lumiere: -0.7,
+    ordreMort: 3,
+    dessin: (g, kk) =>
+      ecu(g, kk, {
+        w: HB * 0.42,
+        h: HB * 0.54,
+        couleur: k.pal.primaire,
+        bord: banneret ? LIGHT.rim : melanger(ACIER, LIGHT.rim, 0.3),
+        meuble: banneret ? 'borne' : 'croix',
+        seed: k.seed + 73,
+      }),
   });
 
   pieces.push({
@@ -1548,18 +2131,42 @@ function monturePieces(k: Kit, banneret: boolean): PieceDef[] {
       }
       if (banneret) {
         orfevrerie(g, [pt(-r * 0.8, -r * 0.5), pt(r * 0.2, -r * 1.16), pt(r * 0.9, -r * 0.6)], { epaisseur: r * 0.13 });
-        // cimier à plume : le banneret veut être vu de l'autre bout de la vallée
-        sous(g, -r * 0.1, -r * 1.2, (h) => {
-          for (let i = 0; i < 3; i += 1) {
-            poser(h, kk, fuseau(i * r * 0.14 - r * 0.14, 0, i * r * 0.24 - r * 0.4, -r * (1 + i * 0.24), r * 0.3, { seed: i, taper: 0.5 }), {
+      }
+      /* Le plumail, sur les DEUX cavaliers. Le rendu du chevalier de base en
+         porte un aussi haut que son heaume, et sans lui la tête du cavalier
+         n'est qu'un galet gris qui se perd dans la croupe du cheval : elle a
+         besoin de quelque chose qui monte contre le ciel. Le banneret le garde
+         plus haut et plus fourni, l'écart de rang tient là. */
+      sous(g, -r * 0.1, -r * 1.2, (h) => {
+        const n = banneret ? 4 : 3;
+        for (let i = 0; i < n; i += 1) {
+          poser(
+            h,
+            kk,
+            fuseau(
+              i * r * 0.14 - r * 0.14,
+              0,
+              i * r * 0.26 - r * 0.46,
+              -r * ((banneret ? 1.3 : 1.05) + i * 0.26),
+              r * 0.34,
+              { seed: i, taper: 0.5 },
+            ),
+            {
               couleur: i % 2 ? IVOIRE : k.pal.primaire,
               matiere: 'plumes',
               matiereAlpha: 0.3,
               echelle: 0.3,
-            });
-          }
+            },
+          );
+        }
+        // douille du cimier : le plumail est planté, il ne pousse pas
+        poser(h, kk, blob(-r * 0.02, r * 0.05, r * 0.2, r * 0.12, { seed: 21, points: 11, wobble: 0.2 }), {
+          couleur: banneret ? LIGHT.rim : melanger(ACIER, LIGHT.rim, 0.25),
+          matiere: 'metal',
+          matiereAlpha: 0.24,
+          speculaire: { x: 0.3, y: 0.24, r: 0.18 },
         });
-      }
+      });
     },
   });
 

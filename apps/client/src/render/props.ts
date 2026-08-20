@@ -21,6 +21,7 @@ import { oscillationProp } from '../art/props.js';
 import { LIGHT, PALETTE, melanger } from '../art/palette.js';
 import type { ViewQuality } from '../view-contract.js';
 import { TER, alea, borne, xEcran, yEcran } from './commun.js';
+import { accepte, cantonDe, pretDeLaVoie } from './cantons.js';
 import type { Cadrage } from './commun.js';
 
 const BLOC = 32;
@@ -195,6 +196,15 @@ export class SemisProps {
         const pente = w.slope[index];
         const alt = w.elevation[index];
 
+        /*
+         * Le pays d'abord : c'est lui qui dit combien il pousse ici et quoi.
+         * Le terrain garde le dernier mot sur ce qui PEUT pousser — on ne met
+         * pas un muret dans une tourbière — mais entre deux silhouettes qu'il
+         * accepte, c'est le canton qui choisit. Sans cela, une prairie de la
+         * Marche et une prairie des Hauts d'Arconsat étaient le même tableau.
+         */
+        const canton = cantonDe(w.region[index]);
+
         let chance = 0;
         let choix: PropKey = 'buisson';
         switch (t) {
@@ -273,8 +283,42 @@ export class SemisProps {
          * masquer ou dépasser l'objet. Le sous-bois menu reste, et c'est lui qui
          * rend la clairière crédible.
          */
+        /*
+         * Le bâti de décor : un hameau, un clocher, une tour de guet, un moulin.
+         * Rare, au bord d'une voie, hors clairière d'un lieu visitable — et
+         * jamais en forêt ni sur l'eau, ce dont la table de compatibilité du
+         * canton se charge. Ces quatre silhouettes dormaient dans l'atlas : la
+         * carte n'en portait pas une seule.
+         */
+        let impose = false;
+        if (canton.bati.length > 0 && this.clairieres[index] !== 1) {
+          const dBati = alea(col, row, 811);
+          if (dBati < canton.chanceBati) {
+            const quel = canton.bati[Math.floor(alea(col, row, 823) * canton.bati.length)];
+            if (accepte(quel, t) && pretDeLaVoie(w, col, row)) {
+              choix = quel;
+              impose = true;
+            }
+          }
+        }
+
+        /* La signature du pays, substituée au tirage du terrain quand le terrain
+           l'accepte : les aiguilles de Vollore, les murets de Cervières, les
+           souches noyées des sagnes. */
+        if (!impose && canton.signature.length > 0) {
+          const dSig = alea(col, row, 829);
+          if (dSig < canton.force) {
+            const quel =
+              canton.signature[Math.floor(alea(col, row, 839) * canton.signature.length)];
+            if (accepte(quel, t)) choix = quel;
+          }
+        }
+
         if (this.clairieres[index] === 1 && TROP_HAUT.has(choix)) continue;
-        if (tirage > chance * this.densite) continue;
+        /* Le bâti a déjà passé son propre tirage : il ne repasse pas celui du
+           couvert végétal, sans quoi un hameau ne sortirait qu'une fois sur
+           mille et l'on croirait la table cassée. */
+        if (!impose && tirage > chance * this.densite * canton.densite) continue;
 
         const variante = Math.floor(alea(col, row, 307) * 5);
         const jx = alea(col, row, 401) * 0.86 + 0.07;
