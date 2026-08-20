@@ -458,8 +458,29 @@ le plancher de garnison. Chercher du côté de la reconstitution d'armée après
 défaite : un héros au niveau quatre après quatre-vingt-dix-huit combats meurt et
 recommence.
 
-Reste aussi le taux de victoire par capitale en partie à cinq, jamais mesuré
-(cible 18 à 22 % chacune, document maître §20.3).
+*La partie à CINQ bannières, mesurée le 20/08 — et c'est le mode que les cousins
+joueront :* `pnpm sim --players 5 --games 5`, plafond 900 tours.
+
+- **5 parties sur 5 décidées par un vainqueur**, durée moyenne 208 jours ;
+- un sceau levé dans les cinq parties (le premier vers le jour 71 à 105) ;
+- et la cinquième s'achève par une **vraie conquête** — « dernière bannière
+  debout », l'expert élimine ses quatre rivaux en 148 jours avec sept cités.
+  C'est la première fois : la note d'audit disait « aucune conquête achevée à
+  cinq bannières » ;
+- éliminations nombreuses dans toutes les parties (trois bannières sur cinq
+  éteintes en partie 4), donc la conquête mord réellement ;
+- réflexion de l'IA : **52 ms en moyenne, pire tour 232 ms** — le brief accorde
+  400 ms en début de partie et 1,5 s en fin ;
+- zéro commande refusée au rejeu.
+
+Victoires par profil sur ce petit échantillon : expert 4/7, équilibré 1/6,
+agressif 0/6, prudent 0/6. C'est un classement de profils, pas la mesure du
+document maître.
+
+*Ce qui reste vraiment non mesuré :* le taux de victoire par CAPITALE en partie à
+cinq (cible 18 à 22 % chacune, §20.3). Il faut une centaine de parties pour que
+le chiffre veuille dire quelque chose, soit près de deux heures et demie de
+simulation — c'est faisable, mais ce n'est pas cinq parties.
 
 *Ancien libellé, conservé pour mémoire :* Après P0.1 : `pnpm sim`
 20 parties × 3 graines ; ajuster revenus/coûts/croissance jusqu'aux cibles
