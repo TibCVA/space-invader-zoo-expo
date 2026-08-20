@@ -10,6 +10,7 @@
 import { Graphics } from 'pixi.js';
 import type { FactionPalette } from '../palette.js';
 import {
+  ANGLE_LUMIERE,
   FACTION_PALETTE,
   LIGHT,
   assombrir,
@@ -235,7 +236,7 @@ export function visage(
     g.poly(flat(b)).fill({ fill: degradeLineaire([
       { offset: 0, color: eclaircir(c, 0.3) },
       { offset: 1, color: ombreBleutee(c, 0.5) },
-    ], 135), alpha: 0.94 });
+    ], ANGLE_LUMIERE), alpha: 0.94 });
     lisereLumiere(g, b, c, { force: 0.6, largeur: 1.1 });
   }
   // lumière chaude sur la pommette côté nord-ouest

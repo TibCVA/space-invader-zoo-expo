@@ -12,6 +12,7 @@
 
 import { Container, Graphics, Matrix, Text, TextStyle, FillPattern } from 'pixi.js';
 import {
+  ANGLE_LUMIERE,
   LIGHT,
   PALETTE,
   assombrir,
@@ -167,7 +168,7 @@ export function panneau(
         { offset: 0.84, color: assombrir(base, 0.16) },
         { offset: 1, color: ombreBleutee(base, 0.42) },
       ],
-      135,
+      ANGLE_LUMIERE,
     ),
     alpha,
   });
@@ -373,7 +374,7 @@ export function plaqueNombre(
         { offset: 0.55, color: PALETTE.parchemin },
         { offset: 1, color: ombreBleutee(PALETTE.parcheminOmbre, 0.4) },
       ],
-      135,
+      ANGLE_LUMIERE,
     ),
   });
   const motif = new FillPattern({ texture: mats.parchemin, repetition: 'repeat' });

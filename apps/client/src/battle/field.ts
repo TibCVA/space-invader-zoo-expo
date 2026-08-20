@@ -30,6 +30,7 @@ import type { ArtAtlas } from '../art/index.js';
 import type { PropKey } from '../art/props.js';
 import { oscillationProp } from '../art/props.js';
 import {
+  ANGLE_LUMIERE,
   LIGHT,
   PALETTE,
   assombrir,
@@ -398,7 +399,7 @@ function detailHumide(g: Graphics, cadre: Cadre, pal: PaletteSol, force: number)
           { offset: 0.45, color: melanger(PALETTE.bleuProfond, PALETTE.bleuBrume, 0.35) },
           { offset: 1, color: ombreBleutee(PALETTE.bleuProfond, 0.6) },
         ],
-        135,
+        ANGLE_LUMIERE,
       ),
       alpha: 0.62,
     });

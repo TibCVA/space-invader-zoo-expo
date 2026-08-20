@@ -16,6 +16,7 @@
 import { Matrix, Texture, FillGradient, FillPattern } from 'pixi.js';
 import type { Graphics, ColorSource } from 'pixi.js';
 import {
+  ANGLE_LUMIERE,
   LIGHT,
   assombrir,
   contourTeinte,
@@ -405,8 +406,14 @@ export function degradeRadial(stops: Stop[], center: Pt = { x: 0.5, y: 0.5 }): F
 }
 
 /**
- * Dégradé « éclairage » standard d'une surface : cinq arrêts, du creux d'ombre
- * bleuté à la haute lumière ambrée, orienté selon le soleil (315°).
+ * Dégradé « éclairage » standard d'une surface : cinq arrêts, de la haute
+ * lumière ambrée au creux d'ombre bleuté, orienté par la loi n°2 —
+ * `ANGLE_LUMIERE`, déduit du soleil déclaré et non recopié.
+ *
+ * L'en-tête annonçait « orienté selon le soleil (315°) » quand le code passait
+ * 135, soit la haute lumière au nord-EST. Comme cette fonction peint tout
+ * l'atlas, l'erreur mettait chaque surface à quatre-vingt-dix degrés de ses
+ * propres ombres portées.
  */
 export function degradeSurface(base: number, force = 1): FillGradient {
   return degradeLineaire(
@@ -417,7 +424,7 @@ export function degradeSurface(base: number, force = 1): FillGradient {
       { offset: 0.78, color: demiTeinte(base) },
       { offset: 1, color: ombreBleutee(base, 0.65 * force) },
     ],
-    135,
+    ANGLE_LUMIERE,
   );
 }
 

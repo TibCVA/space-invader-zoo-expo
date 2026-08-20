@@ -80,6 +80,26 @@ export const LIGHT = {
   atmoDistance: 1400,
   atmoMax: 0.55,
 } as const;
+/**
+ * Angle à donner à `degradeLineaire` pour un dégradé d'ÉCLAIRAGE, en degrés.
+ *
+ * Il se déduit de la loi n°2 et ne se recopie pas. Un dégradé de surface va du
+ * clair vers l'ombre : sa direction est donc `toShadow`, et l'angle est
+ * l'argument de ce vecteur en repère écran — 45°, la première teinte tombant
+ * en haut à gauche, c'est-à-dire au nord-ouest.
+ *
+ * Il était écrit en dur à **135** en cinq endroits, dont `degradeSurface`, qui
+ * peint tout l'atlas — et dont l'en-tête annonçait pourtant « orienté selon le
+ * soleil (315°) ». À 135°, `cos` et `sin` donnent (−0,707 ; +0,707) : la
+ * première teinte tombe en haut à DROITE, la haute lumière passe au nord-est
+ * et l'objet est éclairé à quatre-vingt-dix degrés de tous ses voisins et de
+ * ses propres ombres portées. Tant que le dégradé rendait un aplat, la
+ * contradiction ne se voyait pas ; depuis qu'il peint, elle se voit.
+ */
+export const ANGLE_LUMIERE = Math.round(
+  (Math.atan2(LIGHT.toShadow.y, LIGHT.toShadow.x) * 180) / Math.PI,
+);
+
 
 /* ───────────────────────── Palettes de faction ──────────────────────────── */
 

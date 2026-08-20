@@ -12,7 +12,16 @@ import { ARTIFACTS, HEROES, SKILLS, SPELLS } from '@auvergne/content';
 import { MAP_OBJECT_KINDS } from '@auvergne/engine';
 import type { MaterialSet } from './shading.js';
 import { blob, centroid, clipHalfPlane, flat, perturber, pt, signedArea } from './shading.js';
-import { assombrir, eclaircir, luminance, melanger, perspectiveAtmospherique, toRgb } from './palette.js';
+import {
+  ANGLE_LUMIERE,
+  LIGHT,
+  assombrir,
+  eclaircir,
+  luminance,
+  melanger,
+  perspectiveAtmospherique,
+  toRgb,
+} from './palette.js';
 import { fbm, hashString, valueNoise } from './noise.js';
 import { CREATURE_IDS, construireCreature } from './creatures/index.js';
 import { MAP_ICONS, MAP_ICON_LABELS, clesIconesCarte, dessinerIconeCarte } from './map-icons.js';
@@ -386,5 +395,43 @@ describe('décor', () => {
       expect(def.w, key).toBeGreaterThan(0);
       expect(def.h, key).toBeGreaterThan(0);
     }
+  });
+});
+
+/**
+ * La loi n°2 : une seule lumière, et personne ne la contredit.
+ *
+ * `degradeSurface` peint tout l'atlas, et son angle était écrit en dur à 135°
+ * alors que son propre en-tête annonçait « orienté selon le soleil (315°) ».
+ * À 135°, `cos` et `sin` valent (−0,707 ; +0,707) : la première teinte tombe en
+ * haut à DROITE, la haute lumière passe au nord-est, et chaque surface se
+ * retrouve éclairée à quatre-vingt-dix degrés de ses propres ombres portées.
+ * Quatre autres sites — les deux parchemins du combat, la flaque du champ, la
+ * barbe des créatures — recopiaient la même valeur fausse.
+ *
+ * Tant que `degradeLineaire` rendait un aplat, la contradiction ne se voyait
+ * pas. Depuis qu'elle peint, elle se voit — et c'est *pourquoi* les créatures
+ * étaient noires : à 135° le `clamp-to-edge` renvoyait l'arrêt le plus sombre.
+ *
+ * Le test ne vérifie pas « 45 » : il vérifie que l'angle SE DÉDUIT du soleil
+ * déclaré, et qu'aucun fichier d'art ne passe plus d'angle d'éclairage en dur.
+ */
+describe('loi n°2 — l’angle d’éclairage', () => {
+  it('se déduit du soleil déclaré, il ne se recopie pas', () => {
+    const attendu = Math.round((Math.atan2(LIGHT.toShadow.y, LIGHT.toShadow.x) * 180) / Math.PI);
+    expect(ANGLE_LUMIERE).toBe(attendu);
+  });
+
+  it('met la haute lumière au nord-ouest, comme les ombres le supposent', () => {
+    // Un dégradé clair → ombre orienté ANGLE_LUMIERE : son offset 0 doit
+    // tomber du côté du soleil, donc en haut à gauche en repère écran.
+    const a = (ANGLE_LUMIERE * Math.PI) / 180;
+    const versOmbre = { x: Math.cos(a), y: Math.sin(a) };
+    // La direction du dégradé et celle des ombres portées doivent coïncider.
+    expect(versOmbre.x).toBeCloseTo(LIGHT.toShadow.x, 2);
+    expect(versOmbre.y).toBeCloseTo(LIGHT.toShadow.y, 2);
+    // Et le soleil est bien l'opposé : en haut à gauche.
+    expect(LIGHT.toSun.x).toBeLessThan(0);
+    expect(LIGHT.toSun.y).toBeLessThan(0);
   });
 });
