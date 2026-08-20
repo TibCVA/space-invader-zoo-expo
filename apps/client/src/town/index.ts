@@ -63,7 +63,7 @@ import {
 } from './panorama.js';
 import type { CadreCite } from './panorama.js';
 import { Banniere, Eau, Habitants, Lumieres, Oiseaux } from './vie.js';
-import { brancherPincement, echelleBornee } from '../pincement.js';
+import { brancherPincement, echelleBornee, gardePincement } from '../pincement.js';
 
 /* ═══════════════════════════════ Réglages ════════════════════════════════ */
 
@@ -317,6 +317,7 @@ class TableauCite implements TownView {
     const toile = deps.app.canvas as HTMLCanvasElement | undefined;
     if (toile && typeof toile.addEventListener === 'function') {
       this.debrancherPince = brancherPincement(toile, {
+        surFin: this.gardePince.surFin,
         surPincement: (g) => {
           if (this.detruit) return;
           const { echelle, applique } = echelleBornee(this.zoom, g.facteur, 1, ZOOM_CITE_MAX);
@@ -910,8 +911,16 @@ class TableauCite implements TownView {
     }
   };
 
+  /** Le relâché qui clôt un pincement n'est pas un clic. */
+  private readonly gardePince = gardePincement();
+
   private readonly surClic = (e: FederatedPointerEvent): void => {
     if (this.detruit) return;
+    /* Le relâché qui clôt un pincement n'est pas un choix de bâtiment :
+       `brancherPincement` demande à l'appelant d'ignorer le prochain relâché,
+       et `surFin` est là pour cela. Sans cette garde, lever les doigts après
+       un zoom sélectionnait le bâtiment qui se trouvait dessous. */
+    if (this.gardePince.avaleLeClic()) return;
     const p = e.getLocalPosition(this.racine);
     const cible = this.cibleSous(p.x, p.y);
     if (cible.kind === 'porte') this.deps.onLeave?.();

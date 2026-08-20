@@ -145,3 +145,42 @@ export function echelleBornee(
   const echelle = Math.max(min, Math.min(max, voulue));
   return { echelle, applique: actuelle === 0 ? 1 : echelle / actuelle };
 }
+
+/**
+ * La garde du relâché : un pincement qui se termine ne vaut pas un clic.
+ *
+ * `brancherPincement` annonce dans son contrat que l'appelant doit « ignorer
+ * le prochain relâché », et lui tend `surFin` pour cela. Les deux scènes qui
+ * s'en servaient — la cité et le champ de bataille — branchaient bien
+ * `surPincement` mais ne fournissaient jamais `surFin` : le garde-fou existait
+ * et n'était appelé de nulle part.
+ *
+ * La conséquence se payait au tour près. Au combat, lever les doigts après un
+ * zoom émettait un `pointertap` sur l'hexagone qui se trouvait dessous, donc
+ * un déplacement ou une attaque — l'action du tour était consommée par le
+ * geste de regarder. Dans la cité, le même relâché sélectionnait ou lançait la
+ * construction du bâtiment sous les doigts.
+ *
+ * On en fait un objet minuscule plutôt que trois lignes recopiées dans chaque
+ * scène : la règle est la même partout, et elle se teste.
+ */
+export interface GardePincement {
+  /** à passer en `surFin` de `brancherPincement` */
+  surFin: () => void;
+  /** vrai si ce clic-ci doit être avalé ; le consomme au passage */
+  avaleLeClic: () => boolean;
+}
+
+export function gardePincement(): GardePincement {
+  let enAttente = false;
+  return {
+    surFin: (): void => {
+      enAttente = true;
+    },
+    avaleLeClic: (): boolean => {
+      if (!enAttente) return false;
+      enAttente = false;
+      return true;
+    },
+  };
+}

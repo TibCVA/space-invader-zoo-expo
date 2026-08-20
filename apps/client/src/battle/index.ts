@@ -66,7 +66,7 @@ import { CoucheUnites, campsDuCombat, vignettePile, type Camp } from './units.js
 import { BarreInitiative } from './initiative.js';
 import { CarteApercu, construireApercu, enrichirApercu, libelleEffet, type ApercuComplet } from './preview.js';
 import { poserCarteAmarree } from './amarrage.js';
-import { brancherPincement, echelleBornee } from '../pincement.js';
+import { brancherPincement, echelleBornee, gardePincement } from '../pincement.js';
 import { PanneauSorts, couleurEcole, sortConnu, type EntreeSort } from './spells.js';
 import { Fortifications } from './siege.js';
 import { CoucheVfx } from './vfx.js';
@@ -1416,6 +1416,7 @@ class VueCombat implements BattleView {
     const toile = this.deps.app.canvas as HTMLCanvasElement | undefined;
     if (toile && typeof toile.addEventListener === 'function') {
       this.debrancherPince = brancherPincement(toile, {
+        surFin: this.gardePince.surFin,
         surPincement: (g) => {
           if (this.detruit) return;
           const { echelle, applique } = echelleBornee(this.zoom, g.facteur, 1, ZOOM_COMBAT_MAX);
@@ -1435,6 +1436,9 @@ class VueCombat implements BattleView {
    * appartient à la coquille, qui le centre : on ne touche qu'à son échelle,
    * et le déplacement passe par la racine, en unités locales.
    */
+  /** Le relâché qui clôt un pincement n'est pas un clic. */
+  private readonly gardePince = gardePincement();
+
   private appliquerZoom(): void {
     const marge = (taille: number): number => Math.max(0, (taille * (this.zoom - 1)) / 2);
     const mx = marge(this.largeur);
@@ -1514,6 +1518,17 @@ class VueCombat implements BattleView {
 
   private surClic(e: FederatedPointerEvent): void {
     if (this.detruit) return;
+    /*
+     * Le relâché qui clôt un pincement n'est pas une visée.
+     *
+     * `brancherPincement` le dit dans son contrat — « à charge pour l'appelant
+     * d'ignorer le prochain relâché » — et expose `surFin` pour cela. Les deux
+     * scènes branchaient `surPincement` sans jamais fournir `surFin` : le
+     * garde-fou existait et n'était appelé de nulle part. Au combat, lever les
+     * doigts après un zoom émettait donc un déplacement ou une attaque sur
+     * l'hexagone qui se trouvait dessous — et consommait l'action du tour.
+     */
+    if (this.gardePince.avaleLeClic()) return;
     const p = this.local(e);
 
     /* 1 — les boutons d'action */

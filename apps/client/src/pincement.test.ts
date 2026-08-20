@@ -17,7 +17,12 @@
  *    pincé fuir sous les doigts.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { brancherPincement, echelleBornee, type GestePincement } from './pincement.js';
+import {
+  brancherPincement,
+  echelleBornee,
+  gardePincement,
+  type GestePincement,
+} from './pincement.js';
 
 /** Un élément minimal : `brancherPincement` n'a besoin que de ces trois-là. */
 function faussElement(): HTMLElement & { emettre: (type: string, e: object) => void } {
@@ -147,5 +152,37 @@ describe('échelle bornée', () => {
         expect(r.echelle).toBeLessThanOrEqual(3);
       }
     }
+  });
+});
+
+describe('la garde du relâché', () => {
+  /*
+   * C'est un test de règle du jeu, pas de géométrie : au combat, un relâché
+   * pris pour une visée émet un déplacement ou une attaque sur l'hexagone
+   * sous les doigts, et l'action du tour est perdue pour avoir voulu regarder
+   * de plus près.
+   */
+  it('avale le clic qui clôt un pincement, et lui seul', () => {
+    const garde = gardePincement();
+    // Sans pincement, un clic est un clic.
+    expect(garde.avaleLeClic()).toBe(false);
+    // Un pincement se termine : le relâché suivant ne compte pas...
+    garde.surFin();
+    expect(garde.avaleLeClic()).toBe(true);
+    // ...mais le clic d'après, oui.
+    expect(garde.avaleLeClic()).toBe(false);
+  });
+
+  it('est bien celle que reçoit `brancherPincement`, du premier au dernier doigt', () => {
+    const el = faussElement();
+    const garde = gardePincement();
+    brancherPincement(el, { surPincement: () => {}, surFin: garde.surFin });
+
+    el.emettre('pointerdown', doigt(1, 0, 0));
+    el.emettre('pointerdown', doigt(2, 40, 0));
+    el.emettre('pointermove', { ...doigt(2, 80, 0), preventDefault: (): void => {} });
+    // Un seul doigt levé : le geste n'est pas fini, rien à avaler.
+    el.emettre('pointerup', doigt(1, 0, 0));
+    expect(garde.avaleLeClic()).toBe(true);
   });
 });
