@@ -521,13 +521,32 @@ function loupPieces(k: Kit, brumes: boolean): PieceDef[] {
       });
     },
     surTronc: (g, kk) => {
-      // collerette de garrot, plus fournie chez le loup des brumes
-      const n = brumes ? 9 : 6;
+      /*
+       * Les POILS HÉRISSÉS, sur toute l'échine.
+       *
+       * La collerette ne couvrait qu'un empan à l'épaule — six touffes sur un
+       * cinquième du dos — et le reste de la ligne dorsale était une masse lisse.
+       * Vu sur la planche de contact une fois les bêtes affichées à taille
+       * lisible, cela rendait une planche posée sur quatre bâtons. Or c'est
+       * exactement là que le rendu de référence met la silhouette du loup : une
+       * crête de poils dressés qui court de la queue à la nuque, la plus haute au
+       * garrot, ourlée de lumière chaude. C'est elle qui fait la bête qui gronde
+       * plutôt que le chien qui passe.
+       *
+       * Le profil de hauteur est une cloche : basse sur la croupe, maximale au
+       * garrot, retombant sur la nuque. Les touffes alternent clair et sombre, et
+       * une sur deux prend le liseré — sans cette alternance, dix-huit fuseaux du
+       * même ton refont une masse lisse, et l'on n'aurait rien gagné.
+       */
+      const n = brumes ? 18 : 15;
       for (let i = 0; i < n; i += 1) {
         const t = i / (n - 1);
-        const x = L * (0.08 + t * 0.22);
-        poser(g, kk, fuseau(x, -Hs * 0.3, x - L * 0.03, -Hs * (0.44 + t * 0.1), Hs * 0.16, { seed: i + 3, taper: 0.55 }), {
-          couleur: i % 2 ? eclaircir(poil, 0.24) : assombrir(poil, 0.22),
+        const x = L * (-0.42 + t * 0.76);
+        /* Cloche centrée au garrot, à peu près aux trois quarts de l'échine. */
+        const cloche = Math.sin(Math.PI * Math.min(1, Math.max(0, (t + 0.18) / 1.18)));
+        const haut = Hs * (0.34 + 0.3 * cloche * cloche);
+        poser(g, kk, fuseau(x, -Hs * 0.28, x - L * 0.028, -haut, Hs * (0.1 + 0.06 * cloche), { seed: i + 3, taper: 0.5 }), {
+          couleur: i % 2 ? eclaircir(poil, 0.24) : assombrir(poil, 0.24),
           matiere: 'fourrure',
           matiereAlpha: 0.3,
           echelle: 0.3,

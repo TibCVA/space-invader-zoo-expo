@@ -354,25 +354,49 @@ export async function renderArtSheet(
   /* ── 2. décor ── */
   section('Décor — quatorze objets, trois à cinq variantes chacun');
   {
+    /*
+     * Les variantes tiennent dans leur case, et c'était faux.
+     *
+     * L'échelle se calculait sur `def.w` et `def.h` — la boîte de DESSIN d'un
+     * décor — alors que la texture de l'atlas est rendue à une autre résolution.
+     * Un sapin de cent unités de large sortait donc de l'atlas à trois fois
+     * cette taille, et cinq variantes mises côte à côte débordaient sur trois
+     * cases : les arbres et les maisons se recouvraient les uns les autres et
+     * masquaient les libellés. Quatorze décors étaient invisibles, comme les
+     * créatures l'étaient avant qu'on cesse de plafonner leur échelle.
+     *
+     * On mesure donc la TEXTURE, et l'on partage la largeur de la case entre le
+     * nombre de variantes. Une seule échelle pour toutes celles d'un même décor :
+     * ce sont des variantes, pas des tailles différentes.
+     */
     const items: { contenu: Container; texte: string; sousTitre?: string }[] = [];
+    const CASE_L = 188;
+    const CASE_H = 186;
     for (const key of PROP_KEYS) {
       const def = PROPS[key];
       const boite = new Container();
-      const dispo = 152;
-      const echelle = Math.min(1, dispo / def.w, 132 / def.h);
-      let x = 0;
+      const sprites: Sprite[] = [];
+      let plusLarge = 1;
+      let plusHaut = 1;
       for (let v = 0; v < def.variantes; v += 1) {
         const s = new Sprite(atlas.prop(key, v));
         s.anchor.set(0.5, 1);
-        s.scale.set(echelle * (0.9 / Math.max(0.5, def.variantes / 4)));
-        s.position.set(x, 146);
-        boite.addChild(s);
-        x += (def.w * echelle * 0.62) / Math.max(1, def.variantes / 3);
+        sprites.push(s);
+        plusLarge = Math.max(plusLarge, s.texture.width);
+        plusHaut = Math.max(plusHaut, s.texture.height);
       }
-      boite.position.set(94 - x / 2, 0);
+      const pas = (CASE_L - 16) / def.variantes;
+      /* Les silhouettes se chevauchent d'un dixième : un bosquet, pas une
+         parade — mais jamais assez pour cacher la voisine. */
+      const k = Math.min((pas * 1.1) / plusLarge, (CASE_H - 46) / plusHaut);
+      sprites.forEach((s, v) => {
+        s.scale.set(k);
+        s.position.set(8 + pas * (v + 0.5), CASE_H - 44);
+        boite.addChild(s);
+      });
       items.push({ contenu: boite, texte: PROP_LABELS[key], sousTitre: `${def.variantes} variantes` });
     }
-    grille(items, 188, 186, 7);
+    grille(items, CASE_L, CASE_H, 7);
   }
 
   /* ── 3. pinceaux de terrain ── */
