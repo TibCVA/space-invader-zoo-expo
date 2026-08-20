@@ -19,8 +19,16 @@
 4. **Toute insertion d'appels RNG dans `buildObjects` décale tout l'aval.**
    Après quoi : `cd apps/worker && npx tsx src/carte.ts` — cibles : une case
    praticable sur **35 à 50**, 0 bloc **14 × 14** vide, glaneur ≥ 2,5/j,
-   composante praticable unique, ≥ 12 points d'articulation — puis
-   `npx vitest run packages/map`.
+   composante praticable unique, **coupe entre capitales ≤ 6**, ≥ 12 % d'infran-
+   chissable — puis `npx vitest run packages/map apps/worker`.
+   **La cible « ≥ 12 points d'articulation » est retirée, et c'était une erreur
+   de grandeur, pas de valeur** : un point d'articulation exige un passage
+   UNIQUE, alors que le générateur de HMM3 relie ses zones par « un à trois ».
+   Une frontière percée de deux cols n'a aucun point d'articulation, et viser ce
+   nombre poussait à bâtir des couloirs uniques. Ce qui se mesure désormais est
+   la **coupe** : le nombre de cases à boucher pour séparer deux capitales
+   (`apps/worker/src/coupe.ts`, flot maximal à capacités unitaires sur les cases).
+   Une image de la structure : `npx tsx src/carte-image.ts /tmp/carte.png`.
    **Se méfier de toute constante qui est une longueur en cases** : depuis que
    la carte fait 113 × 184, une distance écrite en dur porte deux fois plus
    loin qu'avant. Les demander en fraction de `COLS`/`ROWS`/`CELLS`.
@@ -154,12 +162,12 @@ parties à cinq n'achève une conquête** : elles se règlent au classement
 d'observation du harnais. C'est un sujet d'équilibrage et d'IA, pas d'échelle
 — à noter pour la suite.
 
-**Ce qui a EMPIRÉ et qu'il faut traiter (voir P0.4 ci-dessous) :** les points
-d'articulation tombent de 14 à **4** pour une cible de 12. Ce n'est pas une
-régression du semis : les 14 d'avant étaient un artefact de la pente
-surestimée d'un facteur 2,27, qui fabriquait des barres rocheuses partout.
-La mesure corrigée dit la vérité — **le relief ne ferme pas les zones**, et
-c'est exactement le chantier déjà inscrit au plan.
+**Ce qui a EMPIRÉ et a été traité depuis (voir §1 quinquies) :** les points
+d'articulation tombaient de 14 à **4**. Ce n'était pas une régression du semis :
+les 14 d'avant étaient un artefact de la pente surestimée d'un facteur 2,27, qui
+fabriquait des barres rocheuses partout. La mesure corrigée disait la vérité —
+**le relief ne fermait pas les zones**. Il les ferme maintenant, et l'on ne
+mesure plus cela en points d'articulation, qui étaient la mauvaise grandeur.
 
 ## 1 quater. Audit du 20/08 — ce que le code dit, contre ce que ce document disait
 
@@ -186,13 +194,13 @@ liée à l'union de types par deux assertions — retirer un genre de la liste n
 compile plus. Trois tests en découlent, dont « deux genres ne partagent jamais
 un dessin », qui est la faute exacte qui s'était installée.
 
-**Non corrigé, et c'est le premier réglage à reprendre : les croissances de
-créatures ne sont pas celles de HMM3.** 18/12/8/6/4/2/1 au lieu de
-14/9/7/5/4/3/2 — rangs 1 à 4 très au-dessus, rangs 6 et 7 en dessous. La
-Citadelle et le Château sont bien là (×1,5 puis ×2, quatre tours au siège),
-mais la table témoin de `balance.test.ts:32-45` fige les anciennes valeurs :
-aucun test ne pouvait rougir. C'est le réglage qui gouverne le rythme de toute
-la partie, donc à reprendre AVANT tout étalonnage par simulation.
+**~~Non corrigé~~ CORRIGÉ depuis : les croissances de créatures.** Elles étaient
+18/12/8/6/4/2/1 au lieu des valeurs de HMM3, et la table témoin de
+`balance.test.ts` figeait les anciennes, si bien qu'aucun test ne pouvait rougir.
+Elles valent maintenant **14/9/7/5/3/2/1** sur les deux factions — vérifié contre
+heroes.thelazy.net avant d'écrire, et attention : la passation elle-même
+annonçait « 14/9/7/5/4/3/2 », ce qui est FAUX sur les trois derniers rangs. La
+Citadelle et le Château sont là (×1,5 puis ×2, quatre tours au siège).
 
 **Ce que l'audit a précisé sur les autres chantiers :**
 
@@ -204,16 +212,104 @@ la partie, donc à reprendre AVANT tout étalonnage par simulation.
 | P0.2c densité d'obstacles | à faire | table d'origine intacte ; l'icône épée/flèche n'est posée que sur la case du curseur, et sur téléphone le toucher attaque aussitôt — elle n'est donc quasi jamais vue |
 | P1.5 rampes du champ | à faire | **une seule ligne** a changé dans `field.ts` depuis le correctif des dégradés, et ce n'était pas un arrêt de rampe (mesure : luminance 89,6 pour une cible à 95) |
 | P1.5 angle du soleil | à faire | `degradeSurface` passe toujours 135 quand son propre en-tête annonce 315 ; idem `parchemin.ts:170,376`, `archetypes.ts:238` |
-| P1.7 resculpture | à faire | **impossible qu'elle ait eu lieu** : les fichiers de créature datent de 18 h AVANT l'arrivée des rendus de référence. Vu sur planche de contact : les formes sont très frustes (le sanglier est une caisse sur pattes) |
-| P2.9 revue | à faire | 3 scènes sur 14 n'ont **jamais** été capturées une seule fois : `cite_granit`, `cite_ermitage`, `diagnostic` |
+| P1.7 resculpture | à faire | commencé le 20/08, voir §1 quinquies. Le constat « le sanglier est une caisse sur pattes » était juste ET amplifié par le cadrage de la planche, qui affichait les bêtes en timbre-poste |
+| P2.9 revue | à faire | fait le 20/08 : les 3 scènes jamais capturées l'ont été, et le diagnostic y a laissé deux défauts |
 | P2.11 déploiement | fait | outillage **sain** — jeton lu uniquement dans l'environnement, jamais imprimé, jamais passé en argument, portes de qualité avant envoi. Mais **la version en ligne précède le correctif du gel de partie** : le jeu déployé gèle deux parties sur quatre. Et `RAILWAY_GIT_COMMIT_SHA` n'étant pas défini, `/health` annonce « commit inconnu » |
 | « Raccordement des matières » (plan.md) | à faire | **fait** — les huit matières sont consommées dans `town/index.ts:86-93` |
 
-**Deux dettes de test à connaître :** les 30 cas qui valident le correctif des
-dégradés vivent dans `__epreuve/`, qui est dans `.gitignore` — ils n'existent
-pas dans l'historique. Et il n'y a **aucun garde-fou** sur les seuils de la
-carte (part d'infranchissable, articulations) : la prochaine remise à l'échelle
-les refera tomber en silence.
+**Les deux dettes de test signalées ici sont réglées.** Les 30 cas des dégradés
+obliques sont revenus dans l'historique, et les seuils de la carte sont tenus par
+`apps/worker/src/carte.test.ts` — qui exige les cibles du plan, mesure l'intégrité
+de chaque mur de crête et la coupe des dix paires de capitales.
+
+## 1 quinquies. Session du 20/08 — la carte reçoit un front
+
+**P0.4 est CLOS**, et il a fallu changer deux fois d'instrument pour s'en
+apercevoir. Le récit, parce que l'erreur est instructive :
+
+1. Rendre le rocher infranchissable et abaisser `CLIFF_SLOPE` de 17 à 13 a porté
+   l'infranchissable de 3,2 % à 7,95 % et les points d'articulation de 4 à 23.
+   Cible « ≥ 12 » dépassée, chantier clos — c'est ce qu'on a écrit.
+2. C'était faux. Un compte des **vrais goulets** — les articulations qui
+   détachent un morceau de carte de plus de vingt-cinq cases — en trouve
+   **zéro** sur les vingt-trois. Ce sont vingt-trois culs-de-sac : la pointe
+   d'une presqu'île, le fond d'une combe. Un cul-de-sac ne se force pas, on n'y
+   va pas.
+3. Le balayage complet du seuil dit la forme du problème plutôt que son remède :
+   0 goulet à 13, 7 à 11, 8 à 10, 7 à 9, pendant que les articulations brutes
+   montent à 158 et que la « forte pente » disparaît du paysage. **Du rocher
+   épars ne fabrique pas de frontière, en quelque quantité qu'on le sème.** La
+   roche affleure sur les FLANCS d'une arête, jamais sur son fil, qui est le seul
+   endroit plat : le seuil donnait deux bandes brisées de part et d'autre d'un
+   sommet resté marchable.
+4. Et la cible elle-même était mal posée : **un point d'articulation exige un
+   passage unique**, alors que HMM3 relie ses zones par « un à trois ». La
+   grandeur juste est la **coupe** entre capitales, et elle valait 25.
+
+Ce qui a été bâti ensuite, et ce que ça donne :
+
+| | infranchissable | coupe entre capitales |
+|---|---:|---:|
+| avant | 8,58 % | 25 |
+| cinq crêtes murées | 10,98 % | 19 |
+| plus cinq chaînes de partage | **15,49 %** | **5** |
+
+- `packages/map/src/barrieres.ts` mure le fil des crêtes le long des polylignes
+  qui les soulèvent dans `elevation.ts` — une seule source pour le relief et le
+  rempart —, plus cinq chaînes dont on ne donne que les deux bouts, tracées par
+  **marche de crête** (un plus-court-chemin qui paie le manque d'altitude).
+- **L'ordre d'assemblage est le cœur de l'affaire** : le masque se calcule sur
+  la seule élévation, donc AVANT `buildRoads`, et lui est remis comme pénalité.
+  Les montagnes existent d'abord, les routes trouvent les cols. L'ordre inverse a
+  été essayé et mesuré : la grande chaussée courait sur quarante-quatre cases le
+  long du faîte, et un mur dont une route suit l'arête n'est pas un mur.
+- Deux cols par crête, choisis aux minima d'altitude de l'axe et espacés le long
+  de la ligne. Les postes de garde, qui se posent sur les transitions d'anneau
+  des voies, s'y calent d'eux-mêmes.
+- `desenclaver` creuse maintenant un col au lieu de sceller : il ne perçait que
+  des brèches d'une case et, face à un mur épais de trois, convertissait la poche
+  entière en falaise.
+- `fermerLesCretes` a été **retirée** : sa raison d'être était de fabriquer des
+  goulets par morphologie, et mesurée seule elle en fabriquait zéro.
+
+**Ce que cela change au jeu, mesuré :** le duel expert/prudent réglait sept
+parties sur vingt par conquête, il en règle **dix**. Même moteur, même IA, mêmes
+graines. Un front rend la conquête décidable.
+
+**Deux instruments neufs, à utiliser avant de conclure quoi que ce soit sur la
+carte :** `apps/worker/src/coupe.ts` (la coupe, éprouvée sur sept grilles
+dessinées à la main) et `apps/worker/src/carte-image.ts` (la grille entière en
+PNG, un pixel par case). On avait redessiné le relief du pays sans jamais pouvoir
+en regarder la forme.
+
+**Ce que le duel affirmait de faux**, et qu'il imprimait à chaque exécution : que
+la cible était hors d'atteinte faute de libérer la garde d'un lieu après la
+victoire. Le défaut est corrigé depuis (`reglerGarde`, verrouillé par
+`guarded-place.test.ts`) et le message envoyait le lecteur suivant à la poursuite
+d'un bogue résolu. Mesure réelle : 13/20 ici, **43/60 sur soixante graines, soit
+71,7 %**, dans la fourchette des plans (60 à 85 %). Le 65 % était un artefact
+d'échantillon.
+
+**P2.9 : les trois scènes jamais capturées l'ont été.** Les deux cités tiennent
+leur promesse. Le diagnostic, non : ses notes prenaient `--hmm-texte-doux`
+(#4c3f2f, l'encre d'un parchemin) sur le fond de nuit de la page — illisible, sur
+la page même qui existe pour être lue par un joueur dont le jeu ne s'affiche pas.
+Et sa capture iPhone était prise sur son écran d'attente : six secondes ne
+suffisent pas à trois pixels de densité.
+
+**P1.7 est commencé, pas fini.** Il a d'abord fallu réparer l'instrument : la
+planche de contact plafonnait l'échelle à 1, donc une bête plus petite que sa
+case y restait en timbre-poste — on ne pouvait pas voir ce qu'il y avait à
+corriger, et l'impression de « très fruste » venait autant du cadrage que du
+dessin. Même défaut sur le décor, où l'échelle se calculait sur la boîte de
+dessin et non sur la texture : cinq variantes débordaient sur trois cases.
+Repris ensuite : l'aile emplumée (un éventail de dix rémiges au lieu d'une
+palette festonnée — griffons ET chouettes), la seconde aile qui manquait à toute
+bête volante alors que les clips l'animaient déjà, les couleurs des griffons
+(ardoise et or, ils étaient ivoire), le garrot et la barde des sangliers, la
+crête de poils du loup, et la maçonnerie des colosses (`blocPierre` dessinait un
+galet lissé). **Restent frustes :** les vouivres, les humains de la Châtellenie
+(silhouettes très simples), les curés, le veneur.
 
 ## 2. LA LISTE — par importance pour le feeling HMM3
 
@@ -251,40 +347,22 @@ conteneur racine, bornée, avec recentrage. La cité est déjà recomposée
 (plan de masse fait — ne pas y retoucher sans repasser
 `plan-de-masse.test.ts` et les captures).
 
-**P0.4 — Lots 1.8 + 1.9 ensemble : le relief ferme, les cols ouvrent.**
-**C'est désormais le premier chantier de la liste** : à la taille d'une XL,
-la carte n'a plus que **4 points d'articulation** pour une cible de 12, et
-**3,2 % d'infranchissable** (eau 2,44 % + falaise 1,06 %) pour une cible de
-12 %. Une carte de HMM3 sans goulet n'a pas de front : on la traverse en
-diagonale sans jamais rien devoir forcer.
+**P0.4 — Lots 1.8 + 1.9 : le relief ferme, les cols ouvrent. ✅ CLOS.**
+Voir §1 quinquies pour le récit et les chiffres. En deux mots : les cinq crêtes
+du relief et cinq chaînes de partage sont murées (`packages/map/src/barrieres.ts`),
+le masque est calculé avant `buildRoads` et lui sert de pénalité, chaque crête est
+percée de deux cols choisis aux minima d'altitude. Infranchissable 15,49 % pour
+une cible de 12 ; coupe entre capitales de 3 à 5 pour une cible de 6 ; composante
+unique ; densité, cantons vides et glanage inchangés. Les seuils sont tenus par
+`apps/worker/src/carte.test.ts`, qui exige désormais les cibles du plan et non
+plus un plancher de non-régression.
 
-*Note d'échelle, à lire avant de commencer.* La distribution des pentes a
-changé de sens : elle se mesure maintenant sur les 218 m qui séparent
-réellement deux cases. Mesuré sur la graine de démonstration, il reste au
--dessus de 18° 2,4 % de la carte, au-dessus de 13° 7,0 %, au-dessus de 11°
-11,0 %. Autrement dit **on ne peut pas atteindre 12 % d'infranchissable en
-abaissant seulement `FALAISE_SLOPE`** : il faudrait le descendre vers 11°,
-soit sous `CLIFF_SLOPE` (17) et sous `ROCK_SLOPE` (13), ce qui avalerait les
-classes `rocher` et `pente`. La voie qui ressemble à HMM3 est de rendre
-**`rocher` infranchissable** — le « Rock » de HMM3 l'est, sa « Rough » ne
-l'est pas — ce qui donne 2,2 % + 1,1 % + 2,4 % ≈ 5,7 % et ouvre la porte aux
-6 % du lot. Attention, ce n'est pas un changement d'une ligne : `rocher` sert
-aussi de marqueur de **col percé** (`build.ts`, la passe qui rouvre les poches
-isolées en transformant une falaise en rocher franchissable), il est dans
-`CELL_CACHE`, il porte des objets, et l'entrée d'un belvédère y est convertie.
-Il faut un terrain distinct pour le passage taillé.
-
-1.8 : hautes-chaumes en lande rase (> 1 150 m), tourbières étendues autour
-des sagnes, falaises sur les barres — **≥ 6 % d'infranchissable total** ;
-dominante par région
-≤ 65 % ; les 12 régions distinctes deux à deux. 1.9 : chaque frontière de
-zone franchie par 1 à 3 passages seulement (cols, ponts, gués) — les postes
-du lot 1.3 se caleront d'eux-mêmes sur les transitions d'anneau des voies —
-plus des rocades secondaires. Acceptation : `pnpm carte` composante unique
-contenant les 5 départs ; itinéraires optimaux entre capitales passant par
-des cols ; articulations en hausse (≥ 12 tenu, viser plus). ATTENTION :
-c'est LE chantier qui redessine la carte — refaire toutes les mesures et
-regarder une capture de la carte entière avant/après.
+*Ce qui reste à surveiller de ce chantier :* trois crêtes du relief passent par
+une capitale — Arconsat, Cervières et La Renaudie sont posées SUR leur crête, ce
+qui est fidèle mais perce le mur par construction. Leurs murs plafonnent donc
+autour de la moitié de leur axe (`▸ Murs de crête` au tableau de bord). Si l'on
+veut resserrer encore la coupe, c'est là qu'il faut regarder, et la réponse sera
+du contenu — une chaîne de plus — non un réglage.
 
 ### P1 — la fidélité visuelle
 
@@ -305,9 +383,34 @@ global de l'atlas, risque de régression large).
 ajoute au tableau). Le pipeline est verrouillé : clef manifeste = clef
 d'atlas, ancres en fractions, repli procédural jamais retiré.
 
-**P1.7 — Lot 2.6 : resculpture des créatures faibles.** Les 28 rendus de
-référence sont dans `docs/reference` (non embarqués). Comparer côte à côte,
-resculpter les pires d'abord, par captures de la planche de contact.
+**P1.7 — Lot 2.6 : resculpture des créatures. COMMENCÉ.** Les 28 rendus de
+référence sont dans `docs/reference/creatures/renders` (non embarqués).
+
+*L'instrument d'abord, et c'est ce qui bloquait tout* : la planche de contact
+plafonnait l'échelle de chaque bête à 1, donc une créature plus petite que sa
+case y restait à sa taille natale — vingt-huit sculptures jugées sur des
+vignettes de cinquante pixels. C'est réparé, et le décor aussi, dont les
+variantes débordaient sur trois cases parce que l'échelle se calculait sur la
+boîte de dessin au lieu de la texture. **Toute revue de créature commence
+maintenant par une capture de `planche_art`, en iPhone pour la vue d'ensemble et
+en bureau pour le détail de la première rangée.**
+
+*Repris :* l'aile emplumée (éventail de dix rémiges depuis le poignet, rachis
+visible, liseré sur les trois dernières — vaut pour les griffons et les
+chouettes), la seconde aile qui manquait à toute bête volante alors que
+`clipsVolant` l'animait déjà, la pose d'aile (à l'épaule et relevée pour un
+griffon, au flanc et à plat pour un oiseau), les couleurs des griffons (ardoise
+et or ; ils étaient les seules bêtes ivoire de la Châtellenie), le garrot et la
+barde des sangliers (les plaques étaient bleues et ne couvraient que l'échine),
+la crête de poils du loup sur toute l'échine, et la maçonnerie des colosses
+(`blocPierre` dessinait un galet lissé, un colosse en est fait sept fois).
+
+*Restent frustes, dans cet ordre :* les vouivres (rang 7 de l'Ermitage, les plus
+visibles), les humains de la Châtellenie — silhouettes très simples, un chapeau
+et un tronc —, les deux curés, le veneur. La méthode qui a marché : ouvrir le
+rendu de référence, nommer en une phrase CE QUI FAIT la bête (le garrot du
+sanglier, la crête du loup, la maçonnerie du colosse, l'éventail de l'aile),
+corriger cela seul, recapturer.
 
 ### P2 — l'endgame
 
@@ -316,27 +419,43 @@ resculpter les pires d'abord, par captures de la planche de contact.
 (durée médiane ≥ 6 semaines ; win-rates par capitale dans une fourchette
 raisonnable ; expert vs prudent 60-85 %).
 
-**P2.9 — Revue adversariale finale (3.2).** Toutes scènes, bureau + iPhone,
-comparaison côte à côte avec de vraies captures HMM3, zéro erreur console,
-puis corrections dernières.
+**P2.9 — Revue adversariale finale (3.2).** Les trois scènes jamais capturées
+l'ont été (voir §1 quinquies) ; le diagnostic y a laissé deux défauts, corrigés.
+Reste la comparaison côte à côte avec de vraies captures HMM3, scène par scène.
 
-**P2.10 — Capture de la carte densifiée.** Jamais regardée en image depuis
-la densification + embranchements + postes : `node tools/screenshot.mjs
-carte --dir shots/carte-dense` et JUGER (lisibilité actif/décor, routes
-secondaires visibles, gardes visibles).
+**P2.10 — Capture de la carte densifiée. ✅ FAIT.** Regardée après les barrières,
+en jeu et en image de structure (`carte-image.ts`). Le massif se tient : vallées,
+cols, réseau de routes qui les emprunte. Un défaut trouvé et corrigé au passage —
+la roche infranchissable ne portait de décor qu'une case sur trois, et ce décor
+était un bloc de 0,86 case : une chaîne de montagnes rendue comme une brume grise
+semée de cailloux, où le joueur ne pouvait pas voir où il ne pouvait pas aller.
+D'où l'**aiguille de granit**, quinzième décor, semée sur 82 % du rocher et de la
+falaise.
 
 **P2.11 — Déploiement Railway.** `tools/deployer.sh`. Token DANS
 L'ENVIRONNEMENT seulement ; exiger la rotation préalable (compromis).
 Après déploiement : re-vérifier le multijoueur asynchrone en production et
 l'iPhone réel (zoom compris).
 
+**C'est le premier point de la liste par la valeur, et le seul qui ne dépende
+pas de nous.** `RAILWAY_TOKEN` n'est pas dans l'environnement de la session du
+20/08 : rien ne peut être déployé d'ici. Or la version en ligne précède TOUT ce
+qui a été fait depuis la passation — le correctif du gel de partie compris, donc
+le jeu déployé gèle encore deux parties sur quatre, et les cousins joueraient
+cela. Il faut, dans cet ordre : que le propriétaire fasse tourner le jeton (il
+est compromis), qu'il le pose dans l'environnement de la session, puis
+`tools/deployer.sh`. Penser aussi à définir `RAILWAY_GIT_COMMIT_SHA`, faute de
+quoi `/health` annonce « commit inconnu » et l'on ne sait pas ce qui tourne.
+
 ## 3. Détails d'état utiles
 
 - Branche : `claude/hmm-auvergne-game-uesdlz`. Jamais pousser ailleurs.
-- Graine de démonstration : 20250816. Grille 256×416.
+- Graine de démonstration : 20250816. Grille **113 × 184** (une XL de HMM3).
 - `pnpm carte` (via `npx tsx apps/worker/src/carte.ts`) : le tableau de bord
-  de la carte. Dernier état : 842 objets, 1/125, glaneur 2,7/j, 0 bloc vide,
-  composante 1, 14 articulations, 32 postes bloquants + 2 cols nommés.
+  de la carte. Dernier état : **457 objets, une case sur 36, glaneur 3,8/j, 0 bloc
+  vide, composante 1, infranchissable 15,49 %, coupe entre capitales 3 à 5,
+  32 postes bloquants sur 56 gardes**. Et `npx tsx apps/worker/src/carte-image.ts`
+  pour voir la structure en image.
 - Les améliorations de demeures REMPLACENT visuellement leur demeure
   (même emprise, +12 d'échelle, peinture de la demeure) — `masse.ts`,
   `visiblesDe`. Toute retouche du tableau de cité passe par
