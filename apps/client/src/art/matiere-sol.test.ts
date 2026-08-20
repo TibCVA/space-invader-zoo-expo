@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { REGIONS, TERRAINS } from '@auvergne/engine';
 
 import {
+  BASE_DE_PAYS,
   CASES_PAR_TUILE,
   COTE_MAX_TUILE,
   MATIERES_BASE,
@@ -9,6 +10,7 @@ import {
   REGISTRE_MATIERES,
   construireNiveaux,
   indexMatiere,
+  matiereEffective,
   niveauPour,
 } from './matiere-sol.js';
 import { CANTONS, cantonDe } from '../render/cantons.js';
@@ -225,6 +227,61 @@ describe('les clefs de matière se répondent de bout en bout', () => {
     for (const clef of MATIERES_PAYS) {
       expect([...reclamees], `${clef} n'est réclamée par aucun pays`).toContain(clef);
     }
+  });
+
+  it("peint le sol MÊME quand aucune tuile de pays n'est livrée", () => {
+    /*
+     * LE TEST QUI MANQUAIT, ET LE DÉFAUT QU'IL A COÛTÉ DE NE PAS AVOIR.
+     *
+     * Les tests précédents vérifiaient que les clefs se répondaient. Toutes se
+     * répondaient. Le sol restait nu quand même : les douze pays nomment tous
+     * une variante d'`herbe`, les six tuiles de pays ne sont pas livrées, et
+     * le peintre demandait `herbe_estive`, ne trouvait rien, et laissait la
+     * case sans matière. Presque toute la carte — prairie, lande, pente —
+     * était concernée. Le journal disait « 6 chargées », la capture montrait
+     * le même grain qu'avant le chantier, à un centième près.
+     *
+     * On simule donc ici l'état de livraison RÉEL — les six matières de base,
+     * pas une de plus — et l'on exige que chaque case de la carte reçoive tout
+     * de même une tuile.
+     */
+    const livrees = new Set<string>(MATIERES_BASE);
+    const connue = (c: string): boolean => livrees.has(c);
+    const nues: string[] = [];
+    for (let terrain = 0; terrain < TERRAINS.length; terrain += 1) {
+      if (MATIERE_DE_TERRAIN[terrain] === undefined) continue;
+      for (let region = 0; region < REGIONS.length; region += 1) {
+        const canton = cantonDe(region);
+        const clef = clefMatiereDuSol(terrain, terrain, canton);
+        if (clef === null) continue;
+        const effective = matiereEffective(clef, connue);
+        if (effective === null) nues.push(`${TERRAINS[terrain]}/${REGIONS[region]} → ${clef}`);
+      }
+    }
+    expect(nues).toEqual([]);
+  });
+
+  it('donne une base à chaque matière de pays, et une base qui existe', () => {
+    for (const clef of MATIERES_PAYS) {
+      const base = BASE_DE_PAYS[clef];
+      expect(base, `${clef} n'a pas de matière de base`).toBeDefined();
+      expect([...MATIERES_BASE], `${clef} → ${String(base)}`).toContain(base);
+    }
+    /* Et l'inverse : pas de repli déclaré pour une clef qui n'en est pas une. */
+    for (const clef of Object.keys(BASE_DE_PAYS)) {
+      expect([...MATIERES_PAYS], `${clef} n'est pas une matière de pays`).toContain(clef);
+    }
+  });
+
+  it('préfère toujours la tuile de pays quand elle est livrée', () => {
+    /* Le repli ne doit pas devenir la règle : le jour où Codex livre l'humus
+       noir des Bois Noirs, c'est lui qu'on emploie, pas les aiguilles. */
+    const tout = new Set<string>(REGISTRE_MATIERES);
+    expect(matiereEffective('aiguilles_noires', (c) => tout.has(c))).toBe('aiguilles_noires');
+    expect(matiereEffective('aiguilles_noires', (c) => c === 'aiguilles')).toBe('aiguilles');
+    expect(matiereEffective('aiguilles_noires', () => false)).toBeNull();
+    /* Une matière de base absente ne s'invente pas une descendance. */
+    expect(matiereEffective('herbe', () => false)).toBeNull();
   });
 
   it('donne une matière à chacun des douze pays', () => {

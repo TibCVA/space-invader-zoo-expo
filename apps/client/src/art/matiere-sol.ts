@@ -85,8 +85,46 @@ export const MATIERES_PAYS = [
   'lande_callune',
 ] as const;
 
+/**
+ * De quelle matière de base descend chaque matière de pays.
+ *
+ * **Sans cette table, tout le raccordement ne servait à rien, et il a fallu
+ * une mesure pour s'en apercevoir.** Les douze pays nomment tous une variante
+ * d'`herbe` ; les six tuiles de pays ne sont pas encore livrées ; le peintre
+ * demandait donc `herbe_estive`, ne trouvait rien, et laissait la case SANS
+ * matière. Presque toute la carte — prairie, lande, pente — était concernée.
+ * Les six tuiles de base étaient bien chargées, le journal le disait, et le
+ * sol restait nu : la capture montrait exactement le même grain qu'avant le
+ * chantier, à un centième près.
+ *
+ * Le repli doit donc vivre ICI, dans le registre, et non dans un commentaire
+ * qui affirme qu'il existe.
+ */
+export const BASE_DE_PAYS: Readonly<Record<string, string>> = {
+  herbe_estive: 'herbe',
+  herbe_grasse: 'herbe',
+  aiguilles_noires: 'aiguilles',
+  roche_carrier: 'roche',
+  roche_chaude: 'roche',
+  lande_callune: 'herbe',
+};
+
 /** Registre complet, dans l'ordre : c'est cet index que le peintre transporte. */
 export const REGISTRE_MATIERES: readonly string[] = [...MATIERES_BASE, ...MATIERES_PAYS];
+
+/**
+ * La matière réellement employable pour une clef, une fois le repli appliqué.
+ *
+ * Fonction pure : `connue` dit ce qui est chargé. Les tests l'exercent avec
+ * une table factice, ce qui permet de vérifier le repli SANS livrer les six
+ * tuiles de pays — c'est-à-dire dans l'état exact où le défaut s'est produit.
+ */
+export function matiereEffective(clef: string, connue: (c: string) => boolean): string | null {
+  if (connue(clef)) return clef;
+  const base = BASE_DE_PAYS[clef];
+  if (base !== undefined && connue(base)) return base;
+  return null;
+}
 
 const INDEX = new Map<string, number>(REGISTRE_MATIERES.map((c, i) => [c, i]));
 
@@ -177,8 +215,10 @@ export function niveauPour(tuile: TuileMatiere, besoinPx: number): NiveauMatiere
  * peintre garde sa matière semée en code ».
  */
 export function niveauxDeMatiere(besoinPx: number): (NiveauMatiere | null)[] {
+  const connue = (c: string): boolean => table.has(c);
   return REGISTRE_MATIERES.map((clef) => {
-    const t = table.get(clef);
+    const effective = matiereEffective(clef, connue);
+    const t = effective === null ? undefined : table.get(effective);
     return t ? niveauPour(t, besoinPx) : null;
   });
 }
@@ -305,9 +345,20 @@ export async function chargerMatieresSol(manifeste?: Manifeste | null): Promise<
   await Promise.all(travailleurs);
 
   dernierRapport = { chargees, refusees, dureeMs: Math.round(maintenant() - debut) };
-  if (refusees.length) {
-    console.warn(`[art] ${String(refusees.length)} matière(s) de sol non chargée(s) :`, refusees);
-  }
+  /*
+   * Toujours imprimé, même quand tout va bien.
+   *
+   * Une clef mal orthographiée ne casse rien et ne charge rien : le repli
+   * procédural prend la place et personne ne s'en aperçoit. C'est le mode de
+   * panne le plus coûteux de ce pipeline — il a déjà laissé six tuiles peintes
+   * dormir deux vagues d'images durant. Une ligne au journal est le seul moyen
+   * de voir, d'un coup d'œil, si le sol est peint ou semé.
+   */
+  console.info(
+    `[art] matières du sol : ${String(chargees.length)} chargée(s) sur ${String(REGISTRE_MATIERES.length)} en ${String(dernierRapport.dureeMs)} ms`,
+    chargees,
+    refusees.length ? refusees : '',
+  );
   return dernierRapport;
 }
 
