@@ -1475,6 +1475,85 @@ export function buildObjects(ctx: ObjectContext, seed: number): ObjectBuild {
       },
     );
   }
+  /*
+   * — Les MARCHES : un poste fort entre deux capitales trop voisines —
+   *
+   * Cervières et Noirétable sont à trois mille deux cent quarante-six points de
+   * marche l'une de l'autre, quand les autres paires en comptent de six mille
+   * neuf cents à neuf mille. Ce n'est pas une erreur : les deux bourgs sont
+   * réellement voisins dans le Forez, et la géographie est fixe. Mais la
+   * conséquence, elle, se mesure — vingt-cinq parties à cinq bannières :
+   *
+   *     La Renaudie   44 % de victoires · 3,0 cités · niveau 11,5 · debout 20/25
+   *     Cervières     20 %              · 1,1 cité  · niveau  7,9 · debout 10/25
+   *     Noirétable     8 %              · 0,7 cité  · niveau  5,5 · debout  8/25
+   *
+   * Les deux voisines s'entre-détruisent — éliminées dans quinze et dix-sept
+   * parties sur vingt-cinq — pendant que la plus isolée grandit en paix. Et
+   * l'équité économique n'y peut rien : elle est acquise à moins de trois pour
+   * cent près.
+   *
+   * Le semis de postes ne pouvait pas corriger cela tout seul : il place ses
+   * gardes aux TRANSITIONS D'ANNEAU, et entre deux capitales voisines il n'y a
+   * pas de transition — tout est anneau 1. Le corridor restait donc ouvert, et
+   * c'est le seul de la carte à l'être.
+   *
+   * On y pose donc une marche frontière : un poste fort, à l'endroit exact où
+   * les deux capitales se rejoignent au moindre coût. Chacune doit le forcer
+   * pour atteindre l'autre, ce qui les pousse à grandir ailleurs d'abord — la
+   * structure même de HMM3, où l'on ne se touche qu'après avoir vidé sa zone.
+   */
+  const SEUIL_MARCHE = 5000;
+  {
+    const champs = new Map<StartKey, Int32Array>();
+    for (const key of START_KEYS) {
+      champs.set(key, costFieldFrom(ctx, START_POSITIONS[key].at, BALANCE_BUDGET));
+    }
+    for (let i = 0; i < START_KEYS.length; i++) {
+      for (let j = i + 1; j < START_KEYS.length; j++) {
+        const a = champs.get(START_KEYS[i]) as Int32Array;
+        const bb = champs.get(START_KEYS[j]) as Int32Array;
+        const cible = START_POSITIONS[START_KEYS[j]].at;
+        const separation = a[idx(cible.col, cible.row)];
+        if (separation >= SEUIL_MARCHE) continue;
+        /* Le point de rencontre : la case où le pire des deux trajets est le
+           plus court. C'est le milieu du meilleur chemin, sans avoir à le
+           reconstruire. */
+        let meilleur = -1;
+        let pire = 0x7fffffff;
+        for (let k = 0; k < CELLS; k++) {
+          if (b.occupied[k] === 1) continue;
+          if (!passable(ctx, k)) continue;
+          if (TERRAINS[ctx.terrain[k]] === 'eau') continue;
+          const m = Math.max(a[k], bb[k]);
+          if (m < pire) {
+            pire = m;
+            meilleur = k;
+          }
+        }
+        if (meilleur < 0) continue;
+        const at = { col: meilleur % COLS, row: (meilleur / COLS) | 0 };
+        if (tropPresDUneCapitale(at)) continue;
+        place(
+          b,
+          'garde',
+          at,
+          {
+            name: 'Marche des deux bourgs',
+            ring: 3,
+            poste: true,
+            marche: `${START_KEYS[i]}|${START_KEYS[j]}`,
+          },
+          {
+            guard: guardFor(rng, 3, 3),
+            footprint: [{ col: at.col, row: at.row }, ...flancsDe(b, ctx, at.col, at.row)],
+            fixe: true,
+          },
+        );
+      }
+    }
+  }
+
   const pierre = snap(b, anchorCell('pamole'), 3);
   if (pierre) {
     place(b, 'ecole', pierre, {
@@ -2575,7 +2654,7 @@ const COMPENSATION_CAP = 2500;
  * ne rentre pas dans le budget se dit dans le tableau de bord au lieu de se
  * payer en densité.
  */
-const COMPENSATION_PILES = 12;
+const COMPENSATION_PILES = 15;
 
 /**
  * Pose des caches de compensation jusqu'à apporter `wantedValue` à la position
