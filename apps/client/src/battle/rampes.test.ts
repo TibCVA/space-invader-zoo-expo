@@ -80,6 +80,24 @@ const BIOME: readonly Arret[] = rampeBiome(PALETTES_SOL.prairie);
 
 describe('les rampes du sol de bataille', () => {
   /*
+   * Les cinq ambiances, pas seulement la prairie.
+   *
+   * `rampeBiome` est partagée : une ambiance qui s'effondre n'aurait été vue
+   * par personne si le témoin ne regardait qu'un pré. Les planchers sont plus
+   * bas ici que pour la prairie — une sapinière DOIT être sombre, c'est un
+   * sous-bois — mais aucun sol n'a le droit de tomber dans le noir.
+   */
+  it('tient un plancher pour chacune des cinq ambiances', () => {
+    for (const [nom, pal] of Object.entries(PALETTES_SOL)) {
+      const r = rampeBiome(pal);
+      expect(luminanceMoyenne(r), `${nom} — luminance`).toBeGreaterThanOrEqual(55);
+      expect(saturationMoyenne(r), `${nom} — saturation`).toBeGreaterThanOrEqual(12);
+      const ecart = luminance(couleurA(r, 0)) * 255 - luminance(couleurA(r, 1)) * 255;
+      expect(ecart, `${nom} — écart clair-ombre`).toBeGreaterThan(30);
+    }
+  });
+
+  /*
    * Le plancher vient de la cible d'acceptation du plan : le sol avait perdu
    * 19 points de luminance, il faut les rendre. L'aplat d'avant mesurait 142,7 ;
    * on ne cherche pas à y revenir — un vrai dégradé DOIT être plus sombre en
