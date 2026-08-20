@@ -436,10 +436,30 @@ TENUES**, et la troisième inquiétude était un artefact de mesure.
   sur dix se règlent par conquête**. Le plafond existe pour tenir le duel sous
   son propre délai, pas pour mesurer le jeu.
 
-*Ce qui reste, et c'est étroit :* deux parties sur dix ne se tranchent pas même
-en trois cent cinquante jours. C'est là qu'il faut regarder — et nulle part
-ailleurs. Reste aussi le taux de victoire par capitale en partie à cinq, jamais
-mesuré (cible 18 à 22 % chacune, document maître §20.3).
+*Et l'une des deux parties qui ne se tranchaient pas a été réglée.* La cause
+n'était aucune de mes hypothèses : `garrisonTarget` calculait la part de garnison
+PAR CITÉ sur la puissance totale de la maison, si bien que la fraction
+immobilisée croissait avec l'empire — un expert à six cités en verrouillait 52 %
+de son armée, à dix cités 82 %. **Plus il conquérait, moins il pouvait
+conquérir.** La part est maintenant répartie entre les cités, la capitale
+comptant double ; un joueur à une seule cité retrouve exactement sa valeur
+d'avant, donc la tortue reste une tortue. Mesure : conquêtes 8/10 → **9/10** au
+plafond de 700 tours, durée médiane 132 → 122 jours, duel 13/20 → **14/20 (70 %)**,
+conquêtes dans le duel 10/20 → 11/20. Verrouillé par
+`packages/bots/src/garnison.test.ts`, éprouvé en rétablissant l'ancienne formule.
+
+*Ce qui reste, et c'est une seule partie sur dix :* la graine 48514, où l'expert
+livre quatre-vingt-dix-huit combats pour une seule cité, deux gisements et un
+héros resté au niveau quatre. Trois pistes sont déjà écartées par la mesure : ce
+n'est pas la carte (chemin de trente-quatre pas vers la dernière capitale,
+existant), ce ne sont pas les gardes (**99 % de terre libre depuis chaque
+capitale sans livrer un combat**, mesuré par le tableau de bord), et ce n'est plus
+le plancher de garnison. Chercher du côté de la reconstitution d'armée après une
+défaite : un héros au niveau quatre après quatre-vingt-dix-huit combats meurt et
+recommence.
+
+Reste aussi le taux de victoire par capitale en partie à cinq, jamais mesuré
+(cible 18 à 22 % chacune, document maître §20.3).
 
 *Ancien libellé, conservé pour mémoire :* Après P0.1 : `pnpm sim`
 20 parties × 3 graines ; ajuster revenus/coûts/croissance jusqu'aux cibles
