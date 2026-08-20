@@ -344,16 +344,38 @@ export function weakestHero(heroes: readonly HeroInstance[]): HeroInstance | nul
   return worst;
 }
 
-/** Puissance qu'un profil souhaite laisser en garnison dans une cité. */
+/**
+ * Puissance qu'un profil souhaite laisser en garnison dans une cité.
+ *
+ * **La part se divise entre les cités, et c'est une correction.** Elle se
+ * calculait par cité sur la puissance TOTALE de la maison : la capitale gardait
+ * `garrisonShareBp`, chaque autre ville la moitié. Le nom disait « part de
+ * l'armée en garnison », le calcul disait autre chose — la fraction verrouillée
+ * croissait avec l'empire. Un expert à six cités (part 15 %) en immobilisait
+ * 15 + 5 × 7,5 = **52 %**, et à dix cités 82 %. Autrement dit : plus il
+ * conquérait, moins il pouvait conquérir.
+ *
+ * Mesuré sur la partie qui ne se tranchait pas (graine 1000, trois cent
+ * cinquante-et-un jours) : l'expert tenait six cités et 803 000 de puissance
+ * contre une cité et 312 000, le chemin vers la dernière capitale existait —
+ * trente-quatre pas — et il ne l'a jamais forcée. En face, une garnison de onze
+ * griffons couronnés, quinze colosses et quatorze verrats, parce que le prudent,
+ * lui, n'a qu'une ville : sa part ne se divisait par rien.
+ *
+ * La part est donc répartie, la capitale comptant double. Un joueur à une seule
+ * cité retrouve exactement sa valeur d'avant — le tortue reste une tortue, c'est
+ * son profil — mais un empire ne s'étouffe plus lui-même.
+ */
 export function garrisonTarget(
   profile: BotProfile,
   town: TownState,
   totalPower: number,
   threat: number,
+  villes = 1,
 ): number {
-  const share = town.isCapital
-    ? profile.military.garrisonShareBp
-    : Math.trunc(profile.military.garrisonShareBp / 2);
+  const parts = Math.max(2, villes + 1);
+  const poids = town.isCapital ? 2 : 1;
+  const share = Math.trunc((profile.military.garrisonShareBp * poids) / parts);
   const base = bp(totalPower, share);
   // Une menace visible relève le plancher, quel que soit le profil.
   return Math.max(base, Math.min(totalPower, threat));

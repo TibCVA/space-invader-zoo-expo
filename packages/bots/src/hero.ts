@@ -270,7 +270,7 @@ export function planGarrisonTransfers(
   for (const t of view.towns) totalPower += armyPowerOf(t.garrison);
 
   const threat = threatOnTown(view, town, profile.economy.defenseTrigger);
-  const floor = garrisonTarget(profile, town, totalPower, threat);
+  const floor = garrisonTarget(profile, town, totalPower, threat, view.towns.length);
   const garrisonPower = armyPowerOf(town.garrison);
   const lead = strongestHero(view.heroes);
   const isLead = lead !== null && lead.uid === hero.uid;
