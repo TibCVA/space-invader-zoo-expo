@@ -142,6 +142,36 @@ describe('la carte — ce qui est tenu', () => {
   it('pose des gardes qui bloquent vraiment', () => {
     expect(r.gardesBloquants).toBeGreaterThanOrEqual(20);
   });
+
+  it('n’enferme aucune capitale derrière ses gardes', () => {
+    /*
+     * Le revers de la médaille des barrières, et il fallait le mesurer avant de
+     * l'affirmer. Depuis que les crêtes sont murées, une zone de départ n'a plus
+     * que deux ou trois cols : si chacun portait une compagnie de l'anneau
+     * trois, la maison serait en cage jusqu'à pouvoir forcer, et une partie où
+     * l'un est en cage ne se joue pas.
+     *
+     * Mesuré : **99 % de la terre praticable reste atteignable depuis chacune
+     * des cinq capitales sans livrer un seul combat**. Aucun départ n'est
+     * enfermé — l'hypothèse était fausse, et c'est le genre de chose qu'il vaut
+     * mieux savoir avant de corriger ce qui n'est pas cassé.
+     *
+     * **Et ce test ne détecte qu'une catastrophe, il faut le dire.** Éprouvé en
+     * muraillant non plus les seuls gardes mais TOUS les objets de la carte, les
+     * cinq cent soixante cases d'emprise comprises : la terre libre ne tombe
+     * qu'à 97 %. Sur une carte à composante unique et à cinq cols par frontière,
+     * aucun semis d'objets ne peut enfermer qui que ce soit. Le garde-fou est
+     * donc là pour une refonte du relief ou un triplement de la densité de
+     * gardes, pas pour un réglage fin — et le seuil est posé à dix-neuf
+     * vingtièmes, ce qui laisse encore deux points de marge sous la mesure du
+     * jour sans rien laisser passer de grave.
+     */
+    expect(r.terreLibre.length).toBe(5);
+    for (const t of r.terreLibre) {
+      expect(t.libre * 20, `${t.depart} : ${String(t.libre)} cases libres`)
+        .toBeGreaterThanOrEqual(r.praticables * 19);
+    }
+  });
 });
 
 describe('la carte — le front', () => {

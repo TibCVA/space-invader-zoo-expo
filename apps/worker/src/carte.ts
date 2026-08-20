@@ -155,6 +155,8 @@ export interface Rapport {
   composantes: number;
   gardes: number;
   gardesBloquants: number;
+  /** Cases atteintes depuis chaque capitale sans livrer un combat. */
+  terreLibre: { depart: string; libre: number }[];
   glanage: Glanage[];
 }
 
@@ -333,6 +335,69 @@ export function mesurer(graine: number): Rapport {
     }
   }
 
+  /*
+   * La TERRE LIBRE : ce qu'une bannière atteint depuis sa capitale sans livrer
+   * un seul combat.
+   *
+   * Pourquoi cette mesure existe. Le glaneur marche en omniscient et sans
+   * combat, mais il traverse les gardes comme s'ils n'étaient pas là : il ne
+   * peut donc pas dire si un départ est ENFERMÉ. Or depuis que les crêtes sont
+   * murées, une zone de départ n'a plus que deux ou trois cols, et si chacun
+   * porte une compagnie de l'anneau trois, la maison est en cage jusqu'à ce
+   * qu'elle puisse forcer. Mesuré sur une partie qui ne se tranchait pas
+   * (graine 48514) : la bannière enfermée livrait quatre-vingt-dix-huit combats
+   * pour une seule cité, deux gisements et un héros resté au niveau quatre —
+   * elle mourait contre son propre col, encore et encore.
+   *
+   * Un garde bloque par son EMPREINTE ENTIÈRE ici, entrée comprise : mettre le
+   * pied sur l'entrée, c'est justement le combat qu'on cherche à éviter.
+   */
+  const librePar: { depart: string; libre: number }[] = [];
+  {
+    const mur = new Uint8Array(n);
+    for (const o of w.objects) {
+      if (o.kind !== 'garde') continue;
+      for (const c of o.footprint?.length ? o.footprint : [o.at]) {
+        const i = c.row * cols + c.col;
+        if (i >= 0 && i < n) mur[i] = 1;
+      }
+    }
+    const vu = new Uint8Array(n);
+    const fileL = new Int32Array(n);
+    for (const s of Object.values(START_POSITIONS)) {
+      vu.fill(0);
+      let t = 0;
+      let q = 0;
+      const depart = s.at.row * cols + s.at.col;
+      if (!praticable[depart]) {
+        librePar.push({ depart: s.label, libre: 0 });
+        continue;
+      }
+      vu[depart] = 1;
+      fileL[q++] = depart;
+      let libre = 0;
+      while (t < q) {
+        const i = fileL[t++];
+        libre++;
+        const col = i % cols;
+        const row = (i / cols) | 0;
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            if (!dr && !dc) continue;
+            const c = col + dc;
+            const r2 = row + dr;
+            if (c < 0 || r2 < 0 || c >= cols || r2 >= rows) continue;
+            const j = r2 * cols + c;
+            if (vu[j] || !praticable[j] || mur[j]) continue;
+            vu[j] = 1;
+            fileL[q++] = j;
+          }
+        }
+      }
+      librePar.push({ depart: s.label, libre });
+    }
+  }
+
   /* Distance de chaque case praticable à l'objet le plus proche, en cases, par
      un parcours en largeur multi-source sur la grille à 8 voisins. */
   const dist = new Int32Array(n).fill(-1);
@@ -455,6 +520,7 @@ export function mesurer(graine: number): Rapport {
     composantes,
     gardes,
     gardesBloquants,
+    terreLibre: librePar,
     glanage,
   };
 }
@@ -667,6 +733,11 @@ function imprimer(r: Rapport): void {
   ligne('gardes posés', String(r.gardes));
   /* Seule la compagnie des POSTES doit bloquer : les errantes protègent les
      trésors des lisières, pas les passages — leur case d'entrée suffit. */
+  console.log('  terre libre depuis chaque capitale, sans livrer un combat :');
+  for (const t of r.terreLibre) {
+    const part = (100 * t.libre) / Math.max(1, r.praticables);
+    ligne(`    ${t.depart}`, `${String(t.libre)} (${part.toFixed(0)} %)`);
+  }
   ligne('postes qui bloquent vraiment', `${String(r.gardesBloquants)} / ${String(r.gardes)}`,
     '≥ 20 postes');
 
