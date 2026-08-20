@@ -245,7 +245,11 @@ const MINE_SITES: readonly MineSpec[] = [
   { key: 'carriere_renaudie', at: c(64, 171), resource: 'granit', amount: 2, label: 'Carrière de la Renaudie', ring: 1 },
   { key: 'peage_renaudie', at: c(53, 172), resource: 'ecus', amount: 350, label: 'Péage de la Marche', ring: 1 },
   { key: 'fer_renaudie', at: c(64, 163), resource: 'fer', amount: 2, label: 'Minière de la Credogne', ring: 1 },
-  { key: 'bois_renaudie', at: c(48, 157), resource: 'bois', amount: 2, label: 'Coupe des moulins', ring: 1 },
+  /* La coupe s'est éloignée de la scierie de la Marche : sept cases entre deux
+     scieries, c'est la grappe que le propriétaire ne veut pas voir, et c'était
+     de surcroît la cinquième mine d'un départ qui n'en méritait pas plus que
+     les autres. */
+  { key: 'bois_renaudie', at: c(42, 150), resource: 'bois', amount: 2, label: 'Coupe des moulins', ring: 2 },
   // Vallée de la Durolle et centre
   { key: 'bois_durolle', at: c(31, 22), resource: 'bois', amount: 2, label: 'Coupe de la Durolle', ring: 2 },
   { key: 'peage_chabreloche', at: c(38, 19), resource: 'ecus', amount: 350, label: 'Péage de Chabreloche', ring: 2 },
@@ -254,7 +258,10 @@ const MINE_SITES: readonly MineSpec[] = [
   { key: 'fer_bois_noirs', at: c(72, 64), resource: 'fer', amount: 2, label: 'Minière des Bois Noirs', ring: 3 },
   { key: 'essence_bois_noirs', at: c(64, 73), resource: 'essence', amount: 1, label: 'Brûlerie des Bois Noirs', ring: 3 },
   { key: 'fildor_bise', at: c(102, 51), resource: 'filDor', amount: 1, label: 'Filature de Bise', ring: 2 },
-  { key: 'granit_pamole', at: c(34, 125), resource: 'granit', amount: 2, label: 'Carrière de Pamole', ring: 2 },
+  /* Douze cases exactement de la carrière de Vollore, c'est-à-dire l'écart voulu
+     au ras : il suffisait que la case d'ancrage soit prise pour que le décalage
+     d'une case fasse tomber la paire sous l'écart. Treize, et la marge existe. */
+  { key: 'granit_pamole', at: c(35, 127), resource: 'granit', amount: 2, label: 'Carrière de Pamole', ring: 2 },
   { key: 'essence_hermitage', at: c(52, 108), resource: 'essence', amount: 1, label: "Brûlerie de l'Hermitage", ring: 2 },
   { key: 'fer_peyrotine', at: c(66, 103), resource: 'fer', amount: 2, label: 'Minière de la Peyrotine', ring: 2 },
   { key: 'granit_vollore', at: c(22, 114), resource: 'granit', amount: 2, label: 'Carrière de Vollore', ring: 1 },
@@ -490,11 +497,175 @@ function pileAmount(rng: RngState, resource: ResourceKey, ring: number): number 
 
 /* ── Construction ───────────────────────────────────────────────────────── */
 
+/**
+ * Écart minimal entre deux lieux qui se ressemblent, par clef d'espacement.
+ *
+ * **Pourquoi cette table existe.** Exigence du propriétaire, textuellement :
+ * « je ne veux pas avoir 2 fois le même asset trop proches les uns des autres »,
+ * et « les mines ou items de ressources doivent être répartis et distribués de
+ * manière intelligente et réfléchie ». Mesuré avant correction, sur la graine de
+ * démonstration : **cent trente paires de tas de ressources** sous l'écart, dont
+ * deux collés case contre case ; **dix-neuf paires de gisements**, dont deux à
+ * trois cases ; deux coffres adjacents ; **deux artefacts adjacents**.
+ *
+ * La cause était simple et générale : `poserEspaces` n'espaçait qu'à l'intérieur
+ * d'un même appel. Chaque famille se répartissait proprement contre elle-même,
+ * et ignorait tout ce qui avait été posé avant — les gisements nommés, les
+ * artefacts fixes, les tas semés à l'étape précédente.
+ *
+ * **La clef n'est pas la nature seule**, et c'est le point qui demande du
+ * jugement. Une scierie et un péage sont deux `mine`, mais HMM3 met bel et bien
+ * deux ou trois gisements au pas de la porte d'une capitale : c'est ce qui
+ * nourrit la première semaine. Ce que le propriétaire ne veut pas voir, c'est
+ * deux fois LE MÊME lieu — deux icônes identiques côte à côte. On espace donc
+ * largement ce qui se ressemble (même nature, même ressource) et modérément ce
+ * qui se distingue à l'œil (même nature, ressource différente).
+ */
+export const ECART_MINIMAL: Readonly<Record<string, number>> = {
+  /* Les gisements : douze cases entre deux mines de la MÊME ressource — on ne
+     veut pas deux scieries voisines —, cinq entre deux gisements différents,
+     ce qui laisse le trio de départ de HMM3 en place. */
+  'mine|bois': 12,
+  'mine|granit': 12,
+  'mine|fer': 12,
+  'mine|essence': 14,
+  'mine|sel': 14,
+  /* `filDor` et non `fil_or` : c'est la clef canonique de `RESOURCE_KEYS`, et
+     l'orthographe fautive faisait tomber le fil d'or sur le repli générique —
+     cinq cases entre deux filatures au lieu de quatorze, sans que rien ne le
+     dise. Un test exige désormais la clef exacte pour chaque ressource. */
+  'mine|filDor': 14,
+  'mine|ecus': 12,
+  mine: 5,
+  /* Les tas : cinq cases entre deux tas de la même ressource, deux entre deux
+     tas différents. Un tas est un consommable, on veut en croiser souvent. */
+  'ressource|bois': 5,
+  'ressource|granit': 5,
+  'ressource|fer': 5,
+  'ressource|essence': 6,
+  'ressource|sel': 6,
+  'ressource|filDor': 6,
+  'ressource|ecus': 5,
+  ressource: 2,
+  ville: 20,
+  village: 16,
+  sceau: 24,
+  maison_tresor: 30,
+  artefact: 10,
+  demeure: 8,
+  banque: 12,
+  monolithe: 10,
+  ecole: 12,
+  temple: 12,
+  obelisque: 10,
+  moulin: 12,
+  fontaine: 12,
+  belvedere: 14,
+  sanctuaire: 12,
+  source: 12,
+  marche_noir: 16,
+  cartographe: 16,
+  auberge: 10,
+  caravane: 12,
+  quete: 12,
+  borne: 10,
+  coffre: 5,
+  garde: 4,
+};
+
+/**
+ * La clef d'espacement d'un lieu : ce qui décide s'il « ressemble » à un autre.
+ *
+ * Pour un gisement et un tas, la ressource fait partie de l'identité visuelle —
+ * une scierie et une carrière ne portent pas la même icône. Pour tout le reste,
+ * la nature suffit.
+ */
+export function cleEspacement(kind: string, data: Record<string, unknown>): string {
+  if (kind === 'mine' || kind === 'ressource') {
+    const r = data.resource;
+    if (typeof r === 'string') return `${kind}|${r}`;
+  }
+  return kind;
+}
+
+/** L'écart voulu pour une clef, avec le repli sur la nature seule. */
+export function ecartVoulu(kind: string, data: Record<string, unknown>): number {
+  const cle = cleEspacement(kind, data);
+  return ECART_MINIMAL[cle] ?? ECART_MINIMAL[kind] ?? 6;
+}
+
 interface Builder {
   ctx: ObjectContext;
   objects: MapObject[];
   occupied: Uint8Array;
   next: number;
+  /**
+   * Où se trouve déjà chaque clef d'espacement.
+   *
+   * C'est ce que `poserEspaces` regardait avant, mais seulement pour les objets
+   * de son propre appel : la table est ici pour que le semis entier partage une
+   * seule mémoire, gisements nommés compris.
+   */
+  parCle: Map<string, MapCoord[]>;
+}
+
+/**
+ * L'écart en dessous duquel on ne descend JAMAIS, quel que soit le relâchement.
+ *
+ * C'est la traduction littérale du reproche : « je ne veux pas avoir 2 fois le
+ * même asset trop proches les uns des autres ». Trois cases, c'est-à-dire deux
+ * cases de terre entre les deux lieux : à cette distance deux tas de sel ne se
+ * touchent plus et ne se lisent plus comme un seul amas. Le relâchement peut
+ * ramener un écart de douze à quatre s'il faut atteindre le compte ; il ne
+ * ramènera jamais un écart à zéro, et c'est ce plancher qui rend l'exigence du
+ * propriétaire vérifiable au lieu d'être une préférence.
+ */
+export const PLANCHER_ECART = 3;
+
+/**
+ * L'écart exigé après relâchement — la règle, isolée pour être éprouvée.
+ *
+ * Elle vivait dans le corps de `assezLoin`, où l'on ne pouvait pas la mettre en
+ * défaut : en supprimant le plancher, la carte restait propre sur sept graines,
+ * simplement parce qu'aucun semeur ne descend aujourd'hui jusqu'au dernier
+ * palier. Le plancher est donc un filet, pas une pièce portante — et un filet
+ * qu'on ne peut pas éprouver sur la carte se vérifie sur la règle elle-même.
+ */
+export function ecartRelache(
+  kind: string,
+  data: Record<string, unknown>,
+  facteurBp: number,
+): number {
+  const brut = ecartVoulu(kind, data);
+  return Math.max(Math.min(brut, PLANCHER_ECART), Math.trunc((brut * facteurBp) / 10000));
+}
+
+/**
+ * Y a-t-il déjà, trop près, un lieu qui ressemble à celui qu'on veut poser ?
+ *
+ * `facteur` en points de base permet de relâcher l'exigence quand un semeur
+ * n'arrive pas à son compte : mieux vaut deux coffres à quatre cases que
+ * cinquante coffres au lieu de cinquante-huit. La densité est aussi une
+ * exigence du propriétaire — « il faut suffisamment de mines de ressources pour
+ * pouvoir jouer ». Le relâchement s'arrête au plancher ci-dessus.
+ */
+function assezLoin(
+  b: Builder,
+  kind: string,
+  data: Record<string, unknown>,
+  col: number,
+  row: number,
+  facteurBp = 10000,
+): boolean {
+  const cle = cleEspacement(kind, data);
+  const deja = b.parCle.get(cle);
+  if (!deja || deja.length === 0) return true;
+  const voulu = ecartRelache(kind, data, facteurBp);
+  if (voulu <= 0) return true;
+  for (const t of deja) {
+    if (Math.max(Math.abs(t.col - col), Math.abs(t.row - row)) < voulu) return false;
+  }
+  return true;
 }
 
 function passable(ctx: ObjectContext, i: number): boolean {
@@ -600,7 +771,16 @@ function place(
     footprint: footprint.map((f) => ({ col: f.col, row: f.row })),
     entrance: { col: at.col, row: at.row },
     owner: null,
-    data,
+    /*
+     * `fixe` reste inscrit dans la donnée du lieu, et ce n'est pas un détail de
+     * confort : la mesure de répartition doit pouvoir séparer ce que le semeur
+     * a le pouvoir de déplacer de ce que la géographie impose. Deux chapelles
+     * écrites à la main à neuf cases l'une de l'autre sont un choix ; deux tas
+     * de sel tirés au sort à deux cases sont un défaut. Sans la marque, les
+     * deux se ressemblent dans le tableau, et l'on finit par baisser la cible
+     * pour faire disparaître le reproche au lieu de corriger l'ouvrage.
+     */
+    data: options.fixe ? { ...data, fixe: true } : data,
   };
   if (options.guard && options.guard.length > 0) obj.guard = options.guard;
   /*
@@ -619,6 +799,12 @@ function place(
   }
   for (const f of obj.footprint) b.occupied[idx(f.col, f.row)] = 1;
   b.objects.push(obj);
+  /* La mémoire d'espacement : c'est elle qui empêche le semeur suivant de poser
+     le même lieu à côté de celui-ci. */
+  const cle = cleEspacement(kind, data);
+  const deja = b.parCle.get(cle);
+  if (deja) deja.push({ col: at.col, row: at.row });
+  else b.parCle.set(cle, [{ col: at.col, row: at.row }]);
   return obj;
 }
 
@@ -839,6 +1025,7 @@ export function buildObjects(ctx: ObjectContext, seed: number): ObjectBuild {
     objects: [],
     occupied: new Uint8Array(CELLS),
     next: 1,
+    parCle: new Map(),
   };
   const startDist = startDistanceField();
 
@@ -889,30 +1076,39 @@ export function buildObjects(ctx: ObjectContext, seed: number): ObjectBuild {
   }
 
   /* 5 — Bornes, belvédères, sanctuaires, sources, auberges, doléances. */
+  /* Tous ces lieux sont ÉCRITS : la marque `fixe` ne change rien à leur pose —
+     ils n'ont pas de garde, donc la règle de dégagement des capitales ne les
+     concerne pas — mais elle dit à la mesure qu'ils ne sont pas déplaçables. */
   for (const s of BORNE_SITES) {
     const at = snap(b, s.at, 4);
-    if (at) place(b, 'borne', at, { name: s.label, network: 'marches' });
+    if (at) place(b, 'borne', at, { name: s.label, network: 'marches' }, { fixe: true });
   }
   for (const s of VIEWPOINT_SITES) {
     const at = snap(b, s.at, 4);
-    if (at) place(b, 'belvedere', at, { name: s.label, radius: 22 });
+    if (at) place(b, 'belvedere', at, { name: s.label, radius: 22 }, { fixe: true });
   }
   for (const s of SHRINE_SITES) {
     const at = snap(b, s.at, 4);
-    if (at) place(b, s.kind, at, { name: s.label });
+    if (at) place(b, s.kind, at, { name: s.label }, { fixe: true });
   }
   for (const s of INN_SITES) {
     const at = snap(b, s.at, 4);
-    if (at) place(b, 'auberge', at, { name: s.label });
+    if (at) place(b, 'auberge', at, { name: s.label }, { fixe: true });
   }
   for (const s of QUEST_SITES) {
     const at = snap(b, s.at, 4);
     if (at) {
-      place(b, 'quete', at, {
-        name: s.label,
-        reward: pickWeighted(rng, PILE_TABLE),
-        amount: 300 + nextInt(rng, 0, 6) * 100,
-      });
+      place(
+        b,
+        'quete',
+        at,
+        {
+          name: s.label,
+          reward: pickWeighted(rng, PILE_TABLE),
+          amount: 300 + nextInt(rng, 0, 6) * 100,
+        },
+        { fixe: true },
+      );
     }
   }
 
@@ -1126,15 +1322,64 @@ function collectCaches(
   return out;
 }
 
-function takeCache(rng: RngState, caches: Record<1 | 2 | 3, number[]>, ring: 1 | 2 | 3): number {
-  for (const r of [ring, 2, 1, 3] as (1 | 2 | 3)[]) {
-    const list = caches[r];
-    if (list.length === 0) continue;
-    const k = nextInt(rng, 0, list.length - 1);
-    const value = list[k];
-    list[k] = list[list.length - 1];
-    list.pop();
-    return value;
+/**
+ * Tire une cachette qui respecte l'écart voulu pour la nature qu'on va y poser.
+ *
+ * Le tirage d'avant se faisait à l'aveugle : c'est lui qui produisait les
+ * défauts que le tableau de bord nommait — « artefact (15,10) / artefact
+ * (14,10) », « coffre (100,73) / coffre (99,73) », cent trente paires de tas
+ * sous l'écart. Les familles semées par `poserEspaces` s'espaçaient déjà ; les
+ * trois familles tirées des cachettes — artefacts, tas, coffres — ne
+ * s'espaçaient pas du tout.
+ *
+ * On garde l'ordre de repli d'anneau — l'anneau demandé, puis 2, 1, 3 —, on
+ * garde le tirage au sort — on part d'un rang tiré et l'on avance en cercle, ce
+ * qui évite d'avoir à remettre les recalés dans la liste — et l'on desserre
+ * l'écart par paliers
+ * plutôt que de rendre un compte incomplet. Au dernier palier l'écart voulu
+ * tombe à zéro : le compte est donc EXACTEMENT celui d'avant, seule la place
+ * change. La densité est une exigence du propriétaire au même titre que
+ * l'espacement, et aucune des deux ne se paie avec l'autre.
+ */
+function prendreEspace(
+  b: Builder,
+  rng: RngState,
+  caches: Record<1 | 2 | 3, number[]>,
+  ring: 1 | 2 | 3,
+  kind: string,
+  data: Record<string, unknown>,
+): number {
+  for (const facteur of [10000, 6600, 3300, 0]) {
+    for (const r of [ring, 2, 1, 3] as (1 | 2 | 3)[]) {
+      const list = caches[r];
+      if (list.length === 0) continue;
+      const debut = nextInt(rng, 0, list.length - 1);
+      for (let n = 0; n < list.length; n++) {
+        if (list.length === 0) break;
+        const k = (debut + n) % list.length;
+        const i = list[k];
+        const col = i % COLS;
+        const row = (i / COLS) | 0;
+        /*
+         * Une cachette prise entre-temps est du bois mort, et c'était une perte
+         * SÈCHE : le tirage d'avant rendait la case, `place` la refusait, et le
+         * lieu disparaissait sans que rien ne le dise. Une liste de cachettes
+         * porte d'ailleurs deux fois les cases proches d'une voie — c'est ainsi
+         * qu'on les favorise —, donc le doublon d'une case déjà bâtie s'y
+         * trouve toujours. On la retire ici, et le compte est tenu.
+         */
+        if (!isFree(b, col, row)) {
+          list[k] = list[list.length - 1];
+          list.pop();
+          n--;
+          continue;
+        }
+        if (!assezLoin(b, kind, data, col, row, facteur)) continue;
+        list[k] = list[list.length - 1];
+        list.pop();
+        return i;
+      }
+    }
   }
   return -1;
 }
@@ -1147,7 +1392,7 @@ function seedArtifacts(b: Builder, rng: RngState, caches: Record<1 | 2 | 3, numb
   ];
   for (const entry of plan) {
     for (let k = 0; k < entry.count; k++) {
-      const i = takeCache(rng, caches, entry.ring);
+      const i = prendreEspace(b, rng, caches, entry.ring, 'artefact', {});
       if (i < 0) continue;
       const rarity = pickWeighted(rng, RARITY_BY_RING[entry.ring]);
       const pool = ARTIFACT_POOL[rarity];
@@ -1168,9 +1413,12 @@ function seedPiles(b: Builder, rng: RngState, caches: Record<1 | 2 | 3, number[]
   ];
   for (const entry of plan) {
     for (let k = 0; k < entry.count; k++) {
-      const i = takeCache(rng, caches, entry.ring);
-      if (i < 0) continue;
+      /* La ressource se tire AVANT la case : c'est elle qui donne la clef
+         d'espacement — on ne veut pas deux tas de sel côte à côte, deux tas
+         de natures différentes ne gênent personne. */
       const resource = pickWeighted(rng, PILE_TABLE);
+      const i = prendreEspace(b, rng, caches, entry.ring, 'ressource', { resource });
+      if (i < 0) continue;
       const at = { col: i % COLS, row: (i / COLS) | 0 };
       place(b, 'ressource', at, {
         resource,
@@ -1246,9 +1494,24 @@ function seedGuards(
   shuffle(rng, postes);
   shuffle(rng, lisieres);
 
-  const taken: MapCoord[] = [];
-  const espace = (col: number, row: number, min: number): boolean => {
-    for (const t of taken) {
+  /*
+   * L'écart entre gardes se mesure sur la mémoire GLOBALE, pas sur la liste de
+   * ce seul semeur.
+   *
+   * La liste locale ignorait les deux cols gardés écrits à la main, et le test
+   * multi-graine l'a pris en flagrant délit : sur la graine 20260817, un poste
+   * tombait à DEUX cases du Col Saint-Thomas. Deux péages sur le même passage,
+   * ce n'est pas une garde renforcée, c'est un doublon — et c'est exactement le
+   * reproche du propriétaire sur les assets qui se répètent de trop près.
+   *
+   * On garde en plus une exigence propre aux postes : cinq cases entre deux
+   * postes, là où la table n'en demande que quatre entre deux gardes. Un poste
+   * ferme un passage ; deux passages fermés côte à côte ne ferment qu'un
+   * passage, et coûtent deux combats.
+   */
+  const postesPris: MapCoord[] = [];
+  const entrePostes = (col: number, row: number, min: number): boolean => {
+    for (const t of postesPris) {
       if (Math.max(Math.abs(t.col - col), Math.abs(t.row - row)) < min) return false;
     }
     return true;
@@ -1260,7 +1523,8 @@ function seedGuards(
     if (posts >= 30) break;
     const col = i % COLS;
     const row = (i / COLS) | 0;
-    if (!espace(col, row, 5)) continue;
+    if (!entrePostes(col, row, 5)) continue;
+    if (!assezLoin(b, 'garde', {}, col, row)) continue;
     /* Le poste est fort comme le PLUS RUDE de ses deux côtés : on paie la
        zone où l'on entre, pas celle d'où l'on vient. */
     let ring = ringAt(startDist, col, row);
@@ -1282,7 +1546,7 @@ function seedGuards(
       },
     );
     if (obj) {
-      taken.push({ col, row });
+      postesPris.push({ col, row });
       posts++;
     }
   }
@@ -1293,13 +1557,10 @@ function seedGuards(
     if (posts + placed >= 54) break;
     const col = i % COLS;
     const row = (i / COLS) | 0;
-    if (!espace(col, row, 4)) continue;
+    if (!assezLoin(b, 'garde', {}, col, row)) continue;
     const ring = ringAt(startDist, col, row);
     const obj = place(b, 'garde', { col, row }, { ring }, { guard: guardFor(rng, ring, 3) });
-    if (obj) {
-      taken.push({ col, row });
-      placed++;
-    }
+    if (obj) placed++;
   }
 }
 
@@ -1373,6 +1634,37 @@ function openSpots(b: Builder, ctx: ObjectContext, routeDist: Uint8Array, margin
   return spots;
 }
 
+/**
+ * Cherche une case ouverte qui respecte l'écart voulu pour ce qu'on va y poser.
+ *
+ * Là où `poserEspaces` choisit la case PUIS laisse la fabrique décider de la
+ * nature, ce chercheur fait l'inverse : la nature est connue d'avance, donc
+ * l'écart se mesure sur la vraie clef. C'est la différence qui manquait aux
+ * gisements supplémentaires — ils s'espaçaient sur la clef `mine` sans
+ * ressource, un ensemble VIDE puisque tout gisement en a une, si bien que le
+ * test ne refusait jamais rien et qu'un filon de fer pouvait s'installer à huit
+ * cases d'une minière nommée.
+ */
+function chercherPlace(
+  b: Builder,
+  spots: readonly number[],
+  kind: string,
+  data: Record<string, unknown>,
+  convient?: (col: number, row: number) => boolean,
+): MapCoord | null {
+  for (const facteur of [10000, 6600, 3300, 0]) {
+    for (const i of spots) {
+      if (b.occupied[i] === 1) continue;
+      const col = i % COLS;
+      const row = (i / COLS) | 0;
+      if (convient && !convient(col, row)) continue;
+      if (!assezLoin(b, kind, data, col, row, facteur)) continue;
+      return { col, row };
+    }
+  }
+  return null;
+}
+
 /** Pose `count` objets d'une nature sur des cases ouvertes, espacés d'au moins `spacing`. */
 function poserEspaces(
   b: Builder,
@@ -1382,25 +1674,51 @@ function poserEspaces(
   spacing: number,
   fabrique: (at: MapCoord, ring: 1 | 2 | 3) => void,
   startDist: Uint16Array,
+  /**
+   * Ce que la fabrique va poser, pour que l'espacement consulte la mémoire
+   * GLOBALE et non le seul historique de cet appel.
+   *
+   * C'était le défaut : chaque famille se répartissait proprement contre
+   * elle-même et ignorait tout ce qui l'avait précédée. Les gisements
+   * supplémentaires s'espaçaient de quatorze cases entre eux et venaient se
+   * coller aux gisements nommés ; les artefacts semés ignoraient les artefacts
+   * fixes. Mesuré : dix-neuf paires de gisements et quatre paires d'artefacts
+   * sous l'écart voulu, dont deux artefacts case contre case.
+   *
+   * Quand la nature dépend du tirage — un gisement peut sortir en bois, en
+   * granit ou en écus — on donne la nature et une `data` représentative ; c'est
+   * la clef d'espacement la plus large qui s'applique alors, ce qui est le bon
+   * sens : mieux vaut espacer un peu trop que se retrouver avec deux scieries
+   * voisines.
+   */
+  nature?: { kind: string; data: Record<string, unknown> },
 ): void {
   const pris: MapCoord[] = [];
-  let poses = 0;
-  for (const i of spots) {
-    if (poses >= count) break;
-    const col = i % COLS;
-    const row = (i / COLS) | 0;
-    if (b.occupied[i] === 1) continue;
-    let proche = false;
-    for (const t of pris) {
-      if (Math.max(Math.abs(t.col - col), Math.abs(t.row - row)) < spacing) {
-        proche = true;
-        break;
+  /*
+   * Trois passes de relâchement. La densité est une exigence du propriétaire
+   * autant que l'espacement — « il faut suffisamment de mines de ressources
+   * pour pouvoir jouer » — donc on ne rend jamais un compte incomplet par
+   * respect d'un écart : on desserre l'écart, dans cet ordre, et l'on note
+   * implicitement le résultat dans la mesure du tableau de bord.
+   */
+  for (const facteur of [10000, 6600, 3300, 0]) {
+    for (const i of spots) {
+      if (pris.length >= count) return;
+      const col = i % COLS;
+      const row = (i / COLS) | 0;
+      if (b.occupied[i] === 1) continue;
+      let proche = false;
+      for (const t of pris) {
+        if (Math.max(Math.abs(t.col - col), Math.abs(t.row - row)) < spacing) {
+          proche = true;
+          break;
+        }
       }
+      if (proche) continue;
+      if (nature && !assezLoin(b, nature.kind, nature.data, col, row, facteur)) continue;
+      fabrique({ col, row }, ringAt(startDist, col, row));
+      pris.push({ col, row });
     }
-    if (proche) continue;
-    fabrique({ col, row }, ringAt(startDist, col, row));
-    pris.push({ col, row });
-    poses++;
   }
 }
 
@@ -1427,7 +1745,7 @@ function seedDensification(
   ];
   for (const entry of coffres) {
     for (let k = 0; k < entry.count; k++) {
-      const i = takeCache(rng, caches, entry.ring);
+      const i = prendreEspace(b, rng, caches, entry.ring, 'coffre', {});
       if (i < 0) continue;
       place(b, 'coffre', { col: i % COLS, row: (i / COLS) | 0 }, {
         ecus: (10 + entry.ring * 5 + nextInt(rng, 0, 5)) * 100,
@@ -1454,9 +1772,9 @@ function seedDensification(
   ];
   for (const entry of tas) {
     for (let k = 0; k < entry.count; k++) {
-      const i = takeCache(rng, caches, entry.ring);
-      if (i < 0) continue;
       const resource = pickWeighted(rng, PILE_TABLE);
+      const i = prendreEspace(b, rng, caches, entry.ring, 'ressource', { resource });
+      if (i < 0) continue;
       place(b, 'ressource', { col: i % COLS, row: (i / COLS) | 0 }, {
         resource,
         amount: pileAmount(rng, resource, entry.ring),
@@ -1481,14 +1799,31 @@ function seedDensification(
       { creature, stock: 0, name: NOMS_DEMEURES[tier] ?? 'Demeure franche' },
       ring >= 2 ? { guard: guardFor(rng, ring, 2) } : {},
     );
-  }, startDist);
+  }, startDist, { kind: 'demeure', data: {} });
 
   /* — Gisements supplémentaires : 14, dont les orpaillages qui rendent des
        écus — l'équivalent des mines d'or, gardés à la mesure du gain. Avec les
        gisements nommés, la carte en porte une quarantaine, le compte d'une
        XL où chaque joueur veut sa scierie, sa carrière et sa mine d'or. — */
-  poserEspaces(b, rng, spots, 14, 14, (at, ring) => {
-    const orpaillage = ring >= 2 && nextInt(rng, 0, 2) === 0;
+  /*
+   * La ressource se tire AVANT la case, et l'orpaillage avec elle.
+   *
+   * L'ordre inverse — case, puis ressource — rendait l'espacement inopérant :
+   * on ne peut pas s'écarter des scieries si l'on ne sait pas encore qu'on pose
+   * une scierie. L'orpaillage restait de surcroît soumis à l'anneau de la case
+   * déjà choisie, ce qui en supprimait un sur trois sans le dire ; il exige
+   * maintenant l'anneau 2 ou 3 comme une CONDITION de la case, et le compte des
+   * quatorze est tenu.
+   */
+  for (let n = 0; n < 14; n++) {
+    const orpaillage = nextInt(rng, 0, 2) === 0;
+    const filon = pickWeighted(rng, PILE_TABLE);
+    const resource = orpaillage ? 'ecus' : filon === 'ecus' ? 'fer' : filon;
+    const at = chercherPlace(b, spots, 'mine', { resource }, (col, row) =>
+      orpaillage ? ringAt(startDist, col, row) >= 2 : true,
+    );
+    if (!at) continue;
+    const ring = ringAt(startDist, at.col, at.row);
     if (orpaillage) {
       place(
         b,
@@ -1498,16 +1833,15 @@ function seedDensification(
         { guard: guardFor(rng, ring === 3 ? 4 : 3, 3) },
       );
     } else {
-      const filon = pickWeighted(rng, PILE_TABLE);
       place(
         b,
         'mine',
         at,
-        { resource: filon === 'ecus' ? 'fer' : filon, amount: 1 + (ring > 1 ? 1 : 0), name: 'Filon' },
+        { resource, amount: 1 + (ring > 1 ? 1 : 0), name: 'Filon' },
         { guard: guardFor(rng, ring, ring === 1 ? 2 : 3) },
       );
     }
-  }, startDist);
+  }
 
   /* — Repaires gardés : 12 banques, gros gardien, gros butin, repeuplées — */
   poserEspaces(b, rng, spots, 12, 18, (at, ring) => {
@@ -1526,20 +1860,20 @@ function seedDensification(
       },
       { guard: garde },
     );
-  }, startDist);
+  }, startDist, { kind: 'banque', data: {} });
 
   /* — Écoles : 10, temples : 8, fontaines : 7, moulins : 8 — */
   const matieres = ['vaillance', 'garde', 'mystique', 'savoir'] as const;
   let ecole = 0;
   poserEspaces(b, rng, spots, 10, 16, (at) => {
     place(b, 'ecole', at, { matiere: matieres[ecole++ % matieres.length] });
-  }, startDist);
+  }, startDist, { kind: 'ecole', data: {} });
   poserEspaces(b, rng, spots, 8, 20, (at) => {
     place(b, 'temple', at, { name: 'Oratoire' });
-  }, startDist);
+  }, startDist, { kind: 'temple', data: {} });
   poserEspaces(b, rng, spots, 7, 20, (at) => {
     place(b, 'fontaine', at, { name: 'Fontaine aux fées' });
-  }, startDist);
+  }, startDist, { kind: 'fontaine', data: {} });
   poserEspaces(b, rng, spots, 8, 22, (at) => {
     const resource = pickWeighted(rng, PILE_TABLE);
     place(b, 'moulin', at, {
@@ -1547,13 +1881,13 @@ function seedDensification(
       amount: resource === 'ecus' ? 250 : 4,
       name: 'Moulin',
     });
-  }, startDist);
+  }, startDist, { kind: 'moulin', data: {} });
 
   /* — Pierres levées : 6 paires, jumelées loin l'une de l'autre — */
   const bornes: MapCoord[] = [];
   poserEspaces(b, rng, spots, 12, 26, (at) => {
     bornes.push(at);
-  }, startDist);
+  }, startDist, { kind: 'monolithe', data: {} });
   /* Apparier la plus proche avec la plus lointaine : chaque paire raccourcit
      vraiment la carte au lieu de relier deux voisines. */
   bornes.sort((a, z) => a.col + a.row * COLS - (z.col + z.row * COLS));
@@ -1569,11 +1903,11 @@ function seedDensification(
   /* — Montjoies : 10, cartographes : 3, colporteurs : 4 — */
   poserEspaces(b, rng, spots, 10, 30, (at) => {
     place(b, 'obelisque', at, { name: 'Montjoie' });
-  }, startDist);
+  }, startDist, { kind: 'obelisque', data: {} });
   poserEspaces(b, rng, spots, 3, 60, (at) => {
     const i = at.row * COLS + at.col;
     place(b, 'cartographe', at, { prix: 1000, region: undefined, name: 'Cartographe', regionIdx: b.ctx.region[i] });
-  }, startDist);
+  }, startDist, { kind: 'cartographe', data: {} });
   poserEspaces(b, rng, spots, 4, 40, (at, ring) => {
     const rarity: Rarity = ring === 3 ? 'majeur' : 'rare';
     const pool = ARTIFACT_POOL[rarity];
@@ -1582,7 +1916,7 @@ function seedDensification(
       prix: rarity === 'majeur' ? 4000 : 2500,
       name: 'Colporteurs',
     });
-  }, startDist);
+  }, startDist, { kind: 'marche_noir', data: {} });
 }
 
 const NOMS_DEMEURES: Readonly<Record<number, string>> = {
@@ -1638,11 +1972,26 @@ function seedCouverture(b: Builder, rng: RngState, ctx: ObjectContext): void {
       if (!vide || libres.length < 40) continue;
       const n = 1 + nextInt(rng, 0, 1);
       for (let k = 0; k < n && libres.length > 0; k++) {
-        const idx2 = nextInt(rng, 0, libres.length - 1);
+        const resource = pickWeighted(rng, PILE_TABLE);
+        /* Un carré vide se remplit sans y remettre deux fois la même chose :
+           on cherche une case qui respecte l'écart, et l'on se contente de
+           n'importe laquelle seulement si le carré n'en offre aucune. */
+        let idx2 = -1;
+        const debut = nextInt(rng, 0, libres.length - 1);
+        for (const facteur of [10000, 0]) {
+          for (let t = 0; t < libres.length; t++) {
+            const p = (debut + t) % libres.length;
+            const j = libres[p];
+            if (!assezLoin(b, 'ressource', { resource }, j % COLS, (j / COLS) | 0, facteur)) continue;
+            idx2 = p;
+            break;
+          }
+          if (idx2 >= 0) break;
+        }
+        if (idx2 < 0) break;
         const i = libres[idx2];
         libres[idx2] = libres[libres.length - 1];
         libres.pop();
-        const resource = pickWeighted(rng, PILE_TABLE);
         place(b, 'ressource', { col: i % COLS, row: (i / COLS) | 0 }, {
           resource,
           amount: pileAmount(rng, resource, 2),
@@ -1745,7 +2094,29 @@ function addCompensation(
 ): void {
   let delivered = 0;
   let piles = 0;
-  while (list.length > 0 && delivered < wantedValue && piles < COMPENSATION_PILES) {
+  /*
+   * La compensation espace aussi ses caches.
+   *
+   * C'était la source des grappes que le tableau de bord montrait au ras des
+   * capitales — « ecus (60,163) / ecus (60,162) / ecus (60,165) » à La Renaudie,
+   * « fer (42,16) / fer (41,15) » à Arconsat. La liste de candidats est triée par
+   * coût de marche, donc les cases les moins chères sont voisines par
+   * construction : sans écart, une passe de rééquilibrage pose huit tas en
+   * grappe sur le pas de porte. Le rééquilibrage reste prioritaire — c'est lui
+   * qui rend les cinq départs comparables —, donc l'écart se desserre par
+   * paliers, et les recalés retournent dans la file pour la passe suivante.
+   */
+  const paliers = [10000, 5000, 0];
+  let palier = 0;
+  const recales: number[] = [];
+  while (delivered < wantedValue && piles < COMPENSATION_PILES) {
+    if (list.length === 0) {
+      if (palier + 1 >= paliers.length || recales.length === 0) break;
+      palier++;
+      for (const r of recales) list.push(r);
+      recales.length = 0;
+      continue;
+    }
     const i = list.shift() as number;
     if (b.occupied[i] === 1) continue;
     const col = i % COLS;
@@ -1768,9 +2139,15 @@ function addCompensation(
     } else {
       amount = Math.max(2, Math.min(60, Math.trunc(raw / unit)));
     }
+    if (!assezLoin(b, 'ressource', { resource }, col, row, paliers[palier])) {
+      recales.push(i);
+      continue;
+    }
     const placed = place(b, 'ressource', { col, row }, { resource, amount, compensation: true });
     if (!placed) continue;
     delivered += Math.trunc((amount * unit * reach) / 10000);
     piles++;
   }
+  /* Ce qui n'a pas servi retourne dans la file : la passe suivante y revient. */
+  for (const r of recales) list.push(r);
 }

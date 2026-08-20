@@ -90,9 +90,14 @@ export type { ForestKind, TerrainField } from './terrain.js';
 export {
   WEEK_BUDGET,
   BALANCE_BUDGET,
+  ECART_MINIMAL,
+  PLANCHER_ECART,
   accessibleValue,
   buildObjects,
+  cleEspacement,
   costFieldFrom,
+  ecartRelache,
+  ecartVoulu,
   fixedPlots,
   objectValue,
 } from './objects.js';

@@ -53,11 +53,16 @@ import {
   buildTerrain,
   buildWorld,
   COLS,
+  ECART_MINIMAL,
+  REGION_LABELS,
   ROWS,
   START_POSITIONS,
+  cleEspacement,
   integriteDesMurs,
+  objectValue,
   type MurMesure,
 } from '@auvergne/map';
+import { REGIONS } from '@auvergne/engine';
 import { coupesEntreCapitales, type CoupeEntreCapitales } from './coupe.js';
 import {
   BASE_MOVEMENT,
@@ -157,6 +162,7 @@ export interface Rapport {
   gardesBloquants: number;
   /** Cases atteintes depuis chaque capitale sans livrer un combat. */
   terreLibre: { depart: string; libre: number }[];
+  repartition: Repartition;
   glanage: Glanage[];
 }
 
@@ -290,7 +296,14 @@ export function mesurer(graine: number): Rapport {
     rows: number;
     terrain: Uint8Array | Int8Array;
     flags: Uint8Array | Int32Array;
-    objects: { kind: string; at: { col: number; row: number }; footprint?: { col: number; row: number }[] }[];
+    objects: {
+      kind: string;
+      at: { col: number; row: number };
+      entrance: { col: number; row: number };
+      footprint?: { col: number; row: number }[];
+      guard?: readonly { creature: string; count: number }[];
+      data: Record<string, unknown>;
+    }[];
   };
   const cols = w.cols || COLS;
   const rows = w.rows || ROWS;
@@ -521,6 +534,14 @@ export function mesurer(graine: number): Rapport {
     gardes,
     gardesBloquants,
     terreLibre: librePar,
+    /* `WorldMap` ne porte pas les cantons : on les reprend au terrain fixe, qui
+       est le même pour toutes les graines. */
+    repartition: mesurerRepartition(
+      { objects: w.objects, region: buildTerrain().region },
+      praticable,
+      cols,
+      rows,
+    ),
     glanage,
   };
 }
@@ -654,6 +675,267 @@ export function tarjan(
   return { composantes, articulations, goulets };
 }
 
+/** Noms des cantons dans l'ordre des index de `world.region`. */
+const REGIONS_NOMS: readonly string[] = REGIONS.map((id) => REGION_LABELS[id]);
+
+/* ──────────────────────── Répartition du semis ───────────────────────────── */
+
+/**
+ * Ce que le propriétaire demande, traduit en nombres.
+ *
+ * Trois exigences, textuellement : « je ne veux pas avoir 2 fois le même asset
+ * trop proches les uns des autres » ; « assez par zone mais pas trop de la même
+ * sorte au même endroit » ; « les assets les plus importants doivent être gardés
+ * par des gardes assez forts ». Plus le dosage de la difficulté « en fonction
+ * des événements qu'ils gardent et de la proximité du point de départ ».
+ *
+ * Aucune de ces quatre choses n'était mesurée. Le tableau de bord comptait les
+ * objets par nature et par canton vide, ce qui ne dit rien de leur VOISINAGE :
+ * quatre gisements de bois collés dans le même vallon et aucun ailleurs
+ * passaient la mesure de densité sans broncher. On mesure donc, dans l'ordre du
+ * texte du propriétaire.
+ */
+export interface Repartition {
+  /** Par nature : la plus courte distance entre deux objets de cette nature. */
+  voisinage: {
+    nature: string;
+    combien: number;
+    minimum: number;
+    /** Paires sous l'écart dont AU MOINS UN membre est semé — donc corrigibles. */
+    paires: number;
+    /** Paires sous l'écart dont les DEUX membres sont écrits à la main. */
+    pairesEcrites: number;
+    /** Les trois paires les plus rapprochées, pour savoir quoi corriger. */
+    fautives: string[];
+  }[];
+  /** Par canton : combien d'objets, et la nature la plus représentée. */
+  cantons: { canton: string; objets: number; gisements: number; dominante: string; part: number }[];
+  /** Les objets de forte valeur et la garde qui les tient. */
+  gardeParValeur: { tranche: string; combien: number; gardeMediane: number; sansGarde: number }[];
+  /** La garde en fonction de l'éloignement du départ le plus proche. */
+  gardeParDistance: { tranche: string; combien: number; gardeMediane: number }[];
+}
+
+/** Distance minimale d'un objet à l'un des cinq départs, en cases. */
+function distanceAuxDeparts(praticable: Uint8Array, cols: number, rows: number): Int32Array {
+  const n = cols * rows;
+  const d = new Int32Array(n).fill(-1);
+  const file = new Int32Array(n);
+  let tete = 0;
+  let queue = 0;
+  for (const s of Object.values(START_POSITIONS)) {
+    const i = s.at.row * cols + s.at.col;
+    if (i < 0 || i >= n || d[i] === 0) continue;
+    d[i] = 0;
+    file[queue++] = i;
+  }
+  while (tete < queue) {
+    const i = file[tete++];
+    const col = i % cols;
+    const row = (i / cols) | 0;
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (!dr && !dc) continue;
+        const c = col + dc;
+        const r2 = row + dr;
+        if (c < 0 || r2 < 0 || c >= cols || r2 >= rows) continue;
+        const j = r2 * cols + c;
+        if (d[j] >= 0 || !praticable[j]) continue;
+        d[j] = d[i] + 1;
+        file[queue++] = j;
+      }
+    }
+  }
+  return d;
+}
+
+/** Puissance d'une garde, au barème du semeur. */
+function forceDeGarde(obj: { guard?: readonly { creature: string; count: number }[] }): number {
+  if (!obj.guard) return 0;
+  let total = 0;
+  for (const s of obj.guard) {
+    const tier = Number(s.creature.slice(-1));
+    total += (TIER_POWER_LOCAL[tier] ?? 100) * s.count;
+  }
+  return total;
+}
+
+/** Le barème du semeur, recopié pour que la mesure parle sa langue. */
+const TIER_POWER_LOCAL: readonly number[] = [0, 10, 32, 85, 190, 420, 900, 2100];
+
+/*
+ * L'écart minimal voulu entre deux lieux qui se ressemblent vient de
+ * `@auvergne/map` — la table du SEMEUR, pas une copie.
+ *
+ * Il y en avait une copie ici, et elle ne disait pas la même chose : neuf cases
+ * entre deux gisements là où le semeur en veut douze entre deux gisements de la
+ * MÊME ressource et cinq entre deux gisements différents. Une mesure qui juge
+ * avec son propre barème ne mesure pas l'ouvrage, elle mesure sa copie ; c'est
+ * ainsi qu'on se félicite d'un résultat que le jeu n'a pas. La copie est donc
+ * supprimée, et le regroupement se fait sur la CLEF d'espacement du semeur —
+ * `mine|bois`, `ressource|sel` — et non sur la seule nature.
+ */
+
+/** Le seuil du semeur pour une clef d'espacement, avec son propre repli. */
+function seuilDe(cle: string): number {
+  const nature = cle.split('|')[0];
+  return ECART_MINIMAL[cle] ?? ECART_MINIMAL[nature] ?? 6;
+}
+
+function mediane2(xs: number[]): number {
+  if (!xs.length) return 0;
+  const t = [...xs].sort((a, b) => a - b);
+  const m = t.length >> 1;
+  return t.length % 2 ? t[m] : Math.round((t[m - 1] + t[m]) / 2);
+}
+
+function mesurerRepartition(
+  w: { objects: readonly { kind: string; at: { col: number; row: number }; entrance: { col: number; row: number }; guard?: readonly { creature: string; count: number }[]; data: Record<string, unknown> }[]; region: ArrayLike<number> },
+  praticable: Uint8Array,
+  cols: number,
+  rows: number,
+): Repartition {
+  /* — Voisinage : la plus courte distance entre deux lieux de MÊME CLEF — */
+  const parNature = new Map<string, { col: number; row: number; ecrit: boolean }[]>();
+  for (const o of w.objects) {
+    const cle = cleEspacement(o.kind, o.data);
+    const p = { col: o.at.col, row: o.at.row, ecrit: o.data.fixe === true };
+    const l = parNature.get(cle);
+    if (l) l.push(p);
+    else parNature.set(cle, [p]);
+  }
+  const nomDe = new Map<string, string>();
+  for (const o of w.objects) {
+    const n = (o.data.name as string | undefined) ?? (o.data.resource as string | undefined) ?? o.kind;
+    nomDe.set(`${cleEspacement(o.kind, o.data)}|${String(o.at.col)},${String(o.at.row)}`, n);
+  }
+  const voisinage: Repartition['voisinage'] = [];
+  for (const [nature, ats] of parNature) {
+    let minimum = Number.MAX_SAFE_INTEGER;
+    let paires = 0;
+    let pairesEcrites = 0;
+    const seuil = seuilDe(nature);
+    const proches: { d: number; texte: string }[] = [];
+    for (let i = 0; i < ats.length; i++) {
+      for (let j = i + 1; j < ats.length; j++) {
+        const d = Math.max(Math.abs(ats[i].col - ats[j].col), Math.abs(ats[i].row - ats[j].row));
+        if (d < minimum) minimum = d;
+        if (d >= seuil) continue;
+        /*
+         * Deux lieux écrits à la main ne sont pas un défaut du semis : la
+         * géographie est fixe (document maître §4), et le semeur n'a pas le
+         * pouvoir de les écarter. On les compte à part plutôt que de baisser la
+         * cible pour les faire disparaître.
+         */
+        if (ats[i].ecrit && ats[j].ecrit) {
+          pairesEcrites++;
+          continue;
+        }
+        paires++;
+        const na = nomDe.get(`${nature}|${String(ats[i].col)},${String(ats[i].row)}`) ?? '?';
+        const nb = nomDe.get(`${nature}|${String(ats[j].col)},${String(ats[j].row)}`) ?? '?';
+        proches.push({
+          d,
+          texte: `${String(d)} : ${na} (${String(ats[i].col)},${String(ats[i].row)}) / ${nb} (${String(ats[j].col)},${String(ats[j].row)})`,
+        });
+      }
+    }
+    proches.sort((a, b) => a.d - b.d);
+    voisinage.push({
+      nature,
+      combien: ats.length,
+      minimum: ats.length > 1 ? minimum : 0,
+      paires,
+      pairesEcrites,
+      fautives: proches.slice(0, 3).map((x) => x.texte),
+    });
+  }
+  voisinage.sort(
+    (a, b) => b.paires - a.paires || b.pairesEcrites - a.pairesEcrites || a.nature.localeCompare(b.nature),
+  );
+
+  /* — Cantons : combien d'objets, et la nature qui domine — */
+  const parCanton = new Map<number, Map<string, number>>();
+  for (const o of w.objects) {
+    const reg = w.region[o.at.row * cols + o.at.col] | 0;
+    let m = parCanton.get(reg);
+    if (!m) {
+      m = new Map();
+      parCanton.set(reg, m);
+    }
+    m.set(o.kind, (m.get(o.kind) ?? 0) + 1);
+  }
+  const cantons: Repartition['cantons'] = [];
+  for (const [reg, m] of parCanton) {
+    let objets = 0;
+    let dominante = '';
+    let max = 0;
+    for (const [k, v] of m) {
+      objets += v;
+      if (v > max) {
+        max = v;
+        dominante = k;
+      }
+    }
+    cantons.push({
+      canton: REGIONS_NOMS[reg] ?? `canton ${String(reg)}`,
+      objets,
+      gisements: m.get('mine') ?? 0,
+      dominante,
+      part: objets ? Math.round((100 * max) / objets) : 0,
+    });
+  }
+  cantons.sort((a, b) => a.objets - b.objets);
+
+  /* — La garde en fonction de la valeur gardée — */
+  const tranchesValeur: { nom: string; min: number; max: number }[] = [
+    { nom: 'valeur < 200', min: 0, max: 200 },
+    { nom: '200 à 600', min: 200, max: 600 },
+    { nom: '600 à 1 500', min: 600, max: 1500 },
+    { nom: '1 500 et plus', min: 1500, max: Number.MAX_SAFE_INTEGER },
+  ];
+  const gardeParValeur: Repartition['gardeParValeur'] = tranchesValeur.map((t) => {
+    const forces: number[] = [];
+    let sansGarde = 0;
+    for (const o of w.objects) {
+      if (o.kind === 'garde' || o.kind === 'ville') continue;
+      const v = objectValue(o as never);
+      if (v < t.min || v >= t.max) continue;
+      const f = forceDeGarde(o);
+      forces.push(f);
+      if (f === 0) sansGarde++;
+    }
+    return {
+      tranche: t.nom,
+      combien: forces.length,
+      gardeMediane: mediane2(forces),
+      sansGarde,
+    };
+  });
+
+  /* — La garde en fonction de l'éloignement du départ le plus proche — */
+  const dist = distanceAuxDeparts(praticable, cols, rows);
+  const tranchesDist: { nom: string; min: number; max: number }[] = [
+    { nom: 'à moins de 12 cases', min: 0, max: 12 },
+    { nom: '12 à 25 cases', min: 12, max: 25 },
+    { nom: '25 à 45 cases', min: 25, max: 45 },
+    { nom: 'au-delà de 45', min: 45, max: Number.MAX_SAFE_INTEGER },
+  ];
+  const gardeParDistance: Repartition['gardeParDistance'] = tranchesDist.map((t) => {
+    const forces: number[] = [];
+    for (const o of w.objects) {
+      const f = forceDeGarde(o);
+      if (f === 0) continue;
+      const d = dist[o.entrance.row * cols + o.entrance.col];
+      if (d < 0 || d < t.min || d >= t.max) continue;
+      forces.push(f);
+    }
+    return { tranche: t.nom, combien: forces.length, gardeMediane: mediane2(forces) };
+  });
+
+  return { voisinage, cantons, gardeParValeur, gardeParDistance };
+}
+
 /* ─────────────────────────────────── Sortie ──────────────────────────────── */
 
 function pourcent(x: number): string {
@@ -728,6 +1010,44 @@ function imprimer(r: Rapport): void {
     console.log(
       `  ${l}${v}    trous : voie ${String(m.trousVoie)} · eau ${String(m.trousEau)} · autres ${String(m.trousAutres)}`,
     );
+  }
+
+  console.log('\n▸ Répartition — deux fois la même chose, trop près');
+  console.log(
+    '    (écart voulu par CLEF d’espacement du semeur ; « paires » = celles qui y contreviennent,',
+  );
+  console.log('     « écrites à la main » = les deux membres viennent de la géographie fixe)');
+  for (const v of r.repartition.voisinage) {
+    if (v.combien < 2) continue;
+    const seuil = seuilDe(v.nature);
+    const l = `  ${v.nature}`.padEnd(28);
+    console.log(
+      `  ${l}${String(v.combien).padStart(4)} objets · plus proche ${String(v.minimum).padStart(3)} ` +
+        `(voulu ${String(seuil).padStart(2)}) · ${String(v.paires).padStart(4)} paires trop près` +
+        (v.pairesEcrites > 0 ? ` · ${String(v.pairesEcrites)} écrites à la main` : ''),
+    );
+    for (const f of v.fautives) console.log(`      ${f}`);
+  }
+
+  console.log('\n▸ Répartition — par canton');
+  for (const c of r.repartition.cantons) {
+    const l = `  ${c.canton}`.padEnd(28);
+    console.log(
+      `  ${l}${String(c.objets).padStart(4)} objets · ${String(c.gisements).padStart(2)} gisements · ` +
+        `dominante ${c.dominante} à ${String(c.part)} %`,
+    );
+  }
+
+  console.log('\n▸ Dosage de la garde');
+  for (const g of r.repartition.gardeParValeur) {
+    ligne(
+      `  ${g.tranche}`,
+      `${String(g.combien)} lieux`,
+      `garde médiane ${String(g.gardeMediane)} · ${String(g.sansGarde)} sans garde`,
+    );
+  }
+  for (const g of r.repartition.gardeParDistance) {
+    ligne(`  ${g.tranche}`, `${String(g.combien)} gardes`, `médiane ${String(g.gardeMediane)}`);
   }
 
   ligne('gardes posés', String(r.gardes));
