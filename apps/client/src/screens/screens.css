@@ -546,6 +546,38 @@
       100% 13px no-repeat scroll;
 }
 
+/*
+ * SUR UN TÉLÉPHONE, LE CARTON PREND LA MOITIÉ DU JEU.
+ *
+ * Mesuré sur la capture iPhone `shots/matiere-b/carte--iphone.png`, en balayant
+ * la colonne centrale : la fiche s'étend de 64 à 456 points, soit 392 points de
+ * haut sur un écran de 844 — quarante-six pour cent — et elle est TOUT DE MÊME
+ * coupée en bas, au milieu de « QUELQUES Colosses de Granit ». Il ne restait
+ * que 329 points de carte, dont la minicarte occupait encore un coin.
+ *
+ * Deux tiers de la scène, c'est une proportion de moniteur : sur un écran de
+ * 340 points de large, le même carton s'écrit sur deux fois plus de lignes.
+ * On le ramène donc à deux cinquièmes, et l'on resserre ses interlignes — le
+ * défilement existe déjà et s'annonce par l'ombre ci-dessus, donc raccourcir ne
+ * cache rien : cela rend la carte au joueur.
+ *
+ * Le même seuil que la barre de pouce (`styles.css`, 899 px) : c'est le même
+ * appareil et il n'y a aucune raison qu'ils divergent.
+ */
+@media (max-width: 899px) {
+  .carte-fiche {
+    max-height: min(42%, 330px);
+  }
+
+  .carte-fiche__pile {
+    padding-block: 2px;
+  }
+
+  .carte-fiche > .hmm-panneau > .hmm-panneau__corps {
+    padding-block: var(--hmm-space-2);
+  }
+}
+
 /* La bannière et le nom du maître des lieux : la couleur ne porte jamais seule
    l'information, le nom de la maison est écrit à côté du gonfanon. */
 .carte-fiche__banniere {
