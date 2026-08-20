@@ -16,11 +16,11 @@ import { spawn } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { portLibre } from './port-libre.mjs';
+import { monterPartie, munirDuJeton, poster as posterVers } from './partie-en-ligne.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = await portLibre();
 const base = `http://127.0.0.1:${PORT}`;
-const CLEF_JETONS = 'auvergne.parties.jetons.v1';
 
 const dit = (ok, texte) => console.log(`  ${ok ? '✓' : '✗'} ${texte}`);
 let echecs = 0;
@@ -41,42 +41,9 @@ async function attendre(url, ms = 60_000) {
   }
 }
 
-/**
- * Bocal à témoins minimal. Sans lui, chaque `fetch` de Node est un navigateur
- * neuf : l'hôte qui crée la partie n'est plus reconnu comme hôte au moment de
- * la lancer, et le service a raison de refuser.
- */
-function bocal() {
-  const temoins = new Map();
-  return {
-    entete() {
-      return temoins.size === 0
-        ? {}
-        : { cookie: [...temoins].map(([k, v]) => `${k}=${v}`).join('; ') };
-    },
-    absorber(reponse) {
-      for (const brut of reponse.headers.getSetCookie?.() ?? []) {
-        const [paire] = brut.split(';');
-        const i = paire.indexOf('=');
-        if (i > 0) temoins.set(paire.slice(0, i).trim(), paire.slice(i + 1).trim());
-      }
-    },
-  };
-}
-
-const poster = async (chemin, corps, jeton, jar) => {
-  const r = await fetch(`${base}${chemin}`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(jeton ? { 'x-jeton-joueur': jeton } : {}),
-      ...(jar ? jar.entete() : {}),
-    },
-    body: JSON.stringify(corps ?? {}),
-  });
-  jar?.absorber(r);
-  return { statut: r.status, corps: await r.json().catch(() => null) };
-};
+/* Le montage du salon vit dans `partie-en-ligne.mjs` : le harnais de capture
+   monte la même partie, et deux copies d'un même parcours dérivent. */
+const poster = (chemin, corps, jeton, jar) => posterVers(base, chemin, corps, jeton, jar);
 
 const serveur = spawn('node', ['apps/server/dist/server.js'], {
   cwd: ROOT, stdio: 'ignore', detached: true,
@@ -88,29 +55,10 @@ try {
   await attendre(`${base}/api/parties/mes-parties`);
 
   console.log('▸ montage du salon par l’API');
-  const hote = bocal();
-  const cousin = bocal();
-  const creation = await poster('/api/parties', { bannieres: 2, duree: 'eclair', victoire: 'couronne' }, null, hote);
-  const code = creation.corps.code;
+  const partie = await monterPartie(base);
+  const { code, actif, jetonActif, jetonAutre, hote, cousin } = partie;
   exige(typeof code === 'string' && code.length > 5, `partie créée : ${code}`);
-
-  const p1 = await poster(`/api/parties/${code}/rejoindre`,
-    { slot: 'P1', nom: 'Thibaut', faction: 'granit', heros: 'thibaut', depart: 'arconsat' },
-    creation.corps.jeton, hote);
-  const p2 = await poster(`/api/parties/${code}/rejoindre`,
-    { slot: 'P2', nom: 'Jean', faction: 'ermitage', heros: 'agathe', depart: 'renaudie' },
-    null, cousin);
-  /* `rejoindre` crée une ressource : 201, et non 200. */
-  exige(p1.statut === 201 && p2.statut === 201, `les deux bannières sont prises (${p1.statut}, ${p2.statut})`);
-
-  const lancement = await poster(`/api/parties/${code}/lancer`, {}, p1.corps.jeton, hote);
-  exige(
-    lancement.statut === 200 && lancement.corps.statut === 'en_cours',
-    `la partie est lancée (${lancement.statut} · ${lancement.corps?.statut ?? lancement.corps?.erreur ?? '?'})`,
-  );
-  const actif = lancement.corps.activePlayer;
-  const jetonActif = actif === 'P1' ? p1.corps.jeton : p2.corps.jeton;
-  const jetonAutre = actif === 'P1' ? p2.corps.jeton : p1.corps.jeton;
+  exige(actif === 'P1' || actif === 'P2', `la partie est lancée, la main est à ${String(actif)}`);
 
   navigateur = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
 
@@ -121,10 +69,7 @@ try {
     const erreurs = [];
     page.on('console', (m) => { if (m.type() === 'error') erreurs.push(m.text().slice(0, 240)); });
     page.on('pageerror', (e) => erreurs.push(String(e).slice(0, 240)));
-    await page.goto(`${base}/`, { waitUntil: 'load' });
-    await page.evaluate(([clef, c, j]) => {
-      localStorage.setItem(clef, JSON.stringify({ [c]: j }));
-    }, [CLEF_JETONS, code, jeton]);
+    await munirDuJeton(page, base, code, jeton);
     await page.goto(`${base}/#/en-ligne/${code}`, { waitUntil: 'load' });
     await page.waitForTimeout(6000);
     return { ctx, page, erreurs, nom };

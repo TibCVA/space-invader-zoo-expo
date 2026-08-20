@@ -16,6 +16,7 @@ import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { portLibre } from './port-libre.mjs';
+import { monterPartie, munirDuJeton } from './partie-en-ligne.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = await portLibre();
@@ -107,6 +108,35 @@ const SCENES = {
   },
   galerie_ui: { hash: '#/demo/galerie', wait: 1800, label: 'Galerie du design system' },
   sauvegardes: { hash: '#/demo/sauvegardes', wait: 1400, label: 'Emplacements de sauvegarde' },
+  /*
+   * LA SEULE SCÈNE QUI REGARDE CE QUE LE PROPRIÉTAIRE REGARDE.
+   *
+   * Toutes les autres visitent `#/demo/*`. La démonstration a un cadrage
+   * choisi, une carte entièrement révélée et aucune reprise à faire : elle ne
+   * peut pas montrer les défauts d'une vraie partie. Les deux que le
+   * propriétaire a signalés en production — « la carte n'affiche rien à
+   * l'écran » — vivaient exactement là : un cadrage posé sur un territoire
+   * jamais exploré (brouillard complet, aplat bleu nuit), et une reprise qui
+   * n'essayait que la sauvegarde locale, que le mode en ligne n'a pas.
+   *
+   * Cette scène monte une vraie partie à deux bannières par l'API, entre dans
+   * la partie avec le jeton du joueur qui a la main, et photographie les
+   * **trois moments qui comptent** dans un seul contexte de navigateur :
+   *
+   *   1. `entree`  — juste après « Entrer dans la partie » ;
+   *   2. `reprise` — après un `reload()`, le geste du cousin qui revient ;
+   *   3. `froid`   — `#/partie` ouvert directement, le lien mis en favori.
+   *
+   * Un seul contexte pour les trois : l'atlas se reconstruit à chaque contexte
+   * neuf, et il coûte une quarantaine de secondes sans GPU. C'est aussi plus
+   * fidèle — c'est un seul cousin qui reste sur son onglet.
+   */
+  en_ligne: {
+    enLigne: true,
+    wait: 60000,
+    moments: ['entree', 'reprise', 'froid'],
+    label: 'Partie en ligne — entrée, reprise, ouverture à froid',
+  },
 };
 
 const VIEWPORTS = [
@@ -144,6 +174,49 @@ async function waitForServer(url, timeoutMs = 90_000) {
     if (Date.now() - start > timeoutMs) throw new Error(`serveur injoignable : ${url}`);
     await new Promise((r) => setTimeout(r, 400));
   }
+}
+
+/**
+ * Le parcours d'un cousin dans une vraie partie, photographié à trois moments.
+ *
+ * Le contexte est unique : c'est le même onglet qui entre, recharge, puis
+ * rouvre `#/partie` à froid. On y gagne deux reconstructions d'atlas, et
+ * surtout la fidélité — un cousin ne change pas de navigateur entre deux
+ * gestes.
+ *
+ * Une note sur l'honnêteté de l'instrument : si le bouton « Entrer dans la
+ * partie » n'apparaît pas, on photographie quand même et on **inscrit
+ * l'échec**. Sans cela, la capture montrerait un écran de salon et une revue
+ * pressée conclurait que la carte va bien.
+ */
+async function parcoursEnLigne({ page, base, scene, capturer, partieEnLigne, errors }) {
+  const { code, jetonActif } = await partieEnLigne();
+
+  await munirDuJeton(page, base, code, jetonActif);
+  await page.goto(`${base}/#/en-ligne/${code}`, { waitUntil: 'load', timeout: 45_000 });
+
+  const bouton = page.getByRole('button', { name: /Entrer dans la partie/i });
+  try {
+    await bouton.waitFor({ state: 'visible', timeout: 30_000 });
+    await bouton.click();
+  } catch {
+    errors.push("le bouton « Entrer dans la partie » n'est jamais apparu dans le salon");
+  }
+  await page.waitForTimeout(scene.wait);
+  await capturer('entree');
+
+  /* Le geste du cousin qui revient sur son onglet : la partie doit se
+     retrouver au serveur, puisqu'une partie en ligne n'a pas de sauvegarde
+     locale. C'est le défaut exact signalé en production. */
+  await page.reload({ waitUntil: 'load', timeout: 45_000 });
+  await page.waitForTimeout(scene.wait);
+  await capturer('reprise');
+
+  /* Le lien mis en favori, ou l'adresse tapée à la main : `#/partie` sans
+     passer par le salon. Même reprise, autre porte d'entrée. */
+  await page.goto(`${base}/#/partie`, { waitUntil: 'load', timeout: 45_000 });
+  await page.waitForTimeout(scene.wait);
+  await capturer('froid');
 }
 
 async function main() {
@@ -188,6 +261,19 @@ async function main() {
 
   const report = { generatedAt: new Date().toISOString(), shots: [], consoleErrors: [] };
   let browser;
+
+  /*
+   * La partie en ligne est montée une seule fois, à la demande. Deux raisons :
+   * les scènes de démonstration n'en ont pas besoin, et les deux points de vue
+   * (bureau, iPhone) doivent regarder LA MÊME partie — sinon on compare deux
+   * cartes différentes en croyant comparer deux écrans.
+   */
+  let partie = null;
+  const partieEnLigne = async () => {
+    partie ??= await monterPartie(base);
+    return partie;
+  };
+
   try {
     await waitForServer(base);
     browser = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
@@ -210,8 +296,29 @@ async function main() {
         });
         page.on('pageerror', (e) => errors.push(String(e).slice(0, 400)));
 
-        const url = `${base}/${scene.hash}`;
+        /** Photographie l'écran courant sous un nom de moment. */
+        const capturer = async (moment) => {
+          const nom = moment ? `${key}_${moment}` : key;
+          const file = resolve(outDir, `${nom}--${vp.key}.png`);
+          await page.screenshot({ path: file, fullPage: false });
+          report.shots.push({
+            scene: nom,
+            label: scene.label,
+            viewport: vp.key,
+            file,
+            errors: errors.length,
+          });
+          console.log(`  ✓ ${nom} · ${vp.key}${errors.length ? ` (${errors.length} erreurs console)` : ''}`);
+        };
+
         try {
+          if (scene.enLigne) {
+            await parcoursEnLigne({ page, base, scene, capturer, partieEnLigne, errors });
+            if (errors.length) report.consoleErrors.push({ scene: key, viewport: vp.key, errors });
+            await ctx.close();
+            continue;
+          }
+          const url = `${base}/${scene.hash}`;
           await page.goto(url, { waitUntil: 'load', timeout: 45_000 });
           await page.waitForTimeout(scene.wait);
           if (scene.defile) {
@@ -232,10 +339,7 @@ async function main() {
              */
             await page.waitForTimeout(scene.repos ?? 2500);
           }
-          const file = resolve(outDir, `${key}--${vp.key}.png`);
-          await page.screenshot({ path: file, fullPage: false });
-          report.shots.push({ scene: key, label: scene.label, viewport: vp.key, file, errors: errors.length });
-          console.log(`  ✓ ${key} · ${vp.key}${errors.length ? ` (${errors.length} erreurs console)` : ''}`);
+          await capturer(null);
         } catch (e) {
           report.shots.push({ scene: key, viewport: vp.key, error: String(e).slice(0, 300) });
           console.log(`  ✗ ${key} · ${vp.key} : ${e}`);
