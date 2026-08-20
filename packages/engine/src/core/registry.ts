@@ -203,11 +203,23 @@ export interface CombatModulePack {
   autoResolve(state: GameState): GameEvent[];
   chooseCombatAction(state: GameState, combat: CombatState): CombatAction;
   resolveCombatOutcome(state: GameState): GameEvent[];
+  /**
+   * `fromHex` et `chargeHexes` ne sont pas décoratifs : sans eux, l'angle de
+   * flanc, l'angle de dos, la riposte conditionnelle et le bonus de charge se
+   * calculent depuis la case OÙ SE TROUVE l'assaillant et non depuis celle d'où
+   * le coup partira. Le joueur voyait un chiffre, avançait, et en obtenait un
+   * autre — mesuré : le dos valait 2000 BP et la charge 2500 BP de plus que ce
+   * que l'aperçu annonçait, et le coup réellement porté sortait au-dessus du
+   * maximum affiché. Le contrat les porte donc, et toute implémentation qui les
+   * ignore doit le DIRE (voir `fallback-combat.ts`).
+   */
   damageRange(
     combat: CombatState,
     attacker: CombatUnit,
     target: CombatUnit,
     ranged: boolean,
+    fromHex?: HexCoord,
+    chargeHexes?: number,
   ): {
     min: number;
     max: number;

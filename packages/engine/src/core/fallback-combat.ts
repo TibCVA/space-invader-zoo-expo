@@ -132,11 +132,28 @@ export function startCombat(
 
 /* ── Formule de dégâts (brief §3) ───────────────────────────────────────── */
 
+/**
+ * Le repli n'a **aucune notion d'orientation ni de charge**, et il faut le dire.
+ *
+ * Le contrat (`registry.ts`) porte `fromHex` et `chargeHexes` depuis que
+ * l'aperçu d'assaut se calcule depuis la case d'approche et non depuis la case
+ * courante. Cette formule-ci, elle, ne connaît que l'attaque, la défense et la
+ * posture : pas de flanc, pas de dos, pas d'élan. Elle accepte donc les deux
+ * paramètres et les IGNORE, sciemment.
+ *
+ * Les nommer `_fromHex` et `_chargeHexes` n'est pas une coquetterie : c'est ce
+ * qui distingue « ce repli ne sait pas faire » de « quelqu'un a oublié de les
+ * brancher ». Le repli ne sert que lorsque `@auvergne/game` n'a pas relié les
+ * vrais modules ; s'il devient un jour le chemin normal, cette limite doit être
+ * levée avant, pas découverte après.
+ */
 export function damageRange(
   combat: CombatState,
   attacker: CombatUnit,
   target: CombatUnit,
   ranged: boolean,
+  _fromHex?: unknown,
+  _chargeHexes?: number,
 ): {
   min: number;
   max: number;

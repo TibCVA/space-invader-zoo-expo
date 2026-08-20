@@ -61,7 +61,7 @@ export function chooseCombatAction(state: GameState, combat: CombatState): Comba
 /** Applique le résultat au monde (pertes, XP, butin, capture). */
 export function resolveCombatOutcome(state: GameState): GameEvent[];
 
-export function damageRange(combat: CombatState, attacker: CombatUnit, target: CombatUnit, ranged: boolean): { min: number; max: number; kills: [number, number]; retaliation: boolean; modifiers: { label: string; bp: number }[] };
+export function damageRange(combat: CombatState, attacker: CombatUnit, target: CombatUnit, ranged: boolean, fromHex?: HexCoord, chargeHexes?: number): { min: number; max: number; kills: [number, number]; retaliation: boolean; modifiers: { label: string; bp: number }[] };
 export function reachableHexes(combat: CombatState, unit: CombatUnit): HexCoord[];
 export function hexPath(combat: CombatState, unit: CombatUnit, to: HexCoord): HexCoord[] | null;
 export function stackPower(army: (ArmyStack|null)[]): number;
