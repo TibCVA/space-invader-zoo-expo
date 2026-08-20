@@ -1181,7 +1181,11 @@
 
 .hmm-acc-carte-cadre {
   position: relative;
-  aspect-ratio: 256 / 416;
+  /* Pas d'`aspect-ratio` ici : il est posé en style en ligne par
+     `new-game.tsx`, depuis `MAP_COLS / MAP_ROWS`. Il valait « 256 / 416 »,
+     la taille d'AVANT la réduction de la carte à 113 × 184 — un littéral
+     recopié qu'aucune CSS ne peut tenir à jour, puisqu'elle n'importe rien.
+     Le rapport se lit maintenant dans le moteur, à un seul endroit. */
   max-height: 46vh;
   margin: 0 auto;
   border: 1px solid rgba(122, 93, 22, 0.5);

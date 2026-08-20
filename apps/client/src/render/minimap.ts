@@ -4,13 +4,32 @@
  * Une plaque de parchemin cerclée d'un double filet d'or, dans laquelle le pays
  * entier est peint une fois pour toutes (une texel par case, ombrage de relief
  * compris), recouvert du brouillard du joueur et surmonté du cadre de vue. Le
- * cadre se saisit et se déplace : c'est la façon la plus rapide de traverser un
- * pays de 256 × 416 cases.
+ * cadre se saisit et se déplace : c'est la façon la plus rapide de traverser le
+ * pays.
+ *
+ * ## La minicarte est la carte POLITIQUE
+ *
+ * Elle ne coloriait que `state.towns` — neuf cités — et les héros. Relevé sur
+ * la carte réelle (graine 20250816) : une centaine de lieux peuvent passer
+ * sous une bannière, et les quelque quatre-vingt-dix qui ne sont pas des cités
+ * — les gisements, les demeures, les sceaux, les belvédères, la Maison du
+ * Trésor, soit neuf sur dix — n'y portaient **aucune** marque. La
+ * demande était pourtant explicite : « il faut que l'on voie avec des drapeaux
+ * de couleur visuellement les assets types mines ou châteaux ou autres qui sont
+ * pris par un joueur ». Dans HMM3 on lit sur la minicarte qui tient quoi, sans
+ * cliquer.
  */
 
 import { Container, Graphics, Sprite, Texture } from 'pixi.js';
-import type { GameState, MapCoord, WorldMap } from '@auvergne/engine';
+import type {
+  GameState,
+  MapCoord,
+  MapObjectKind,
+  PlayerId,
+  WorldMap,
+} from '@auvergne/engine';
 import { LIGHT, PALETTE, melanger } from '../art/palette.js';
+import { PAVOISABLE, proprietaireLieu } from './pavois.js';
 import { TER, borne, colEcran, rowEcran } from './commun.js';
 import type { Cadrage } from './commun.js';
 
@@ -39,6 +58,59 @@ function teinteCase(terrain: number, alt: number): number {
     default:
       return melanger(melanger(PALETTE.vertHetre, PALETTE.ocre, 0.2), PALETTE.bleuBrume, t * 0.24);
   }
+}
+
+/**
+ * Les genres que la passe des biens secondaires marque.
+ *
+ * **Dérivés** de `PAVOISABLE`, jamais recopiés : la règle du pavois vit dans
+ * `render/pavois.ts` et une seconde table finirait par diverger de la
+ * première. On en retranche la cité et le village, que la passe des cités
+ * dessine déjà d'un cran au-dessus depuis `state.towns` — les neuf objets
+ * `ville`/`village` de la carte y ont chacun leur entrée, si bien que les
+ * marquer ici poserait deux marques superposées sur chaque capitale.
+ */
+const BIENS_SECONDAIRES: ReadonlySet<MapObjectKind> = new Set(
+  [...PAVOISABLE].filter((kind) => kind !== 'ville' && kind !== 'village'),
+);
+
+/** Un bien possédé, prêt à recevoir sa marque sur la plaque. */
+export interface BienPavoise {
+  readonly at: MapCoord;
+  readonly owner: PlayerId;
+  readonly kind: MapObjectKind;
+}
+
+/**
+ * Les biens possédés que la minicarte doit marquer, brouillard compris.
+ *
+ * Fonction pure, sortie de la classe pour être mesurable sans canevas ni Pixi.
+ * Elle ne décide de rien elle-même : c'est `proprietaireLieu` qui dit à qui
+ * est un lieu, en interrogeant les trois registres d'autorité du moteur
+ * (l'objet vivant, la cité liée, le registre des sceaux).
+ *
+ * Le seuil de brouillard est celui des cités — `niveau === 0` masque — et non
+ * celui des héros : un gisement ne bouge pas, une place vue une fois reste
+ * inscrite sur la carte politique même quand le joueur n'a plus l'œil dessus.
+ * Sans ce filtre, la minicarte révélerait la totalité des possessions adverses
+ * dès le premier tour.
+ */
+export function biensPavoises(
+  world: WorldMap,
+  etat: GameState | null,
+  fog: Uint8Array | null,
+): BienPavoise[] {
+  if (!etat) return [];
+  const out: BienPavoise[] = [];
+  for (const objet of world.objects) {
+    if (!BIENS_SECONDAIRES.has(objet.kind)) continue;
+    const owner = proprietaireLieu(etat, objet);
+    if (!owner) continue;
+    const niveau = fog ? fog[objet.at.row * world.cols + objet.at.col] : 2;
+    if (niveau === 0) continue;
+    out.push({ at: objet.at, owner, kind: objet.kind });
+  }
+  return out;
 }
 
 export class Minicarte {
@@ -251,6 +323,22 @@ export class Minicarte {
 
     /* Cités et héros : des pastilles aux couleurs de bannière. */
     if (this.etat) {
+      /*
+       * Les biens secondaires passent EN PREMIER : les cités et les héros se
+       * peignent par-dessus et gardent le dessus du pavé. La plaque ne fait
+       * qu'entre 130 et 300 px de haut (`redimensionner`), soit environ 1,6 px
+       * par case — un gisement marqué comme une cité noierait les neuf places
+       * qui décident de la partie. D'où le cran en dessous : 2,6 px pleins
+       * contre 5 px cernés de 7, et un filet d'encre plus discret.
+       */
+      for (const bien of biensPavoises(this.world, this.etat, this.fog)) {
+        const joueur = this.etat.players[bien.owner];
+        const couleur = joueur ? couleurCss(joueur.color) : PALETTE.vieilOr;
+        const x = b.x + bien.at.col * ex - 1.3;
+        const y = b.y + bien.at.row * ey - 1.3;
+        g.rect(x, y, 2.6, 2.6).fill({ color: couleur });
+        g.rect(x, y, 2.6, 2.6).stroke({ color: PALETTE.encre, width: 1, alpha: 0.4 });
+      }
       for (const uid of Object.keys(this.etat.towns)) {
         const town = this.etat.towns[uid];
         const niveau = this.fog ? this.fog[town.at.row * this.world.cols + town.at.col] : 2;

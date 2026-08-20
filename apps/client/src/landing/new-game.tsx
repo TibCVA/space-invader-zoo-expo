@@ -32,6 +32,7 @@ import {
   START_KEYS,
   START_POSITIONS,
   START_SETS,
+  anchorCell,
   type StartKey,
 } from '@auvergne/map';
 import { FactionBlazon, HeroAvatar, Icon, PlayerBanner, banners } from '@auvergne/ui';
@@ -160,10 +161,34 @@ interface MiniProps {
   drafts: readonly PlayerDraft[];
 }
 
-/** Carte du Forez en miniature, avec les vraies positions de départ. */
+/**
+ * Carte du Forez en miniature, avec les vraies positions de départ.
+ *
+ * ## Pourquoi le canevas n'a plus d'attribut `width` ni `height` en JSX
+ *
+ * L'aperçu était NOIR — c'est-à-dire vide, laissant voir le dégradé sombre du
+ * cadre (`landing.css`, `.hmm-acc-carte-cadre`). Le peintre était hors de
+ * cause : mesuré, il rend une clarté moyenne de 128,6/255 sur les 20 792
+ * cases. C'est React qui effaçait la peinture, en quatre temps :
+ *
+ *  1. l'état initial annonçait 256 × 416 — un chiffre périmé, la carte a été
+ *     ramenée à 113 × 184 (`MAP_COLS` × `MAP_ROWS`) ;
+ *  2. `setDims` et `setPret` étant appelés depuis un `setTimeout`, React 19
+ *     groupe les deux et ne re-rend qu'APRÈS le retour du callback, donc après
+ *     le `drawImage` ;
+ *  3. au re-rendu, l'attribut `width` passait de 256 à 113 et React appelait
+ *     `setAttribute('width', '113')` ;
+ *  4. poser l'attribut `width` d'un `<canvas>` à une valeur différente
+ *     réinitialise le bitmap. La peinture était effacée juste après avoir été
+ *     posée.
+ *
+ * La correction supprime la cause et non le symptôme : les dimensions ne sont
+ * plus un état React — elles se LISENT dans le moteur, où elles ne changent
+ * pas pendant une session — et React ne possède plus les deux attributs qui
+ * commandent le bitmap. Seul l'effet les pose, juste avant de peindre.
+ */
 function CarteDepart({ drafts }: MiniProps): ReactElement {
   const [pret, setPret] = useState(false);
-  const [dims, setDims] = useState({ cols: 256, rows: 416 });
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -173,7 +198,6 @@ function CarteDepart({ drafts }: MiniProps): ReactElement {
     const id = window.setTimeout(() => {
       if (!vivant) return;
       const rendu = renderForezMinimap();
-      setDims({ cols: rendu.cols, rows: rendu.rows });
       const cible = canvasRef.current;
       if (cible) {
         cible.width = rendu.cols;
@@ -194,25 +218,49 @@ function CarteDepart({ drafts }: MiniProps): ReactElement {
     const banner = banners[index];
     return {
       key: draft.start,
-      left: `${((position.at.col + 0.5) / dims.cols) * 100}%`,
-      top: `${((position.at.row + 0.5) / dims.rows) * 100}%`,
+      left: `${((position.at.col + 0.5) / MAP_COLS) * 100}%`,
+      top: `${((position.at.row + 0.5) / MAP_ROWS) * 100}%`,
       color: banner.color,
       label: position.label,
       index: index + 1,
     };
   });
 
-  /* La Maison du Trésor : l'objectif de la victoire par la Couronne. */
-  const tresor = { left: `${((145 + 0.5) / dims.cols) * 100}%`, top: `${((113 + 0.5) / dims.rows) * 100}%` };
+  /*
+   * La Maison du Trésor, à sa case réelle. Le coffre était planté à la
+   * colonne 145 — une case qui N'EXISTE PLUS : la carte n'en a que 113. Le
+   * marqueur sortait donc du cadre. L'ancrage se lit dans `@auvergne/map`, qui
+   * le projette depuis sa latitude et sa longitude ; c'est la même case que
+   * celle où `objects.ts` pose le lieu.
+   */
+  const cases = anchorCell('maison_tresor');
+  const tresor = {
+    left: `${((cases.col + 0.5) / MAP_COLS) * 100}%`,
+    top: `${((cases.row + 0.5) / MAP_ROWS) * 100}%`,
+  };
 
   return (
     <div className="hmm-acc-carte">
-      <div className="hmm-acc-carte-cadre">
+      {/*
+        Le rapport du cadre se LIT dans le moteur. La CSS annonçait
+        « aspect-ratio: 256 / 416 », la taille d'avant la réduction à 113 × 184,
+        et une feuille de style n'importe aucune constante : le seul moyen de
+        n'avoir qu'une source est de le poser ici.
+      */}
+      <div
+        className="hmm-acc-carte-cadre"
+        style={{ aspectRatio: `${MAP_COLS} / ${MAP_ROWS}` }}
+      >
+        {/*
+          Ni `width` ni `height` ici : ces deux attributs commandent le bitmap,
+          et les laisser à React lui donne le droit de l'effacer d'un re-rendu.
+          C'est exactement ce qui rendait l'aperçu noir (voir l'en-tête de
+          `CarteDepart`). Seul l'effet les pose, une fois, juste avant de
+          peindre.
+        */}
         <canvas
           ref={canvasRef}
           className="hmm-acc-carte-toile"
-          width={dims.cols}
-          height={dims.rows}
           role="img"
           aria-label="Carte du Forez, relief réel, avec les positions de départ"
         />
