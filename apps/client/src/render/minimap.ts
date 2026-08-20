@@ -113,6 +113,44 @@ export function biensPavoises(
   return out;
 }
 
+/** En deçà de cette largeur d'écran, on est sur un téléphone en portrait. */
+export const ECRAN_ETROIT_PX = 620;
+
+/**
+ * La taille de la plaque de minicarte, en pixels.
+ *
+ * **Le défaut que ce calcul corrige, mesuré sur capture iPhone.** La règle était
+ * « un tiers de la HAUTEUR de l'écran », ce qui va très bien sur un moniteur et
+ * très mal sur un téléphone : la carte du Forez est presque deux fois plus haute
+ * que large (113 × 184), si bien qu'un tiers de la hauteur d'un iPhone donnait
+ * une plaque de 157 pixels de large — **quarante pour cent de la largeur de
+ * l'écran**, posée sur le seul bandeau de carte que la fiche d'inspection
+ * laissait libre. On ne voyait plus le pays qu'on jouait.
+ *
+ * Sur un écran étroit, c'est donc la LARGEUR qui commande, et non la hauteur :
+ * un quart, comme la minicarte de HMM3 sur un écran de 640 (144 px, soit 22 %).
+ * Le rapport de la carte est conservé dans les deux cas — une minicarte étirée
+ * ment sur les distances, et c'est l'outil avec lequel on juge un déplacement.
+ */
+export function boiteMinicarte(
+  largeurEcran: number,
+  hauteurEcran: number,
+  cols: number,
+  rows: number,
+): { largeur: number; hauteur: number } {
+  const rapport = rows / Math.max(1, cols);
+  if (largeurEcran < ECRAN_ETROIT_PX) {
+    const parLargeur = borne(largeurEcran * 0.26, 78, 132);
+    /* Et l'on retombe sur la hauteur si la carte est si haute qu'un quart de la
+       largeur mangerait le quart de l'écran : le rapport reste tenu, c'est la
+       plaque entière qui rétrécit. */
+    const h = Math.min(parLargeur * rapport, hauteurEcran * 0.26);
+    return { largeur: h / rapport, hauteur: h };
+  }
+  const h = borne(hauteurEcran * 0.34, 130, 300);
+  return { largeur: h / rapport, hauteur: h };
+}
+
 export class Minicarte {
   readonly couche = new Container();
 
@@ -200,8 +238,12 @@ export class Minicarte {
   redimensionner(largeur: number, hauteur: number): void {
     this.largeurEcran = Math.max(1, largeur);
     this.hauteurEcran = Math.max(1, hauteur);
-    const hauteurUtile = borne(hauteur * 0.34, 130, 300);
-    const largeurUtile = (hauteurUtile * this.world.cols) / this.world.rows;
+    const { largeur: largeurUtile, hauteur: hauteurUtile } = boiteMinicarte(
+      this.largeurEcran,
+      this.hauteurEcran,
+      this.world.cols,
+      this.world.rows,
+    );
     const marge = 18;
     this.boite = {
       x: this.largeurEcran - largeurUtile - marge,

@@ -46,7 +46,7 @@ import { createGame } from '@auvergne/engine';
 import type { GameState, MapObject, MapObjectKind, WorldMap } from '@auvergne/engine';
 import { GRAINE_DEMO, setupDemo } from '../state/demo.js';
 import { PAVOISABLE } from './pavois.js';
-import { biensPavoises } from './minimap.js';
+import { ECRAN_ETROIT_PX, biensPavoises, boiteMinicarte } from './minimap.js';
 
 let world: WorldMap;
 let etat: GameState;
@@ -216,5 +216,70 @@ describe('brouillard', () => {
     for (const m of marques) {
       expect(fog[m.at.row * world.cols + m.at.col]).toBe(2);
     }
+  });
+});
+
+describe('la plaque de minicarte tient dans le téléphone', () => {
+  /*
+   * LE DÉFAUT, MESURÉ SUR CAPTURE iPHONE.
+   *
+   * La règle était « un tiers de la HAUTEUR de l'écran ». Excellente sur un
+   * moniteur, désastreuse sur un téléphone : la carte du Forez est presque deux
+   * fois plus haute que large (113 × 184), si bien qu'un tiers de la hauteur
+   * d'un iPhone 14 donnait une plaque de 157 pixels de large — QUARANTE POUR
+   * CENT de la largeur de l'écran — posée sur le seul bandeau de carte que la
+   * fiche d'inspection laissait libre. Sur la capture, on ne voyait plus le
+   * pays qu'on jouait.
+   *
+   * Mesures, avant → après :
+   *   iPhone 14  390 × 754 : 40 % → 26 % de la largeur
+   *   iPhone SE  375 × 540 : 30 % → 23 %
+   *   Android    360 × 640 : 37 % → 26 %
+   *   bureau    1920 × 1010 : 10 % → 10 % (inchangé, et c'est voulu)
+   */
+  const COLS = 113;
+  const ROWS = 184;
+
+  it("ne prend jamais plus du quart d'un écran de téléphone", () => {
+    for (const [L, H, nom] of [
+      [390, 754, 'iPhone 14'],
+      [375, 540, 'iPhone SE'],
+      [360, 640, 'Android étroit'],
+      [430, 830, 'iPhone Max'],
+    ] as const) {
+      const b = boiteMinicarte(L, H, COLS, ROWS);
+      expect(b.largeur / L, `${nom} : ${(b.largeur / L * 100).toFixed(0)} % de la largeur`).toBeLessThanOrEqual(0.28);
+      expect(b.hauteur / H, `${nom} : ${(b.hauteur / H * 100).toFixed(0)} % de la hauteur`).toBeLessThanOrEqual(0.28);
+      /* Et jamais si petite qu'on n'y lise plus rien : sous 78 pixels de large,
+         une case vaut moins d'un pixel et la carte politique n'existe plus. */
+      expect(b.largeur, nom).toBeGreaterThanOrEqual(70);
+    }
+  });
+
+  it("laisse au moniteur la plaque qu'il avait", () => {
+    /* Le correctif ne doit pas rapetisser la minicarte de bureau : c'est là
+       qu'elle sert le plus, et rien ne la gênait. */
+    const b = boiteMinicarte(1920, 1010, COLS, ROWS);
+    expect(b.hauteur).toBeCloseTo(300, 0);
+    expect(b.largeur / 1920).toBeLessThan(0.13);
+  });
+
+  it('conserve le rapport de la carte, quel que soit l’écran', () => {
+    /*
+     * Une minicarte étirée MENT sur les distances, et c'est l'outil avec lequel
+     * on juge un déplacement : deux cases à égale distance du héros doivent y
+     * paraître à égale distance.
+     */
+    const attendu = ROWS / COLS;
+    for (const [L, H] of [[390, 754], [375, 540], [360, 400], [1920, 1010], [900, 500]] as const) {
+      const b = boiteMinicarte(L, H, COLS, ROWS);
+      expect(b.hauteur / b.largeur, `${String(L)} × ${String(H)}`).toBeCloseTo(attendu, 3);
+    }
+  });
+
+  it('bascule au seuil déclaré, et pas ailleurs', () => {
+    const etroit = boiteMinicarte(ECRAN_ETROIT_PX - 1, 800, COLS, ROWS);
+    const large = boiteMinicarte(ECRAN_ETROIT_PX, 800, COLS, ROWS);
+    expect(large.hauteur).toBeGreaterThan(etroit.hauteur);
   });
 });
