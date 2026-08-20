@@ -9,12 +9,13 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { Texture } from 'pixi.js';
 import { ARTIFACTS, HEROES, SKILLS, SPELLS } from '@auvergne/content';
+import { MAP_OBJECT_KINDS } from '@auvergne/engine';
 import type { MaterialSet } from './shading.js';
 import { blob, centroid, clipHalfPlane, flat, perturber, pt, signedArea } from './shading.js';
 import { assombrir, eclaircir, luminance, melanger, perspectiveAtmospherique, toRgb } from './palette.js';
 import { fbm, hashString, valueNoise } from './noise.js';
 import { CREATURE_IDS, construireCreature } from './creatures/index.js';
-import { clesIconesCarte, dessinerIconeCarte } from './map-icons.js';
+import { MAP_ICONS, MAP_ICON_LABELS, clesIconesCarte, dessinerIconeCarte } from './map-icons.js';
 import { clesEmblemes, dessinerEmbleme } from './emblems.js';
 import { clesArtefacts, dessinerArtefact } from './artifact-icons.js';
 import { clesPortraits, dessinerPortrait } from './portraits.js';
@@ -262,13 +263,36 @@ describe('clefs d’atlas', () => {
     expect(fournies.size).toBe(21);
   });
 
+  /*
+   * La liste des genres est LUE dans le contrat du moteur, jamais recopiée.
+   *
+   * Elle l'était : seize genres énumérés à la main — précisément les seize qui
+   * avaient une icône. Le test ne pouvait donc pas rougir sur les treize
+   * autres, et ces treize couvraient un tiers des lieux de la carte, tous
+   * rendus par le même repli `carte_borne`. Un coffre, une banque, une école
+   * et un temple étaient indiscernables à l'écran.
+   */
   it('couvre tous les genres d’objet de carte', () => {
     const fournies = new Set(clesIconesCarte());
-    const genres = [
-      'ville', 'village', 'mine', 'ressource', 'artefact', 'garde', 'borne', 'sanctuaire',
-      'auberge', 'caravane', 'sceau', 'maison_tresor', 'belvedere', 'source', 'obstacle', 'quete',
-    ];
-    for (const k of genres) expect(fournies.has(`carte_${k}`), k).toBe(true);
+    const manquants = MAP_OBJECT_KINDS.filter((k) => !fournies.has(`carte_${k}`));
+    expect(manquants, `genres sans icône propre : ${manquants.join(', ')}`).toEqual([]);
+  });
+
+  /*
+   * Deux genres ne partagent jamais un dessin.
+   *
+   * C'est la faute précise qui s'était installée : treize genres n'avaient
+   * aucune entrée, et `render/objects.ts` les rabattait tous sur `carte_borne`.
+   * Avoir une entrée ne suffit donc pas — encore faut-il qu'elle soit à eux.
+   */
+  it('donne à chaque genre un dessin qui n’est qu’à lui', () => {
+    const dessins = Object.values(MAP_ICONS);
+    expect(new Set(dessins).size).toBe(dessins.length);
+  });
+
+  it('nomme chaque genre dans la légende', () => {
+    const manquants = MAP_OBJECT_KINDS.filter((k) => !MAP_ICON_LABELS[`carte_${k}`]);
+    expect(manquants, `genres sans libellé : ${manquants.join(', ')}`).toEqual([]);
   });
 });
 

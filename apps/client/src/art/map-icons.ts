@@ -802,6 +802,425 @@ function jetonRessource(g: Graphics, mats: MaterialSet, key: string): void {
   }
 }
 
+/* ── Les treize natures qui n'avaient pas de visage ────────────────────────
+ *
+ * Elles retombaient toutes sur `carte_borne` : sur la carte de démonstration,
+ * 163 lieux sur 493 — un tiers — portaient la même borne armoriée. Un coffre,
+ * une banque, une école et un temple étaient indiscernables, et l'on ne peut
+ * pas décider où aller quand un lieu sur trois se ressemble.
+ *
+ * Chacune reçoit donc une SILHOUETTE franchement distincte, parce qu'à la
+ * taille où la carte les dessine, c'est le contour qui parle avant la couleur :
+ * le coffre est bas et large, l'obélisque haut et mince, le moulin porte ses
+ * ailes, la fontaine est ronde et creuse, le monolithe est fendu de sa spirale.
+ */
+
+/** Coffre : bas, large, couvercle bombé cerclé de fer, et l'or qui déborde. */
+function coffre(g: Graphics, mats: MaterialSet): void {
+  ombreProjetee(g, 0, 0, 16, 14, { seed: 61 });
+  const caisse = perturber(densifier([pt(-15, 0), pt(15, -1), pt(14, -13), pt(-14, -12)], 6), 0.7, 62);
+  poser(g, mats, caisse, melanger(BOIS, GRANIT, 0.22), { matiere: 'ecorce', alpha: 0.3, echelle: 0.32 });
+  // couvercle bombé, entrouvert : le trait de lumière sort de la fente
+  const couvercle = lisser(arcBande(0, -13, 15, 9, Math.PI, Math.PI * 2, 7, 0.05), 1);
+  poser(g, mats, couvercle, melanger(BOIS, OCRE, 0.18), {
+    matiere: 'ecorce',
+    alpha: 0.28,
+    echelle: 0.3,
+    speculaire: { x: 0.34, y: 0.3, r: 0.16 },
+  });
+  g.poly(flat(arcBande(0, -13, 12, 6.5, Math.PI * 1.06, Math.PI * 1.94, 2.4, 0))).fill({
+    color: LIGHT.chaude,
+    alpha: 0.5,
+  });
+  // deux cercles de fer et la serrure
+  for (const x of [-8, 8]) {
+    poser(g, mats, fuseau(x, -1, x, -20, 2.6, { seed: 63 + x, taper: 0.05, bias: 1 }), ARDOISE, {
+      matiere: 'metal',
+      alpha: 0.34,
+      echelle: 0.4,
+    });
+  }
+  g.poly(flat(blob(0, -7, 3, 3.4, { seed: 64, points: 10, wobble: 0.18 }))).fill({
+    color: melanger(OCRE, LIGHT.chaude, 0.4),
+    alpha: 0.95,
+  });
+  g.poly(flat(caisse), true).stroke({ color: LIGHT.rim, width: 1.3, alpha: 0.66 });
+}
+
+/** Demeure franche : le toit d'un hameau derrière sa palissade, et sa bannière. */
+function demeure(g: Graphics, mats: MaterialSet): void {
+  ombreProjetee(g, 0, 0, 20, 26, { seed: 65 });
+  // palissade basse, au premier plan
+  for (let i = -3; i <= 3; i += 1) {
+    planche(g, mats, { x: i * 5.4, y: 1 }, { x: i * 5.4 + 0.6, y: -11 }, 3, 66 + i);
+  }
+  // corps de logis et toit de chaume
+  const mur = perturber(densifier([pt(-12, -9), pt(12, -10), pt(11, -28), pt(-11, -27)], 7), 0.9, 67);
+  poser(g, mats, mur, melanger(PARCHEMIN, GRANIT_CLAIR, 0.34), { matiere: 'granit', alpha: 0.26, echelle: 0.46 });
+  const toit = lisser(perturber(densifier([pt(-15, -27), pt(15, -28), pt(2, -42), pt(-3, -42)], 8), 1.2, 68), 1);
+  poser(g, mats, toit, melanger(BOIS, OCRE, 0.34), { matiere: 'fourrure', alpha: 0.32, echelle: 0.3 });
+  // bannière de recrutement : c'est elle qui dit « on enrôle ici »
+  planche(g, mats, { x: 15, y: 0 }, { x: 16, y: -40 }, 3, 69);
+  const flamme = lisser(perturber(densifier([pt(16, -38), pt(31, -35), pt(16, -28)], 6), 0.7, 70), 1);
+  poser(g, mats, flamme, GRENAT, { matiere: 'tissu', alpha: 0.3, echelle: 0.28 });
+  g.poly(flat(flamme), true).stroke({ color: LIGHT.rim, width: 1.2, alpha: 0.72 });
+}
+
+/** Banque : la gueule d'une crypte fermée d'une grille, dans son tumulus. */
+function banque(g: Graphics, mats: MaterialSet): void {
+  ombreProjetee(g, 0, 0, 21, 20, { seed: 71 });
+  const tumulus = lisser(
+    perturber(densifier([pt(-21, 0), pt(21, -1), pt(17, -18), pt(6, -26), pt(-8, -25), pt(-18, -16)], 7), 1.3, 72),
+    1,
+  );
+  poser(g, mats, tumulus, melanger(VERT, GRANIT, 0.5), { matiere: 'grain', alpha: 0.26, echelle: 0.5 });
+  // linteau et jambages de granit
+  const arc = arcBande(0, -12, 9, 12, Math.PI, Math.PI * 2, 5, 0.1);
+  poser(g, mats, arc, GRANIT_CLAIR, { matiere: 'granit', alpha: 0.34, echelle: 0.5 });
+  // le noir de la crypte, puis la grille
+  g.poly(flat(arcBande(0, -11, 6.5, 9, Math.PI, Math.PI * 2, 12, 0))).fill({
+    color: ombreBleutee(GRANIT, 1),
+    alpha: 0.94,
+  });
+  for (const x of [-4, 0, 4]) {
+    g.moveTo(x, -2);
+    g.lineTo(x, -18);
+  }
+  g.moveTo(-6, -10);
+  g.lineTo(6, -10);
+  g.stroke({ color: melanger(ARDOISE, LIGHT.rim, 0.4), width: 1.5, alpha: 0.85, cap: 'round' });
+  // deux pièces tombées au seuil : le butin se devine
+  for (const [x, y] of [[-10, -2], [11, -3]] as const) {
+    g.poly(flat(blob(x, y, 3, 2, { seed: x + 80, points: 10, wobble: 0.2 }))).fill({
+      color: melanger(OCRE, LIGHT.chaude, 0.5),
+      alpha: 0.9,
+    });
+  }
+}
+
+/** Monolithe : un menhir fendu, la spirale creusée luit de son jumeau. */
+function monolithe(g: Graphics, mats: MaterialSet): void {
+  ombreProjetee(g, 0, 0, 13, 34, { seed: 73 });
+  const fut = lisser(
+    perturber(densifier([pt(-11, 0), pt(-8, -30), pt(-4, -46), pt(5, -47), pt(10, -32), pt(12, 0)], 6), 1.4, 74),
+    1,
+  );
+  poser(g, mats, fut, melanger(GRANIT, ARDOISE, 0.3), { matiere: 'granit', alpha: 0.36, echelle: 0.6 });
+  // la spirale : trois arcs qui se resserrent, en lumière froide
+  for (let i = 0; i < 3; i += 1) {
+    const r = 8.5 - i * 2.6;
+    g.poly(
+      flat(arcBande(0, -25, r, r * 1.15, -Math.PI * 0.4 + i * 1.5, Math.PI * 1.5 + i * 1.5, 2 - i * 0.35, 0)),
+    ).fill({ color: melanger(PALETTE.bleuProfond, LIGHT.rim, 0.55), alpha: 0.5 + i * 0.16 });
+  }
+  g.poly(flat(fut), true).stroke({ color: LIGHT.rim, width: 1.4, alpha: 0.7 });
+}
+
+/** École : le lutrin et son livre ouvert, sous un auvent de planches. */
+function ecole(g: Graphics, mats: MaterialSet): void {
+  ombreProjetee(g, 0, 0, 17, 22, { seed: 75 });
+  // pied et fût du lutrin
+  poser(g, mats, perturber(densifier([pt(-9, 0), pt(9, -1), pt(6, -6), pt(-6, -5)], 5), 0.6, 76), GRANIT_CLAIR, {
+    matiere: 'granit',
+    alpha: 0.3,
+    echelle: 0.5,
+  });
+  planche(g, mats, { x: 0, y: -4 }, { x: 0, y: -22 }, 5, 77);
+  // le livre : deux pages en pupitre, c'est la forme qui signe l'école
+  const gauche = perturber(densifier([pt(-16, -24), pt(-1, -29), pt(-1, -22), pt(-15, -18)], 6), 0.5, 78);
+  const droite = perturber(densifier([pt(1, -29), pt(16, -24), pt(15, -18), pt(1, -22)], 6), 0.5, 79);
+  for (const page of [gauche, droite]) {
+    poser(g, mats, page, melanger(PARCHEMIN, LIGHT.chaude, 0.18), {
+      matiere: 'parchemin',
+      alpha: 0.3,
+      echelle: 0.34,
+      speculaire: { x: 0.4, y: 0.3, r: 0.2 },
+    });
+    g.poly(flat(page), true).stroke({ color: LIGHT.rim, width: 1.1, alpha: 0.7 });
+  }
+  // lignes d'écriture
+  for (const dy of [0, 2.4]) {
+    g.moveTo(-12, -23.6 + dy);
+    g.lineTo(-3.4, -25.6 + dy);
+    g.moveTo(3.4, -25.6 + dy);
+    g.lineTo(12, -23.6 + dy);
+  }
+  g.stroke({ color: ombreBleutee(GRANIT, 0.6), width: 0.9, alpha: 0.6 });
+  // auvent
+  planche(g, mats, { x: -14, y: -34 }, { x: 14, y: -34 }, 4, 80);
+  planche(g, mats, { x: -12, y: -33 }, { x: -11, y: -26 }, 3, 81);
+  planche(g, mats, { x: 12, y: -33 }, { x: 11, y: -26 }, 3, 82);
+}
+
+/** Obélisque : très haut, très mince, la pointe dorée. */
+function obelisque(g: Graphics, mats: MaterialSet): void {
+  ombreProjetee(g, 0, 0, 10, 46, { seed: 83 });
+  const socle = perturber(densifier([pt(-12, 0), pt(12, -1), pt(9, -8), pt(-9, -7)], 5), 0.7, 84);
+  poser(g, mats, socle, melanger(GRANIT_CLAIR, ARDOISE, 0.3), { matiere: 'granit', alpha: 0.32, echelle: 0.5 });
+  const fut = perturber(densifier([pt(-7, -7), pt(7, -8), pt(3.4, -52), pt(-3.4, -51)], 9), 0.5, 85);
+  poser(g, mats, fut, melanger(GRANIT_CLAIR, PARCHEMIN, 0.2), {
+    matiere: 'granit',
+    alpha: 0.28,
+    echelle: 0.44,
+    speculaire: { x: 0.36, y: 0.24, r: 0.14 },
+  });
+  // pyramidion doré : le repère qu'on cherche de loin
+  const cape = perturber(densifier([pt(-3.6, -51), pt(3.6, -52), pt(0, -62)], 5), 0.3, 86);
+  poser(g, mats, cape, melanger(OCRE, LIGHT.chaude, 0.45), { matiere: 'metal', alpha: 0.3, echelle: 0.3 });
+  g.poly(flat(cape), true).stroke({ color: LIGHT.rim, width: 1.3, alpha: 0.9 });
+  // rainures verticales
+  for (const x of [-1.6, 1.6]) {
+    g.moveTo(x, -12);
+    g.lineTo(x * 0.55, -48);
+  }
+  g.stroke({ color: ombreBleutee(GRANIT_CLAIR, 0.6), width: 0.9, alpha: 0.5 });
+}
+
+/** Temple : un calvaire de chemin, croix haute sur son degré de pierre. */
+function temple(g: Graphics, mats: MaterialSet): void {
+  ombreProjetee(g, 0, 0, 16, 30, { seed: 87 });
+  // trois degrés, larges en bas
+  const degres: [number, number, number][] = [
+    [-16, 0, -6],
+    [-12, -6, -11],
+    [-8, -11, -16],
+  ];
+  for (const [x0, y0, y1] of degres) {
+    poser(
+      g,
+      mats,
+      perturber(densifier([pt(x0, y0), pt(-x0, y0 - 1), pt(-x0 + 3, y1), pt(x0 + 3, y1 + 1)], 6), 0.6, 88 - x0),
+      melanger(GRANIT_CLAIR, GRANIT, 0.28),
+      { matiere: 'granit', alpha: 0.3, echelle: 0.5 },
+    );
+  }
+  // fût et croix
+  const fut = perturber(densifier([pt(-3.4, -16), pt(3.4, -16.6), pt(2.6, -44), pt(-2.6, -43)], 7), 0.4, 89);
+  poser(g, mats, fut, melanger(GRANIT_CLAIR, PARCHEMIN, 0.24), { matiere: 'granit', alpha: 0.28, echelle: 0.42 });
+  const bras = perturber(densifier([pt(-11, -40), pt(11, -41), pt(11, -35), pt(-11, -34)], 6), 0.4, 90);
+  poser(g, mats, bras, melanger(GRANIT_CLAIR, PARCHEMIN, 0.24), { matiere: 'granit', alpha: 0.28, echelle: 0.42 });
+  const capuchon = perturber(densifier([pt(-3.2, -44), pt(3.2, -44.6), pt(0, -50)], 4), 0.3, 91);
+  poser(g, mats, capuchon, melanger(GRANIT_CLAIR, ARDOISE, 0.3), { matiere: 'granit', alpha: 0.3, echelle: 0.4 });
+  g.poly(flat(bras), true).stroke({ color: LIGHT.rim, width: 1.2, alpha: 0.72 });
+  // couronne de fleurs au pied : un calvaire est visité
+  for (const [x, y] of [[-7, -15], [6, -16], [0, -14]] as const) {
+    g.poly(flat(blob(x, y, 2.6, 1.8, { seed: x + 95, points: 9, wobble: 0.3 }))).fill({
+      color: melanger(GRENAT, PARCHEMIN, 0.35),
+      alpha: 0.8,
+    });
+  }
+}
+
+/** Moulin : la tour et ses quatre ailes — la silhouette la plus reconnaissable. */
+function moulin(g: Graphics, mats: MaterialSet): void {
+  ombreProjetee(g, 0, 0, 18, 34, { seed: 92 });
+  const tour = lisser(
+    perturber(densifier([pt(-12, 0), pt(12, -1), pt(8, -32), pt(-8, -31)], 8), 0.9, 93),
+    1,
+  );
+  poser(g, mats, tour, melanger(PARCHEMIN, GRANIT_CLAIR, 0.4), {
+    matiere: 'granit',
+    alpha: 0.28,
+    echelle: 0.46,
+    speculaire: { x: 0.34, y: 0.4, r: 0.18 },
+  });
+  const toit = lisser(perturber(densifier([pt(-10, -31), pt(10, -32), pt(0, -42)], 6), 0.8, 94), 1);
+  poser(g, mats, toit, melanger(ARDOISE, GRANIT, 0.3), { matiere: 'ecailles', alpha: 0.3, echelle: 0.3 });
+  // les quatre ailes, en croix de Saint-André pour qu'aucune ne se confonde
+  // avec le fût ; c'est ce X incliné qui fait lire « moulin » d'un coup d'œil
+  const centre = { x: 0, y: -34 };
+  for (let i = 0; i < 4; i += 1) {
+    const a = Math.PI / 4 + (i * Math.PI) / 2;
+    const bx = centre.x + Math.cos(a) * 22;
+    const by = centre.y + Math.sin(a) * 22;
+    planche(g, mats, centre, { x: bx, y: by }, 4.6, 95 + i);
+    // toile tendue sur la moitié extérieure
+    const tx = centre.x + Math.cos(a) * 21;
+    const ty = centre.y + Math.sin(a) * 21;
+    g.poly(flat(blob(tx, ty, 5.4, 4.4, { seed: 99 + i, points: 10, wobble: 0.22 }))).fill({
+      color: melanger(PARCHEMIN, LIGHT.chaude, 0.24),
+      alpha: 0.72,
+    });
+  }
+  g.poly(flat(blob(centre.x, centre.y, 3.2, 3.2, { seed: 104, points: 10, wobble: 0.12 }))).fill({
+    color: ARDOISE,
+    alpha: 0.95,
+  });
+  // porte
+  g.poly(flat(arcBande(0, -6, 3.6, 6, Math.PI, Math.PI * 2, 7, 0))).fill({
+    color: ombreBleutee(GRANIT, 0.9),
+    alpha: 0.85,
+  });
+}
+
+/** Fontaine : une vasque ronde et basse, et le jet qui retombe. */
+function fontaine(g: Graphics, mats: MaterialSet): void {
+  ombreProjetee(g, 0, 0, 18, 12, { seed: 105 });
+  // margelle : un anneau vu de trois quarts
+  const anneau = arcBande(0, -6, 16, 8, 0, Math.PI * 2, 5.4, 0);
+  poser(g, mats, anneau, melanger(GRANIT_CLAIR, VERT, 0.22), { matiere: 'granit', alpha: 0.32, echelle: 0.5 });
+  // l'eau, en creux, plus froide que tout le reste de la carte
+  g.poly(flat(blob(0, -6, 12.5, 5.6, { seed: 106, points: 18, wobble: 0.08 }))).fill({
+    color: melanger(ARDOISE, LIGHT.rim, 0.34),
+    alpha: 0.9,
+  });
+  g.poly(flat(blob(-3, -7.4, 6, 2.4, { seed: 107, points: 14, wobble: 0.2 }))).fill({
+    color: melanger(PARCHEMIN, LIGHT.rim, 0.6),
+    alpha: 0.42,
+  });
+  // colonnette et jet
+  poser(g, mats, fuseau(0, -8, 0, -26, 5, { seed: 108, taper: 0.3, bias: 1.2 }), GRANIT_CLAIR, {
+    matiere: 'granit',
+    alpha: 0.3,
+    echelle: 0.42,
+  });
+  for (const s of [-1, 1]) {
+    g.poly(
+      flat(arcBande(s * 5, -20, 5.4, 8, Math.PI * 1.5, Math.PI * (s > 0 ? 2.05 : 0.95), 2.2, 0.5)),
+    ).fill({ color: melanger(PARCHEMIN, LIGHT.rim, 0.5), alpha: 0.55 });
+  }
+  // trois étincelles de fée : la fontaine donne ou reprend
+  for (const [x, y, r] of [[-9, -24, 1.8], [7, -27, 1.5], [12, -19, 1.2]] as const) {
+    g.poly(flat(blob(x, y, r, r, { seed: x + 110, points: 8, wobble: 0.3 }))).fill({
+      color: LIGHT.chaude,
+      alpha: 0.85,
+    });
+  }
+}
+
+/** Marché noir : la charrette bâchée du colporteur, ses ballots pendus. */
+function marcheNoir(g: Graphics, mats: MaterialSet): void {
+  ombreProjetee(g, 0, 0, 20, 20, { seed: 111 });
+  // roue, bien ronde et bien visible : c'est un négoce itinérant
+  g.poly(flat(arcBande(-9, -7, 7, 7, 0, Math.PI * 2, 2.6, 0))).fill({ color: BOIS, alpha: 0.95 });
+  for (let i = 0; i < 4; i += 1) {
+    const a = (i * Math.PI) / 4;
+    g.moveTo(-9 - Math.cos(a) * 6, -7 - Math.sin(a) * 6);
+    g.lineTo(-9 + Math.cos(a) * 6, -7 + Math.sin(a) * 6);
+  }
+  g.stroke({ color: melanger(BOIS, ARDOISE, 0.4), width: 1.2, alpha: 0.8 });
+  // caisse
+  const caisse = perturber(densifier([pt(-17, -10), pt(15, -12), pt(14, -22), pt(-16, -20)], 6), 0.7, 112);
+  poser(g, mats, caisse, melanger(BOIS, GRANIT, 0.3), { matiere: 'ecorce', alpha: 0.3, echelle: 0.3 });
+  // bâche sombre en demi-cylindre — la couleur dit le « noir » du marché
+  const bache = lisser(arcBande(-1, -22, 16, 13, Math.PI, Math.PI * 2, 6, 0.05), 1);
+  poser(g, mats, bache, melanger(ARDOISE, GRENAT, 0.28), { matiere: 'tissu', alpha: 0.34, echelle: 0.28 });
+  g.poly(flat(bache), true).stroke({ color: LIGHT.rim, width: 1.2, alpha: 0.6 });
+  // deux ballots pendus au timon
+  planche(g, mats, { x: 15, y: -14 }, { x: 26, y: -18 }, 3, 113);
+  for (const [x, y] of [[21, -12], [25, -14]] as const) {
+    g.poly(flat(blob(x, y, 3.4, 4, { seed: x + 114, points: 11, wobble: 0.26 }))).fill({
+      color: melanger(OCRE, BOIS, 0.4),
+      alpha: 0.92,
+    });
+  }
+}
+
+/** Cartographe : la table, la carte déroulée, le compas ouvert. */
+function cartographe(g: Graphics, mats: MaterialSet): void {
+  ombreProjetee(g, 0, 0, 18, 16, { seed: 115 });
+  // tréteaux
+  planche(g, mats, { x: -13, y: 0 }, { x: -10, y: -13 }, 3.4, 116);
+  planche(g, mats, { x: 13, y: 0 }, { x: 10, y: -13 }, 3.4, 117);
+  planche(g, mats, { x: -15, y: -12 }, { x: 15, y: -13 }, 4, 118);
+  // la carte déroulée, en plateau incliné, avec ses deux rouleaux
+  const feuille = perturber(densifier([pt(-18, -14), pt(18, -16), pt(15, -25), pt(-16, -23)], 7), 0.6, 119);
+  poser(g, mats, feuille, melanger(PARCHEMIN, LIGHT.chaude, 0.22), {
+    matiere: 'parchemin',
+    alpha: 0.32,
+    echelle: 0.3,
+    speculaire: { x: 0.4, y: 0.3, r: 0.22 },
+  });
+  g.poly(flat(feuille), true).stroke({ color: LIGHT.rim, width: 1.2, alpha: 0.72 });
+  for (const x of [-17, 16]) {
+    poser(g, mats, fuseau(x, -13, x - 1, -24, 3.6, { seed: 120 + x, taper: 0.05, bias: 1 }), BOIS, {
+      matiere: 'ecorce',
+      alpha: 0.3,
+      echelle: 0.28,
+    });
+  }
+  // un fleuve et une côte tracés à l'encre
+  g.moveTo(-11, -17);
+  g.lineTo(-4, -20);
+  g.lineTo(3, -18);
+  g.lineTo(11, -21);
+  g.stroke({ color: melanger(ARDOISE, LIGHT.rim, 0.3), width: 1.1, alpha: 0.7 });
+  // compas ouvert, posé en travers
+  g.moveTo(2, -25);
+  g.lineTo(-3, -15);
+  g.moveTo(2, -25);
+  g.lineTo(8, -16);
+  g.stroke({ color: melanger(ARDOISE, LIGHT.rim, 0.5), width: 1.6, alpha: 0.9, cap: 'round' });
+  g.poly(flat(blob(2, -25, 2, 2, { seed: 122, points: 8, wobble: 0.2 }))).fill({ color: LIGHT.rim, alpha: 0.9 });
+}
+
+/** Garde-frontière : la barrière abaissée en travers du passage. */
+function gardeFrontiere(g: Graphics, mats: MaterialSet): void {
+  ombreProjetee(g, 0, 0, 20, 24, { seed: 123 });
+  // deux bornes de part et d'autre
+  for (const x of [-17, 17]) {
+    poser(
+      g,
+      mats,
+      perturber(densifier([pt(x - 4, 0), pt(x + 4, -1), pt(x + 3, -20), pt(x - 3, -19)], 6), 0.7, 124 + x),
+      melanger(GRANIT, ARDOISE, 0.24),
+      { matiere: 'granit', alpha: 0.34, echelle: 0.5 },
+    );
+  }
+  // la lisse, barrée, rayée : elle dit l'interdiction sans un mot
+  const lisse = perturber(densifier([pt(-17, -20), pt(17, -23), pt(17, -28), pt(-17, -25)], 8), 0.4, 126);
+  poser(g, mats, lisse, melanger(PARCHEMIN, GRENAT, 0.3), { matiere: 'tissu', alpha: 0.26, echelle: 0.26 });
+  for (let i = -2; i <= 2; i += 1) {
+    const x = i * 6.6;
+    g.poly(flat(perturber(densifier([pt(x - 1.6, -21 - i * 0.4), pt(x + 1.6, -21.4 - i * 0.4), pt(x + 2.6, -27 - i * 0.4), pt(x - 0.6, -26.6 - i * 0.4)], 4), 0.2, 127 + i))).fill({
+      color: GRENAT,
+      alpha: 0.88,
+    });
+  }
+  g.poly(flat(lisse), true).stroke({ color: LIGHT.rim, width: 1.3, alpha: 0.75 });
+  // écu du péage, accroché à la borne de droite
+  const ecu = lisser(perturber(densifier([pt(12, -30), pt(23, -29.4), pt(22, -21), pt(17.5, -17), pt(12.6, -21)], 5), 0.4, 129), 1);
+  poser(g, mats, ecu, melanger(ARDOISE, GRANIT_CLAIR, 0.3), { matiere: 'metal', alpha: 0.3, echelle: 0.34 });
+}
+
+/** Tente à la clef : une petite tente conique, la clef pendue au faîte. */
+function tenteClef(g: Graphics, mats: MaterialSet): void {
+  ombreProjetee(g, 0, 0, 18, 26, { seed: 130 });
+  // toile conique — franchement triangulaire, rien d'autre sur la carte ne l'est
+  const toile = lisser(perturber(densifier([pt(-17, 0), pt(17, -2), pt(1, -38), pt(-2, -38)], 9), 1, 131), 1);
+  poser(g, mats, toile, melanger(PARCHEMIN, OCRE, 0.34), {
+    matiere: 'tissu',
+    alpha: 0.32,
+    echelle: 0.3,
+    speculaire: { x: 0.36, y: 0.5, r: 0.2 },
+  });
+  g.poly(flat(toile), true).stroke({ color: LIGHT.rim, width: 1.3, alpha: 0.7 });
+  // pan d'entrée relevé, sombre
+  g.poly(flat(perturber(densifier([pt(-5, 0), pt(5, -0.6), pt(1, -22), pt(-2, -22)], 6), 0.6, 132))).fill({
+    color: ombreBleutee(BOIS, 0.9),
+    alpha: 0.85,
+  });
+  // haubans
+  for (const [x, y] of [[-17, 0], [17, -2]] as const) {
+    g.moveTo(x, y);
+    g.lineTo(x * 1.35, y + 2);
+    g.stroke({ color: melanger(BOIS, PARCHEMIN, 0.3), width: 1.1, alpha: 0.7 });
+  }
+  // la clef, au faîte : anneau, tige, deux dents
+  const cy = -44;
+  g.poly(flat(arcBande(0, cy, 4.2, 4.2, 0, Math.PI * 2, 2, 0))).fill({
+    color: melanger(OCRE, LIGHT.chaude, 0.4),
+    alpha: 0.95,
+  });
+  g.moveTo(0, cy + 4);
+  g.lineTo(0, -33);
+  g.moveTo(0, -35);
+  g.lineTo(4.4, -35);
+  g.moveTo(0, -38);
+  g.lineTo(3.4, -38);
+  g.stroke({ color: melanger(OCRE, LIGHT.chaude, 0.4), width: 2, alpha: 0.95, cap: 'round' });
+}
+
 /* ─────────────────────────────── La table ───────────────────────────────── */
 
 type Dessin = (g: Graphics, mats: MaterialSet) => void;
@@ -823,6 +1242,19 @@ export const MAP_ICONS: Readonly<Record<string, Dessin>> = {
   carte_belvedere: belvedere,
   carte_source: source,
   carte_obstacle: obstacle,
+  carte_coffre: coffre,
+  carte_demeure: demeure,
+  carte_banque: banque,
+  carte_monolithe: monolithe,
+  carte_ecole: ecole,
+  carte_obelisque: obelisque,
+  carte_temple: temple,
+  carte_moulin: moulin,
+  carte_fontaine: fontaine,
+  carte_marche_noir: marcheNoir,
+  carte_cartographe: cartographe,
+  carte_garde_frontiere: gardeFrontiere,
+  carte_tente_clef: tenteClef,
 };
 
 export const MAP_ICON_LABELS: Readonly<Record<string, string>> = {
@@ -842,6 +1274,19 @@ export const MAP_ICON_LABELS: Readonly<Record<string, string>> = {
   carte_belvedere: 'Belvédère',
   carte_source: 'Source consacrée',
   carte_obstacle: 'Obstacle',
+  carte_coffre: 'Coffre',
+  carte_demeure: 'Demeure franche',
+  carte_banque: 'Repaire gardé',
+  carte_monolithe: 'Pierre levée',
+  carte_ecole: 'École',
+  carte_obelisque: 'Montjoie',
+  carte_temple: 'Oratoire',
+  carte_moulin: 'Moulin',
+  carte_fontaine: 'Fontaine aux fées',
+  carte_marche_noir: 'Colporteurs',
+  carte_cartographe: 'Cartographe',
+  carte_garde_frontiere: 'Garde-frontière',
+  carte_tente_clef: 'Tente à la clef',
 };
 
 export const RESOURCE_KEYS_ART = ['ecus', 'bois', 'granit', 'fer', 'sel', 'essence', 'filDor'] as const;

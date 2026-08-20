@@ -184,6 +184,50 @@ export interface MapAnchor {
   kind: 'ville' | 'hameau' | 'col' | 'sanctuaire' | 'monument' | 'sommet';
 }
 
+/**
+ * Les genres de lieu, en liste parcourable.
+ *
+ * `MapObjectKind` est une union de types : elle disparaît à la compilation, et
+ * rien ne peut donc la parcourir à l'exécution. Faute de cette liste, le test
+ * de couverture des icônes de carte énumérait ses genres à la main — exactement
+ * les seize qui étaient couverts — et ne pouvait pas rougir sur les treize qui
+ * ne l'étaient pas, treize genres pour un tiers des lieux de la carte.
+ *
+ * L'assertion de type qui suit lie les deux : ajouter un genre à l'union sans
+ * l'ajouter ici ne compile plus.
+ */
+export const MAP_OBJECT_KINDS = [
+  'ville',
+  'village',
+  'mine',
+  'ressource',
+  'artefact',
+  'garde',
+  'borne',
+  'sanctuaire',
+  'auberge',
+  'caravane',
+  'sceau',
+  'maison_tresor',
+  'belvedere',
+  'source',
+  'obstacle',
+  'quete',
+  'demeure',
+  'moulin',
+  'banque',
+  'monolithe',
+  'obelisque',
+  'ecole',
+  'temple',
+  'fontaine',
+  'coffre',
+  'garde_frontiere',
+  'tente_clef',
+  'cartographe',
+  'marche_noir',
+] as const;
+
 export type MapObjectKind =
   | 'ville'
   | 'village'
@@ -223,6 +267,15 @@ export type MapObjectKind =
   | 'tente_clef' // délivre le laissez-passer du garde-frontière assorti
   | 'cartographe' // vend la révélation d'une région entière
   | 'marche_noir'; // négoce itinérant à taux défavorable
+
+/* Les deux faces du même contrat : la liste parcourable et l'union de types
+   doivent nommer exactement les mêmes genres, dans un sens comme dans l'autre.
+   Ces deux lignes ne produisent aucun code — elles ne font qu'interdire au
+   compilateur de laisser l'une prendre de l'avance sur l'autre. */
+const _kindsCouvrentUnion: MapObjectKind = null as unknown as (typeof MAP_OBJECT_KINDS)[number];
+const _unionCouvreKinds: (typeof MAP_OBJECT_KINDS)[number] = null as unknown as MapObjectKind;
+void _kindsCouvrentUnion;
+void _unionCouvreKinds;
 
 export interface MapObject {
   uid: ObjectUid;
