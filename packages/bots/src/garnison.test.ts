@@ -91,7 +91,49 @@ describe('part de garnison', () => {
        l'ennemi est sous ses murs : c'est la clause de menace, et la répartition
        de la part ne doit pas l'avoir emportée. */
     expect(garrisonTarget(profile, cite(true), TOTAL, menace, 6)).toBe(menace);
-    /* Et elle ne dépasse jamais ce qu'on possède. */
-    expect(garrisonTarget(profile, cite(true), 10_000, menace, 6)).toBe(10_000);
+  });
+
+  /*
+   * La clause de menace ne prend jamais toute l'armée, et cette ligne-ci
+   * demandait le contraire : elle exigeait `toBe(10_000)` sur un total de dix
+   * mille, c'est-à-dire la totalité. Elle enshrinait le défaut qui tuait les
+   * parties.
+   *
+   * Ce que cela donnait en jeu, mesuré sur quatre parties à deux bannières de la
+   * graine 20250816 : deux parties sur quatre au plafond du harnais, quatre cent
+   * cinquante-et-un jours, héros de niveau 2 et 3, une cité chacun, deux mille
+   * cent de puissance contre six mille trois cents — et le plus FAIBLE déclaré
+   * vainqueur au classement. Dès qu'un ennemi aussi fort que soi passe dans le
+   * rayon de vigilance du profil — vingt-sept cases pour le prudent, un quart de
+   * la carte —, la maison verrouillait tout dans ses murs, son héros repartait
+   * les mains vides et ne montait plus d'un niveau. L'adversaire faisait de même.
+   * Personne ne bougeait plus.
+   *
+   * Le test dit maintenant l'inverse, et il le dit pour les quatre profils : une
+   * maison assiégée garde au plus les trois cinquièmes.
+   */
+  it('garde toujours de quoi faire campagne, même assiégée', () => {
+    for (const profile of Object.values(BOT_PROFILES)) {
+      for (const villes of [1, 2, 6]) {
+        for (const total of [10_000, 250_000]) {
+          /* Menace écrasante : dix fois ce qu'on possède. */
+          const plancher = garrisonTarget(profile, cite(true), total, total * 10, villes);
+          expect(
+            plancher,
+            `${profile.id} à ${String(villes)} cités, total ${String(total)}`,
+          ).toBeLessThanOrEqual(Math.trunc(total * 0.6));
+          /* Et il reste réellement quelque chose à sortir. */
+          expect(total - plancher).toBeGreaterThanOrEqual(Math.trunc(total * 0.4) - 1);
+        }
+      }
+    }
+  });
+
+  it('ne dépasse jamais ce que la maison possède', () => {
+    for (const profile of Object.values(BOT_PROFILES)) {
+      expect(garrisonTarget(profile, cite(true), 10_000, 10_000_000, 1)).toBeLessThanOrEqual(
+        10_000,
+      );
+    }
   });
 });

@@ -366,6 +366,12 @@ export function weakestHero(heroes: readonly HeroInstance[]): HeroInstance | nul
  * cité retrouve exactement sa valeur d'avant — le tortue reste une tortue, c'est
  * son profil — mais un empire ne s'étouffe plus lui-même.
  */
+/**
+ * Part maximale de l'armée d'une maison qu'une menace peut immobiliser, en
+ * points de base. Trois cinquièmes : la place tient, la campagne continue.
+ */
+export const PLAFOND_MENACE_BP = 6000;
+
 export function garrisonTarget(
   profile: BotProfile,
   town: TownState,
@@ -377,8 +383,35 @@ export function garrisonTarget(
   const poids = town.isCapital ? 2 : 1;
   const share = Math.trunc((profile.military.garrisonShareBp * poids) / parts);
   const base = bp(totalPower, share);
-  // Une menace visible relève le plancher, quel que soit le profil.
-  return Math.max(base, Math.min(totalPower, threat));
+  /*
+   * Une menace visible relève le plancher — mais elle ne prend JAMAIS toute
+   * l'armée, et c'est la correction d'une partie morte.
+   *
+   * La clause disait `Math.min(totalPower, threat)` : dès qu'un ennemi aussi
+   * fort que soi passait dans le rayon de vigilance du profil — vingt-sept
+   * cases pour le prudent, c'est-à-dire un quart de la carte —, la maison
+   * verrouillait la TOTALITÉ de son armée dans ses murs. Son héros de tête
+   * repartait les mains vides, ne livrait plus un combat, ne montait plus d'un
+   * niveau, et ne prenait plus rien. Comme l'adversaire faisait de même, plus
+   * personne ne bougeait jusqu'au plafond du harnais.
+   *
+   * Mesuré, sur quatre parties à deux bannières de la graine 20250816 : deux
+   * parties sur quatre à quatre cent cinquante-et-un jours, héros de niveau 2 et
+   * 3, une cité chacun, deux mille cent de puissance d'un côté contre six mille
+   * trois cents de l'autre — et le plus FAIBLE déclaré vainqueur au classement.
+   * Une partie où personne ne peut sortir n'est pas une partie serrée, c'est une
+   * partie morte, et le défaut se voyait d'autant plus que la carte venait
+   * d'être rendue équitable entre les cinq départs : à forces égales, la clause
+   * de menace se déclenche des deux côtés en même temps, pour toujours.
+   *
+   * Une place assiégée garde donc les trois cinquièmes, et la maison conserve
+   * deux cinquièmes de campagne. Ce reste ne suffit pas à forcer une capitale
+   * tenue — il n'a pas à le faire — mais il suffit à prendre des gisements, des
+   * repaires et des demeures, donc à grandir, donc à finir par l'emporter.
+   * C'est ainsi qu'une partie se décide au lieu de s'endormir.
+   */
+  const plafond = bp(totalPower, PLAFOND_MENACE_BP);
+  return Math.max(base, Math.min(plafond, threat));
 }
 
 /**
