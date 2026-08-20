@@ -142,6 +142,82 @@ export function creerTexturesParticules(): ParticleTextures {
   };
 }
 
+/**
+ * Le geste propre à chaque école de magie.
+ *
+ * Ce n'est pas de l'ornement : c'est la seule chose qui, dans une scène
+ * chargée, dit au joueur quelle école vient de frapper avant qu'il n'ait lu la
+ * teinte. Exposé pour que le test puisse vérifier que les quatre diffèrent
+ * réellement, et pas seulement par leur couleur.
+ */
+export interface GesteEcole {
+  texture: keyof ParticleTextures;
+  nombre: number;
+  duree: [number, number];
+  taille: [number, number];
+  croissance: number;
+  vitesse: { x: [number, number]; y: [number, number] };
+  gravite: number;
+  blend: 'add' | 'screen' | 'normal';
+  rotation: [number, number];
+  derive: number;
+}
+
+export const GESTE_ECOLE: Readonly<Record<EcoleSort, GesteEcole>> = {
+  /* Le feu crache : des éclats vifs, brefs, qui montent vite et petit. */
+  braises: {
+    texture: 'eclat',
+    nombre: 22,
+    duree: [0.5, 1.1],
+    taille: [4, 12],
+    croissance: 1.1,
+    vitesse: { x: [-22, 22], y: [-64, -26] },
+    gravite: -14,
+    blend: 'add',
+    rotation: [-2, 2],
+    derive: 4,
+  },
+  /* L'eau retombe : la seule école dont les particules descendent. */
+  sources: {
+    texture: 'halo',
+    nombre: 16,
+    duree: [1, 1.8],
+    taille: [7, 16],
+    croissance: 0.9,
+    vitesse: { x: [-10, 10], y: [-14, 6] },
+    gravite: 26,
+    blend: 'screen',
+    rotation: [-0.4, 0.4],
+    derive: 3,
+  },
+  /* La brume ne va nulle part : grande, très lente, elle glisse de côté. */
+  brumes: {
+    texture: 'halo',
+    nombre: 12,
+    duree: [1.8, 3.2],
+    taille: [16, 38],
+    croissance: 1.9,
+    vitesse: { x: [-8, 8], y: [-10, -2] },
+    gravite: -2,
+    blend: 'screen',
+    rotation: [-0.2, 0.2],
+    derive: 16,
+  },
+  /* Les racines tournent : des feuilles qui tombent en vrille. */
+  racines: {
+    texture: 'feuille',
+    nombre: 18,
+    duree: [1.1, 2.2],
+    taille: [8, 20],
+    croissance: 1.2,
+    vitesse: { x: [-18, 18], y: [-24, -4] },
+    gravite: 12,
+    blend: 'add',
+    rotation: [-5, 5],
+    derive: 9,
+  },
+};
+
 /* ───────────────────────────── Le système ───────────────────────────────── */
 
 interface Particule {
@@ -343,22 +419,45 @@ function reglages(kind: EffectKind, o: EffectOptions): Reglage {
         derive: 0,
         boucle: false,
       };
+    /*
+     * L'aura d'un sort : une par école, et vraiment une par école.
+     *
+     * Les quatre écoles partageaient un unique réglage — même texture `halo`,
+     * mêmes dix-huit particules, même durée, même vitesse, même gravité, même
+     * dérive. Seules la couleur et le mode de fusion changeaient. Autrement
+     * dit, la moitié du travail : le joueur voyait bien qu'un sort avait été
+     * lancé, mais rien dans le MOUVEMENT ne lui disait de quelle école, et
+     * c'est le mouvement qu'on lit avant la teinte quand la scène est chargée.
+     *
+     * Chaque école a donc son geste, tiré de ce qu'elle est :
+     *
+     *  - les **braises** montent en éclats vifs et brefs, comme un feu qui
+     *    crache ;
+     *  - les **sources** retombent en gouttes rondes et lentes, gravité vers
+     *    le bas, seule école dont les particules descendent ;
+     *  - les **brumes** ne vont nulle part : grandes, très lentes, elles
+     *    dérivent de côté et durent longtemps ;
+     *  - les **racines** tournent en feuilles qui tombent, avec la rotation
+     *    la plus marquée des quatre.
+     */
     case 'aura':
     default: {
-      const c = SCHOOL_COLORS[o.ecole ?? 'braises'];
+      const ecole = o.ecole ?? 'braises';
+      const c = SCHOOL_COLORS[ecole];
+      const geste = GESTE_ECOLE[ecole];
       return {
-        texture: 'halo',
-        nombre: Math.round(18 * I),
-        duree: [0.9, 2.1],
-        taille: [6, 20],
-        croissance: 1.5,
-        vitesse: { x: [-14, 14], y: [-30, -8] },
-        gravite: -6,
+        texture: geste.texture,
+        nombre: Math.round(geste.nombre * I),
+        duree: geste.duree,
+        taille: geste.taille,
+        croissance: geste.croissance,
+        vitesse: geste.vitesse,
+        gravite: geste.gravite,
         couleurs: [c.coeur, c.halo, melanger(c.halo, LIGHT.chaude, 0.4)],
         alpha: [0.65, 0],
-        blend: o.ecole === 'braises' || o.ecole === 'racines' ? 'add' : 'screen',
-        rotation: [-1, 1],
-        derive: 7,
+        blend: geste.blend,
+        rotation: geste.rotation,
+        derive: geste.derive,
         boucle: true,
       };
     }
