@@ -95,7 +95,7 @@ function centile(xs: number[], p: number): number {
 
 /* ─────────────────────────────────── Mesures ─────────────────────────────── */
 
-interface Rapport {
+export interface Rapport {
   graine: number;
   cellules: number;
   praticables: number;
@@ -235,7 +235,15 @@ function glaner(
   };
 }
 
-function mesurer(graine: number): Rapport {
+/**
+ * Exportée pour que `carte.test.ts` puisse tenir les seuils.
+ *
+ * Le tableau de bord imprimait et ne jugeait jamais — c'était assumé, « un
+ * instrument, pas une porte de qualité ». Mais rien d'autre ne gardait ces
+ * nombres : le passage de la carte à la taille d'une XL les a tous fait bouger
+ * en silence, et il a fallu les redécouvrir un par un.
+ */
+export function mesurer(graine: number): Rapport {
   const w = buildWorld(graine) as unknown as {
     cols: number;
     rows: number;
@@ -544,10 +552,23 @@ function imprimer(r: Rapport): void {
 
 /* ──────────────────────────────────── Main ───────────────────────────────── */
 
-const args = process.argv.slice(2);
-const json = args.includes('--json');
-const graine = Number(args.find((a) => /^\d+$/.test(a)) ?? GRAINE_DEMO);
+/**
+ * Le tableau de bord ne s'imprime que lancé à la main.
+ *
+ * Sans cette garde, importer `mesurer` — ce que fait `carte.test.ts` pour tenir
+ * les seuils — rejouait toute la sortie au milieu du rapport de tests.
+ */
+function estPointDEntree(): boolean {
+  const entree = process.argv[1] ?? '';
+  return entree.endsWith('carte.ts') || entree.endsWith('carte.js');
+}
 
-const rapport = mesurer(graine);
-if (json) console.log(JSON.stringify(rapport, null, 2));
-else imprimer(rapport);
+if (estPointDEntree()) {
+  const args = process.argv.slice(2);
+  const json = args.includes('--json');
+  const graine = Number(args.find((a) => /^\d+$/.test(a)) ?? GRAINE_DEMO);
+
+  const rapport = mesurer(graine);
+  if (json) console.log(JSON.stringify(rapport, null, 2));
+  else imprimer(rapport);
+}
