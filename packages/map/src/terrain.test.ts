@@ -14,7 +14,14 @@ import { anchorCell } from './anchors.js';
 import { buildTerrain } from './build.js';
 import { CELLS, COLS, ROWS, idx } from './grid.js';
 import { buildHydrography } from './hydrography.js';
-import { FOREST_LABELS, STEEP_SLOPE, distanceToWater, forestKindAt } from './terrain.js';
+import {
+  FOREST_LABELS,
+  STEEP_SLOPE,
+  couvre,
+  distanceToWater,
+  forestKindAt,
+  franchissable,
+} from './terrain.js';
 
 const field = buildTerrain();
 const hydro = buildHydrography();
@@ -82,7 +89,15 @@ describe('biomes — logique altitudinale', () => {
       }
     }
     expect(rock).toBeGreaterThan(200);
-    expect(Math.trunc(rockAlt / rock)).toBeGreaterThan(Math.trunc(meadowAlt / meadow) + 80);
+    /*
+     * Le rocher domine la prairie, mais moins nettement qu'avant : depuis qu'il
+     * ferme le passage, son seuil de pente est descendu de 17° à 13° pour que
+     * le relief coupe enfin des zones (4 points d'articulation, il en faut 12).
+     * Il prend donc aussi des versants de mi-pente, plus bas que les seules
+     * barres sommitales. L'écart mesuré tombe de 97 m à 78 ; la hiérarchie
+     * tient, elle est simplement moins caricaturale.
+     */
+    expect(Math.trunc(rockAlt / rock)).toBeGreaterThan(Math.trunc(meadowAlt / meadow) + 60);
   });
 
   it('met la forte pente sur les versants raides', () => {
@@ -153,11 +168,19 @@ describe('drapeaux — cohérence avec le terrain', () => {
     for (let i = 0; i < CELLS; i++) {
       const passable = (field.flags[i] & CELL_PASSABLE) !== 0;
       const bridged = (field.flags[i] & CELL_BRIDGE) !== 0;
-      /* Trois familles : l'eau se franchit là où un pont la franchit, la
-         falaise ne se franchit jamais, tout le reste se franchit toujours. */
+      /*
+       * Trois familles : l'eau se franchit là où un pont la franchit, ce qui
+       * FERME ne se franchit jamais, tout le reste se franchit toujours.
+       *
+       * La règle est lue dans `franchissable`, jamais recopiée ici. Elle
+       * l'était, et elle nommait la falaise seule ; le jour où le chaos
+       * rocheux s'est mis à fermer lui aussi — c'est lui qui donne au relief
+       * de quoi couper une zone — ce test aurait exigé le contraire du
+       * contrat qu'il prétend garder.
+       */
       const ok =
         name(i) === 'eau' ? passable === bridged
-        : name(i) === 'falaise' ? !passable
+        : !franchissable(field.terrain[i]) ? !passable
         : passable;
       if (!ok && faults.length < 12) faults.push(`${i % COLS},${(i / COLS) | 0} (${name(i)})`);
     }
@@ -196,7 +219,17 @@ describe('drapeaux — cohérence avec le terrain', () => {
     for (let i = 0; i < CELLS; i++) {
       if ((field.flags[i] & CELL_CACHE) === 0) continue;
       const t = name(i);
-      if (t !== 'foret' && t !== 'rocher' && t !== 'humide') wrong.add(t);
+      /*
+       * La liste est LUE dans `couvre`, jamais recopiée.
+       *
+       * Recopiée, elle nommait la forêt, le rocher et la tourbière — et pas la
+       * lande. Or `terrain.ts` accordait bien son couvert à la lande, que
+       * `build.ts` reprenait ensuite en réécrivant la règle de son côté. Ce
+       * test entérinait donc le désaccord : il exigeait que les mille deux
+       * cents cases de hautes-chaumes n'abritent rien, alors que le semis
+       * comptait dessus.
+       */
+      if (!couvre(field.terrain[i])) wrong.add(t);
     }
     expect([...wrong]).toEqual([]);
   });

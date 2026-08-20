@@ -113,6 +113,7 @@ export interface Rapport {
   blocsVides: number;
   blocsTotal: number;
   articulations: number;
+  goulets: number;
   composantes: number;
   gardes: number;
   gardesBloquants: number;
@@ -364,7 +365,7 @@ export function mesurer(graine: number): Rapport {
   /* Composantes connexes et points d'articulation, par Tarjan itératif — la
      récursion déborde la pile sur cent mille sommets. Un point d'articulation
      est un goulet : le retirer coupe la carte en deux. HMM3 en vit. */
-  const { composantes, articulations } = tarjan(praticable, cols, rows);
+  const { composantes, articulations, goulets } = tarjan(praticable, cols, rows);
 
   /* Le héros glaneur, depuis chaque départ de joueur. */
   const objetIndex = new Int32Array(n).fill(-1);
@@ -397,6 +398,7 @@ export function mesurer(graine: number): Rapport {
     blocsVides,
     blocsTotal,
     articulations,
+    goulets,
     composantes,
     gardes,
     gardesBloquants,
@@ -404,17 +406,52 @@ export function mesurer(graine: number): Rapport {
   };
 }
 
-/** Composantes connexes et points d'articulation, sans récursion. */
-function tarjan(
+/**
+ * Taille minimale du plus petit morceau détaché pour qu'un goulet compte.
+ *
+ * Un point d'articulation brut ne dit pas grand-chose : la pointe d'une
+ * presqu'île d'une case, le fond d'une combe en cul-de-sac, le col d'un
+ * mouchoir de prairie coincé entre deux barres rocheuses en sont tous. Au
+ * seuil de roche 10, la carte en compte cent treize — un nombre qui semble
+ * dire « la carte est un labyrinthe » et qui ne dit rien du tout, puisqu'on
+ * ne sait pas si ces cent treize cases séparent des zones ou des recoins.
+ *
+ * Un goulet de HMM3 est autre chose : c'est le passage entre deux ZONES, et
+ * l'on doit le forcer parce qu'il n'y a pas d'autre route. Vingt-cinq cases,
+ * c'est l'ordre de grandeur du plus petit morceau qui vaille qu'on s'y
+ * engage — de quoi porter deux ou trois lieux et un garde. En dessous, le
+ * détour est un décor.
+ */
+const GOULET_MIN = 25;
+
+/**
+ * Composantes connexes et points d'articulation, sans récursion.
+ *
+ * Exporté pour être éprouvé sur des grilles dont on connaît la réponse : c'est
+ * ce calcul qui a démenti une conclusion qu'on tenait pour acquise, et un
+ * instrument qui contredit doit d'abord se laisser vérifier.
+ */
+export function tarjan(
   praticable: Uint8Array,
   cols: number,
   rows: number,
-): { composantes: number; articulations: number } {
+): { composantes: number; articulations: number; goulets: number } {
   const n = cols * rows;
   const num = new Int32Array(n).fill(-1);
   const bas = new Int32Array(n);
   const parent = new Int32Array(n).fill(-2);
   const estArticulation = new Uint8Array(n);
+  /* Taille du sous-arbre de parcours, et morceaux détachés par chaque
+     articulation : de quoi distinguer un goulet d'un cul-de-sac. */
+  const taille = new Int32Array(n).fill(1);
+  const morceaux = new Map<number, number[]>();
+  const detache = (p: number, t: number): void => {
+    const l = morceaux.get(p);
+    if (l) l.push(t);
+    else morceaux.set(p, [t]);
+  };
+  /** Pour chaque sommet, la racine de sa composante, puis sa taille. */
+  const racine = new Int32Array(n).fill(-1);
   let compteur = 0;
   let composantes = 0;
 
@@ -441,6 +478,7 @@ function tarjan(
     pile[sp++] = 0;
     num[depart] = bas[depart] = compteur++;
     parent[depart] = -1;
+    racine[depart] = depart;
 
     while (sp > 0) {
       const k = pile[sp - 1];
@@ -455,6 +493,7 @@ function tarjan(
         }
         parent[j] = i;
         num[j] = bas[j] = compteur++;
+        racine[j] = depart;
         if (i === depart) racineEnfants++;
         pile[sp++] = j;
         pile[sp++] = 0;
@@ -463,7 +502,15 @@ function tarjan(
         if (sp > 0) {
           const p = pile[sp - 2];
           if (bas[i] < bas[p]) bas[p] = bas[i];
-          if (p !== depart && bas[i] >= num[p]) estArticulation[p] = 1;
+          taille[p] += taille[i];
+          /* La racine se sépare par CHACUN de ses sous-arbres ; les autres
+             sommets, seulement par les sous-arbres qui ne remontent pas
+             au-dessus d'eux. */
+          if (p === depart) detache(p, taille[i]);
+          else if (bas[i] >= num[p]) {
+            estArticulation[p] = 1;
+            detache(p, taille[i]);
+          }
         }
       }
     }
@@ -471,8 +518,21 @@ function tarjan(
   }
 
   let articulations = 0;
-  for (let i = 0; i < n; i++) if (estArticulation[i]) articulations++;
-  return { composantes, articulations };
+  let goulets = 0;
+  for (let i = 0; i < n; i++) {
+    if (!estArticulation[i]) continue;
+    articulations++;
+    /* Les morceaux : les sous-arbres détachés, plus tout le reste de la
+       composante. Un goulet est une articulation dont le PLUS PETIT morceau
+       vaut le détour — sinon c'est le col d'un recoin. */
+    const parts = morceaux.get(i) ?? [];
+    const total = taille[racine[i]];
+    const reste = total - 1 - parts.reduce((a, b) => a + b, 0);
+    let petit = reste > 0 ? reste : Number.MAX_SAFE_INTEGER;
+    for (const t of parts) if (t < petit) petit = t;
+    if (petit >= GOULET_MIN) goulets++;
+  }
+  return { composantes, articulations, goulets };
 }
 
 /* ─────────────────────────────────── Sortie ──────────────────────────────── */
@@ -532,7 +592,9 @@ function imprimer(r: Rapport): void {
 
   console.log('\n▸ Structure — zones et goulets');
   ligne('composantes praticables', String(r.composantes));
-  ligne('points d’articulation', String(r.articulations), `≥ ${String(CIBLE_ARTICULATIONS_MIN)}`);
+  ligne('points d’articulation', String(r.articulations));
+  ligne('dont vrais goulets (≥ 25 cases détachées)', String(r.goulets),
+    `≥ ${String(CIBLE_ARTICULATIONS_MIN)}`);
   ligne('gardes posés', String(r.gardes));
   /* Seule la compagnie des POSTES doit bloquer : les errantes protègent les
      trésors des lisières, pas les passages — leur case d'entrée suffit. */

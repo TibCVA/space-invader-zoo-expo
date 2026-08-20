@@ -21,7 +21,93 @@
  *    ailleurs, et rendre visible dans le code le chantier qui reste.
  */
 import { describe, expect, it } from 'vitest';
-import { mesurer } from './carte.js';
+import { mesurer, tarjan } from './carte.js';
+
+/**
+ * L'instrument avant la mesure.
+ *
+ * On a cru la cible des goulets dépassée de onze points alors qu'elle était à
+ * zéro, faute d'un compte qui distingue une frontière d'un cul-de-sac. Le
+ * nouveau compte, lui, doit répondre juste sur des grilles dessinées à la main
+ * — sinon on ne fait que remplacer une illusion par une autre.
+ */
+describe('le compte des goulets', () => {
+  /** Petite grille de dessin : `#` infranchissable, tout le reste praticable. */
+  function grille(lignes: string[]): { g: Uint8Array; cols: number; rows: number } {
+    const rows = lignes.length;
+    const cols = lignes[0]?.length ?? 0;
+    const g = new Uint8Array(cols * rows);
+    lignes.forEach((l, r) => {
+      for (let c = 0; c < cols; c++) g[r * cols + c] = l[c] === '#' ? 0 : 1;
+    });
+    return { g, cols, rows };
+  }
+
+  it('voit une frontière : deux salles réunies par une seule case', () => {
+    /* Deux salles de 8 × 6 = 48 cases, un unique passage entre elles. La
+       diagonale compte comme un voisin, donc le mur doit être épais d'une case
+       de part et d'autre du col pour que le passage soit vraiment unique. */
+    const { g, cols, rows } = grille([
+      '........#........',
+      '........#........',
+      '........#........',
+      '.................',
+      '........#........',
+      '........#........',
+      '........#........',
+    ]);
+    const r = tarjan(g, cols, rows);
+    expect(r.composantes).toBe(1);
+    expect(r.articulations).toBe(1);
+    expect(r.goulets).toBe(1);
+  });
+
+  it('ne compte pas un cul-de-sac : un éperon de trois cases', () => {
+    const { g, cols, rows } = grille([
+      '..........',
+      '..........',
+      '..........',
+      '..........',
+      '####.#####',
+      '####.#####',
+      '####.#####',
+    ]);
+    const r = tarjan(g, cols, rows);
+    expect(r.composantes).toBe(1);
+    /* Le col de l'éperon EST un point d'articulation… */
+    expect(r.articulations).toBeGreaterThanOrEqual(1);
+    /* …mais il ne détache que trois cases : on n'y va pas, on ne le force pas. */
+    expect(r.goulets).toBe(0);
+  });
+
+  it('compte les deux côtés, pas seulement le petit', () => {
+    /* Un col qui détache 30 cases d'un côté et 6 de l'autre n'est pas un
+       goulet : le plus petit morceau ne vaut pas le détour. C'est bien le
+       MINIMUM des deux côtés qui décide, et non leur somme. */
+    const { g, cols, rows } = grille([
+      '######.######',
+      '######.######',
+      '.............',
+      '.............',
+      '.............',
+    ]);
+    const r = tarjan(g, cols, rows);
+    expect(r.goulets).toBe(0);
+  });
+
+  it('sépare les composantes disjointes sans inventer de goulet', () => {
+    const { g, cols, rows } = grille([
+      '....#....',
+      '....#....',
+      '....#....',
+      '....#....',
+    ]);
+    const r = tarjan(g, cols, rows);
+    expect(r.composantes).toBe(2);
+    expect(r.articulations).toBe(0);
+    expect(r.goulets).toBe(0);
+  });
+});
 
 /** La graine de démonstration : celle que le tableau de bord imprime. */
 const GRAINE = 20250816;
@@ -60,18 +146,44 @@ describe('la carte — ce qui est tenu', () => {
 
 describe('la carte — ce qui reste à faire, et ne doit pas empirer', () => {
   /*
-   * Le relief ne ferme pas les zones. C'est le chantier P0.4 de la passation :
-   * cible 12 % d'infranchissable et au moins douze points d'articulation, pour
-   * qu'une carte de HMM3 ait des goulets qu'on doive forcer. On en est loin,
-   * et abaisser le seuil de falaise ne suffira pas — au-delà de 7,7 % on ferme
-   * des versants entiers. Ces deux planchers ne disent donc pas « c'est bien » :
-   * ils disent « n'empire pas pendant qu'on travaille ailleurs ».
+   * Le relief ne ferme toujours pas les ZONES, et il a fallu changer
+   * d'instrument pour le voir.
+   *
+   * Le compte brut de points d'articulation avait doublé puis quintuplé quand
+   * on a rendu le rocher infranchissable : quatre, puis vingt-trois, puis cent
+   * treize en abaissant le seuil de pente à 10. La cible « au moins douze »
+   * semblait donc largement dépassée. Elle ne l'était pas du tout : sur les
+   * vingt-trois, **aucune** ne détache un morceau de carte de plus de vingt-cinq
+   * cases. Ce sont vingt-trois culs-de-sac — la pointe d'une presqu'île, le fond
+   * d'une combe — et un cul-de-sac ne se force pas, on n'y va pas.
+   *
+   * La mesure des vrais goulets, ajoutée pour trancher, dit la vraie forme du
+   * problème : 0 au seuil 13, 7 au seuil 11, 8 au seuil 10, 7 au seuil 9. Elle
+   * plafonne. Du rocher épars ne fabrique pas de frontière, quelle qu'en soit la
+   * quantité — il fabrique des recoins. Une barrière de zone est une CRÊTE
+   * CONTINUE percée de cols, et la roche affleure sur les FLANCS d'une crête,
+   * pas sur son fil, qui est justement le seul endroit plat : le relief nous
+   * donnait donc deux bandes brisées de part et d'autre d'un sommet resté
+   * marchable. Il faudra poser les barrières exprès, pas les espérer d'un seuil.
+   *
+   * Les planchers ci-dessous ne disent pas « c'est bien » : ils disent
+   * « n'empire pas pendant qu'on travaille ailleurs ».
    */
   it('ne descend pas sous la part d’infranchissable mesurée ce jour', () => {
-    expect(r.partInfranchissable, 'cible du plan : 0,12').toBeGreaterThanOrEqual(0.028);
+    expect(r.partInfranchissable, 'cible du plan : 0,12').toBeGreaterThanOrEqual(0.079);
   });
 
   it('ne descend pas sous le nombre de points d’articulation mesuré ce jour', () => {
-    expect(r.articulations, 'cible du plan : 12').toBeGreaterThanOrEqual(4);
+    expect(r.articulations).toBeGreaterThanOrEqual(20);
+  });
+
+  it('mesure les vrais goulets, même quand il n’y en a aucun', () => {
+    /* Pas de plancher à poser : il n'y en a pas un seul, et un plancher à zéro
+       ne tiendrait rien. Ce que ce test tient, c'est que l'INSTRUMENT existe et
+       répond — c'est lui qui a montré que la cible n'était pas atteinte alors
+       qu'on la croyait dépassée de onze points. */
+    expect(r.goulets, 'cible du plan : 12 vrais goulets').toBeGreaterThanOrEqual(0);
+    expect(Number.isInteger(r.goulets)).toBe(true);
+    expect(r.goulets).toBeLessThanOrEqual(r.articulations);
   });
 });

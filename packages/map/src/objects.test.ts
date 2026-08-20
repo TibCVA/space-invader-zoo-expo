@@ -67,6 +67,31 @@ describe('objets — intégrité', () => {
     }
   });
 
+  /*
+   * Le même invariant, sur plusieurs graines — et ce n'est pas du zèle.
+   *
+   * Deux postes de garde et un tas d'écus se sont retrouvés plantés au milieu
+   * d'une rivière : un tablier de pont et un gué sont praticables et portent la
+   * voie, si bien qu'ils passaient tous les filtres. En corrigeant la source des
+   * caches, le tirage aval s'est décalé et le test d'une seule graine est
+   * redevenu vert — alors que les postes, eux, n'étaient pas corrigés du tout.
+   * Un invariant de placement vérifié sur une graine ne dit rien : il dit
+   * seulement qu'aucun objet n'est tombé à l'eau CETTE fois-ci.
+   */
+  it('ne pose jamais rien sur l’eau, sur aucune graine', () => {
+    for (const graine of [20250816, 20260817, 1, 424242, 987654321]) {
+      const w = graine === 20260817 ? world : buildWorld(graine);
+      for (const o of w.objects) {
+        for (const f of o.footprint) {
+          expect(
+            TERRAINS[w.terrain[idx(f.col, f.row)]],
+            `${o.uid} (${o.kind}) sur l'eau en ${String(f.col)},${String(f.row)} — graine ${String(graine)}`,
+          ).not.toBe('eau');
+        }
+      }
+    }
+  });
+
   it('inclut l’entrée dans l’empreinte et la place sur `at`', () => {
     for (const o of objects) {
       expect(o.entrance).toEqual(o.at);

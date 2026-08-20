@@ -1096,6 +1096,10 @@ function collectCaches(
           if (!passable(ctx, i)) continue;
           if (b.occupied[i] === 1) continue;
           if ((ctx.flags[i] & CELL_ROAD) !== 0) continue;
+          /* Un gué est de l'eau praticable SANS route : le filtre de voie ne
+             l'écarte pas, et le complément en terrain ouvert y déposait des
+             tas au milieu de la rivière. */
+          if (TERRAINS[ctx.terrain[i]] === 'eau') continue;
           if ((ctx.flags[i] & CELL_CACHE) !== 0) couvert.push(i);
           else ouvert.push(i);
         }
@@ -1158,9 +1162,9 @@ function seedArtifacts(b: Builder, rng: RngState, caches: Record<1 | 2 | 3, numb
 
 function seedPiles(b: Builder, rng: RngState, caches: Record<1 | 2 | 3, number[]>): void {
   const plan: { ring: 1 | 2 | 3; count: number }[] = [
-    { ring: 1, count: 19 },
-    { ring: 2, count: 17 },
-    { ring: 3, count: 12 },
+    { ring: 1, count: 14 },
+    { ring: 2, count: 13 },
+    { ring: 3, count: 9 },
   ];
   for (const entry of plan) {
     for (let k = 0; k < entry.count; k++) {
@@ -1210,6 +1214,12 @@ function seedGuards(
       const i = row * COLS + col;
       if (b.occupied[i] === 1) continue;
       if (!passable(ctx, i)) continue;
+      /* Jamais sur l'eau. Un tablier de pont et un gué sont praticables et
+         portent la voie : ils passaient donc les deux filtres ci-dessus, et
+         c'est ainsi que deux postes de garde se sont retrouvés plantés au
+         milieu d'une rivière. Un poste tient un passage à terre, et ses deux
+         cases de flanc n'ont de sens que sur la berge. */
+      if (TERRAINS[ctx.terrain[i]] === 'eau') continue;
       if (startDist[i] < 6) continue;
       const onRoad = (ctx.flags[i] & CELL_ROAD) !== 0;
       if (onRoad) {
@@ -1411,9 +1421,9 @@ function seedDensification(
 ): void {
   /* — Coffres : 58, cachés sous les couverts, valeur montant avec l'anneau — */
   const coffres: { ring: 1 | 2 | 3; count: number }[] = [
-    { ring: 1, count: 25 },
-    { ring: 2, count: 21 },
-    { ring: 3, count: 12 },
+    { ring: 1, count: 19 },
+    { ring: 2, count: 16 },
+    { ring: 3, count: 9 },
   ];
   for (const entry of coffres) {
     for (let k = 0; k < entry.count; k++) {
@@ -1438,9 +1448,9 @@ function seedDensification(
    * d'une vraie XL, et non divisée en bloc.
    */
   const tas: { ring: 1 | 2 | 3; count: number }[] = [
-    { ring: 1, count: 28 },
-    { ring: 2, count: 21 },
-    { ring: 3, count: 13 },
+    { ring: 1, count: 20 },
+    { ring: 2, count: 15 },
+    { ring: 3, count: 9 },
   ];
   for (const entry of tas) {
     for (let k = 0; k < entry.count; k++) {

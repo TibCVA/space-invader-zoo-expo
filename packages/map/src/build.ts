@@ -37,7 +37,7 @@ import { CELLS, COLS, ROWS, T, idx } from './grid.js';
 import { buildObjects, fixedPlots, type ObjectContext } from './objects.js';
 import { assignRegions } from './regions.js';
 import { buildRoads } from './roads.js';
-import { classifyTerrain, markEdges } from './terrain.js';
+import { classifyTerrain, couvre, franchissable, markEdges } from './terrain.js';
 
 /** Version de la carte, enregistrée dans chaque partie et chaque sauvegarde. */
 export const MAP_VERSION = '1.0.0-forez';
@@ -111,21 +111,28 @@ function normaliseFlags(terrain: Uint8Array, flags: Uint16Array): void {
   for (let i = 0; i < CELLS; i++) {
     const t = terrain[i];
     let f = flags[i];
+    /*
+     * La règle vient de `terrain.ts` — elle n'est pas réécrite ici.
+     *
+     * Elle l'était, et les deux versions avaient divergé : la lande recevait
+     * son couvert dans `terrain.ts` et le perdait dans cette boucle, si bien
+     * que ses mille cent quatre-vingt-trois cases n'ont jamais abrité un seul
+     * objet. Une passe qui existe pour empêcher les drapeaux de mentir sur le
+     * terrain ne peut pas, elle-même, dire autre chose que la source.
+     */
     if (t === T.eau) {
       if ((f & CELL_BRIDGE) === 0) f &= ~CELL_PASSABLE;
       else f |= CELL_PASSABLE;
       f &= ~CELL_BUILDABLE;
-    } else if (t === T.falaise) {
-      /* La falaise ne se franchit pas, et aucun pont ne la franchit : c'est le
-         relief qui ferme les zones. Le `f |= CELL_PASSABLE` inconditionnel de
-         la branche suivante est précisément ce qui faisait de la carte une
-         esplanade sans un seul goulet. */
+    } else if (!franchissable(t)) {
+      /* La falaise et le chaos rocheux ne se franchissent pas, et aucun pont
+         ne les franchit : c'est le relief qui ferme les zones. */
       f &= ~(CELL_PASSABLE | CELL_BRIDGE | CELL_BUILDABLE);
     } else {
       f |= CELL_PASSABLE;
       f &= ~CELL_BRIDGE;
     }
-    if (t === T.foret || t === T.rocher || t === T.humide) f |= CELL_CACHE;
+    if (couvre(t)) f |= CELL_CACHE;
     else f &= ~CELL_CACHE;
     if (t === T.route || t === T.chemin) f &= ~CELL_BUILDABLE;
     flags[i] = f;
@@ -205,7 +212,10 @@ function desenclaver(terrain: Uint8Array, flags: Uint16Array): void {
 
     const percees = new Set<number>();
     for (let i = 0; i < CELLS; i++) {
-      if (terrain[i] !== T.falaise) continue;
+      /* On perce ce qui ferme, quoi que ce soit : depuis que le chaos rocheux
+         ferme lui aussi, une poche ceinte de rocher aurait été scellée sans
+         qu'aucune brèche ne soit seulement cherchée. */
+      if (terrain[i] === T.eau || franchissable(terrain[i])) continue;
       let secondaire = -1;
       let touchePrincipale = false;
       const col = i % COLS;
@@ -223,7 +233,7 @@ function desenclaver(terrain: Uint8Array, flags: Uint16Array): void {
         }
       }
       if (touchePrincipale && secondaire >= 0 && !percees.has(secondaire)) {
-        terrain[i] = T.rocher;
+        terrain[i] = T.pente;
         flags[i] |= CELL_PASSABLE;
         percees.add(secondaire);
       }

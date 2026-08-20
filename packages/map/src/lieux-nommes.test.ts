@@ -19,6 +19,7 @@
  * +111 m / −29 m autour de Saint-Thomas, −77 m à l'ouest et l'est des Sagnes.
  */
 import { describe, expect, it } from 'vitest';
+import { CELL_PASSABLE } from '@auvergne/engine';
 import { anchorCell } from './anchors.js';
 import { buildWorld } from './build.js';
 import { buildElevation } from './elevation.js';
@@ -38,7 +39,33 @@ describe('lieux nommés — les deux cols gardés', () => {
       expect(poste, `${nom} absent de la carte`).toBeDefined();
       if (!poste) return;
       expect(chebyshev(poste.entrance, anchorCell(nom))).toBeLessThanOrEqual(3);
-      expect(poste.footprint.length, 'un col sans flancs ne barre rien').toBe(3);
+      /*
+       * Le col barre — par son empreinte, ou par la roche qui l'encaisse.
+       *
+       * Un col EST une brèche entre deux hauteurs : depuis que le chaos
+       * rocheux ferme le passage, ses joues sont souvent déjà infranchissables
+       * et le semeur n'a plus deux flancs libres à murer. Exiger trois cases
+       * reviendrait à réclamer un mur devant la montagne. Ce qu'on garde, c'est
+       * qu'il barre : l'entrée plus ce qu'il faut pour que les abords ne soient
+       * pas un boulevard.
+       */
+      expect(poste.footprint.length, 'un col sans empreinte ne barre rien').toBeGreaterThanOrEqual(
+        1,
+      );
+      let joues = 0;
+      for (let dr = -1; dr <= 1; dr += 1) {
+        for (let dc = -1; dc <= 1; dc += 1) {
+          if (dc === 0 && dr === 0) continue;
+          const c = poste.entrance.col + dc;
+          const r = poste.entrance.row + dr;
+          const i = r * COLS + c;
+          const mure =
+            (w.flags[i] & CELL_PASSABLE) === 0 ||
+            poste.footprint.some((f) => f.col === c && f.row === r);
+          if (mure) joues += 1;
+        }
+      }
+      expect(joues, `${nom} : ${String(joues)} abords murés sur huit`).toBeGreaterThanOrEqual(3);
       expect(poste.guard && poste.guard.length > 0, 'un col sans garnison').toBe(true);
       expect(typeof poste.data['name']).toBe('string');
     });

@@ -88,17 +88,16 @@ const ROCK_SLOPE = 13;
 /** Altitude à partir de laquelle une pente forte devient rocher. */
 const ROCK_ALTITUDE = 950;
 /** Pente qui devient rocher quelle que soit l'altitude (barre rocheuse). */
-const CLIFF_SLOPE = 17;
+const CLIFF_SLOPE = 13;
 /**
  * Pente au-delà de laquelle la barre devient **falaise**, infranchissable.
  *
- * Le rocher se traverse à 200 points ; la falaise ne se traverse pas, et c'est
- * toute la différence : sans terrain dur, la carte n'avait pas un seul point
- * d'articulation sur 105 349 cases praticables — une esplanade, là où HMM3
- * ferme ses zones par du relief et ne laisse que des cols gardés. Le seuil est
- * choisi sur la distribution mesurée des pentes (maximum 66, 0,37 % des cases
- * au-delà de 43) : à 38 il ne prend que les vrais escarpements — aiguilles,
- * gorges de la Durolle — sans jamais fermer un versant entier. Les voies
+ * Rocher et falaise sont désormais tous deux infranchissables ; ce qui les
+ * sépare est visuel, et la distinction reste utile pour peindre une barre
+ * blanche là où la roche est nue. Le seuil se lit sur la distribution mesurée
+ * des pentes de NOTRE champ, une fois corrigé le facteur 2,27 qu'on trimballait
+ * depuis le passage à la grille 113 × 184 : il prend les vrais escarpements —
+ * aiguilles, gorges de la Durolle — sans fermer de versant entier. Les voies
  * l'emportent toujours : une route tracée dans la gorge reste une route.
  */
 const FALAISE_SLOPE = 22;
@@ -151,6 +150,38 @@ const BOG_MOISTURE = 132;
 function seuilTourbiere(alt: number, slope: number): number {
   if (alt >= BOG_ALTITUDE && slope <= BOG_MAX_SLOPE) return BOG_MOISTURE;
   return MARSH_MOISTURE;
+}
+
+/**
+ * Ce qui se franchit, et ce qui ferme.
+ *
+ * **Une seule fonction décide, et deux endroits la lisaient différemment.**
+ * `build.ts` repasse sur toute la grille après l'aplanissement des emprises
+ * pour que les drapeaux ne mentent pas sur le terrain — c'est nécessaire — mais
+ * il réécrivait la règle au lieu de l'appeler. Les deux versions ont divergé :
+ * la lande recevait son couvert ici et le perdait là-bas, si bien que les mille
+ * cent quatre-vingt-trois cases de hautes-chaumes n'ont JAMAIS abrité un seul
+ * objet, contrairement à ce que nos notes affirmaient.
+ *
+ * Le rocher ferme désormais, comme le « Rock » de HMM3 : c'est lui qui donne au
+ * relief de quoi couper une zone, quand la falaise seule n'y suffisait pas. Un
+ * col percé dans une barre n'est plus rendu en rocher franchissable mais en
+ * forte pente — ce qu'est physiquement une brèche taillée dans un escarpement.
+ */
+export function franchissable(code: number): boolean {
+  return code !== T.eau && code !== T.falaise && code !== T.rocher;
+}
+
+/**
+ * Ce qui peut abriter quelque chose : le couvert des bois, les gouilles d'une
+ * tourbière, et la lande — qui n'a pas d'arbre mais ses blocs erratiques, ses
+ * murets de pierre sèche et ses cairns de berger.
+ *
+ * Le chaos rocheux en faisait partie ; il en sort avec le passage, puisqu'on ne
+ * pose rien sur une case qu'on ne peut pas atteindre.
+ */
+export function couvre(code: number): boolean {
+  return code === T.foret || code === T.humide || code === T.lande;
 }
 
 /** Classe les biomes et lève les drapeaux de case. */
@@ -222,7 +253,7 @@ export function classifyTerrain(
       /* Drapeaux. */
       let f = 0;
       const bridged = bridge[i] === 1 || (code === T.eau && hydro.crossing[i] === 1);
-      if (code !== T.eau) f |= CELL_PASSABLE;
+      if (franchissable(code)) f |= CELL_PASSABLE;
       if (bridged) f |= CELL_BRIDGE | CELL_PASSABLE;
       if (r !== 0) f |= CELL_ROAD;
       /* Ce qui peut abriter quelque chose : le couvert des bois, le chaos
@@ -231,9 +262,7 @@ export function classifyTerrain(
          cairns de berger. Sans elle, les sept pour cent de hautes-chaumes
          devenaient un désert d'objets et le glaneur perdait deux dixièmes de
          prise par journée de marche. */
-      if (code === T.foret || code === T.rocher || code === T.humide || code === T.lande) {
-        f |= CELL_CACHE;
-      }
+      if (couvre(code)) f |= CELL_CACHE;
       /* On bâtit sur l'herbe, sous le couvert — et sur la chaume : les
          hautes-chaumes du Forez portent les jasseries, ces burons d'estive
          où l'on montait faire la fourme tout l'été. Les en exclure retirait

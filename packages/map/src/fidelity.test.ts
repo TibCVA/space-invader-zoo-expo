@@ -18,6 +18,7 @@ import {
   type WorldMap,
 } from '@auvergne/engine';
 import { FOREZ_ANCHORS, anchorCell } from './anchors.js';
+import { franchissable } from './terrain.js';
 import { buildTerrain, buildWorld, startEconomy } from './build.js';
 import { CELLS, COLS, IntHeap, NDC, NDR, ROWS, idx } from './grid.js';
 import { projectToGrid } from './projection.js';
@@ -169,8 +170,14 @@ describe('fidélité — passabilité', () => {
       const name = TERRAINS[world.terrain[i]];
       const passable = (world.flags[i] & CELL_PASSABLE) !== 0;
       const bridged = (world.flags[i] & CELL_BRIDGE) !== 0;
-      if (name === 'falaise' && passable) faults.push(`falaise ouverte ${i % COLS},${(i / COLS) | 0}`);
-      if (name !== 'eau' && name !== 'falaise' && !passable) {
+      /* Ce qui ferme est lu dans `franchissable`, jamais recopié : la liste
+         nommait la falaise seule, et le jour où le chaos rocheux s'est mis à
+         fermer lui aussi, ce test a réclamé le contraire du contrat. */
+      const ferme = !franchissable(world.terrain[i]);
+      if (ferme && name !== 'eau' && passable) {
+        faults.push(`${name} ouvert ${i % COLS},${(i / COLS) | 0}`);
+      }
+      if (name !== 'eau' && !ferme && !passable) {
         faults.push(`sec bloqué ${i % COLS},${(i / COLS) | 0}`);
       }
       if (name === 'eau' && passable !== bridged) {
