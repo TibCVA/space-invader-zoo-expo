@@ -229,12 +229,12 @@ const MINE_SITES: readonly MineSpec[] = [
   { key: 'scierie_viscomtat', at: c(21, 70), resource: 'bois', amount: 2, label: 'Scierie des Futaies', ring: 1 },
   { key: 'carriere_viscomtat', at: c(19, 79), resource: 'granit', amount: 2, label: 'Carrière de la Faye', ring: 1 },
   { key: 'peage_viscomtat', at: c(23, 66), resource: 'ecus', amount: 350, label: 'Péage des Futaies', ring: 1 },
-  { key: 'essence_viscomtat', at: c(30, 78), resource: 'essence', amount: 1, label: 'Brûlerie des Futaies', ring: 2 },
+  { key: 'essence_viscomtat', at: c(30, 78), resource: 'essence', amount: 2, label: 'Brûlerie des Futaies', ring: 2 },
   // Châtellenie de Cervières
   { key: 'scierie_cervieres', at: c(98, 48), resource: 'bois', amount: 2, label: 'Scierie de Bise', ring: 1 },
   { key: 'carriere_cervieres', at: c(100, 57), resource: 'granit', amount: 2, label: 'Carrière des Farges', ring: 1 },
   { key: 'peage_cervieres', at: c(97, 62), resource: 'ecus', amount: 350, label: 'Péage de Cervières', ring: 1 },
-  { key: 'fildor_cervieres', at: c(92, 56), resource: 'filDor', amount: 1, label: 'Atelier des Grenadières', ring: 2 },
+  { key: 'fildor_cervieres', at: c(92, 56), resource: 'filDor', amount: 2, label: 'Atelier des Grenadières', ring: 2 },
   // Pays de Noirétable
   { key: 'scierie_noiretable', at: c(85, 88), resource: 'bois', amount: 2, label: 'Scierie du Carrefour', ring: 1 },
   { key: 'carriere_noiretable', at: c(94, 80), resource: 'granit', amount: 2, label: 'Carrière du Lignon', ring: 1 },
@@ -252,17 +252,57 @@ const MINE_SITES: readonly MineSpec[] = [
   { key: 'bois_renaudie', at: c(42, 150), resource: 'bois', amount: 2, label: 'Coupe des moulins', ring: 2 },
   // Vallée de la Durolle et centre
   { key: 'bois_durolle', at: c(31, 22), resource: 'bois', amount: 2, label: 'Coupe de la Durolle', ring: 2 },
+  /* Deux brûleries de plus, et ce n'est pas du confort : mesuré sur la graine de
+     référence, la carte entière rendait TROIS essences par jour quand elle
+     rendait quatorze fers. L'essence est pourtant toute l'économie rare de
+     l'Ermitage, comme le fer est celle du Granit. Arconsat en avait la plus
+     proche à soixante-deux cases, Cervières à trente, Noirétable à vingt-cinq,
+     La Renaudie à cinquante-neuf : quatre capitales sur cinq ne pouvaient pas
+     jouer Ermitage. Celles sert le nord, la Chambonie sert l'est. */
+  { key: 'essence_celles', at: c(47, 30), resource: 'essence', amount: 2, label: 'Brûlerie de Celles', ring: 2 },
+  { key: 'essence_chambonie', at: c(90, 66), resource: 'essence', amount: 2, label: 'Brûlerie de la Chambonie', ring: 2 },
+  /* Et une minière au nord, pour la même raison en miroir : le Granit a besoin
+     de fer comme l'Ermitage a besoin d'essence, et les quatre minières authorées
+     étaient toutes au sud ou au centre. Arconsat n'en avait aucune. */
+  { key: 'fer_saint_remy', at: c(58, 27), resource: 'fer', amount: 2, label: 'Minière de Saint-Rémy', ring: 2 },
+  /*
+   * Quatre gisements de plus, et ils ne sont pas là pour enrichir la carte : ils
+   * sont là pour que CHAQUE capitale puisse jouer L'UNE OU L'AUTRE maison.
+   *
+   * La faction n'est jamais imposée par la géographie (document maître §3.6) —
+   * le joueur la choisit. Or, mesuré sur cinq graines, deux capitales sur cinq
+   * n'avaient tout simplement pas accès à l'économie d'une des deux maisons :
+   * La Renaudie trouvait son essence à cinquante-neuf cases et son sel à CENT
+   * DOUZE, donc ne pouvait pas jouer Ermitage ; Viscomtat trouvait son fer à
+   * quarante cases et son fil d'or à cinquante-cinq, donc ne pouvait pas jouer
+   * Granit. Choisir sa maison sur l'écran de nouvelle partie revenait à jouer à
+   * pile ou face sans le savoir.
+   */
+  { key: 'essence_marche', at: c(56, 143), resource: 'essence', amount: 2, label: 'Brûlerie de la Marche', ring: 2 },
+  { key: 'sel_augerolles', at: c(66, 150), resource: 'sel', amount: 2, label: "Grenier à sel d'Augerolles", ring: 2 },
+  { key: 'fer_vollore', at: c(30, 90), resource: 'fer', amount: 2, label: 'Minière de Vollore', ring: 2 },
+  { key: 'fildor_viscomtat', at: c(24, 93), resource: 'filDor', amount: 2, label: 'Filature des Futaies', ring: 2 },
+  /* Et la même chose pour Arconsat, qui restait à quarante-cinq cases de son
+     premier fil d'or quand les quatre autres capitales étaient sous trente. */
+  { key: 'fildor_celles', at: c(63, 21), resource: 'filDor', amount: 2, label: 'Filature de Celles', ring: 2 },
   { key: 'peage_chabreloche', at: c(38, 19), resource: 'ecus', amount: 350, label: 'Péage de Chabreloche', ring: 2 },
   { key: 'sel_lac', at: c(52, 43), resource: 'sel', amount: 2, label: 'Saline du Lac', ring: 2 },
   { key: 'sel_tresor', at: c(67, 55), resource: 'sel', amount: 2, label: 'Grenier à sel du Trésor', ring: 3 },
   { key: 'fer_bois_noirs', at: c(72, 64), resource: 'fer', amount: 2, label: 'Minière des Bois Noirs', ring: 3 },
-  { key: 'essence_bois_noirs', at: c(64, 73), resource: 'essence', amount: 1, label: 'Brûlerie des Bois Noirs', ring: 3 },
-  { key: 'fildor_bise', at: c(102, 51), resource: 'filDor', amount: 1, label: 'Filature de Bise', ring: 2 },
+  { key: 'essence_bois_noirs', at: c(64, 73), resource: 'essence', amount: 2, label: 'Brûlerie des Bois Noirs', ring: 3 },
+  /* La Filature de Bise était à DIX cases de l'Atelier des Grenadières, sous les
+     quatorze que `ECART_MINIMAL['mine|filDor']` déclare pour deux gisements de
+     la même ressource — exactement le « deux fois le même asset trop proches »
+     qu'on nous a demandé de ne plus voir. Les deux servaient d'ailleurs la même
+     capitale, et tout le sud de la carte n'avait pas un gramme de fil d'or : La
+     Renaudie n'en trouvait aucun à moins de cent cases. Elle descend donc à
+     Augerolles, à seize cases de la Marche. */
+  { key: 'fildor_augerolles', at: c(50, 151), resource: 'filDor', amount: 2, label: "Filature d'Augerolles", ring: 2 },
   /* Douze cases exactement de la carrière de Vollore, c'est-à-dire l'écart voulu
      au ras : il suffisait que la case d'ancrage soit prise pour que le décalage
      d'une case fasse tomber la paire sous l'écart. Treize, et la marge existe. */
   { key: 'granit_pamole', at: c(35, 127), resource: 'granit', amount: 2, label: 'Carrière de Pamole', ring: 2 },
-  { key: 'essence_hermitage', at: c(52, 108), resource: 'essence', amount: 1, label: "Brûlerie de l'Hermitage", ring: 2 },
+  { key: 'essence_hermitage', at: c(52, 108), resource: 'essence', amount: 2, label: "Brûlerie de l'Hermitage", ring: 2 },
   { key: 'fer_peyrotine', at: c(66, 103), resource: 'fer', amount: 2, label: 'Minière de la Peyrotine', ring: 2 },
   { key: 'granit_vollore', at: c(22, 114), resource: 'granit', amount: 2, label: 'Carrière de Vollore', ring: 1 },
   { key: 'bois_vollore', at: c(28, 111), resource: 'bois', amount: 2, label: 'Coupe de Vollore', ring: 1 },
@@ -607,6 +647,32 @@ const PILE_TABLE: { item: ResourceKey; weight: number }[] = [
   { item: 'sel', weight: 10 },
   { item: 'essence', weight: 6 },
   { item: 'filDor', weight: 6 },
+];
+
+/**
+ * Ce que rend un FILON tiré au sort, et pourquoi ce n'est pas la table des tas.
+ *
+ * Les quatorze gisements semés tiraient leur ressource dans `PILE_TABLE` — la
+ * table des TAS ramassables — en remplaçant `ecus` par `fer`. Comme `ecus` y
+ * pèse vingt-six sur cent, le fer récoltait à lui seul quarante pour cent des
+ * filons. Mesuré sur la graine de référence : quatre filons de fer, un de sel,
+ * un de fil d'or, ZÉRO d'essence, et la carte entière rendait trois essences
+ * par jour contre quatorze fers.
+ *
+ * Un tas et un gisement ne se dosent pourtant pas de la même façon. Un tas est
+ * un consommable qu'on veut croiser souvent, donc il suit ce qu'on dépense au
+ * quotidien — des écus et du bois. Un gisement est un REVENU permanent, et il
+ * doit suivre ce dont les deux maisons ne peuvent pas se passer : l'essence
+ * pour l'Ermitage, le fil d'or et le fer pour le Granit. Les écus n'y figurent
+ * pas du tout : l'orpaillage a sa propre branche juste au-dessus.
+ */
+const FILON_TABLE: { item: ResourceKey; weight: number }[] = [
+  { item: 'essence', weight: 22 },
+  { item: 'filDor', weight: 22 },
+  { item: 'fer', weight: 18 },
+  { item: 'sel', weight: 14 },
+  { item: 'bois', weight: 12 },
+  { item: 'granit', weight: 12 },
 ];
 
 function pileAmount(rng: RngState, resource: ResourceKey, ring: number): number {
@@ -2333,8 +2399,8 @@ function seedDensification(
    */
   for (let n = 0; n < 14; n++) {
     const orpaillage = nextInt(rng, 0, 2) === 0;
-    const filon = pickWeighted(rng, PILE_TABLE);
-    const resource = orpaillage ? 'ecus' : filon === 'ecus' ? 'fer' : filon;
+    const filon = pickWeighted(rng, FILON_TABLE);
+    const resource: ResourceKey = orpaillage ? 'ecus' : filon;
     const cible = departLePlusPauvre(b.repartiteur.attribue);
     const at = chercherPlace(
       b,

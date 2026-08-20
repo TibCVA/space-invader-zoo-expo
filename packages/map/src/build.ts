@@ -52,8 +52,20 @@ import { buildRoads } from './roads.js';
 import { START_KEYS, START_POSITIONS } from './starts.js';
 import { classifyTerrain, couvre, franchissable, markEdges } from './terrain.js';
 
-/** Version de la carte, enregistrée dans chaque partie et chaque sauvegarde. */
-export const MAP_VERSION = '1.0.0-forez';
+/**
+ * Version de la carte, enregistrée dans chaque partie et chaque sauvegarde.
+ *
+ * Elle change dès que le CONTENU d'une graine change, même à géographie
+ * identique : une partie sauvegardée rejoue `buildWorld(graine)` pour retrouver
+ * son monde, et un semeur modifié lui rendrait une autre carte que celle sur
+ * laquelle elle a été jouée. La version enregistrée est ce qui permet de le
+ * voir plutôt que de le subir.
+ *
+ * 1.1.0 : neuf gisements posés ou déplacés pour que chaque capitale puisse
+ * jouer l'une ou l'autre maison, essence et fil d'or portés à deux comme toutes
+ * les autres mines, et table de tirage propre aux filons.
+ */
+export const MAP_VERSION = '1.1.0-forez';
 
 export interface TerrainBuild {
   cols: number;

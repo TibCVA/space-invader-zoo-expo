@@ -53,13 +53,29 @@ manifeste doit être exactement la clef d'atlas. Les clefs utiles ici :
 | Matière | libre | `matiere` | idem |
 | Créature | `creature_<id>` | `creature` | |
 
-**Un piège à connaître.** Les pinceaux de terrain ne sont aujourd'hui lus que par
-le **champ de bataille** (`battle/field.ts`) et la planche de contact. Le sol de
-la carte d'aventure, lui, est peint pixel par pixel par `render/terrain.ts` et
-**n'utilise aucun pinceau**. Les tuiles de la vague A ci-dessous demandent donc
-un raccordement côté code (une strate de matière multipliée sur le bloc peint,
-après l'ombrage et avant le grain). Ce n'est pas un travail d'image : c'est écrit
-ici pour que personne ne livre six tuiles superbes qui n'apparaîtront nulle part.
+**Le piège de la première version de ce brief est LEVÉ.** Il disait : « les
+pinceaux de terrain ne sont lus que par le champ de bataille ; le sol de la carte
+d'aventure est peint pixel par pixel et n'en utilise aucun ». C'était vrai, et
+c'est pour cela que six tuiles peintes ont dormi deux vagues d'images durant. Le
+raccordement est maintenant écrit et mesuré : `apps/client/src/art/matiere-sol.ts`
+lit les tuiles, en fait une carte d'écart relatif à leur propre moyenne, et
+`render/terrain.ts` l'applique en multipliant après l'ombrage. Mesure, même scène
+et même caméra, avant contre après : **62 % des pixels du sol changent**, écart
+moyen 5,1 niveaux, p99 à 32.
+
+**Ce qu'il faut en retenir pour DESSINER, et c'est contre-intuitif.** Le moteur
+retire la moyenne de la tuile avant de l'appliquer. La **teinte moyenne** de la
+tuile n'a donc **aucun effet** — inutile de l'assortir au sol du jeu — et seul
+compte le **contraste local** : grain, touffes, cailloux, fissures, taches de
+lichen. Une tuile lisse ne produit rien du tout. L'invite exacte à donner est
+dans `docs/11-PROMPT-CODEX-VAGUE-3.md`.
+
+**Les six tuiles de PAYS ont désormais du code derrière elles.** Les douze cantons
+les réclament (`apps/client/src/render/cantons.ts`, champ `sol`), un repli les
+fait retomber sur leur matière de base tant qu'elles ne sont pas livrées, et un
+test garde ce repli — c'est même ce test qui a rattrapé le premier raccordement,
+lequel laissait presque toute la carte sans matière. Elles montent donc en
+**deuxième** position de l'ordre de livraison, juste après les six tuiles de base.
 
 ---
 
@@ -217,9 +233,11 @@ qui reste faible, mesuré sur planche de contact :
 
 ## 8. Ordre de livraison recommandé
 
-1. les six pinceaux de la vague A (le sol, sur toute la surface de l'écran) ;
-2. les dix-huit premières images de la vague B (le caractère des pays) ;
-3. les six tuiles de pays de la vague A ;
+1. les six pinceaux de BASE de la vague A (le sol, toute la surface de l'écran) ;
+2. les six tuiles de PAYS de la vague A — remontées d'un cran depuis que le code
+   qui les emploie existe : ce sont elles qui répondent à « les différentes zones
+   bien délimitées visuellement » ;
+3. les dix-huit premières images de la vague B (le caractère des pays) ;
 4. la vague C (les icônes de lieux) ;
 5. le reste de la vague B ;
 6. la vague D, puis la vague E.
