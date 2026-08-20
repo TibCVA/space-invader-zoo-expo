@@ -23,7 +23,16 @@ elles **remplacent** des entrées précises de l'atlas, une par une.
 | Matières (granit, écorce, métal…) | correct | **Oui, priorité 4** |
 | Fond de la page d'accueil | correct en paysage, cassé en portrait | **Oui, priorité 5** |
 | 28 créatures gréées, 8 animations chacune | acceptable | **Références seulement** (voir §6) |
+| 14 silhouettes de décor, 3 à 5 variantes chacune | correct — sapin, hêtre, buisson, rocher, aiguille de granit, muret, borne, croix, moulin, pont, tour de guet, ferme, chapelle, souche | **Oui** — vague 3, priorité 2 |
+| 30 icônes de lieux de carte | inégal : treize natures partagent des icônes génériques | **Oui** — vague 3, priorité 3 |
 | Icônes, cadres, boutons, blasons, typographie | bon | **Non — jamais.** Reste vectoriel |
+
+> **Vague 3 : `docs/10-BRIEF-IMAGEGEN-VAGUE-3.md`.** Elle porte sur la carte
+> d'aventure — le SOL d'abord, qui occupe tout l'écran et n'a aucune matière
+> peinte, puis le décor et les icônes de lieux. Le piège à connaître y est écrit :
+> les pinceaux de terrain ne sont aujourd'hui lus que par le champ de bataille,
+> le sol de la carte d'aventure est peint pixel par pixel et n'en utilise aucun.
+
 
 **Ne génère jamais** : icônes d'interface, cadres, boutons, curseurs, blasons,
 glyphes de sorts ou de compétences, ni aucune image contenant du texte. L'interface
