@@ -15,9 +15,11 @@
  * cantons — mais on peut en reprendre l'effet par trois moyens qui se cumulent
  * et qu'un joueur lit sans qu'on lui explique :
  *
- *   1. une TEINTE de pays, mélangée au sol à faible dose. Le tint reste sous
- *      quinze pour cent : au-delà, une frontière de canton qui coupe une prairie
- *      se lit comme un défaut d'affichage et non comme un changement de pays ;
+ *   1. une TEINTE de pays, mélangée au sol. Elle est prise LOIN du sol — le sol
+ *      du Forez vit entre 79° et 90° de teinte, les ancres sont à 35°, 144°,
+ *      206°, 352° — parce que la première série, bâtie sur des mélanges voisins,
+ *      ne déplaçait la teinte que de zéro à quatre degrés : mesurée, elle ne
+ *      faisait rien du tout ;
  *   2. une DENSITÉ propre. Le Cœur des Bois Noirs est une forêt qu'on ne voit pas
  *      au travers ; les Hauts d'Arconsat sont une estive rase. C'est le signal le
  *      plus fort et le moins coûteux : il ne crée aucune couture ;
@@ -46,7 +48,7 @@ export interface Canton {
   readonly densite: number;
   /** Teinte de pays, mélangée au sol. */
   readonly teinte: number;
-  /** Dose du mélange, en fraction. Jamais au-delà de 0,15 (voir en-tête). */
+  /** Dose du mélange, en fraction. Jamais au-delà de 0,22 (voir en-tête). */
   readonly dose: number;
   /**
    * Ce qu'on voit ici et moins ailleurs, et la probabilité de substituer une
@@ -64,14 +66,46 @@ export interface Canton {
   readonly chanceBati: number;
 }
 
-/* Teintes de pays, tirées de la palette et jamais inventées. */
-const GRANIT_FROID = melanger(PALETTE.granitClair, PALETTE.bleuBrume, 0.5);
-const TOURBE = melanger(PALETTE.mousseSombre, PALETTE.bleuProfond, 0.3);
-const SAPIN_NOIR = melanger(PALETTE.vertSapin, PALETTE.bleuProfond, 0.34);
-const ESTIVE = melanger(PALETTE.vertHetre, PALETTE.ocre, 0.38);
-const HETRAIE = melanger(PALETTE.vertHetre, PALETTE.brunFougere, 0.22);
-const PIERRE_CHAUDE = melanger(PALETTE.ocre, PALETTE.granitClair, 0.34);
-const CALLUNE = melanger(PALETTE.grenat, PALETTE.brunFougere, 0.42);
+/*
+ * Teintes de pays, choisies SUR MESURE et non au nom.
+ *
+ * La première série était bâtie sur des mélanges voisins du biome — « estive »
+ * = hêtre × ocre, « hétraie » = hêtre × fougère — et la mesure l'a réfutée : à
+ * douze pour cent, elles déplaçaient la teinte du sol de zéro à quatre degrés et
+ * sa clarté de deux points. Autrement dit rien. Ce qu'on croyait lire sur la
+ * capture comme une délimitation de zones était le TERRAIN — prairie, forêt,
+ * roche — et non le pays.
+ *
+ * Les ancres sont donc prises loin du sol : le sol du Forez vit entre 79° et 90°
+ * de teinte, on va chercher le bleu de brume à 206°, l'ocre à 35°, le sapin à
+ * 144°, le grenat à 352°. Et la dose monte à un cinquième, ce que la mesure
+ * autorise : la couture qu'on craignait ne vient pas de la dose mais de
+ * l'écart entre deux pays voisins, et l'on garde donc les voisins proches —
+ * l'Hermitage et Vollore ne se touchent pas, Cervières et la Maison du Trésor
+ * partagent la même famille chaude.
+ */
+/*
+ * Le bleu de brume pur vaut 163 de clarté, presque le double du sol : à un
+ * cinquième il ÉCLAIRCISSAIT l'estive de seize points et lui ôtait neuf points
+ * de saturation — un pays délavé, c'est-à-dire le défaut d'affichage qu'on
+ * voulait éviter. On le refroidit donc au bleu profond avant de l'employer.
+ */
+const BRUME_D_ESTIVE = melanger(PALETTE.bleuBrume, PALETTE.bleuProfond, 0.55);
+const TOURBE = PALETTE.bleuProfond;
+const SAPIN_NOIR = melanger(PALETTE.vertSapin, PALETTE.bleuProfond, 0.4);
+/* La gorge des couteliers : hêtraie fraîche et humide, donc un vert PLUS VIF
+   que le sol et non plus sombre — la mousse sombre, mesurée, ne déplaçait rien
+   (quatre degrés, deux points de chroma) parce qu'elle est terne et voisine. */
+const HETRAIE_FRAICHE = PALETTE.vertHetre;
+const PIERRE_CHAUDE = PALETTE.ocre;
+const FOUGERE_SECHE = PALETTE.brunFougere;
+const CALLUNE = melanger(PALETTE.grenat, PALETTE.brunFougere, 0.3);
+/* Le pays des carriers : le granit clair est un neutre à cinq pour cent de
+   chroma, donc un gel gris ne fait RIEN — mesuré à deux degrés et zéro point.
+   On le refroidit au bleu profond : la pierre du Forez est bleue. */
+const GRANIT_GRIS = melanger(PALETTE.bleuProfond, PALETTE.granitClair, 0.4);
+/* Même correction : le parchemin d'ombre vaut 176 de clarté. */
+const POUSSIERE = melanger(PALETTE.parcheminOmbre, PALETTE.brunFougere, 0.55);
 
 /**
  * Les douze pays.
@@ -85,8 +119,8 @@ const CALLUNE = melanger(PALETTE.grenat, PALETTE.brunFougere, 0.42);
 export const CANTONS: Readonly<Record<string, Canton>> = {
   hauts_arconsat: {
     densite: 0.62,
-    teinte: GRANIT_FROID,
-    dose: 0.1,
+    teinte: BRUME_D_ESTIVE,
+    dose: 0.18,
     signature: ['rocher', 'muret', 'aiguille'],
     force: 0.5,
     bati: ['ferme', 'tour'],
@@ -94,8 +128,8 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
   },
   vallee_durolle: {
     densite: 1.15,
-    teinte: HETRAIE,
-    dose: 0.09,
+    teinte: HETRAIE_FRAICHE,
+    dose: 0.22,
     signature: ['hetre', 'fougere', 'souche'],
     force: 0.45,
     bati: ['moulin', 'ferme'],
@@ -104,7 +138,7 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
   lac_sagnes: {
     densite: 0.9,
     teinte: TOURBE,
-    dose: 0.13,
+    dose: 0.2,
     signature: ['souche', 'fougere', 'buisson'],
     force: 0.6,
     bati: ['chapelle'],
@@ -113,7 +147,7 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
   maison_tresor: {
     densite: 0.8,
     teinte: PIERRE_CHAUDE,
-    dose: 0.11,
+    dose: 0.14,
     signature: ['croix', 'rocher', 'muret'],
     force: 0.5,
     bati: ['tour', 'chapelle'],
@@ -122,7 +156,7 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
   chatellenie_cervieres: {
     densite: 0.78,
     teinte: PIERRE_CHAUDE,
-    dose: 0.12,
+    dose: 0.2,
     signature: ['muret', 'croix', 'buisson'],
     force: 0.55,
     bati: ['ferme', 'tour', 'chapelle'],
@@ -130,8 +164,8 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
   },
   futaies_viscomtat: {
     densite: 1.28,
-    teinte: HETRAIE,
-    dose: 0.1,
+    teinte: SAPIN_NOIR,
+    dose: 0.14,
     signature: ['hetre', 'sapin', 'fougere'],
     force: 0.55,
     bati: ['ferme'],
@@ -140,7 +174,7 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
   coeur_bois_noirs: {
     densite: 1.42,
     teinte: SAPIN_NOIR,
-    dose: 0.14,
+    dose: 0.22,
     signature: ['sapin', 'souche', 'rocher'],
     force: 0.68,
     bati: ['chapelle'],
@@ -148,8 +182,8 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
   },
   pays_noiretable: {
     densite: 0.95,
-    teinte: ESTIVE,
-    dose: 0.1,
+    teinte: FOUGERE_SECHE,
+    dose: 0.16,
     signature: ['buisson', 'muret', 'croix'],
     force: 0.45,
     bati: ['ferme', 'chapelle'],
@@ -158,7 +192,7 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
   hermitage_peyrotine: {
     densite: 1.05,
     teinte: CALLUNE,
-    dose: 0.1,
+    dose: 0.14,
     signature: ['croix', 'hetre', 'buisson'],
     force: 0.5,
     bati: ['chapelle', 'ferme'],
@@ -166,8 +200,8 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
   },
   vollore_pamole: {
     densite: 0.86,
-    teinte: GRANIT_FROID,
-    dose: 0.12,
+    teinte: GRANIT_GRIS,
+    dose: 0.2,
     signature: ['aiguille', 'rocher', 'muret'],
     force: 0.62,
     bati: ['ferme', 'tour'],
@@ -175,8 +209,8 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
   },
   marche_renaudie: {
     densite: 1.0,
-    teinte: ESTIVE,
-    dose: 0.09,
+    teinte: FOUGERE_SECHE,
+    dose: 0.16,
     signature: ['sapin', 'muret', 'ferme'],
     force: 0.42,
     bati: ['ferme', 'moulin'],
@@ -184,8 +218,8 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
   },
   grande_chaussee: {
     densite: 0.88,
-    teinte: ESTIVE,
-    dose: 0.08,
+    teinte: POUSSIERE,
+    dose: 0.18,
     signature: ['borne', 'croix', 'muret'],
     force: 0.5,
     bati: ['ferme', 'chapelle', 'tour'],
@@ -196,13 +230,45 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
 /** Le pays par défaut, si un index de région sortait de la table. */
 const PAYS_QUELCONQUE: Canton = {
   densite: 1,
-  teinte: HETRAIE,
+  teinte: HETRAIE_FRAICHE,
   dose: 0,
   signature: [],
   force: 0,
   bati: [],
   chanceBati: 0,
 };
+
+/**
+ * La teinte de pays s'applique comme un GEL de lumière, non comme un mélange.
+ *
+ * Le mélange linéaire vers une couleur plate a un défaut que la mesure a mis au
+ * jour : sur un sol presque gris — la roche du Forez vit à onze pour cent de
+ * saturation — mélanger de l'ocre à un sixième annule le bleu et rend un gris
+ * plat à deux pour cent. C'est exactement ce que le peintre du terrain a
+ * combattu pendant tout un chantier : « les anciennes crêtes finissaient toutes
+ * dans le gris ». Un pays ne doit pas laver la roche de sa couleur.
+ *
+ * Un gel multiplie les canaux au lieu de les tirer vers une valeur commune : il
+ * se comporte comme un verre coloré posé devant la lumière. Normalisé sur la
+ * moyenne de ses canaux, il ne change presque pas la clarté, et il AJOUTE de la
+ * chroma dans sa direction au lieu d'en retirer — un gris chauffé par un gel
+ * ocre devient un gris chaud, pas un gris mort.
+ */
+export function gelDePays(couleur: number, teinte: number, dose: number): number {
+  if (dose <= 0) return couleur;
+  const tr = (teinte >> 16) & 255;
+  const tg = (teinte >> 8) & 255;
+  const tb = teinte & 255;
+  const moyenne = Math.max(1, (tr + tg + tb) / 3);
+  const gel = (canal: number, t: number): number => {
+    const v = Math.round(canal * (1 + dose * (t / moyenne - 1)));
+    return v < 0 ? 0 : v > 255 ? 255 : v;
+  };
+  const r = gel((couleur >> 16) & 255, tr);
+  const g = gel((couleur >> 8) & 255, tg);
+  const b = gel(couleur & 255, tb);
+  return (r << 16) | (g << 8) | b;
+}
 
 /** Le caractère du pays d'un index de région. */
 export function cantonDe(region: number): Canton {

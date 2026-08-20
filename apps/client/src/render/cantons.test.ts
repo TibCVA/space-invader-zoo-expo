@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { REGIONS, TERRAINS } from '@auvergne/engine';
 
-import { CANTONS, accepte, cantonDe } from './cantons.js';
+import { CANTONS, accepte, cantonDe, gelDePays } from './cantons.js';
+import { PALETTE, melanger } from '../art/palette.js';
 import { PROPS, type PropKey } from '../art/props.js';
 
 /**
@@ -18,6 +19,25 @@ import { PROPS, type PropKey } from '../art/props.js';
  * chaque silhouette dans l'atlas, l'écart de densité entre le pays le plus dense
  * et le plus clairsemé.
  */
+/** Teinte, saturation et clarté d'une couleur — la clarté sur 255, comme la palette. */
+function hsl(c: number): { h: number; s: number; l: number } {
+  const r = ((c >> 16) & 255) / 255;
+  const g = ((c >> 8) & 255) / 255;
+  const b = (c & 255) / 255;
+  const mx = Math.max(r, g, b);
+  const mn = Math.min(r, g, b);
+  const d = mx - mn;
+  const l = (mx + mn) / 2;
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  let h = 0;
+  if (d !== 0) {
+    if (mx === r) h = 60 * (((g - b) / d) % 6);
+    else if (mx === g) h = 60 * ((b - r) / d + 2);
+    else h = 60 * ((r - g) / d + 4);
+  }
+  return { h: (h + 360) % 360, s: s * 100, l: l * 255 };
+}
+
 describe('les douze pays du Forez', () => {
   it('donne un caractère à CHAQUE canton, sans repli muet', () => {
     for (const id of REGIONS) {
@@ -36,13 +56,76 @@ describe('les douze pays du Forez', () => {
     expect(neutre.bati).toEqual([]);
   });
 
-  it('tient la teinte de pays sous quinze pour cent', () => {
-    /* Au-delà, une frontière qui coupe une prairie se lit comme une couture
-       d'affichage. La retenue est le sujet, pas un détail de réglage. */
+  it('tient la teinte de pays sous un cinquième', () => {
     for (const id of REGIONS) {
       expect(CANTONS[id].dose, id).toBeGreaterThan(0);
-      expect(CANTONS[id].dose, id).toBeLessThanOrEqual(0.15);
+      expect(CANTONS[id].dose, id).toBeLessThanOrEqual(0.22);
     }
+  });
+
+  /*
+   * La teinte de pays se mesure, elle ne se décrète pas — et la première série
+   * a été RÉFUTÉE par la mesure.
+   *
+   * Elle était bâtie sur des mélanges voisins du biome : « estive » = hêtre ×
+   * ocre, « hétraie » = hêtre × fougère. Résultat mesuré sur les trois sols de
+   * référence : de zéro à quatre degrés de déplacement de teinte, deux points de
+   * clarté. Autrement dit, rien du tout — ce qu'on lisait sur la capture comme
+   * une délimitation de zones était le terrain, prairie contre forêt contre
+   * roche, et pas le pays. Les ancres sont donc allées chercher l'ocre à 35°, le
+   * sapin à 144°, le bleu de brume à 206°, le grenat à 352°, loin du sol du
+   * Forez qui vit entre 79° et 90°.
+   *
+   * Deux bornes, dans les deux sens :
+   *
+   *   - un pays doit SE VOIR : au moins dix sur douze déplacent la teinte de six
+   *     degrés ou la clarté de six points sur au moins un des trois sols ;
+   *   - un pays ne doit pas se lire comme un défaut d'éclairage : jamais plus de
+   *     quatorze points de clarté ni neuf points de saturation d'écart. C'est ce
+   *     qui a fait retirer le bleu de brume pur, qui vaut 163 de clarté contre 90
+   *     au sol et délavait l'estive de seize points.
+   */
+  it('déplace assez la couleur du sol pour se voir, sans la délaver', () => {
+    const sols = [
+      melanger(
+        melanger(PALETTE.vertHetre, PALETTE.ocre, 0.18),
+        melanger(melanger(PALETTE.vertHetre, PALETTE.ocre, 0.14), PALETTE.bleuBrume, 0.12),
+        0.8,
+      ),
+      melanger(melanger(PALETTE.vertSapin, PALETTE.vertHetre, 0.54), PALETTE.brunFougere, 0.16),
+      melanger(
+        melanger(PALETTE.granitAnthracite, PALETTE.brunFougere, 0.3),
+        melanger(PALETTE.bleuBrume, PALETTE.bleuProfond, 0.5),
+        0.7,
+      ),
+    ];
+    let visibles = 0;
+    for (const id of REGIONS) {
+      const c = CANTONS[id];
+      let vu = false;
+      for (const sol of sols) {
+        const a = hsl(sol);
+        const b = hsl(gelDePays(sol, c.teinte, c.dose));
+        const dTeinte = Math.abs(((b.h - a.h + 540) % 360) - 180);
+        const dLum = Math.abs(b.l - a.l);
+        const dSat = Math.abs(b.s - a.s);
+        expect(dLum, `${id} : ${dLum.toFixed(1)} points de clarté`).toBeLessThanOrEqual(14);
+        expect(dSat, `${id} : ${dSat.toFixed(1)} points de saturation`).toBeLessThanOrEqual(9);
+        /*
+         * Trois axes, pas un. Un pays peut se signaler par sa TEINTE — mais un
+         * sol presque gris laisse la teinte basculer de cent degrés pour un
+         * changement invisible, donc on n'y croit qu'au-dessus de quatorze pour
+         * cent de chroma —, par sa CLARTÉ, ou par sa CHROMA : la gorge de la
+         * Durolle est le même vert que le sol, en plus vif de six points, et
+         * cela se voit très bien. Ne compter que la teinte aurait fait passer la
+         * Durolle pour invisible et poussé à lui donner une couleur qu'elle n'a
+         * pas.
+         */
+        if ((b.s > 14 && dTeinte >= 6) || dLum >= 6 || dSat >= 4.5) vu = true;
+      }
+      if (vu) visibles++;
+    }
+    expect(visibles, `${String(visibles)} pays sur douze se voient`).toBeGreaterThanOrEqual(10);
   });
 
   it('creuse un écart de densité qui se voit', () => {

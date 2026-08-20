@@ -517,7 +517,17 @@ export class ObjetsCarte {
       }
       /* La hampe se plante à l'ouest du lieu : le jeton de ressource garde
          l'est, et les deux renseignements cessent de se disputer la place. */
-      const hb = Math.max(taille * 0.74, BANNIERE_MIN_PX);
+      /*
+       * Le rapport a été ramené de 0,74 à 0,46 après lecture d'une capture au
+       * ras du décor. À 0,74, l'étoffe faisait à elle seule les trois quarts de
+       * la hauteur du gisement qu'elle est censée QUALIFIER : sur une vue
+       * rapprochée, on voyait douze gonfanons et plus une seule mine. Dans HMM3
+       * le drapeau d'un moulin est un fanion planté à côté, pas une bannière de
+       * tournoi. Le plancher de lisibilité, lui, ne bouge pas : c'est LUI qui
+       * porte le renseignement politique jusqu'à la vue la plus large, et le
+       * rapport n'a donc plus à s'en charger.
+       */
+      const hb = Math.max(taille * 0.46, BANNIERE_MIN_PX);
       e.banniere.scale.set(hb / Math.max(1, e.banniere.texture.height));
       e.banniere.position.set(x - taille * 0.34, y - taille * 0.9);
       e.banniere.rotation = -0.05 + Math.sin(temps * 1.9 + objet.at.row * 0.7) * 0.04;

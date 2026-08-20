@@ -90,11 +90,25 @@ function runDuel(): DuelResult {
        * dernier château : plus de couperet de chronique à la semaine 8. Sans
        * borne propre au harnais, les vingt parties couraient chacune jusqu'au
        * garde-fou de 900 tours — 451 jours de jeu — et le duel passait de
-       * trois à vingt-sept minutes, au-delà de son propre délai. 320 tours de
-       * bot font 160 jours à deux bannières : de quoi conclure une conquête,
-       * et le classement d'observation du harnais départage le reste.
+       * trois à vingt-sept minutes, au-delà de son propre délai.
+       *
+       * **Le plafond est passé de 320 à 640 tours, et c'est une correction de
+       * l'INSTRUMENT.** À 320 tours — 160 jours à deux bannières — le plafond
+       * décidait la plupart des parties : mesuré 2 conquêtes sur 20 après que
+       * la carte a été rendue équitable entre les cinq départs, contre 9 avant.
+       * Or ce que le harnais départage au plafond, c'est un CLASSEMENT de
+       * valeur, et sur une carte devenue équitable un classement de valeur
+       * tend vers le tirage au sort : le taux de victoire de l'expert tombait
+       * vers 50 % non parce que l'IA jouait moins bien, mais parce que la
+       * mesure ne mesurait plus l'IA. Le commentaire d'en-tête le disait déjà
+       * sans qu'on en tire la conséquence — « à 700 tours au lieu de 320, neuf
+       * parties sur dix se règlent par conquête ».
+       *
+       * On paie ce plafond en durée d'exécution, et c'est le bon prix : une
+       * mesure qui met dix minutes et dit la vérité vaut mieux qu'une mesure
+       * qui met quatre minutes et rend une pièce lancée en l'air.
        */
-      maxTurns: 320,
+      maxTurns: 640,
       fast: true,
     });
     result.games.push(game);

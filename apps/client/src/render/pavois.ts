@@ -133,13 +133,20 @@ export function rangBanniere(id: PlayerId): 1 | 2 | 3 | 4 | 5 {
 
 /**
  * Rayon d'influence d'une place tenue, en cases, pour le pavois de
- * démonstration. Trente-quatre cases, soit un peu plus de seize kilomètres à
- * l'échelle du Forez : de quoi montrer une frontière qui s'estompe, avec des
- * lieux pavoisés près des places et des lieux neutres au-delà. Un rayon infini
- * peindrait toute la carte en deux couleurs et l'on ne verrait plus jamais un
- * lieu neutre — c'est-à-dire plus la moitié de la démonstration demandée.
+ * démonstration.
+ *
+ * Il valait trente-quatre cases, et la capture a tranché : le cadre de
+ * `#/demo/carte` fait une quarantaine de cases de large, si bien qu'un rayon de
+ * trente-quatre le remplissait ENTIÈREMENT — une vingtaine de gonfanons de la
+ * même couleur, plantés sur presque chaque gisement, qui masquaient les icônes
+ * qu'ils sont censés qualifier. Un drapeau doit rester l'exception : dans HMM3
+ * on en voit trois ou quatre à l'écran, sur ce qu'on possède, et le reste de la
+ * carte est neutre. Quatorze cases — près de sept kilomètres à l'échelle du
+ * Forez — donnent une grappe autour de la place tenue et de la terre neutre
+ * au-delà, ce qui est précisément la frontière qui s'estompe qu'on voulait
+ * montrer.
  */
-export const RAYON_PAVOIS_DEMO = 34;
+export const RAYON_PAVOIS_DEMO = 14;
 
 /**
  * Les genres que le pavois de démonstration se permet de planter.

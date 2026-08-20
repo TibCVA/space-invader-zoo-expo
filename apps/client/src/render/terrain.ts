@@ -40,7 +40,7 @@ import {
   yEcran,
 } from './commun.js';
 import type { Cadrage } from './commun.js';
-import { cantonDe } from './cantons.js';
+import { cantonDe, gelDePays } from './cantons.js';
 
 /** Côté d'un bloc, en cases. Imposé par `BLOCK_SIZE` du moteur. */
 const BLOC = 32;
@@ -450,7 +450,7 @@ export class PeintreTerrain {
          * des lisières : on suggère la limite, on ne la trace pas.
          */
         const canton = cantonDe(w.region[index]);
-        if (canton.dose > 0) couleur = melanger(couleur, canton.teinte, canton.dose);
+        couleur = gelDePays(couleur, canton.teinte, canton.dose);
         /* Bruit de teinte par case : deux cases voisines ne sont jamais
            exactement de la même couleur (loi n°1). */
         const jitter = alea(cc, rc, 17) - 0.5;
