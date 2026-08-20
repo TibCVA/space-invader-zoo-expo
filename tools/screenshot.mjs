@@ -60,6 +60,26 @@ const SCENES = {
    * lente de toutes — même ordre de grandeur que le combat.
    */
   planche_art: { hash: '#/demo/planche-art', wait: 45000, label: 'Planche de contact — créatures' },
+  /*
+   * La feuille fait plusieurs milliers de pixels de haut et défile à la
+   * molette : en 1920 × 1080, la première capture n'en montre que la première
+   * rangée et demie. La seconde rangée de l'Ermitage — colosses, vouivres — le
+   * décor, les matières et les icônes n'avaient donc JAMAIS été vus en
+   * résolution de bureau, seulement en vignette de soixante pixels sur la
+   * capture iPhone, qui tient toute la feuille. On défile.
+   */
+  planche_art_bas: {
+    hash: '#/demo/planche-art',
+    wait: 45000,
+    defile: 900,
+    label: 'Planche de contact — bas de feuille',
+  },
+  planche_art_decor: {
+    hash: '#/demo/planche-art',
+    wait: 45000,
+    defile: 1800,
+    label: 'Planche de contact — décor et matières',
+  },
   galerie_ui: { hash: '#/demo/galerie', wait: 1800, label: 'Galerie du design system' },
   sauvegardes: { hash: '#/demo/sauvegardes', wait: 1400, label: 'Emplacements de sauvegarde' },
 };
@@ -169,6 +189,15 @@ async function main() {
         try {
           await page.goto(url, { waitUntil: 'load', timeout: 45_000 });
           await page.waitForTimeout(scene.wait);
+          if (scene.defile) {
+            /* La molette est écoutée par la scène Pixi, pas par la page : il
+               faut donc que le pointeur soit SUR le canevas avant de la
+               tourner. Et la scène s'endort au bout de trois secondes — on lui
+               laisse le temps de se réveiller et de repeindre. */
+            await page.mouse.move(vp.width / 2, vp.height / 2);
+            await page.mouse.wheel(0, scene.defile);
+            await page.waitForTimeout(2500);
+          }
           const file = resolve(outDir, `${key}--${vp.key}.png`);
           await page.screenshot({ path: file, fullPage: false });
           report.shots.push({ scene: key, label: scene.label, viewport: vp.key, file, errors: errors.length });

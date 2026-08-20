@@ -1275,6 +1275,37 @@ function teteVouivre(g: Graphics, k: Kit, S: number, couronnee: boolean, seed: n
       echelle: 0.3,
     });
   }
+  if (!couronnee) {
+    /*
+     * L'ESCARBOUCLE, brute, sertie dans l'écaille du front.
+     *
+     * L'en-tête de ce fichier annonce depuis toujours « escarboucle à la tempe »
+     * pour la vouivre de base, et elle n'en avait pas : le rubis n'était dessiné
+     * que sur la forme couronnée. Or c'est le signe même de la bête dans la
+     * légende d'Auvergne — la vouivre porte une pierre rouge qu'elle dépose pour
+     * boire, et c'est ce moment-là qu'on guette pour la lui voler. Le rendu de
+     * référence la met bien au front, et sans elle un long serpent vert reste un
+     * long serpent vert. Brute et sans monture, pour laisser à la couronnée son
+     * sertissage d'or et ses rayons.
+     */
+    sous(g, S * 0.2, -S * 0.44, (h) => {
+      const pierre = blob(0, 0, S * 0.17, S * 0.15, { seed: 23, points: 11, wobble: 0.26 });
+      poser(h, k, pierre, {
+        couleur: 0x8c2230,
+        matiere: 'ecailles',
+        matiereAlpha: 0.18,
+        echelle: 0.26,
+        modele: 1.2,
+        speculaire: { x: 0.32, y: 0.3, r: 0.12 },
+      });
+      lueurFroide(h, 0, 0, S * 0.12, 0x8c2230, 0.7);
+      /* Deux facettes claires : une pierre sans facette est une tache. */
+      h.poly(flat(fuseau(-S * 0.1, -S * 0.06, S * 0.06, S * 0.08, S * 0.05, { seed: 5, taper: 0.6 }))).fill({
+        color: eclaircir(0xc0405a, 0.4),
+        alpha: 0.7,
+      });
+    });
+  }
   if (couronnee) {
     // l'escarboucle enchâssée dans l'os du front : la couronne
     sous(g, S * 0.18, -S * 0.5, (h) => {
@@ -1322,47 +1353,71 @@ function vouivrePieces(k: Kit, couronnee: boolean): PieceDef[] {
 
   pieces.push({ nom: 'corps', x: 0, y: -A, ordreMort: 7, dessin: () => {} });
 
+  /*
+   * Les ailes, RELEVÉES et sombres — et il y en a deux.
+   *
+   * L'aile unique était posée au milieu du corps, large de quatre-vingt-seize
+   * unités contre quarante pour le plus gros anneau, et peinte d'un mélange de
+   * BRUME qui la rendait plus claire que la bête. Résultat vu sur la planche :
+   * une cape turquoise avec une tête au bout, et pas un anneau visible. Or ce
+   * qui fait la vouivre, c'est le serpent — les anneaux d'abord, les ailes
+   * ensuite. On les relève donc derrière la nuque, on les assombrit pour
+   * qu'elles reculent, et l'on en met deux comme le rendu de référence : la
+   * lointaine plus haute, plus petite et plus sombre.
+   */
+  pieces.push({
+    nom: 'aile_g',
+    parent: 'corps',
+    x: -2 * S,
+    y: -46 * S,
+    rot: -0.95,
+    lumiere: -1.2,
+    ambiance: 1.3,
+    ordreMort: 1,
+    dessin: (g, kk) => aileVouivre(g, kk, 58 * S, 36 * S, assombrir(ecaille, 0.48), couronnee, -1, 9),
+  });
+
   pieces.push({
     nom: 'aile_d',
     parent: 'corps',
-    x: 4 * S,
-    y: -12 * S,
-    rot: 0.28,
+    x: 12 * S,
+    y: -32 * S,
+    rot: -0.5,
     lumiere: -0.8,
     ordreMort: 2,
-    dessin: (g, kk) => aileVouivre(g, kk, 96 * S, 58 * S, assombrir(ecaille, 0.2), couronnee, -1, 3),
+    dessin: (g, kk) => aileVouivre(g, kk, 76 * S, 46 * S, assombrir(ecaille, 0.26), couronnee, -1, 3),
   });
 
   // les anneaux du corps, en S vers l'arrière
   pieces.push({
     nom: 'anneau1',
     parent: 'corps',
-    x: -26 * S,
-    y: 6 * S,
+    x: -34 * S,
+    y: 8 * S,
     rot: 0.16,
     lumiere: -0.2,
     ordreMort: 4,
-    dessin: (g, kk) => anneau(g, kk, 40 * S, 26 * S, ecaille, ventre, couronnee, 11),
+    dessin: (g, kk) => anneau(g, kk, 54 * S, 34 * S, ecaille, ventre, couronnee, 11),
   });
   pieces.push({
     nom: 'anneau2',
     parent: 'anneau1',
-    x: -34 * S,
-    y: 6 * S,
+    x: -44 * S,
+    y: 8 * S,
     rot: 0.24,
     lumiere: -0.3,
     ordreMort: 3,
-    dessin: (g, kk) => anneau(g, kk, 34 * S, 21 * S, assombrir(ecaille, 0.1), ventre, couronnee, 13),
+    dessin: (g, kk) => anneau(g, kk, 46 * S, 28 * S, assombrir(ecaille, 0.1), ventre, couronnee, 13),
   });
   pieces.push({
     nom: 'anneau3',
     parent: 'anneau2',
-    x: -28 * S,
-    y: 4 * S,
+    x: -36 * S,
+    y: 5 * S,
     rot: 0.28,
     lumiere: -0.4,
     ordreMort: 2,
-    dessin: (g, kk) => anneau(g, kk, 28 * S, 16 * S, assombrir(ecaille, 0.2), ventre, couronnee, 17),
+    dessin: (g, kk) => anneau(g, kk, 38 * S, 22 * S, assombrir(ecaille, 0.2), ventre, couronnee, 17),
   });
   pieces.push({
     nom: 'queue',
@@ -1517,6 +1572,51 @@ function anneau(
     1,
   );
   poser(g, k, forme, { couleur: dos, matiere: 'ecailles', matiereAlpha: 0.3, echelle: 0.34, seed });
+
+  /*
+   * La CRÊTE DORSALE, ourlée d'or. C'est ce qui fait la vouivre.
+   *
+   * Le corps était un ovale lisse portant cinq plaques ventrales : sur la
+   * planche de contact, les deux rangs sept de l'Ermitage rendaient deux taches
+   * turquoise. Le rendu de référence, lui, est reconnaissable à deux choses
+   * avant toute autre — les anneaux d'un serpent, qui étaient déjà là, et la
+   * frange d'ailerons qui court sur l'échine, ourlée d'or, la même que celle des
+   * ailes. Sans elle, un anneau de vouivre et un anneau de ver de terre se
+   * ressemblent.
+   */
+  const AILERONS = 5;
+  for (let i = 0; i < AILERONS; i += 1) {
+    const t = i / (AILERONS - 1);
+    const x = -L * 0.36 + t * L * 0.72;
+    /* Les plus hauts au milieu de l'anneau : une frange, pas une scie. */
+    const haut = h * (0.5 + 0.34 * Math.sin(t * Math.PI));
+    poser(g, k, fuseau(x, -h * 0.34, x - L * 0.05, -haut, h * 0.17, { seed: seed + i * 5, taper: 0.44 }), {
+      couleur: i % 2 ? melanger(dos, LIGHT.rim, 0.22) : assombrir(dos, 0.16),
+      matiere: 'ecailles',
+      matiereAlpha: 0.22,
+      echelle: 0.3,
+      modele: 0.85,
+      rim: i % 2 === 0,
+    });
+  }
+
+  /* Rangs d'écailles imbriquées sur le dos : trois arcs suffisent à dire que la
+     peau est écaillée, là où la matière seule ne le disait qu'en gros plan. */
+  for (let r = 0; r < 3; r += 1) {
+    const y = -h * (0.3 - r * 0.14);
+    for (let i = 0; i < 4; i += 1) {
+      const x = -L * 0.32 + (i + (r % 2) * 0.5) * L * 0.2;
+      g.moveTo(x - L * 0.08, y);
+      g.quadraticCurveTo(x, y - h * 0.1, x + L * 0.08, y);
+      g.stroke({
+        color: r % 2 ? eclaircir(dos, 0.26) : ombreBleutee(dos, 0.5),
+        width: h * 0.025,
+        alpha: 0.4,
+        cap: 'round',
+      });
+    }
+  }
+
   // plaques ventrales
   const n = 5;
   for (let i = 0; i < n; i += 1) {
@@ -1568,8 +1668,10 @@ function aileVouivre(
     bordFuite.push(pt(sens * E * t, C * (0.26 + 0.74 * Math.sin(t * Math.PI * 0.72)) - feston));
   }
   const forme = lisser(perturber([...bordAttaque, ...bordFuite], C * 0.012, seed), 1);
+  /* Sans mélange de BRUME : la membrane doit rester plus sombre que l'écaille,
+     sans quoi elle prend le devant de la bête et l'on ne voit plus le serpent. */
   poser(g, k, forme, {
-    couleur: melanger(couleur, BRUME, 0.22),
+    couleur: couleur,
     matiere: 'ecailles',
     matiereAlpha: 0.22,
     echelle: 0.55,
