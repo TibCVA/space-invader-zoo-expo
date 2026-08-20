@@ -6,10 +6,10 @@
 visuellement contrôlés. Le manifeste public reste sous son budget. Les replis
 procéduraux sont conservés.
 
-Ce verdict porte sur les images et leur chargement actuel. Deux raccordements
-de rendu restent explicitement à faire par Claude Code : les six matières de
-pays sur le sol de la carte d'aventure et les six fonds peints sous la grille de
-combat.
+Ce verdict porte sur les images et leur chargement actuel. Le rebase sur le
+commit Claude `c72953e` a apporté le raccordement des douze matières au sol de la
+carte. Un raccordement de rendu reste explicitement à faire par Claude Code :
+les six fonds peints sous la grille de combat.
 
 ## Inventaire livré
 
@@ -79,9 +79,9 @@ node tools/validate_wave2_assets.mjs              PASS — vague 2 et remplaceme
 python tools/validate_creature_renders.py         PASS — 28 rendus historiques
 node tools/validate_creature_renders.mjs           PASS — 28 rendus, 14 améliorés, 8 légendaires
 npx --yes pnpm@10.33.0 typecheck                 PASS — 11 projets
-npx --yes pnpm@10.33.0 test                      PASS — 70 fichiers, 926 tests
+npx --yes pnpm@10.33.0 test                      PASS — 72 fichiers, 945 tests
 npx --yes pnpm@10.33.0 --filter @auvergne/client build
-                                                    PASS — 986 modules
+                                                    PASS — 987 modules
 node tools/screenshot.mjs carte carte_pres carte_loin combat --dir shots/vague3
                                                     PASS — 8 captures, 0 erreur console
 node tools/validate_wave3_runtime.mjs              PASS — 197 chargées, 0 abandon
@@ -98,13 +98,14 @@ antérieurs et sans lien avec ce lot ; ils ne rendent pas le build rouge.
 
 Le validateur runtime ouvre la carte puis le diagnostic dans le même contexte :
 **197 images chargées, zéro image abandonnée, zéro avertissement de repli et
-zéro erreur console**. Les 61 décors et 13 icônes passent par leurs clefs d'atlas et apparaissent sur la
+zéro erreur console**. Les douze terrains sont en outre décodés par
+`art/matiere-sol.ts`, réduits en pyramides et composés par `render/terrain.ts`
+avec une phase monde stable et la sélection de pays définie dans `cantons.ts`.
+Les 61 décors et 13 icônes passent par leurs clefs d'atlas et apparaissent sur la
 carte. Les six pinceaux historiques remplacés restent utilisés par le champ de
 bataille. Les captures `carte`, `carte_pres`, `carte_loin` et `combat`, en bureau
 et iPhone, sont complètes et ne contiennent aucune erreur console.
 
-Les six nouvelles matières de pays sont chargées dans la table générique mais
-`render/terrain.ts` ne les compose pas encore dans le sol pixel. Les six fonds
-`combat_*` sont également chargés mais `battle/field.ts` ne les dessine pas
-encore sous la grille. Le prompt de raccordement exact est dans
-`docs/reference/CLAUDE-CODE-WAVE3-HANDOFF.md`.
+Les six fonds `combat_*` sont chargés dans la table générique mais
+`battle/field.ts` ne les dessine pas encore sous la grille. Le prompt de
+raccordement exact est dans `docs/reference/CLAUDE-CODE-WAVE3-HANDOFF.md`.

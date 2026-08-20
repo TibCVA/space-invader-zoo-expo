@@ -1,0 +1,42 @@
+{
+  "version": "1.0.0-imagegen-2026-08-20",
+  "generationId": "exec-1f9c7aef-1a31-4a8a-861c-163cae0138ae",
+  "outil": "ImageGen built-in",
+  "graine": "non-exposee-par-imagegen:exec-1f9c7aef-1a31-4a8a-861c-163cae0138ae",
+  "dimensions": [1672, 941],
+  "references": [
+    "docs/reference/teaser/heroes-reference.png",
+    "docs/reference/teaser/creatures-reference.png",
+    "apps/client/public/img/accueil/paysage.webp"
+  ],
+  "texteExige": [
+    "HEROES OF MIGHT AND MAGIC",
+    "AUVERGNE EDITION",
+    "CHABRELOCHE",
+    "LE LAC",
+    "LA MAISON DU TRÉSOR"
+  ],
+  "inviteCanonique": "Affiche teaser 16:9 premium de stratégie heroic-fantasy auvergnate. Utiliser la planche d'identité des cinq héros THIBAUT, PAUL, CLOTILDE, LOIC et MATTHIEU, la planche des quatre créatures Griffon de Pamole, Vouivre de la Durolle, Sanglier Cuirassé et Colosse de Granite, puis le panorama d'accueil comme référence d'atmosphère. Créer une bataille cohérente dans une vallée du Forez au crépuscule d'orage : sapins sombres, aiguilles de granit humides, callune, lac, brume et maison forte sur un éperon. Les cinq héros forment une frise de premier plan dans cet ordre, tous reconnaissables et munis de leurs objets distinctifs ; les quatre créatures s'affrontent au milieu, sans collage. Peinture riche à la main, enluminure vivante, naturalisme romantique, profondeur cinématographique moderne, lumière ambre et vieil or contre ombres bleu-violet. Titre monumental au centre. Rendre exactement une fois chaque chaîne HEROES OF MIGHT AND MAGIC, AUVERGNE EDITION, CHABRELOCHE, LE LAC, LA MAISON DU TRÉSOR, et aucun autre texte. Aucun humain supplémentaire, visage dupliqué, membre surnuméraire, objet moderne, logo additionnel, signature, filigrane, interface, cadre ou gore.",
+  "fichiers": [
+    {
+      "fichier": "docs/reference/teaser/teaser-cousins-master.png",
+      "format": "PNG",
+      "octets": 3013135,
+      "sha256": "168f48da4a6c356709145245c5402d8ea5074d5c9c9a3d58e6944627ed7811f0"
+    },
+    {
+      "fichier": "docs/reference/teaser/teaser-cousins-share.webp",
+      "format": "WEBP",
+      "qualite": 92,
+      "octets": 578416,
+      "sha256": "0ed3d5156af791454fdc41857508c5b9b1af40361124b187ef8b920a55e7d6d6"
+    }
+  ],
+  "qaVisuelle": {
+    "heros": "5 sur 5, identités et ordre conformes",
+    "creatures": "4 sur 4, designs conformes et action lisible",
+    "texte": "5 chaînes sur 5 exactes, aucune chaîne parasite",
+    "composition": "16:9, titre dominant, lieux et visages dans les marges de sécurité",
+    "verdict": "GO"
+  }
+}

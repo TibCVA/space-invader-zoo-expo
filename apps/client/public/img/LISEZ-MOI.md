@@ -24,8 +24,9 @@ de cité, bâtiments, objets actifs, ressources et décors sont consommés par l
 client au moyen de leurs clefs exactes. Toute image absente ou rejetée laisse
 réapparaître le rendu procédural. Voir
 `docs/reference/CLAUDE-CODE-WAVE2-HANDOFF.md` pour la suite côté créatures et
-`docs/reference/CLAUDE-CODE-WAVE3-HANDOFF.md` pour le raccordement des matières
-de pays et des fonds de combat.
+`docs/reference/CLAUDE-CODE-WAVE3-HANDOFF.md` pour le raccordement des fonds de
+combat et la suite éventuelle des rigs de créatures. Les matières de pays sont
+déjà composées dans le sol de la carte par `art/matiere-sol.ts`.
 
 ImageGen intégré ne fournit pas de graine numérique. Le manifeste l'indique
 explicitement au lieu d'inventer une reproductibilité bit-à-bit.

@@ -44,11 +44,11 @@ try {
   browser = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
   const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
   const consoleErrors = [];
-  const assetWarnings = [];
+  const artWarnings = [];
   page.on('console', (message) => {
     const text = message.text();
     if (message.type() === 'error') consoleErrors.push(text);
-    if (text.includes('[art]') && text.includes('ignorée')) assetWarnings.push(text);
+    if (text.includes('[art]') && /(ignorée|non chargée)/i.test(text)) artWarnings.push(text);
   });
   page.on('pageerror', (error) => consoleErrors.push(String(error)));
 
@@ -64,7 +64,7 @@ try {
   const errors = [];
   if (charges !== 197) errors.push(`images chargées: ${String(charges)}, attendu: 197`);
   if (abandons) errors.push('le diagnostic signale des images abandonnées');
-  if (assetWarnings.length) errors.push(`${assetWarnings.length} avertissement(s) de repli asset`);
+  if (artWarnings.length) errors.push(`${artWarnings.length} avertissement(s) de repli artistique`);
   if (consoleErrors.length) errors.push(`${consoleErrors.length} erreur(s) console`);
 
   console.log(
@@ -73,7 +73,7 @@ try {
         charges,
         dureeMs: match ? Number(match[2]) : null,
         abandons,
-        assetWarnings,
+        artWarnings,
         consoleErrors,
         errors,
       },

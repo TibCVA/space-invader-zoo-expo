@@ -32,20 +32,13 @@ pinceaux historiques `herbe`, `aiguilles`, `roche`, `tourbe`, `gravier`, `eau`
 restent consommés par le combat. Ne modifie pas ce chemin et ne supprime jamais
 le repli procédural.
 
-## Travail 1 — matières de pays sur la carte d'aventure
+## Déjà intégré — matières de pays sur la carte d'aventure
 
-Le chargeur place actuellement les six nouvelles textures dans sa table
-générique, mais `render/terrain.ts` peint encore tout le sol sans les utiliser.
-Ajoute une API d'atlas sémantique et typée pour demander une texture générée par
-clef ; n'abuse pas de `atlas.icon()` et ne rends pas la map globale accessible.
-Si une clef manque, retourne `null` et conserve le rendu actuel inchangé.
-
-Dans le pipeline du sol, compose une strate de matière répétée **après
-l'ombrage/occlusion de relief et avant le grain final**. Elle doit moduler la
-couleur existante, pas la remplacer : faible opacité, mode de fusion ou
-multiplication calibré, phase monde stable, aucune couture à la frontière des
-blocs et aucun glissement quand la caméra zoome. Conserve les huit strates,
-hillshade, lisières, routes, eau, brume et météo existantes.
+Le commit Claude `c72953e` a raccordé les douze tuiles au sol avant l'arrivée de
+ce pack. Ne refais pas ce travail. Préserve `art/matiere-sol.ts`, sa pyramide de
+réduction, sa phase monde stable, le placement dans `render/terrain.ts` et la
+table `sol` de `render/cantons.ts`. Une clef ou image absente doit continuer à
+retomber sans bruit sur le rendu procédural.
 
 Table de sélection contractuelle :
 
@@ -58,11 +51,11 @@ Table de sélection contractuelle :
 | `roche_chaude` | Cervières, Maison du Trésor |
 | `lande_callune` | Hermitage, Peyrotine |
 
-Identifie les cantons par leurs clefs de contenu existantes ; ne compare pas des
-libellés affichés et n'invente pas une treizième région. Pour tout canton sans
-correspondance ou toute image rejetée, n'applique aucune matière supplémentaire.
+Vérifie seulement sur les trois captures que cette sélection demeure visible
+mais discrète. Ne compare pas des libellés affichés et n'invente pas une
+treizième région.
 
-## Travail 2 — fonds peints de combat
+## Travail 1 — fonds peints de combat
 
 Branche les clefs suivantes dans `battle/field.ts` :
 
@@ -85,7 +78,7 @@ champ de bataille ou son décor de franchissement. Si le moteur ne possède pas
 encore cette information, garde le repli et documente le point au lieu de faire
 une heuristique fragile.
 
-## Travail 3 — études de créatures
+## Travail 2 — études de créatures
 
 Les sept fichiers de `docs/reference/creatures/vague3/` sont des références de
 resculpture uniquement :

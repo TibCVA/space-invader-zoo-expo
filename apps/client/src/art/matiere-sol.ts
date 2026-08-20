@@ -71,9 +71,8 @@ const ECHELLE = 127;
 export const MATIERES_BASE = ['herbe', 'aiguilles', 'roche', 'tourbe', 'gravier', 'eau'] as const;
 
 /**
- * Les six matières de PAYS demandées à la vague 3. Elles n'existent pas encore
- * dans `public/img/` ; les nommer ici ne coûte rien et fait que le jour où
- * Codex les livre, elles sont employées sans une ligne de code à écrire.
+ * Les six matières de PAYS livrées par la vague 3. Elles sont déclarées dans le
+ * manifeste ImageGen et chargées en même temps que les six matières de base.
  * Une clef absente retombe silencieusement sur sa matière de base.
  */
 export const MATIERES_PAYS = [
