@@ -161,6 +161,60 @@ surestimée d'un facteur 2,27, qui fabriquait des barres rocheuses partout.
 La mesure corrigée dit la vérité — **le relief ne ferme pas les zones**, et
 c'est exactement le chantier déjà inscrit au plan.
 
+## 1 quater. Audit du 20/08 — ce que le code dit, contre ce que ce document disait
+
+Onze chantiers relus **dans le code**, pas dans les tableaux d'état. Trois
+défauts que les documents masquaient, et deux correctifs faits dans la foulée.
+
+**Corrigé — le pincer-zoomer volait le tour** (`gardePincement`). Le module
+`pincement.ts` annonce dans son contrat que l'appelant doit « ignorer le
+prochain relâché » et expose `surFin` pour cela ; la cité et le champ de
+bataille branchaient `surPincement` sans jamais fournir `surFin`. `grep surFin`
+ne le trouvait que dans sa propre déclaration et son propre appel. Au combat,
+lever les doigts après un zoom émettait un `pointertap` sur l'hexagone en
+dessous — donc un déplacement ou une attaque, et l'action du tour était
+consommée par le geste de regarder.
+
+**Corrigé — un tiers de la carte était illisible.** `render/objects.ts:121`
+compose `carte_<genre>` et, faute de le trouver, retombe sur `carte_borne`.
+Treize des vingt-neuf genres n'avaient aucune entrée : **163 lieux sur 493**
+portaient la même borne armoriée (coffre 56, demeure 32, banque 12, monolithe
+12, école 11, obélisque 10, temple 8, moulin 8, fontaine 7, marché noir 4,
+cartographe 3). Le test ne pouvait pas l'attraper : il énumérait à la main
+exactement les seize genres couverts. Le moteur publie donc `MAP_OBJECT_KINDS`,
+liée à l'union de types par deux assertions — retirer un genre de la liste ne
+compile plus. Trois tests en découlent, dont « deux genres ne partagent jamais
+un dessin », qui est la faute exacte qui s'était installée.
+
+**Non corrigé, et c'est le premier réglage à reprendre : les croissances de
+créatures ne sont pas celles de HMM3.** 18/12/8/6/4/2/1 au lieu de
+14/9/7/5/4/3/2 — rangs 1 à 4 très au-dessus, rangs 6 et 7 en dessous. La
+Citadelle et le Château sont bien là (×1,5 puis ×2, quatre tours au siège),
+mais la table témoin de `balance.test.ts:32-45` fige les anciennes valeurs :
+aucun test ne pouvait rougir. C'est le réglage qui gouverne le rythme de toute
+la partie, donc à reprendre AVANT tout étalonnage par simulation.
+
+**Ce que l'audit a précisé sur les autres chantiers :**
+
+| Chantier | Ce qu'on croyait | Ce que le code dit |
+|---|---|---|
+| P0.2a calage de l'impact | fait | fait au corps à corps ; au **tir** l'impact tombe encore 20 ms avant l'arrivée du trait (`anim.ts:358` attend 0,28 s, le projectile vole 0,3 s) et **aucun test ne verrouille le calage** |
+| P0.2b effet par école | à faire | **fait** — `vfx.aura(ecole)` distingue les quatre écoles |
+| P0.2b projectiles, cadavres | à faire | absents tous les deux ; le conteneur `siege.ts:305` des projectiles de tour n'est jamais alimenté |
+| P0.2c densité d'obstacles | à faire | table d'origine intacte ; l'icône épée/flèche n'est posée que sur la case du curseur, et sur téléphone le toucher attaque aussitôt — elle n'est donc quasi jamais vue |
+| P1.5 rampes du champ | à faire | **une seule ligne** a changé dans `field.ts` depuis le correctif des dégradés, et ce n'était pas un arrêt de rampe (mesure : luminance 89,6 pour une cible à 95) |
+| P1.5 angle du soleil | à faire | `degradeSurface` passe toujours 135 quand son propre en-tête annonce 315 ; idem `parchemin.ts:170,376`, `archetypes.ts:238` |
+| P1.7 resculpture | à faire | **impossible qu'elle ait eu lieu** : les fichiers de créature datent de 18 h AVANT l'arrivée des rendus de référence. Vu sur planche de contact : les formes sont très frustes (le sanglier est une caisse sur pattes) |
+| P2.9 revue | à faire | 3 scènes sur 14 n'ont **jamais** été capturées une seule fois : `cite_granit`, `cite_ermitage`, `diagnostic` |
+| P2.11 déploiement | fait | outillage **sain** — jeton lu uniquement dans l'environnement, jamais imprimé, jamais passé en argument, portes de qualité avant envoi. Mais **la version en ligne précède le correctif du gel de partie** : le jeu déployé gèle deux parties sur quatre. Et `RAILWAY_GIT_COMMIT_SHA` n'étant pas défini, `/health` annonce « commit inconnu » |
+| « Raccordement des matières » (plan.md) | à faire | **fait** — les huit matières sont consommées dans `town/index.ts:86-93` |
+
+**Deux dettes de test à connaître :** les 30 cas qui valident le correctif des
+dégradés vivent dans `__epreuve/`, qui est dans `.gitignore` — ils n'existent
+pas dans l'historique. Et il n'y a **aucun garde-fou** sur les seuils de la
+carte (part d'infranchissable, articulations) : la prochaine remise à l'échelle
+les refera tomber en silence.
+
 ## 2. LA LISTE — par importance pour le feeling HMM3
 
 ### P0 — le cœur du jeu (sans quoi ce n'est pas HMM3)
