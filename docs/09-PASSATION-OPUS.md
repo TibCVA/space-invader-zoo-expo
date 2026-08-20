@@ -32,8 +32,16 @@
    **Se méfier de toute constante qui est une longueur en cases** : depuis que
    la carte fait 113 × 184, une distance écrite en dur porte deux fois plus
    loin qu'avant. Les demander en fraction de `COLS`/`ROWS`/`CELLS`.
-5. **Les sous-agents et workflows sont morts** (allocation d'usage épuisée) :
-   travailler en ligne, séquentiellement.
+5. **Les sous-agents et les workflows fonctionnent de nouveau** — et le
+   propriétaire les a demandés dès le prompt initial (« fan out sub-agents »).
+   Deux règles apprises en les employant : (a) **partitionner strictement les
+   fichiers** entre agents, un fichier n'appartient qu'à un seul, sinon deux
+   `Edit` concurrents se marchent dessus ; (b) **leur interdire `pnpm build`,
+   `vite build` et `tools/screenshot.mjs`** — deux constructions simultanées se
+   disputent `apps/client/dist` — et faire les captures soi-même, une fois, à
+   la fin. Leur interdire aussi tout `git`, et committer soi-même après
+   relecture : c'est le seul moyen de ne pas emporter le travail à moitié fait
+   d'un agent encore en vol.
 6. Captures : `node tools/screenshot.mjs <scènes> --dir shots/<nom>` (construit,
    sert sous la vraie CSP, bureau 1920×1080 + iPhone 390×844, rapport
    d'erreurs console). Ports libres gérés. Les attentes par scène sont des
@@ -351,6 +359,131 @@ mesure :**
 paraissait invisible sur capture. Mesurée, elle vaut +44 de luminance sur le
 sol d'une sapinière : c'est la réduction de l'image pour l'examen qui mangeait
 les traits de 1,2 pixel. Rien à corriger.
+
+## 1 septies. Session du 20/08 (soir) — le sol, les mines, le combat
+
+**Le fil de cette session : ce qui était LIVRÉ mais que personne ne LISAIT.**
+Trois fois le même mode de panne, et il ne s'est jamais annoncé.
+
+### Le sol de la carte
+
+Six pinceaux de terrain peints dormaient dans `public/img/terrain/`, déclarés au
+manifeste depuis la première vague, et n'étaient lus que par le champ de
+bataille. Le sol de la carte d'aventure — cent pour cent de l'écran pendant
+toute une partie — était peint sans une seule matière peinte.
+
+`apps/client/src/art/matiere-sol.ts` fait le raccordement. La tuile n'est pas
+posée comme une couleur mais comme un **écart relatif à sa propre moyenne**, par
+canal, appliqué en multipliant après l'ombrage. Conséquences : la couleur
+moyenne du sol ne bouge pas (le gradient d'altitude, la teinte de pays et
+l'étalonnage survivent), la loi de lumière unique garde la main, et les
+événements de teinte passent quand même. La tuile est lue à la position **déjà
+gauchie** qui sert aux lisières : les frontières de matière serpentent et le
+pavage est tordu, donc la répétition ne fait pas de lignes droites.
+
+**Le premier raccordement ne servait à rien, et il a fallu une mesure pour s'en
+apercevoir.** Les douze pays nomment tous une variante d'`herbe` ; les tuiles de
+pays n'étaient pas encore livrées ; le peintre demandait `herbe_estive`, ne
+trouvait rien, et laissait la case SANS matière — presque toute la carte. Le
+journal disait « 6 chargées », la capture montrait le même grain qu'avant, à un
+centième près. Le repli vit maintenant dans le registre (`BASE_DE_PAYS`) et un
+test simule l'état de livraison réel pour l'exiger. Après correction, même scène
+et même caméra : **62 % des pixels changent**, écart moyen 5,1 niveaux.
+
+Codex a livré la vague 3 dans la foulée : **les douze tuiles**, dont les six de
+pays, sous les clefs exactes. Les douze cantons ont donc chacun leur sol peint.
+
+### Les panoramas de combat, même piège
+
+La vague 3 a aussi livré six panoramas de 1024 × 640 (`combat_prairie`,
+`combat_foret`…), et la catégorie `combat` n'existait même pas dans le type du
+chargeur. Ils sont branchés dans `battle/field.ts`, **entre la rampe de biome et
+les nappes** : l'image apporte la matière, le code garde la lumière — un
+panorama posé par-dessus les neuf strates aurait effacé l'étalonnage et donné un
+sol qui s'éclaire à l'envers des figurines. Une ambiance de plus au passage, les
+**hautes chaumes**, qui couvrent 7,4 % de la carte et se battaient dans un pré.
+
+Et un test qui interdit la récidive : **tout panorama livré au manifeste
+qu'aucune ambiance n'emploie fait rougir la suite**, et ne peut être tu qu'en
+l'inscrivant nommément avec sa raison. Vérifié ensuite pour TOUTES les clefs du
+manifeste : les 197 entrées sont consommées, `bati_*` et `ressource_*` compris
+(clefs construites dynamiquement, donc invisibles à un grep naïf).
+
+### Les mines — la demande la moins tenue des dix
+
+La carte rendait **trois essences par jour contre quatorze fers**. L'essence est
+toute l'économie rare de l'Ermitage comme le fer est celle du Granit. Trois
+causes cumulées : essence et fil d'or étaient les seuls gisements de la carte à
+rendre 1 au lieu de 2 ; il n'y en avait que trois et deux ; et les quatorze
+gisements tirés au sort prenaient leur ressource dans la table des TAS, où
+`ecus` pèse 26 sur 100 et était reversé au fer — le fer récoltait 40 % des
+filons, l'essence 6 %.
+
+Pire : **deux capitales sur cinq ne pouvaient pas jouer une des deux maisons.**
+La Renaudie trouvait son essence à 59 cases et son sel à 112 ; Viscomtat son fer
+à 40 et son fil d'or à 55. Or la faction n'est jamais imposée par la géographie :
+le joueur la choisit. Il choisissait à pile ou face sans le savoir.
+
+| | avant | après |
+|---|---|---|
+| essence, par semaine et par carte | 21 | **110** |
+| fer | 98 | 105 |
+| fil d'or | 28 | 63 |
+| sel | 35 | 68 |
+| pire éloignement d'une capitale à une ressource rare | 112 cases | **32** |
+| écart économique entre le plus riche et le plus pauvre départ | — | 1,89 % |
+| paires d'assets trop proches | — | 0 |
+| duel de validation | 19/20 | **19/20**, conquêtes 19/20 |
+
+La Filature de Bise était par ailleurs à DIX cases de l'Atelier des Grenadières,
+sous les quatorze que la table d'espacement déclare elle-même. Elle est descendue
+à Augerolles, ce qui donne du fil d'or au sud par la même occasion.
+
+### Le verrou de version de la carte
+
+La carte n'est **pas enregistrée** : elle est reconstruite par `buildWorld(graine)`
+à chaque chargement. Déplacer neuf gisements change donc le sol sous une partie
+en cours, et les identifiants d'objets de l'état ne désignent plus rien. Le seul
+garde-fou était `MAP_VERSION`, et `versionsCompatibles` ne compare que le
+MAJEUR : passer de 1.0.0 à 1.1.0 aurait été déclaré compatible. D'où
+**`2.0.0-forez`**, la règle écrite à côté de la constante, et un verrou testé —
+une empreinte du monde semé sur trois graines, qui tombe dès qu'un objet bouge
+d'une case. **Si ce test rougit, monter le majeur DANS LE MÊME COMMIT.**
+
+### Le combat, enfin jouable comme HMM3
+
+Trois défauts de fond, tous mesurés, tous corrigés :
+
+1. **Personne ne jouait le camp adverse.** `chooseCombatAction` n'avait qu'un
+   seul appelant dans tout le dépôt : `autoResolve`. Quand une pile de gardes
+   neutres devenait active, le joueur humain devait la jouer LUI-MÊME. La vue
+   fait maintenant jouer le moteur après un délai FIXE de 520 ms (fixe, parce
+   que le combat est déterministe).
+2. **Cliquer un ennemi non adjacent ne faisait rien.** Le client émettait
+   `{kind:'attack'}` sans `from` ; `doAttack` refusait, et l'erreur s'affichait
+   hors du champ de bataille. Le geste fondateur de HMM3 — cliquer l'ennemi,
+   marcher, frapper — était absent alors que le moteur le supportait et que
+   l'IA s'en servait.
+3. **L'aperçu mentait pour tout assaut demandant un déplacement.** L'angle de
+   flanc, l'angle de dos, la riposte conditionnelle et la charge étaient
+   calculés depuis la case COURANTE. Mesuré : le dos valait 2000 BP et la charge
+   2500 BP de plus que l'annonce, et le coup réellement porté sortait au-dessus
+   du maximum affiché. `damageRange` prend désormais `fromHex` et
+   `chargeHexes` — contrat, repli et `docs/02-API.md` alignés — et la riposte
+   est **chiffrée**, en ne faisant riposter que les survivants.
+
+### Ce que la mesure a démenti, cette fois encore
+
+- Le sol paraissait taché de **grandes nappes jaunes qui se lisaient comme un
+  défaut d'éclairage**. Mesurées : c'est le biome `lande` (teinte 48°, clarté
+  108) contre la forêt (124°, 64). C'est du TERRAIN, pas de la lumière. Rien à
+  corriger, et les tuiles de chaume lui donneront sa matière.
+- L'aperçu de carte de « Nouvelle partie » paraissait trop sombre. Le peintre
+  est **29 % plus clair** que le jeu : le canevas était simplement effacé par
+  React après avoir été peint.
+- La première tentative de mesure du grain du sol n'a rien montré parce que ses
+  fenêtres tombaient sur des **sapins**, pas sur du sol nu. Choisir la fenêtre
+  la plus PLATE de la capture d'avant règle le problème.
 
 ## 2. LA LISTE — par importance pour le feeling HMM3
 
