@@ -200,7 +200,10 @@ export async function appliquerAssetsGeneres(
   manifeste?: Manifeste | null,
 ): Promise<RapportAssets> {
   const debut = maintenant();
-  const m = manifeste ?? (await lireManifeste());
+  /* `undefined` veut dire « lis-le toi-même » ; `null` veut dire « il n'y en a
+     pas, je viens de le vérifier ». Confondre les deux relançait une requête
+     pour rien sur une installation sans images. */
+  const m = manifeste === undefined ? await lireManifeste() : manifeste;
 
   if (!m) {
     dernierRapport = {

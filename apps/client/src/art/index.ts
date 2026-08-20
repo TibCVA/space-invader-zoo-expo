@@ -32,7 +32,8 @@ import type { EcoleSort, EffectKind, EffectOptions, Effet, ParticleTextures } fr
 import type { CreatureRig } from './rig.js';
 import { LIGHT, PALETTE, melanger } from './palette.js';
 import { blob, densifier, filetDore, flat, peindre, perturber, pt } from './shading.js';
-import { appliquerAssetsGeneres } from './assets.js';
+import { appliquerAssetsGeneres, lireManifeste } from './assets.js';
+import { chargerMatieresSol, oublierMatieres } from './matiere-sol.js';
 
 export type { CreatureRig } from './rig.js';
 export type { PropKey } from './props.js';
@@ -317,7 +318,16 @@ export async function buildArtAtlas(renderer: Renderer): Promise<ArtAtlas> {
   // Si `public/img/manifeste.json` existe, ses bitmaps remplacent les entrées
   // correspondantes. Sinon, ou en cas d'échec, l'atlas garde sa version
   // procédurale : le jeu ne dépend jamais d'un asset. Voir docs/05-ASSETS.md.
-  await appliquerAssetsGeneres(textures, pinceaux);
+  const manifeste = await lireManifeste();
+  await appliquerAssetsGeneres(textures, pinceaux, manifeste);
+  /*
+   * Les MATIÈRES DU SOL de la carte d'aventure. Elles emploient les mêmes
+   * fichiers que les pinceaux du champ de bataille mais pas la même
+   * représentation : le peintre du terrain écrit dans une `ImageData` et ne
+   * peut rien faire d'une texture PixiJS. Le manifeste est lu une seule fois
+   * et passé aux deux. Voir `art/matiere-sol.ts` pour le pourquoi.
+   */
+  await chargerMatieresSol(manifeste);
 
   const banniereCache = new Map<string, Texture>();
   const rtSupplementaires: RenderTexture[] = [];
@@ -411,6 +421,7 @@ export async function buildArtAtlas(renderer: Renderer): Promise<ArtAtlas> {
       for (const t of Object.values(pinceaux)) t.destroy(true);
       for (const t of Object.values(particles)) t.destroy(true);
       textures.clear();
+      oublierMatieres();
       banniereCache.clear();
       avertis = new Set<string>();
     },

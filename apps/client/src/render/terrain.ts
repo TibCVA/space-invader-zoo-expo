@@ -40,7 +40,9 @@ import {
   yEcran,
 } from './commun.js';
 import type { Cadrage } from './commun.js';
-import { cantonDe, gelDePays } from './cantons.js';
+import { cantonDe, gelDePays, matiereDePays } from './cantons.js';
+import type { Canton } from './cantons.js';
+import { CASES_PAR_TUILE, indexMatiere, niveauxDeMatiere } from '../art/matiere-sol.js';
 
 /** Côté d'un bloc, en cases. Imposé par `BLOCK_SIZE` du moteur. */
 const BLOC = 32;
@@ -52,6 +54,56 @@ const G = BLOC + 2 * MARGE;
 const METRES_PAR_CASE = 48;
 /** Exagération du relief : sans elle, un massif réel paraît plat en 2D. */
 const EXAGERATION = 5;
+
+/**
+ * Quelle matière peinte va sous quel terrain.
+ *
+ * Les clefs sont celles du manifeste d'images (`docs/05-ASSETS.md`) et les
+ * fichiers existent depuis la première vague — ils ne servaient jusqu'ici qu'au
+ * champ de bataille. La chaussée est le seul cas où l'on ne prend pas le sol
+ * d'à côté : elle est assez large pour montrer son gravier, alors qu'un simple
+ * chemin traverse la matière du pré sans la remplacer.
+ */
+export const MATIERE_DE_TERRAIN: Readonly<Record<number, string>> = {
+  [TER.prairie]: 'herbe',
+  [TER.lande]: 'herbe',
+  [TER.pente]: 'herbe',
+  [TER.foret]: 'aiguilles',
+  [TER.rocher]: 'roche',
+  [TER.falaise]: 'roche',
+  [TER.humide]: 'tourbe',
+  [TER.eau]: 'eau',
+  [TER.route]: 'gravier',
+};
+
+/**
+ * Force de la matière peinte, en fraction de l'écart de la tuile.
+ *
+ * À 1, on repeint le sol avec la tuile et l'on perd le gradient d'altitude, la
+ * teinte de pays et l'ombrage de relief sous un tapis uniforme. À 0,3 on ne la
+ * voit pas au cadrage de jeu. La valeur est fixée sur capture, aux trois
+ * échelles du harnais (`carte`, `carte_pres`, `carte_loin`) : c'est le réglage
+ * le plus haut auquel la carte large reste lisible comme une carte et non
+ * comme une photographie de mousse.
+ */
+const FORCE_MATIERE = 0.62;
+
+/**
+ * La clef de matière peinte d'une case, ou `null` s'il n'y en a pas.
+ *
+ * Le peintre appelle CETTE fonction ; les tests exercent CETTE fonction. La
+ * leçon a coûté une demi-journée ailleurs dans ce dépôt : un tableau de bord
+ * qui mesurait avec sa propre copie de la table d'espacement mesurait la copie
+ * et non le travail. Une table de correspondance sans fonction partagée finit
+ * toujours recopiée.
+ *
+ * @param terrain le terrain réel de la case, voies comprises
+ * @param sol     le terrain à peindre dessous (voir `solSousVoie`)
+ */
+export function clefMatiereDuSol(terrain: number, sol: number, canton: Canton): string | null {
+  const base = MATIERE_DE_TERRAIN[terrain === TER.route ? TER.route : sol];
+  return base === undefined ? null : matiereDePays(canton, base);
+}
 
 /* Vecteur unitaire surface → soleil, azimut 315°, élévation 38° (loi n°2). */
 const SOLEIL_X = -Math.cos((38 * Math.PI) / 180) * Math.SQRT1_2;
@@ -588,6 +640,8 @@ export class PeintreTerrain {
     const cg = new Float32Array(n);
     const cb = new Float32Array(n);
     const eau = new Float32Array(n);
+    /* Index de matière peinte par case, −1 quand il n'y en a pas. */
+    const mat = new Int8Array(n);
 
     for (let j = 0; j < G; j += 1) {
       const wr = row0 + j;
@@ -622,6 +676,11 @@ export class PeintreTerrain {
          */
         const canton = cantonDe(w.region[index]);
         couleur = gelDePays(couleur, canton.teinte, canton.dose);
+        /* La MATIÈRE peinte, choisie par le terrain puis nuancée par le pays.
+           Rien n'est chargé ici : on ne retient qu'un index, et la peinture
+           par pixel plus bas s'en sert pour lire la carte d'écart. */
+        const clefMatiere = clefMatiereDuSol(t, sol, canton);
+        mat[k] = clefMatiere === null ? -1 : indexMatiere(clefMatiere);
         /* Bruit de teinte par case : deux cases voisines ne sont jamais
            exactement de la même couleur (loi n°1). */
         const jitter = alea(cc, rc, 17) - 0.5;
@@ -662,6 +721,32 @@ export class PeintreTerrain {
     const px = img.data;
     const inv = 1 / res;
     const ch = this.ch;
+
+    /*
+     * Strate 4 bis — la MATIÈRE PEINTE.
+     *
+     * Une tuile couvre `CASES_PAR_TUILE` cases ; à `res` pixels par case, il
+     * en faut donc `CASES_PAR_TUILE × res` de large. On demande le niveau de
+     * réduction correspondant une fois par bloc, pas une fois par pixel.
+     *
+     * `echelle` et `masque` sont pré-calculés par matière pour que la boucle
+     * n'ait ni division ni modulo : le masque binaire suffit puisque tous les
+     * côtés sont des puissances de deux, et il enroule correctement les
+     * coordonnées négatives (`-1 & 127` vaut 127).
+     */
+    const niveaux = niveauxDeMatiere(CASES_PAR_TUILE * res);
+    const echelle = new Float64Array(niveaux.length);
+    const masque = new Int32Array(niveaux.length);
+    const decalage = new Int32Array(niveaux.length);
+    let aMatiere = false;
+    for (let i = 0; i < niveaux.length; i += 1) {
+      const nv = niveaux[i];
+      if (!nv) continue;
+      aMatiere = true;
+      echelle[i] = nv.cote / CASES_PAR_TUILE;
+      masque[i] = nv.cote - 1;
+      decalage[i] = Math.log2(nv.cote) | 0;
+    }
 
     for (let py = 0; py < taille; py += 1) {
       const gy = MARGE + (py + 0.5) * inv;
@@ -746,6 +831,34 @@ export class PeintreTerrain {
           r += (FROIDE.r - r) * t;
           g += (FROIDE.g - g) * t;
           b += (FROIDE.b - b) * t;
+        }
+
+        /*
+         * Strate 4 bis — la matière peinte, appliquée en MULTIPLIANT.
+         *
+         * Elle vient après l'ombrage et le gel chaud/froid, donc une matière
+         * dans l'ombre est automatiquement moins visible qu'au soleil : c'est
+         * la loi de lumière unique qui garde la main, la tuile ne fait que
+         * sculpter ce que l'ombrage a décidé.
+         *
+         * La case lue est celle de la position DÉJÀ GAUCHIE — la même que pour
+         * la couleur de biome. Deux conséquences : la frontière entre deux
+         * matières serpente au lieu de suivre la grille, et le pavage lui-même
+         * est tordu, donc les lignes droites de la répétition n'existent pas.
+         */
+        if (aMatiere) {
+          const mi = mat[(fy >= 0.5 ? y0 + 1 : y0) * G + (fx >= 0.5 ? x0 + 1 : x0)];
+          const nm = mi >= 0 ? niveaux[mi] : null;
+          if (nm) {
+            const ex = echelle[mi];
+            const mk = masque[mi];
+            const tx = (Math.floor((wx + wa * 1.15) * ex) & mk) as number;
+            const ty = (Math.floor((wy + wb * 1.15) * ex) & mk) as number;
+            const q = (ty << decalage[mi]) + tx;
+            r *= 1 + (nm.dr[q] / 127) * FORCE_MATIERE;
+            g *= 1 + (nm.dg[q] / 127) * FORCE_MATIERE;
+            b *= 1 + (nm.db[q] / 127) * FORCE_MATIERE;
+          }
         }
 
         /* Strate 7 — l'eau : miroitement et liseré clair sur la rive au soleil. */

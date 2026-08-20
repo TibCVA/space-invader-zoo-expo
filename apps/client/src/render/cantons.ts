@@ -64,6 +64,21 @@ export interface Canton {
    */
   readonly bati: readonly PropKey[];
   readonly chanceBati: number;
+  /**
+   * La MATIÈRE peinte du sol, quand le pays en demande une autre que celle de
+   * son terrain. Clef : la matière de base (`herbe`, `roche`…) ; valeur : la
+   * matière de pays qui la remplace (`herbe_estive`, `roche_carrier`…).
+   *
+   * Ces six matières de pays sont demandées à la vague 3 d'images et
+   * n'existent pas encore dans `public/img/`. Les nommer ici ne coûte rien :
+   * `art/matiere-sol.ts` retombe sans bruit sur la matière de base tant que le
+   * fichier n'est pas livré, et le jour où il l'est, il est employé sans une
+   * ligne de code à écrire. C'est ce qui fera que le Cœur des Bois Noirs aura
+   * un humus noir et l'estive d'Arconsat une herbe brûlée, là où aujourd'hui
+   * les deux partagent la tuile de leur terrain et ne se distinguent que par
+   * la teinte de pays.
+   */
+  readonly sol?: Readonly<Record<string, string>>;
 }
 
 /*
@@ -125,6 +140,7 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
     force: 0.5,
     bati: ['ferme', 'tour'],
     chanceBati: 0.006,
+    sol: { herbe: 'herbe_estive', roche: 'roche_carrier' },
   },
   vallee_durolle: {
     densite: 1.15,
@@ -134,6 +150,7 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
     force: 0.45,
     bati: ['moulin', 'ferme'],
     chanceBati: 0.01,
+    sol: { herbe: 'herbe_grasse' },
   },
   lac_sagnes: {
     densite: 0.9,
@@ -143,6 +160,7 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
     force: 0.6,
     bati: ['chapelle'],
     chanceBati: 0.004,
+    sol: { herbe: 'herbe_grasse' },
   },
   maison_tresor: {
     densite: 0.8,
@@ -152,6 +170,7 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
     force: 0.5,
     bati: ['tour', 'chapelle'],
     chanceBati: 0.008,
+    sol: { roche: 'roche_chaude' },
   },
   chatellenie_cervieres: {
     densite: 0.78,
@@ -161,6 +180,7 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
     force: 0.55,
     bati: ['ferme', 'tour', 'chapelle'],
     chanceBati: 0.012,
+    sol: { roche: 'roche_chaude', herbe: 'herbe_estive' },
   },
   futaies_viscomtat: {
     densite: 1.28,
@@ -170,6 +190,7 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
     force: 0.55,
     bati: ['ferme'],
     chanceBati: 0.006,
+    sol: { herbe: 'herbe_grasse' },
   },
   coeur_bois_noirs: {
     densite: 1.42,
@@ -179,6 +200,7 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
     force: 0.68,
     bati: ['chapelle'],
     chanceBati: 0.003,
+    sol: { aiguilles: 'aiguilles_noires' },
   },
   pays_noiretable: {
     densite: 0.95,
@@ -188,6 +210,7 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
     force: 0.45,
     bati: ['ferme', 'chapelle'],
     chanceBati: 0.011,
+    sol: { herbe: 'lande_callune' },
   },
   hermitage_peyrotine: {
     densite: 1.05,
@@ -197,6 +220,7 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
     force: 0.5,
     bati: ['chapelle', 'ferme'],
     chanceBati: 0.012,
+    sol: { herbe: 'lande_callune', roche: 'roche_chaude' },
   },
   vollore_pamole: {
     densite: 0.86,
@@ -206,6 +230,7 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
     force: 0.62,
     bati: ['ferme', 'tour'],
     chanceBati: 0.01,
+    sol: { roche: 'roche_carrier' },
   },
   marche_renaudie: {
     densite: 1.0,
@@ -215,6 +240,7 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
     force: 0.42,
     bati: ['ferme', 'moulin'],
     chanceBati: 0.013,
+    sol: { herbe: 'herbe_grasse' },
   },
   grande_chaussee: {
     densite: 0.88,
@@ -224,6 +250,7 @@ export const CANTONS: Readonly<Record<string, Canton>> = {
     force: 0.5,
     bati: ['ferme', 'chapelle', 'tour'],
     chanceBati: 0.014,
+    sol: { herbe: 'herbe_estive' },
   },
 };
 
@@ -274,6 +301,18 @@ export function gelDePays(couleur: number, teinte: number, dose: number): number
 export function cantonDe(region: number): Canton {
   const id = REGIONS[region];
   return (id ? CANTONS[id] : undefined) ?? PAYS_QUELCONQUE;
+}
+
+/**
+ * La matière peinte du sol pour ce pays, à partir de celle de son terrain.
+ *
+ * Le terrain garde le dernier mot sur la NATURE du sol — on ne met pas de la
+ * tourbe sur une dalle de granit — et le pays n'en choisit que la variété.
+ * C'est la même règle que pour les silhouettes : le canton décide du goût, à
+ * l'intérieur de ce que le terrain permet.
+ */
+export function matiereDePays(canton: Canton, base: string): string {
+  return canton.sol?.[base] ?? base;
 }
 
 /**
