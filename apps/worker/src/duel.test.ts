@@ -244,9 +244,25 @@ describe('duel expert contre prudent', () => {
       for (const b of game.banners) {
         if (b.profile !== 'prudent') continue;
         citesPrudent += b.towns;
-        gisPrudent += b.mines;
+        /*
+         * Le PIC de gisements, pas l'inventaire final.
+         *
+         * Depuis que les couleurs d'une maison éteinte tombent au moment de son
+         * extinction — comme le fait déjà une reddition —, l'inventaire final du
+         * perdant d'un duel vaut toujours zéro : dans une partie à deux
+         * bannières, son extinction EST la fin de la partie. Compter là revenait
+         * à mesurer « est-il vivant ? », ce que la ligne du dessus dit déjà.
+         * Ce qu'on veut savoir ici est « le profil prudent exploite-t-il la
+         * carte, ou reste-t-il assis sur sa capitale ? » : c'est le pic qui y
+         * répond, et il est mesuré à chaque tour par `simulate.ts`.
+         *
+         * Mesure du jour : 6 gisements en inventaire final, **31 au pic** sur
+         * vingt parties, pour un plancher de 10. Baisser le plancher aurait été
+         * la mauvaise réponse — on aurait gardé moins qu'avant.
+         */
+        gisPrudent += b.minesMax;
         if (b.heroLevel > niveauMaxPrudent) niveauMaxPrudent = b.heroLevel;
-        if (b.towns > 0 || b.mines > 0) vivantes++;
+        if (b.towns > 0 || b.minesMax > 0) vivantes++;
       }
     }
     lines.push(

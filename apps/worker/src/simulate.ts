@@ -61,7 +61,20 @@ export interface BannerOutcome {
   seat: number;
   alive: boolean;
   towns: number;
+  /** gisements tenus à la fin de la partie */
   mines: number;
+  /**
+   * Le plus grand nombre de gisements tenus à un moment quelconque.
+   *
+   * `mines` seul ne dit plus ce qu'on veut savoir depuis que les couleurs d'une
+   * maison éteinte tombent au moment de son extinction, comme le fait une
+   * reddition. Dans un duel à deux bannières, l'extinction du perdant EST la
+   * fin de la partie : son inventaire final vaut donc zéro, quoi qu'il ait tenu
+   * pendant quatre-vingts jours. Mesurer « a-t-il exploité la carte ? » sur
+   * l'état final revient à mesurer « est-il vivant ? », ce qu'on sait déjà.
+   * Le pic, lui, répond à la question posée.
+   */
+  minesMax: number;
   seals: number;
   buildings: number;
   /** puissance cumulée des héros et des garnisons */
@@ -307,8 +320,24 @@ export function simulateGame(partial: Partial<GameOptions> = {}): GameOutcome {
 
   const started = now();
 
+  /* Pic de gisements par bannière : relevé à chaque tour, parce que l'état
+     final ne le dit plus (voir `BannerOutcome.minesMax`). */
+  const picGisements = new Map<PlayerId, number>();
+  const releverGisements = (): void => {
+    const compte = new Map<PlayerId, number>();
+    for (const uid of Object.keys(state.objects)) {
+      const obj = state.objects[uid];
+      if (obj.kind !== 'mine' || !obj.owner) continue;
+      compte.set(obj.owner, (compte.get(obj.owner) ?? 0) + 1);
+    }
+    for (const [id, n] of compte) {
+      if (n > (picGisements.get(id) ?? 0)) picGisements.set(id, n);
+    }
+  };
+
   for (let guard = 0; guard < options.maxTurns; guard++) {
     if (state.phase === 'termine') break;
+    releverGisements();
 
     const player = state.activePlayer;
     const turnBefore = state.turn;
@@ -363,6 +392,8 @@ export function simulateGame(partial: Partial<GameOptions> = {}): GameOutcome {
     }
   }
 
+  releverGisements();
+
   const elapsedMs = now() - started;
 
   const banners: BannerOutcome[] = setup.players.map((entry, seat) => {
@@ -403,6 +434,7 @@ export function simulateGame(partial: Partial<GameOptions> = {}): GameOutcome {
       alive: p.alive,
       towns: p.towns.length,
       mines,
+      minesMax: Math.max(mines, picGisements.get(entry.id) ?? 0),
       seals: p.seals.length,
       buildings,
       power,
