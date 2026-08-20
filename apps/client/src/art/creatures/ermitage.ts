@@ -940,44 +940,99 @@ function blocPierre(
   o: { couleur?: number; faille?: boolean; lichen?: number } = {},
 ): void {
   const c = o.couleur ?? melanger(0x4a4e52, PIERRE_CLAIRE, 0.16);
-  const forme = lisser(
+
+  /*
+   * Un ASSEMBLAGE de pierres taillées, pas une masse arrondie.
+   *
+   * Ce bloc dessinait un seul polygone lissé, traversé de trois traits. Rendu à
+   * l'écran, un colosse en était fait de sept ou huit fois — et il rendait un
+   * bonhomme de galets gris, ce que la planche de contact a montré sans appel
+   * dès qu'elle a cessé d'afficher les bêtes en timbre-poste. Le rendu de
+   * référence dit autre chose : chaque membre y est un empilement de pierres
+   * ANGULEUSES, à faces plates, séparées par des joints sombres, et c'est cette
+   * maçonnerie qui fait le golem plutôt que le tas.
+   *
+   * On pose donc l'ombre de la masse entière — pour que la silhouette reste
+   * lue d'un coup —, puis on la remplit d'un damier de pierres décalées, chacune
+   * anguleuse, chacune de son ton. Le joint sombre n'est pas dessiné : il est ce
+   * qui reste du fond entre deux pierres qu'on rentre d'un poil.
+   */
+  const masse = lisser(
     perturber(
       densifier(
         [
-          pt(-w * 0.5, -h * 0.42),
-          pt(-w * 0.16, -h * 0.52),
-          pt(w * 0.34, -h * 0.46),
-          pt(w * 0.52, -h * 0.1),
-          pt(w * 0.44, h * 0.36),
-          pt(w * 0.02, h * 0.52),
-          pt(-w * 0.42, h * 0.4),
-          pt(-w * 0.54, h * 0.02),
+          pt(-w * 0.5, -h * 0.44),
+          pt(-w * 0.14, -h * 0.54),
+          pt(w * 0.36, -h * 0.48),
+          pt(w * 0.54, -h * 0.1),
+          pt(w * 0.44, h * 0.38),
+          pt(w * 0.02, h * 0.54),
+          pt(-w * 0.44, h * 0.42),
+          pt(-w * 0.56, h * 0.02),
         ],
-        Math.min(w, h) * 0.22,
+        Math.min(w, h) * 0.24,
       ),
-      Math.min(w, h) * 0.035,
+      Math.min(w, h) * 0.03,
       seed,
     ),
     0,
   );
-  poser(g, k, forme, {
-    couleur: c,
+  poser(g, k, masse, {
+    couleur: ombreBleutee(c, 0.62),
     matiere: 'granit',
-    matiereAlpha: 0.3,
+    matiereAlpha: 0.34,
     echelle: 0.5,
-    modele: 1.05,
+    modele: 0.6,
+    rim: false,
     seed,
   });
-  // arêtes de taille : le carrier a renoncé, la pierre a gardé ses plans
-  for (let i = 0; i < 3; i += 1) {
-    const t = (i + 1) / 4;
-    g.moveTo(-w * 0.46, -h * 0.4 + h * t * 0.9);
-    g.lineTo(w * 0.46, -h * 0.48 + h * t * 0.92);
-    g.stroke({
-      color: i % 2 ? eclaircir(c, 0.32) : ombreBleutee(c, 0.55),
-      width: Math.min(w, h) * 0.035,
-      alpha: 0.38,
-    });
+
+  /* Le damier : trois rangs, deux ou trois pierres par rang, décalés d'un
+     demi-pas comme un mur de moellons. */
+  const RANGS = 3;
+  for (let r = 0; r < RANGS; r += 1) {
+    const par = r === 1 ? 3 : 2;
+    const decale = r === 1 ? 0 : 0.5;
+    for (let i = 0; i < par; i += 1) {
+      const u = (i + decale) / par;
+      const cx = -w * 0.42 + u * w * 0.84;
+      const cy = -h * 0.4 + ((r + 0.5) / RANGS) * h * 0.82;
+      const pw = (w * 0.9) / par;
+      const ph = (h * 0.86) / RANGS;
+      /* Cinq à six côtés, sans lissage : c'est l'angle qui fait la pierre. */
+      const n = 5 + ((seed + r * 7 + i * 3) % 2);
+      const face: Poly = [];
+      for (let s = 0; s < n; s += 1) {
+        const a = (s / n) * Math.PI * 2 + (r + i) * 0.7;
+        /* Rayon irrégulier, mais jamais lissé : on garde les arêtes vives. */
+        const rr = 0.34 + (((seed + s * 13 + r * 5 + i) % 7) / 7) * 0.2;
+        face.push(pt(cx + Math.cos(a) * pw * rr * 1.25, cy + Math.sin(a) * ph * rr * 1.3));
+      }
+      const ton = melanger(
+        (r + i) % 2 ? eclaircir(c, 0.16) : assombrir(c, 0.14),
+        r === 0 ? eclaircir(c, 0.22) : c,
+        0.4,
+      );
+      poser(g, k, perturber(face, Math.min(pw, ph) * 0.03, seed + r * 11 + i * 5), {
+        couleur: ton,
+        matiere: 'granit',
+        matiereAlpha: 0.32,
+        echelle: 0.42,
+        modele: 1.15,
+        rim: r === 0,
+        seed: seed + r * 3 + i,
+      });
+      /* Un plan de clivage éclairé par pierre : sans lui, une face plate de
+         granit ressemble à un galet. */
+      g.moveTo(cx - pw * 0.34, cy - ph * 0.12);
+      g.lineTo(cx + pw * 0.3, cy - ph * 0.3);
+      g.stroke({
+        color: eclaircir(ton, 0.34),
+        width: Math.min(pw, ph) * 0.06,
+        alpha: 0.34,
+        cap: 'round',
+      });
+    }
   }
   if (o.faille) {
     const fx: Poly = [];
