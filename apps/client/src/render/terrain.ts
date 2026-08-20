@@ -25,7 +25,7 @@ import { Container, Sprite, Texture } from 'pixi.js';
 import { CELL_ROAD } from '@auvergne/engine';
 import type { WorldMap } from '@auvergne/engine';
 import type { ViewQuality } from '../view-contract.js';
-import { LIGHT, PALETTE, assombrir, melanger, saturer } from '../art/palette.js';
+import { LIGHT, PALETTE, assombrir, cssAlpha, melanger, saturer } from '../art/palette.js';
 import {
   BRUME,
   CHAUDE,
@@ -331,6 +331,177 @@ export class PeintreTerrain {
     this.purger();
   }
 
+  /**
+   * La matière du sol : ce qui pousse, ce qui traîne, ce qui affleure.
+   *
+   * **Le défaut que ça corrige.** Le peintre du terrain a huit strates — biome
+   * par altitude, ombrage de relief, occlusion de vallée, bruit à deux octaves,
+   * lisières gauchies, voies, cours d'eau, grain de parchemin — et pas une seule
+   * ne dit de QUOI le sol est fait. Résultat, mesuré sur capture au ras du
+   * décor : les grandes prairies d'altitude rendent une nappe lisse, sans une
+   * touffe, sans un caillou, tandis qu'un sapin peint pousse dessus. La matière
+   * est ce qui manque le plus à la carte, et c'est aussi la première ligne du
+   * brief d'images (`docs/10-BRIEF-IMAGEGEN-VAGUE-3.md`, vague A). En attendant
+   * des tuiles peintes, on la sème en code.
+   *
+   * **Ce n'est pas du bruit.** Un bruit de plus se serait ajouté aux deux
+   * octaves déjà présents sans rien apprendre à l'œil. Ce sont des SIGNES,
+   * différents par terrain et orientés par la lumière unique : des touffes
+   * d'herbe qui montent vers le soleil sur la prairie et la chaume, un tapis
+   * d'aiguilles et de brindilles sous la futaie, des fissures dans la roche, des
+   * flaques dans la sagne. C'est ce que fait le champ de bataille depuis
+   * longtemps (`battle/field.ts`, `detailPrairie`, `detailRocher`…) et que la
+   * carte d'aventure n'avait jamais reçu.
+   *
+   * **Le coût.** Au zoom le plus large une case fait sept pixels : un signe de
+   * deux pixels n'y est plus un signe, c'est de la salissure, et il coûterait
+   * mille traits par bloc pour rien. La matière ne se sème donc qu'à partir de
+   * deux pixels de résolution par case, ce qui laisse le survol de la carte
+   * aussi rapide qu'avant.
+   */
+  private semerMatiere(
+    ctx: CanvasRenderingContext2D,
+    res: number,
+    col0: number,
+    row0: number,
+    ter: Uint8Array,
+    alt: Float32Array,
+    dedans: Uint8Array,
+  ): void {
+    if (res < 2) return;
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (let dr = 0; dr < BLOC; dr += 1) {
+      for (let dc = 0; dc < BLOC; dc += 1) {
+        const k = (MARGE + dr) * G + (MARGE + dc);
+        if (dedans[k] === 0) continue;
+        const t = ter[k];
+        if (t === TER.eau) continue;
+        const wc = col0 + MARGE + dc;
+        const wr = row0 + MARGE + dr;
+        const x0 = dc * res;
+        const y0 = dr * res;
+        const base = couleurBiome(estVoie(t) ? this.solSousVoie(wc, wr) : t, alt[k], 0);
+        /* Deux valeurs prises SUR la couleur du sol : la matière n'introduit
+           jamais une teinte que le biome n'a pas. */
+        const clair = melanger(base, LIGHT.chaude, 0.3);
+        const sombre = melanger(base, LIGHT.froide, 0.26);
+
+        switch (t) {
+          case TER.prairie:
+          case TER.lande: {
+            /*
+             * Des TOUFFES, et non des brins isolés.
+             *
+             * La première version tirait trois brins à des places indépendantes,
+             * tous penchés du même côté. Vu sur capture : sur une grande prairie,
+             * cela ne se lit pas comme de l'herbe mais comme une AVERSE — des
+             * milliers de traits parallèles inclinés du nord-ouest au sud-est.
+             * Une touffe se reconnaît à ce que ses brins partent du même pied et
+             * s'ouvrent en éventail ; c'est l'éventail qui dit « herbe », pas le
+             * trait.
+             */
+            const a = alea(wc, wr, 911);
+            const bq = alea(wc, wr, 937);
+            const x = x0 + (0.15 + a * 0.7) * res;
+            const y = y0 + (0.25 + bq * 0.65) * res;
+            const h = res * (0.16 + a * 0.12);
+            ctx.lineWidth = Math.max(0.5, res * 0.055);
+            for (const pente of [-0.55, -0.05, 0.45]) {
+              ctx.strokeStyle = cssAlpha(pente < 0 ? clair : sombre, 0.26);
+              ctx.beginPath();
+              ctx.moveTo(x, y);
+              ctx.quadraticCurveTo(x + pente * h * 0.4, y - h * 0.6, x + pente * h, y - h);
+              ctx.stroke();
+            }
+            break;
+          }
+          case TER.foret: {
+            /* Litière : aiguilles et brindilles couchées, jamais dressées. */
+            for (let i = 0; i < 3; i += 1) {
+              const a = alea(wc, wr, 941 + i);
+              const bq = alea(wc, wr, 947 + i);
+              const x = x0 + a * res;
+              const y = y0 + bq * res;
+              const l = res * (0.18 + bq * 0.16);
+              const ang = a * Math.PI;
+              ctx.strokeStyle = cssAlpha(a > 0.5 ? sombre : clair, 0.3);
+              ctx.lineWidth = Math.max(0.5, res * 0.055);
+              ctx.beginPath();
+              ctx.moveTo(x, y);
+              ctx.lineTo(x + Math.cos(ang) * l, y + Math.sin(ang) * l * 0.5);
+              ctx.stroke();
+            }
+            break;
+          }
+          case TER.rocher:
+          case TER.falaise:
+          case TER.pente: {
+            /* Fissures : deux traits nets, l'un sombre l'autre clair juste à
+               côté — c'est le creux qui se voit, pas le trait. */
+            const a = alea(wc, wr, 953);
+            const bq = alea(wc, wr, 959);
+            const x = x0 + a * res * 0.8 + res * 0.1;
+            const y = y0 + bq * res * 0.8 + res * 0.1;
+            const l = res * (0.3 + a * 0.34);
+            const ang = (a - 0.5) * 1.4 - 0.5;
+            const dx = Math.cos(ang) * l;
+            const dy = Math.sin(ang) * l;
+            ctx.lineWidth = Math.max(0.6, res * 0.06);
+            ctx.strokeStyle = cssAlpha(sombre, 0.4);
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + dx, y + dy);
+            ctx.stroke();
+            ctx.strokeStyle = cssAlpha(clair, 0.26);
+            ctx.beginPath();
+            ctx.moveTo(x - 0.7, y - 0.7);
+            ctx.lineTo(x + dx - 0.7, y + dy - 0.7);
+            ctx.stroke();
+            break;
+          }
+          case TER.humide: {
+            /* Sagne : de l'eau noire dans les creux, et de la sphaigne autour. */
+            const a = alea(wc, wr, 967);
+            if (a > 0.62) {
+              const x = x0 + alea(wc, wr, 971) * res * 0.7 + res * 0.15;
+              const y = y0 + alea(wc, wr, 977) * res * 0.7 + res * 0.15;
+              ctx.fillStyle = cssAlpha(melanger(base, PALETTE.bleuProfond, 0.5), 0.34);
+              ctx.beginPath();
+              ctx.ellipse(x, y, res * 0.2, res * 0.12, 0, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            for (let i = 0; i < 2; i += 1) {
+              const bq = alea(wc, wr, 983 + i);
+              const x = x0 + alea(wc, wr, 991 + i) * res;
+              const y = y0 + bq * res;
+              ctx.fillStyle = cssAlpha(bq > 0.5 ? clair : sombre, 0.26);
+              ctx.beginPath();
+              ctx.ellipse(x, y, res * 0.11, res * 0.08, 0, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            break;
+          }
+          default: {
+            /* Sous une voie, le sol se devine : quelques graviers, rien de plus.
+               La chaussée elle-même est tracée à la strate 6. */
+            const a = alea(wc, wr, 997);
+            if (a > 0.7) {
+              const x = x0 + alea(wc, wr, 1009) * res;
+              const y = y0 + alea(wc, wr, 1013) * res;
+              ctx.fillStyle = cssAlpha(a > 0.85 ? clair : sombre, 0.22);
+              ctx.beginPath();
+              ctx.arc(x, y, Math.max(0.5, res * 0.06), 0, Math.PI * 2);
+              ctx.fill();
+            }
+            break;
+          }
+        }
+      }
+    }
+    ctx.restore();
+  }
+
   /** Un bloc déjà peint au même endroit, quelle que soit sa résolution. */
   private secours(bx: number, by: number, resExclue: number): Bloc | null {
     for (const bloc of this.cache.values()) {
@@ -617,6 +788,9 @@ export class PeintreTerrain {
 
     /* Strate 6 — les voies, en splines. */
     this.tracerVoies(ctx, bx, by, res, col0, row0, ter, dedans);
+
+    /* Strate 7 bis — la MATIÈRE du sol, case par case. */
+    this.semerMatiere(ctx, res, col0, row0, ter, alt, dedans);
 
     /* Strate 8 — le grain de parchemin, à 0,05. */
     const motif = ctx.createPattern(parchemin(), 'repeat');
