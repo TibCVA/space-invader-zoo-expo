@@ -485,6 +485,69 @@ Trois défauts de fond, tous mesurés, tous corrigés :
   fenêtres tombaient sur des **sapins**, pas sur du sol nu. Choisir la fenêtre
   la plus PLATE de la capture d'avant règle le problème.
 
+## 1 octies. Fin de la session du 20/08 — la vague 3, le partage, et ce qui reste
+
+### Le défaut que le propriétaire a vu en production
+
+« La dernière version n'affiche rien à l'écran sur la carte. » Reproduit deux
+fois, sur bureau et sur iPhone, dans une vraie partie à deux bannières servie
+par le vrai binaire. **Deux défauts se cumulaient**, et aucun n'était un défaut
+de rendu :
+
+1. `CADRAGE_DEMO` — la Maison du Trésor — était passée en `focus` sans
+   condition, à la démonstration comme à la partie. Le joueur regardait un
+   territoire jamais exploré, brouillard complet : un aplat bleu nuit. La
+   légende l'avouait en toutes lettres et personne ne l'avait lue.
+2. Une partie en ligne ne survivait pas à un rechargement : la reprise
+   n'essayait que la sauvegarde LOCALE, que le mode en ligne n'a pas.
+
+**La leçon de méthode** : les deux se voient en trente secondes dès qu'on ouvre
+une vraie partie en ligne dans un navigateur. Le harnais de capture ne va que
+sur `#/demo/*`, où le cadrage de démonstration est correct par définition et où
+il n'y a pas de brouillard. Une scène de capture sur une partie EN LIGNE
+manque encore au harnais ; en attendant, le script de sonde est décrit ci-dessous.
+
+### Comment reproduire une vraie partie en ligne, en une commande
+
+Le parcours est monté par l'API — c'est le salon, déjà éprouvé — puis on ouvre
+deux navigateurs munis de leurs jetons. `tools/e2e-en-ligne.mjs` fait exactement
+cela et vérifie la boucle de jeu ; pour REGARDER l'écran plutôt que le vérifier,
+copier ce script et y ajouter `page.screenshot`. Les trois moments qui comptent :
+après le clic sur « Entrer dans la partie », après un `page.reload()`, et sur
+`#/partie` ouvert à froid.
+
+### La vague 3 est entièrement consommée
+
+197 entrées au manifeste, **zéro orpheline** hors `combat_pont`, qui est déclarée
+inemployée avec sa raison dans `battle/field.ts`. Un test général
+(`art/manifeste.test.ts`) reconstruit toutes les clefs que le client sait
+réclamer depuis les tables réelles et fait rougir la suite pour toute image
+livrée que personne ne charge. Les six validateurs de Codex sont verts, dont
+`validate_wave3_runtime.mjs` : **197 images chargées en 1371 ms, zéro abandon,
+zéro avertissement de repli, zéro erreur console**.
+
+### Le teaser
+
+Emplacement produit retenu : la **carte de partage du lien** (Open Graph +
+Twitter), et un rappel dans le panneau de partage du salon. C'est le seul
+emplacement naturel — le jeu se partage par une seule adresse, donc quatre
+joueurs sur cinq voient le Forez pour la première fois dans leur messagerie.
+Deux pièges gardés par des tests : l'adresse doit être ABSOLUE (le serveur la
+rend absolue à partir de l'hôte de la requête, aucun domaine en dur) et les
+dimensions DÉCLARÉES, faute de quoi un client rogne — et tout rognage coupe le
+titre, un visage ou l'un des trois noms de lieux.
+
+### Ce qui reste, honnêtement
+
+| Ce qui reste | Ce qui est mesuré |
+|---|---|
+| **Les deux Colosses** lisent encore comme des empilements de pierres rondes à la vignette | vu sur `shots/final-soir/planche_art_bas--bureau.png`. Ils vivent dans `ermitage.ts` (ce sont `ermitage_t6`/`_up`, PAS des créatures de Granit — j'ai fait l'erreur, un agent l'a corrigée par la mesure) |
+| **La Dame au Fil d'Or** reste une masse verticale rouge, quoique améliorée | jupe raccourcie, cape d'ardoise, bras sorti de 12,5 unités contre 2 — mais la silhouette d'ensemble ne se lit toujours pas d'un coup |
+| **Le brouillard** assombrit au lieu de masquer : on devine le réseau de routes en territoire jamais exploré | vu sur la capture de partie en ligne. HMM3 masque en noir. Piste, non instruite |
+| **Le zoom large** laisse du vide à côté d'une carte en portrait sur un écran en paysage | 113 × 184 sur 1920 × 1080 : le vide est géométrique. Relever le plancher de zoom réglerait l'un et coûterait l'autre — arbitrage à demander au propriétaire |
+| **L'asymétrie des capitales** 44 / 20 / 20 / 8 / 8 % | deux hypothèses mesurées et éliminées (richesse, accès aux bourgs neutres). Décrit honnêtement dans l'écran de nouvelle partie plutôt que masqué |
+| **`combat_pont`** livré et inemployé | `CombatState` ne porte aucune coordonnée de carte : impossible de savoir qu'on se bat sur un franchissement |
+
 ## 2. LA LISTE — par importance pour le feeling HMM3
 
 ### P0 — le cœur du jeu (sans quoi ce n'est pas HMM3)
