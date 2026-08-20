@@ -362,7 +362,22 @@ export class PileVue {
     if (unit.count === this.nombreAffiche) return;
     this.nombreAffiche = unit.count;
     this.cartouche?.destroy({ children: true });
-    const echelle = Math.max(0.72, Math.min(1.15, this.geo.taille / 42));
+    /*
+     * Le cartouche suit l'hexagone, sans plancher qui le dépasse.
+     *
+     * Le plancher valait 0,72, soit vingt-six pixels de haut au minimum. Sur
+     * iPhone la trame tient onze colonnes dans trois cent quatre-vingt-dix
+     * points : l'hexagone y mesure une vingtaine de points de haut, et le
+     * cartouche d'effectif en faisait donc presque autant que la créature
+     * qu'il compte. Vu sur capture : des écussons de parchemin plus voyants que
+     * les silhouettes, sur les deux camps à la fois. Dans HMM3 le nombre est
+     * une petite plaque au pied de la figurine, jamais une enseigne.
+     *
+     * À 0,5, le cartouche fait treize points de haut — quarante pixels sur un
+     * écran à trois fois la densité, largement lisible — et rend la moitié de
+     * sa place à la créature.
+     */
+    const echelle = Math.max(0.5, Math.min(1.15, this.geo.taille / 42));
     this.cartouche = plaqueNombre(this.atlas.materials, unit.count, this.camp.couleur, echelle);
     this.cartouche.position.set(this.geo.taille * 0.66, this.geo.taille * 0.3);
     this.cartoucheHote.addChild(this.cartouche);
