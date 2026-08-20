@@ -105,20 +105,41 @@
         d'aide et dans la vue du royaume, à un appui de là. C'est la ligne la
         moins lue des deux, et la supprimer fait passer la barre de deux
         lignes à une ;
-     2. ce qui dépasse **défile** horizontalement, ce que la barre sait déjà
-        faire (`overflow-x: auto`). Les écus sont en tête de l'ordre : la
-        ressource qu'on regarde vingt fois par tour est celle qui ne sort
-        jamais du cadre.
+     2. tout le reste est SERRÉ jusqu'à ce que les sept tiennent. Mesuré sur
+        capture, la première version en laissait six et demi : le fil d'or —
+        la ressource rare de la Châtellenie — était coupé par le bord droit.
+        Une barre qui montre six ressources sur sept, et cache justement celle
+        qu'on surveille, vaut moins qu'une barre serrée.
+
+     Le serrage a été RÉGLÉ À LA MESURE, en deux passes, et la première s'était
+     trompée dans le bon sens : à quatorze points d'icône la rangée n'occupait
+     que 267 points sur 390 — cent vingt-trois de perdus, sur l'écran où la
+     lisibilité est le plus en jeu. Les icônes sont donc remontées à vingt et
+     les chiffres au corps de lecture courant. Mesuré à nouveau, la rangée tient
+     sous les 390 avec de la marge, écus en toutes lettres — on n'abrège pas un
+     trésor. Une valeur à quatre chiffres sur une ressource autre que l'or
+     ferait défiler, et c'est très bien : `overflow-x: auto` reste le filet, et
+     les écus sont en tête de l'ordre.
   */
+  .jeu-bandeau__tresor {
+    gap: 3px;
+  }
   .jeu-bandeau__tresor .hmm-ressource__revenu {
     display: none;
   }
   .jeu-bandeau__tresor .hmm-ressource {
-    gap: var(--hmm-space-1);
-    padding: 2px var(--hmm-space-1);
+    gap: 3px;
+    padding: 3px 4px;
   }
   .jeu-bandeau__tresor .hmm-ressource__valeur {
-    font-size: var(--hmm-fs-micro);
+    font-size: var(--hmm-fs-petit);
+  }
+  /* La taille de l'icône est un paramètre JavaScript (`size="compact"` vaut
+     22) : on la reprend ici plutôt que d'ajouter une variante au composant
+     pour un seul appelant. */
+  .jeu-bandeau__tresor .hmm-ressource__icone svg {
+    width: 20px;
+    height: 20px;
   }
   /* La cible tactile de 48 px vaut pour un bouton isolé ; ici les sept cases
      mènent toutes au même écran, et une barre de 48 px de haut mangerait six
@@ -126,6 +147,44 @@
      largeur reste confortable. */
   .jeu-bandeau__tresor .hmm-ressource__bouton {
     min-height: 0;
+  }
+}
+
+/* ═══════════════════ La commande de fin de tour ═══════════════════════════
+
+   Posée en surimpression de la carte, au-dessus de la légende et sur le même
+   ancrage à gauche — les deux se lisent alors comme un bloc, et la réserve de
+   la barre de pouce déjà calculée pour la légende sert aux deux.
+
+   Le coin bas-DROIT est pris par la minicarte, le haut-droit par la boussole,
+   la bande de droite par l'échelle : le bas-gauche est le seul angle libre, et
+   c'est aussi celui que le pouce atteint sans lâcher le téléphone.
+   ======================================================================== */
+.jeu-fin-tour {
+  position: absolute;
+  left: calc(var(--hmm-space-4) + var(--hmm-safe-gauche));
+  bottom: calc(var(--hmm-space-4) + var(--hmm-safe-bas) + 56px);
+  z-index: 2;
+}
+
+.jeu-fin-tour--attente {
+  padding: var(--hmm-space-2) var(--hmm-space-4);
+  background-image: linear-gradient(170deg, rgba(42, 44, 47, 0.92) 0%, rgba(26, 31, 38, 0.94) 100%);
+  border: var(--hmm-filet-fin) solid var(--hmm-or-attenue);
+  border-radius: var(--hmm-radius-sm);
+  box-shadow: var(--hmm-ombre-panneau);
+}
+
+.jeu-fin-tour__attente {
+  color: var(--hmm-texte-clair-doux);
+  font-size: var(--hmm-fs-petit);
+}
+
+/* Avec la barre de pouce, la légende remonte : la commande la suit, sans quoi
+   les deux se chevauchent. Même réserve, même calcul. */
+@media (max-width: 719px) {
+  .jeu-racine--avec-pouce .jeu-fin-tour {
+    bottom: calc(var(--hmm-space-4) + var(--hmm-reserve-pouce) + 56px);
   }
 }
 

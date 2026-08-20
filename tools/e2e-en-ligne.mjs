@@ -56,7 +56,7 @@ try {
 
   console.log('▸ montage du salon par l’API');
   const partie = await monterPartie(base);
-  const { code, actif, jetonActif, jetonAutre, hote, cousin } = partie;
+  const { code, actif, jetonActif, jetonAutre } = partie;
   exige(typeof code === 'string' && code.length > 5, `partie créée : ${code}`);
   exige(actif === 'P1' || actif === 'P2', `la partie est lancée, la main est à ${String(actif)}`);
 
@@ -84,16 +84,51 @@ try {
   exige(!/introuvable|panne/i.test(texteA), 'le joueur actif voit un écran valide');
   exige(/attente|tour|entrer|partie/i.test(texteB), 'le joueur en attente voit son écran d’attente');
 
-  console.log('▸ le joueur actif joue un coup');
+  /*
+   * LE COUP EST JOUÉ PAR LE BOUTON, PAS PAR L'API.
+   *
+   * Cette épreuve postait `{ type: 'EndTurn' }` directement au service. Elle
+   * était verte, et elle l'était honnêtement : c'est le serveur qu'elle
+   * vérifiait, et le serveur allait bien. Mais elle a laissé passer un défaut
+   * qui rendait le jeu injouable — `EndTurn` n'était émise par AUCUN chemin de
+   * l'interface. Pas de bouton, pas de raccourci, rien dans la barre de pouce.
+   * Un cousin ne pouvait pas rendre la main, donc la partie ne dépassait pas
+   * le tour du premier.
+   *
+   * On clique donc le bouton. Si la commande cesse un jour d'être branchée, ce
+   * sont ces lignes qui rougissent.
+   */
+  console.log('▸ le joueur actif rend la main EN CLIQUANT le bouton');
   const avant = await (await fetch(`${base}/api/parties/${code}/pouls`)).json();
-  const coup = await poster(`/api/parties/${code}/commande`,
-    { commande: { type: 'EndTurn' }, cleIdempotence: 'epreuve-navigateur-1', seqAttendu: avant.seq },
-    jetonActif, actif === 'P1' ? hote : cousin);
-  exige(coup.statut === 200, `le coup est accepté (séquence ${avant.seq} → ${coup.corps?.seq})`);
 
-  console.log('▸ l’autre navigateur constate le changement');
-  await b.page.waitForTimeout(7000);
-  const apres = await (await fetch(`${base}/api/parties/${code}/pouls`)).json();
+  await a.page.getByRole('button', { name: /Entrer dans la partie/i }).click();
+  /* La carte reconstruit l'atlas : sans GPU, il lui faut son temps. */
+  const bouton = a.page.getByRole('button', { name: /^Fin du tour$/i });
+  let cliquable = true;
+  try {
+    await bouton.waitFor({ state: 'visible', timeout: 90_000 });
+  } catch {
+    cliquable = false;
+  }
+  exige(cliquable, 'la carte offre un bouton « Fin du tour »');
+  if (cliquable) {
+    await bouton.click();
+    /* Des héros ont encore de la marche au premier jour : HMM3 fait confirmer,
+       et nous aussi. La confirmation peut donc apparaître — ou non, si tout le
+       monde a fini. Les deux cas sont légitimes. */
+    const confirmer = a.page.getByRole('button', { name: /Rendre la main/i });
+    if (await confirmer.isVisible().catch(() => false)) await confirmer.click();
+  }
+
+  console.log('▸ le serveur et l’autre navigateur constatent le changement');
+  /* Le relais part sans être attendu (`dispatch` est synchrone par contrat) :
+     on laisse au coup le temps d'arriver plutôt que de mesurer trop tôt. */
+  let apres = avant;
+  for (let essai = 0; essai < 20 && apres.seq === avant.seq; essai += 1) {
+    await a.page.waitForTimeout(500);
+    apres = await (await fetch(`${base}/api/parties/${code}/pouls`)).json();
+  }
+  await b.page.waitForTimeout(3000);
   exige(apres.seq > avant.seq, `la séquence a avancé : ${avant.seq} → ${apres.seq}`);
   exige(apres.activePlayer !== avant.activePlayer, `la main a changé : ${avant.activePlayer} → ${apres.activePlayer}`);
 
