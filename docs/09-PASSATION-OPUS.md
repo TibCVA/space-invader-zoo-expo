@@ -206,12 +206,12 @@ Citadelle et le Château sont là (×1,5 puis ×2, quatre tours au siège).
 
 | Chantier | Ce qu'on croyait | Ce que le code dit |
 |---|---|---|
-| P0.2a calage de l'impact | fait | fait au corps à corps ; au **tir** l'impact tombe encore 20 ms avant l'arrivée du trait (`anim.ts:358` attend 0,28 s, le projectile vole 0,3 s) et **aucun test ne verrouille le calage** |
+| P0.2a calage de l'impact | fait | **fait des deux côtés** : `VOL_DU_TRAIT` est une constante unique lue par le lancement du projectile ET par l'attente de l'impact, précisément pour qu'ils ne redivorcent pas |
 | P0.2b effet par école | à faire | **fait** — `vfx.aura(ecole)` distingue les quatre écoles |
 | P0.2b projectiles, cadavres | à faire | absents tous les deux ; le conteneur `siege.ts:305` des projectiles de tour n'est jamais alimenté |
 | P0.2c densité d'obstacles | à faire | table d'origine intacte ; l'icône épée/flèche n'est posée que sur la case du curseur, et sur téléphone le toucher attaque aussitôt — elle n'est donc quasi jamais vue |
 | P1.5 rampes du champ | à faire | **une seule ligne** a changé dans `field.ts` depuis le correctif des dégradés, et ce n'était pas un arrêt de rampe (mesure : luminance 89,6 pour une cible à 95) |
-| P1.5 angle du soleil | à faire | `degradeSurface` passe toujours 135 quand son propre en-tête annonce 315 ; idem `parchemin.ts:170,376`, `archetypes.ts:238` |
+| P1.5 angle du soleil | à faire | **fait** : `degradeSurface` passe `ANGLE_LUMIERE`, déduit du soleil déclaré et non recopié ; l'en-tête de la fonction porte la trace de l'erreur (135 = haute lumière au nord-EST, donc chaque surface à quatre-vingt-dix degrés de ses propres ombres) |
 | P1.7 resculpture | à faire | commencé le 20/08, voir §1 quinquies. Le constat « le sanglier est une caisse sur pattes » était juste ET amplifié par le cadrage de la planche, qui affichait les bêtes en timbre-poste |
 | P2.9 revue | à faire | fait le 20/08 : les 3 scènes jamais capturées l'ont été, et le diagnostic y a laissé deux défauts |
 | P2.11 déploiement | fait | outillage **sain** — jeton lu uniquement dans l'environnement, jamais imprimé, jamais passé en argument, portes de qualité avant envoi. Mais **la version en ligne précède le correctif du gel de partie** : le jeu déployé gèle deux parties sur quatre. Et `RAILWAY_GIT_COMMIT_SHA` n'étant pas défini, `/health` annonce « commit inconnu » |

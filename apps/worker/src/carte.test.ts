@@ -139,7 +139,15 @@ describe('la carte — ce qui est tenu', () => {
     expect(parJour).toBeLessThanOrEqual(7);
   });
 
-  it('pose des gardes qui bloquent vraiment', () => {
+  /*
+   * Le libellé a changé de sens, et il fallait le dire : depuis que le moteur
+   * applique la règle de HMM3 — une place gardée ne se traverse pas —, TOUT
+   * garde bloque le transit, entrée comprise. Les deux cases de flanc ne font
+   * plus la différence entre « bloque » et « ne bloque pas » ; elles élargissent
+   * la porte, ce qui reste utile : un poste d'une seule case se contourne en un
+   * pas, un poste de trois demande un détour.
+   */
+  it('pose des postes assez larges pour qu’on les remarque', () => {
     expect(r.gardesBloquants).toBeGreaterThanOrEqual(20);
   });
 

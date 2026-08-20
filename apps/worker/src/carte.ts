@@ -354,8 +354,19 @@ export function mesurer(graine: number): Rapport {
     }
     if (o.kind === 'garde') {
       gardes++;
-      /* Le calcul de chemin ignore la case d'entrée : un garde ne bloque que si
-         son empreinte déborde de cette seule case. */
+      /*
+       * **Un garde bloque désormais par sa seule présence**, et cette ligne
+       * disait le contraire.
+       *
+       * Elle datait du temps où le calcul de chemin ignorait la case d'entrée
+       * d'un lieu : un poste ne comptait alors comme bloquant que si son
+       * empreinte débordait de cette case, d'où les deux cases de flanc que le
+       * semis lui donne. Depuis que le moteur applique la règle de HMM3 — une
+       * place gardée ne se traverse pas —, l'entrée bloque aussi le transit, et
+       * les flancs ne servent plus qu'à élargir la porte. Le compte reste
+       * imprimé parce qu'il dit quelque chose d'utile — combien de postes tiennent
+       * plus d'une case — mais il ne dit plus « qui bloque ».
+       */
       if (emp.length > 1) gardesBloquants++;
     }
   }
@@ -376,12 +387,20 @@ export function mesurer(graine: number): Rapport {
    *
    * Un garde bloque par son EMPREINTE ENTIÈRE ici, entrée comprise : mettre le
    * pied sur l'entrée, c'est justement le combat qu'on cherche à éviter.
+   *
+   * **Et depuis que le moteur applique la règle de HMM3 — une place gardée ne se
+   * traverse pas —, ce ne sont plus les seuls postes qui ferment le passage :
+   * TOUT lieu gardé le fait.** Un gisement tenu par une compagnie, un repaire,
+   * un sceau bloquent le transit comme un monstre errant de HMM3. La mesure doit
+   * dire la même chose que le jeu, sans quoi elle rassure à tort : c'est
+   * exactement la faute qu'on a déjà payée avec la table d'espacement recopiée.
    */
   const librePar: { depart: string; libre: number }[] = [];
   {
     const mur = new Uint8Array(n);
     for (const o of w.objects) {
-      if (o.kind !== 'garde') continue;
+      const garde = (o as { guard?: readonly unknown[] }).guard;
+      if (o.kind !== 'garde' && (!garde || garde.length === 0)) continue;
       for (const c of o.footprint?.length ? o.footprint : [o.at]) {
         const i = c.row * cols + c.col;
         if (i >= 0 && i < n) mur[i] = 1;
@@ -1183,7 +1202,7 @@ function imprimer(r: Rapport): void {
     const part = (100 * t.libre) / Math.max(1, r.praticables);
     ligne(`    ${t.depart}`, `${String(t.libre)} (${part.toFixed(0)} %)`);
   }
-  ligne('postes qui bloquent vraiment', `${String(r.gardesBloquants)} / ${String(r.gardes)}`,
+  ligne('postes à plus d’une case', `${String(r.gardesBloquants)} / ${String(r.gardes)}`,
     '≥ 20 postes');
 
   console.log('\n▸ Rappel — pourquoi ces cibles');

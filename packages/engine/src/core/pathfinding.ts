@@ -582,6 +582,39 @@ function computePathUncached(
     if (other.downUntilTurn > state.turn) continue;
     dynamicBlocked.add(other.at.row * world.cols + other.at.col);
   }
+  /*
+   * **Une place GARDÉE ne se traverse pas. C'est la règle de HMM3, et son
+   * absence rendait la moitié des combats involontaires.**
+   *
+   * L'empreinte d'un lieu est interdite au trajet, sauf sa case d'entrée : sans
+   * cette exception on ne pourrait jamais visiter un lieu. Mais l'exception
+   * valait aussi pour le TRANSIT — un héros qui longeait une voie posait le pied
+   * sur l'entrée d'un poste de garde en allant ailleurs, et le moteur déclenchait
+   * le combat. Les postes sont précisément posés sur les transitions de voie :
+   * le semis les y met exprès pour tenir les passages.
+   *
+   * Mesuré sur la partie qui s'endormait (graine 20266654, deux bannières) :
+   * **soixante-quatre combats livrés, ZÉRO gagné** pour la maison prudente, et
+   * trois sur soixante-six pour l'experte. Ce n'était pas un défaut de jugement
+   * de l'IA — `considerEngagement` exige une marge de puissance ET un duel
+   * analytique favorable — c'était que l'IA ne CHOISISSAIT pas ces combats : elle
+   * les subissait en chemin. Une maison qui perd un combat sur cinq jours pendant
+   * quatre cent cinquante jours reste au niveau 2 avec deux mille de puissance,
+   * ce qui est exactement ce qu'on observait.
+   *
+   * Dans HMM3 un monstre errant bloque sa case : on ne passe pas à travers, on
+   * l'attaque en le désignant. La garde d'un lieu bloque donc le transit, et
+   * reste atteignable comme DESTINATION — c'est ainsi qu'on choisit d'ouvrir un
+   * col au lieu de le subir, et c'est aussi ce qui donne enfin leur sens aux
+   * postes du semis : « on passe par le poste ou l'on fait un grand détour ».
+   */
+  for (const template of world.objects) {
+    const vif = state.objects[template.uid] ?? template;
+    if (!vif.guard || vif.guard.length === 0) continue;
+    const i = vif.entrance.row * world.cols + vif.entrance.col;
+    if (i === goalIndex) continue;
+    dynamicBlocked.add(i);
+  }
 
   const graph = cache.graph;
   const startBlock = blockOf(world, startIndex, graph);

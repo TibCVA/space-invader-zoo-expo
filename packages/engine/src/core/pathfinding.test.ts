@@ -36,6 +36,86 @@ describe('A* hiérarchique', () => {
     }
   });
 
+  /*
+   * « Une place gardée ne se traverse pas » — la règle de HMM3, et l'invariant
+   * qui a fait passer les parties de deux conquêtes sur vingt à dix-huit.
+   *
+   * Tant que l'entrée d'un lieu gardé restait franchissable pour le TRANSIT, un
+   * héros qui longeait une voie posait le pied sur un poste de garde en allant
+   * ailleurs et se retrouvait en combat. Mesuré sur une partie qui s'endormait :
+   * soixante-quatre combats livrés, ZÉRO gagné, héros resté au niveau 2 après
+   * quatre cent cinquante jours. L'IA ne jugeait pas mal ses combats : elle ne
+   * les choisissait pas.
+   *
+   * Le test parcourt de vrais trajets longs sur la vraie carte du Forez et exige
+   * qu'aucun pas intermédiaire ne tombe sur l'entrée d'un lieu gardé. Le dernier
+   * pas, lui, a le droit : c'est ainsi qu'on désigne un col à forcer.
+   */
+  it('ne traverse jamais une place gardée, sauf pour y aller', () => {
+    const { state, world } = newGame(11);
+    const hero = state.heroes[heroOf(state, 'P1')];
+
+    /* Les entrées gardées de la carte, en index de case. */
+    const gardees = new Set<number>();
+    for (const template of world.objects) {
+      const vif = state.objects[template.uid] ?? template;
+      if (!vif.guard || vif.guard.length === 0) continue;
+      gardees.add(vif.entrance.row * world.cols + vif.entrance.col);
+    }
+    expect(gardees.size, 'la carte doit bien porter des lieux gardés').toBeGreaterThan(40);
+
+    /* Quatre buts éloignés, dans quatre directions : de quoi traverser la carte
+       et croiser beaucoup de postes. */
+    const buts = [
+      state.towns['T_renaudie'].at,
+      state.towns['T_cervieres'].at,
+      state.towns['T_viscomtat'].at,
+      state.towns['T_noiretable'].at,
+    ];
+    let pasExamines = 0;
+    for (const but of buts) {
+      const route = computePath(world, state, hero, but);
+      expect(route, `${String(but.col)},${String(but.row)}`).not.toBeNull();
+      if (!route) continue;
+      for (let i = 0; i < route.path.length - 1; i++) {
+        const c = route.path[i];
+        const idx = c.row * world.cols + c.col;
+        expect(
+          gardees.has(idx),
+          `pas ${String(i)} du trajet vers ${String(but.col)},${String(but.row)} : ` +
+            `case gardée en ${String(c.col)},${String(c.row)}`,
+        ).toBe(false);
+        pasExamines++;
+      }
+    }
+    /* Sans ce compte, un trajet vide rendrait le test vert sans rien vérifier. */
+    expect(pasExamines).toBeGreaterThan(200);
+  });
+
+  it('mène tout de même à une place gardée quand c’est le but', () => {
+    const { state, world } = newGame(11);
+    const hero = state.heroes[heroOf(state, 'P1')];
+    /* Le lieu gardé le plus proche du départ : on doit pouvoir le désigner,
+       sinon aucun col ne s'ouvrirait jamais. */
+    let cible: { col: number; row: number } | null = null;
+    let meilleure = Number.POSITIVE_INFINITY;
+    for (const template of world.objects) {
+      const vif = state.objects[template.uid] ?? template;
+      if (!vif.guard || vif.guard.length === 0) continue;
+      const d =
+        Math.abs(vif.entrance.col - hero.at.col) + Math.abs(vif.entrance.row - hero.at.row);
+      if (d > 0 && d < meilleure) {
+        meilleure = d;
+        cible = { col: vif.entrance.col, row: vif.entrance.row };
+      }
+    }
+    expect(cible).not.toBeNull();
+    if (!cible) return;
+    const route = computePath(world, state, hero, cible);
+    expect(route, `place gardée en ${String(cible.col)},${String(cible.row)}`).not.toBeNull();
+    expect(route?.path[route.path.length - 1]).toEqual(cible);
+  });
+
   it('calcule un trajet long (Arconsat → La Renaudie) en moins de 150 ms', () => {
     const { state, world } = newGame(11);
     const hero = state.heroes[heroOf(state, 'P1')];

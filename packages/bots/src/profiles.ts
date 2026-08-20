@@ -210,10 +210,28 @@ const PRUDENT: BotProfile = {
     marketMinBp: 8000,
   },
   military: {
-    engageRatioBp: 19000,
-    duelRatioBp: 21000,
-    siegeRatioBp: 24000,
-    sealRatioBp: 22000,
+    /*
+     * Marges resserrées, et c'est une conséquence directe de la règle de HMM3
+     * appliquée au moteur : **une place gardée ne se traverse pas**.
+     *
+     * Tant que l'entrée d'un gardien restait franchissable, le prudent avançait
+     * partout et ne livrait que les combats qu'il choisissait — sauf ceux qu'il
+     * subissait en chemin, ce qui le mettait au même niveau que tout le monde.
+     * Une fois les gardes devenus de vraies portes, exiger 1,9× avant d'ouvrir
+     * une route revient à ne jamais l'ouvrir : mesuré, l'expert passait de 13/20
+     * à 19/20 et le prudent cessait d'être un adversaire. Ce n'est pas que
+     * l'expert jouait mieux, c'est que le prudent ne jouait plus.
+     *
+     * 1,55× pour une garde neutre reste de loin le profil le plus circonspect —
+     * l'expert engage à 1,3× et l'agressif à 1,15× — et la tortue garde ses deux
+     * autres traits, la part de garnison de 42 % et la vigilance à vingt-sept
+     * cases. Ce qui change, c'est qu'elle consent à forcer un col au lieu de
+     * s'enfermer derrière.
+     */
+    engageRatioBp: 15500,
+    duelRatioBp: 18000,
+    siegeRatioBp: 20000,
+    sealRatioBp: 19000,
     garrisonShareBp: 4200,
     heroTarget: 2,
     sortiePower: 2600,

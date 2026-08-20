@@ -74,6 +74,8 @@ export interface BannerOutcome {
   opening: BuildingId[];
   /** combats livrés */
   battles: number;
+  /** combats gagnés en attaquant */
+  wins: number;
 }
 
 /** Chronométrage de la réflexion de l'IA, en millisecondes. */
@@ -228,6 +230,18 @@ export function buildSetup(options: GameOptions): GameSetup {
 interface Tally {
   opening: Map<PlayerId, BuildingId[]>;
   battles: Map<PlayerId, number>;
+  /**
+   * Combats GAGNÉS par le camp qui attaque, par joueur.
+   *
+   * Le compte des combats livrés ne dit rien tout seul, et c'est ce qui a
+   * masqué une partie morte pendant longtemps : une maison qui livre
+   * quatre-vingt-quatorze combats en quatre cent cinquante jours et reste au
+   * niveau 3 avec zéro gisement ne joue pas, elle se cogne. Sans le compte des
+   * VICTOIRES on ne pouvait pas distinguer « il se bat beaucoup » de « il perd
+   * tout le temps », et c'est exactement la question que pose le dosage de la
+   * difficulté demandé par le propriétaire.
+   */
+  wins: Map<PlayerId, number>;
   firstSeal: { turn: number; player: PlayerId; seal: SealId } | null;
 }
 
@@ -247,6 +261,12 @@ function collect(tally: Tally, state: GameState, events: readonly GameEvent[]): 
       }
       case 'CombatStarted':
         tally.battles.set(state.activePlayer, (tally.battles.get(state.activePlayer) ?? 0) + 1);
+        break;
+      case 'CombatEnded':
+        /* Le camp 0 est celui qui engage : en tour actif, c'est l'attaquant. */
+        if (event.winner === 0) {
+          tally.wins.set(state.activePlayer, (tally.wins.get(state.activePlayer) ?? 0) + 1);
+        }
         break;
       case 'SealTaken':
         if (!tally.firstSeal) {
@@ -269,7 +289,12 @@ export function simulateGame(partial: Partial<GameOptions> = {}): GameOutcome {
   const setup = buildSetup(options);
   let state = createGame(setup, world);
 
-  const tally: Tally = { opening: new Map(), battles: new Map(), firstSeal: null };
+  const tally: Tally = {
+    opening: new Map(),
+    battles: new Map(),
+    wins: new Map(),
+    firstSeal: null,
+  };
   const think: ThinkTiming = { turns: 0, totalMs: 0, maxMs: 0, earlyMaxMs: 0, lateMaxMs: 0 };
   const invalidDetail: string[] = [];
   let invalidCommands = 0;
@@ -385,6 +410,7 @@ export function simulateGame(partial: Partial<GameOptions> = {}): GameOutcome {
       explored,
       opening: tally.opening.get(entry.id) ?? [],
       battles: tally.battles.get(entry.id) ?? 0,
+      wins: tally.wins.get(entry.id) ?? 0,
     };
   });
 

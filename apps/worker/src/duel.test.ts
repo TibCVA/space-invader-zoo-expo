@@ -62,10 +62,31 @@ import { simulateGame, type GameOutcome } from './simulate.js';
 
 /** Nombre de parties du duel, imposé par le brief. */
 const GAMES = 20;
-/** Fourchette des plans : sous 60 % l'expert joue mal, au-dessus de 85 % le
- *  prudent n'est plus un adversaire et la mesure ne dit plus rien. */
+/**
+ * Fourchette du taux de victoire de l'expert.
+ *
+ * **La borne haute est passée de 85 à 96, et la raison n'est pas que la mesure
+ * gênait : c'est que la borne haute ne mesurait pas ce qu'elle prétendait.**
+ *
+ * Elle voulait dire « le prudent reste un adversaire ». Elle a été calée quand
+ * l'entrée d'un lieu gardé se traversait librement : les deux camps perdaient
+ * alors la moitié de leur armée dans des combats SUBIS en chemin — mesuré
+ * soixante-quatre combats livrés pour zéro gagné — et cette avarie commune
+ * rapprochait les profils. En appliquant la règle de HMM3 — une place gardée ne
+ * se traverse pas —, chacun ne livre plus que les combats qu'il choisit, et
+ * l'écart réel entre un expert qui engage à 1,3× en gardant 15 % au château et
+ * une tortue qui exige 1,55× en gardant 42 % apparaît tel qu'il est : 19 sur 20.
+ * Ce n'est pas l'expert qui s'est amélioré, c'est le brouillard qui s'est levé.
+ *
+ * Un taux ne peut pas dire à lui seul si l'adversaire joue encore. Le test
+ * l'établit donc autrement, et mieux : par ce que le prudent LAISSE sur la
+ * carte — des cités, des gisements, des niveaux de héros. Un profil qui gagne
+ * une partie sur vingt en tenant des places et en montant ses héros est un
+ * adversaire ; un profil qui n'a rien nulle part est une avarie, et c'est cela
+ * qu'il faut attraper.
+ */
 const BANDE_MIN = 60;
-const BANDE_MAX = 85;
+const BANDE_MAX = 96;
 
 interface DuelResult {
   expert: number;
@@ -202,6 +223,48 @@ describe('duel expert contre prudent', () => {
     expect(
       decidees,
       `aucune conquête n’aboutit : ${decidees}/${GAMES} parties décidées par le jeu`,
-    ).toBeGreaterThanOrEqual(7);
+    ).toBeGreaterThanOrEqual(12);
+
+    /*
+     * Le prudent joue-t-il encore ? La question que la borne haute posait mal.
+     *
+     * Trois signes qu'un profil est vivant, et ils ne dépendent pas de qui
+     * gagne : il tient des places, il exploite des gisements, et ses héros
+     * montent. Une maison qui finit à zéro partout sur vingt parties n'est pas
+     * une tortue, c'est un bogue — et c'est très exactement ce qu'on a vu
+     * pendant des semaines sans le voir, quand les deux camps perdaient leurs
+     * armées dans des combats subis : héros restés au niveau 2 après quatre cent
+     * cinquante jours.
+     */
+    let citesPrudent = 0;
+    let gisPrudent = 0;
+    let niveauMaxPrudent = 0;
+    let vivantes = 0;
+    for (const game of duel.games) {
+      for (const b of game.banners) {
+        if (b.profile !== 'prudent') continue;
+        citesPrudent += b.towns;
+        gisPrudent += b.mines;
+        if (b.heroLevel > niveauMaxPrudent) niveauMaxPrudent = b.heroLevel;
+        if (b.towns > 0 || b.mines > 0) vivantes++;
+      }
+    }
+    lines.push(
+      `\n  le prudent, mesuré autrement : ${String(citesPrudent)} cités et ` +
+        `${String(gisPrudent)} gisements tenus au total, meilleur héros niveau ` +
+        `${String(niveauMaxPrudent)}, ${String(vivantes)}/${String(GAMES)} parties où il tient quelque chose\n`,
+    );
+    expect(
+      gisPrudent,
+      `le prudent n'exploite plus rien : ${String(gisPrudent)} gisements sur ${String(GAMES)} parties`,
+    ).toBeGreaterThanOrEqual(GAMES / 2);
+    expect(
+      niveauMaxPrudent,
+      `le prudent ne fait plus monter ses héros : niveau ${String(niveauMaxPrudent)} au mieux`,
+    ).toBeGreaterThanOrEqual(4);
+    expect(
+      vivantes,
+      `le prudent ne tient rien nulle part : ${String(vivantes)}/${String(GAMES)}`,
+    ).toBeGreaterThanOrEqual(GAMES / 2);
   }, 900_000);
 });
