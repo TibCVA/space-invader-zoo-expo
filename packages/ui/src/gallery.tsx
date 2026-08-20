@@ -331,6 +331,20 @@ export function UIGallery({ className }: UIGalleryProps = {}): ReactElement {
             values={{ ecus: 12480, bois: 34, granit: 21, fer: 12, sel: 46, essence: 5, filDor: 2 }}
             income={{ ecus: 1250, bois: 4, granit: 3, fer: 2, sel: 6, essence: 1, filDor: 0 }}
           />
+          {/*
+            La variante CLIQUABLE, en compact. Elle manquait à cette feuille, et
+            c'est précisément pour cela qu'elle est restée sans habillage : le
+            navigateur donnait à chaque case son liseré blanc de `<button>`, sur
+            une palette où le blanc pur n'existe pas, et personne ne pouvait le
+            voir puisque `onSelect` n'était passé nulle part. Une variante qu'on
+            ne peut pas regarder est une variante qu'on ne maintient pas.
+          */}
+          <ResourceBar
+            style={{ marginTop: 16 }}
+            size="compact"
+            values={{ ecus: 12480, bois: 34, granit: 21, fer: 12, sel: 46, essence: 5, filDor: 2 }}
+            onSelect={(): void => undefined}
+          />
           <div className="hmm-galerie__rangee" style={{ marginTop: 20 }}>
             <Stat label="Vaillance" value={4} icon={<IconEpee size={22} />} delta={1} tone="faveur" />
             <Stat label="Garde" value={3} icon={<CoreIcon name="bouclier" size={22} />} />

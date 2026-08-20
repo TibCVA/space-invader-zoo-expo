@@ -1174,10 +1174,43 @@
   box-shadow: inset 0 1px 0 rgba(255, 233, 194, 0.14);
   white-space: nowrap;
 }
+/*
+ * La variante CLIQUABLE de la barre : chaque ressource devient un bouton.
+ *
+ * Elle n'était réduite qu'à trois déclarations — rayon, hauteur tactile,
+ * transition — et rien n'y annulait la parure que le navigateur donne d'office
+ * à un `<button>`. Le défaut n'avait jamais pu se voir : `onSelect` n'était
+ * passé nulle part dans le produit, ni par l'écran du royaume, ni par la
+ * galerie. Le premier appel réel — la barre du trésor posée dans le bandeau de
+ * la carte — l'a fait sortir tout de suite : mesuré sur capture, un liseré
+ * BLANC PUR de deux pixels autour de chaque case, sur une palette où le blanc
+ * pur n'existe pas, et le gris de `ButtonFace` par-dessous la teinte de la
+ * ressource.
+ *
+ * Le bouton n'est donc qu'une coque : c'est la case à l'intérieur qui porte
+ * la matière, le filet de couleur et les marges. Il garde ce qu'un bouton doit
+ * garder — le curseur, et un anneau de focus visible au clavier.
+ */
 .hmm-ressource__bouton {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
   border-radius: var(--hmm-radius-sm);
+  /* La cible tactile reste la règle du système ; un appelant à l'étroit peut
+     l'abaisser chez lui, en le disant. */
   min-height: var(--hmm-touch-min);
   transition: filter var(--hmm-duree) var(--hmm-courbe);
+}
+.hmm-ressource__bouton:focus-visible {
+  outline: var(--hmm-filet) solid var(--hmm-or);
+  outline-offset: 2px;
 }
 .hmm-ressource__bouton:hover { filter: brightness(1.1); }
 .hmm-ressource__valeurs { display: flex; flex-direction: column; line-height: 1.1; }
