@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import { dayOf, weekOf, type HeroUid, type PlayerId, type TownState } from '@auvergne/engine';
+import { dayOf, weekOf, type GameState, type HeroUid, type PlayerId, type TownState } from '@auvergne/engine';
 import type { AppState, PathPreview } from '../state/types.js';
 import { annulerChemin, confirmerChemin, selectionner } from '../state/store.js';
 import { dispatch, viewStore } from '../state/store.js';
@@ -64,7 +64,50 @@ function BarreDeChemin({ preview }: { preview: PathPreview }): ReactElement {
  * annonçait « colonne 145, ligne 113 » longtemps après que la carte eut été
  * ramenée à 113 colonnes, c'est-à-dire un lieu qui n'existait plus.
  */
-const CADRAGE_DEMO = { col: 64, row: 50 } as const;
+export const CADRAGE_DEMO = { col: 64, row: 50 } as const;
+
+/**
+ * OÙ LA CAMÉRA S'OUVRE — et pourquoi ce n'est pas au même endroit dans une
+ * vraie partie que dans la démonstration.
+ *
+ * **Le défaut, signalé par le propriétaire et reproduit deux fois.** « La
+ * dernière version n'affiche rien à l'écran sur la carte. » Reproduit dans une
+ * vraie partie à deux bannières, servie par le vrai binaire, sur bureau et sur
+ * iPhone : la carte s'ouvrait cadrée sur la Maison du Trésor, colonne 64 ligne
+ * 50 — c'est-à-dire à quarante cases du départ d'Arconsat, en plein territoire
+ * JAMAIS EXPLORÉ. Le brouillard de guerre y est complet, donc l'écran est un
+ * aplat bleu nuit. Rien n'était cassé : on regardait un endroit que le joueur
+ * n'a pas le droit de voir.
+ *
+ * La cause tenait au nom de la constante : `CADRAGE_DEMO` était passée en
+ * `focus` sans condition, à la démonstration comme à la partie. La légende
+ * elle-même annonçait « caméra cadrée sur la Maison du Trésor » dans une vraie
+ * partie, et personne ne l'avait lue comme un aveu.
+ *
+ * Dans une vraie partie, on s'ouvre donc sur SON héros — comme HMM3, qui centre
+ * la vue sur le héros actif au début de chaque tour — et à défaut sur sa
+ * capitale. Le repli sur la Maison du Trésor ne sert plus qu'à une partie sans
+ * héros ni cité, cas qui ne devrait pas exister mais dont on ne veut pas qu'il
+ * rende un écran noir.
+ */
+export function cadrageInitial(
+  game: GameState | null,
+  localPlayer: PlayerId | null,
+  demo: boolean,
+): { col: number; row: number } {
+  if (demo || !game || !localPlayer) return CADRAGE_DEMO;
+  const joueur = game.players[localPlayer];
+  if (!joueur) return CADRAGE_DEMO;
+  for (const uid of joueur.heroes) {
+    const heros = game.heroes[uid];
+    if (heros) return heros.at;
+  }
+  for (const uid of joueur.towns) {
+    const cite = game.towns[uid];
+    if (cite) return cite.at;
+  }
+  return CADRAGE_DEMO;
+}
 
 export interface EcranPartieProps {
   state: AppState;
@@ -109,7 +152,7 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
         reducedMotion,
         quality: 'haute',
         demo,
-        focus: CADRAGE_DEMO,
+        focus: cadrageInitial(game, localPlayer, demo === true),
         onPickCell: (at): void => {
           setCible(null);
           selectionner({ kind: 'case', at });
@@ -172,9 +215,16 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
       legende={
         game && banniere ? (
           <>
-            <strong>{banniere.name}</strong> — semaine {weekOf(game.turn)}, jour {dayOf(game.turn)} ·
-            caméra cadrée sur la Maison du Trésor (colonne {CADRAGE_DEMO.col}, ligne{' '}
-            {CADRAGE_DEMO.row}).
+            <strong>{banniere.name}</strong> — semaine {weekOf(game.turn)}, jour {dayOf(game.turn)}
+            {demo ? (
+              <>
+                {' '}
+                · caméra cadrée sur la Maison du Trésor (colonne {CADRAGE_DEMO.col}, ligne{' '}
+                {CADRAGE_DEMO.row}).
+              </>
+            ) : (
+              '.'
+            )}
           </>
         ) : null
       }

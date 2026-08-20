@@ -75,6 +75,9 @@ import {
   EcranEnLigne,
   EcranSalon,
   abonnerRappels,
+  dernierePartie,
+  installerPartieEnLigne,
+  lireEtat,
   partiesEnAttente,
   titreDocument,
 } from './online/index.js';
@@ -182,20 +185,61 @@ export function App(_props: AppProps = {}): ReactElement {
     void (async (): Promise<void> => {
       try {
         const repris = reprendreLocal();
-        if (!repris) {
-          navigate({ name: 'accueil' }, true);
+        if (repris) {
+          const { buildWorld } = await import('@auvergne/map');
+          if (!vivant) return;
+          demoCharge.current = null;
+          chargerPartie({
+            state: repris.state,
+            world: buildWorld(repris.setup.seed),
+            setup: repris.setup,
+            slot: repris.slot,
+            commands: repris.commands,
+          });
           return;
         }
-        const { buildWorld } = await import('@auvergne/map');
-        if (!vivant) return;
-        demoCharge.current = null;
-        chargerPartie({
-          state: repris.state,
-          world: buildWorld(repris.setup.seed),
-          setup: repris.setup,
-          slot: repris.slot,
-          commands: repris.commands,
-        });
+
+        /*
+         * AUCUNE SAUVEGARDE LOCALE — MAIS PEUT-ÊTRE UNE PARTIE EN LIGNE.
+         *
+         * C'est le défaut que le propriétaire a signalé en ouvrant `#/partie`
+         * sur le site : « n'affiche rien à l'écran sur la carte ». Reproduit
+         * deux fois, sur bureau et sur iPhone, dans une vraie partie à deux
+         * bannières servie par le vrai binaire : on entre dans la partie, la
+         * carte s'affiche, on RECHARGE la page — et l'on retombe sur l'accueil
+         * avec « Aucune partie en cours », alors que la partie court toujours
+         * au serveur et que le navigateur en tient le jeton.
+         *
+         * La cause tenait en une ligne : cette reprise n'essayait QUE la
+         * sauvegarde locale (`reprendreLocal`), c'est-à-dire le mode solo.
+         * Une partie en ligne n'a pas de sauvegarde locale — sa sauvegarde de
+         * référence est au serveur, c'est écrit dans `installerPartieEnLigne` —
+         * donc `reprendreLocal()` rendait `null` et l'on renvoyait le joueur à
+         * l'accueil.
+         *
+         * Or `docs/04-MULTIJOUEUR.md` §1.8 promet exactement le contraire :
+         * « Fermer l'onglet, changer de téléphone, revenir trois jours plus
+         * tard : rien n'est perdu. » C'est la promesse qui fait tout l'intérêt
+         * du jeu asynchrone, et c'est celle qui était rompue.
+         */
+        const code = dernierePartie();
+        if (code) {
+          /*
+           * Un jeton peut survivre à sa partie — abandonnée, purgée, terminée.
+           * Un serveur injoignable, aussi, arrive. Dans ces cas-là on ne montre
+           * PAS l'écran de panne : on ramène simplement le joueur à l'accueil,
+           * qui lui proposera ses parties. L'écran de panne est réservé à ce
+           * qui est vraiment cassé, pas à un jeton périmé.
+           */
+          const charge = await lireEtat(code).catch(() => null);
+          if (!vivant) return;
+          if (charge) {
+            demoCharge.current = null;
+            await installerPartieEnLigne(charge);
+            return;
+          }
+        }
+        navigate({ name: 'accueil' }, true);
       } catch (cause) {
         if (vivant) setRepriseErreur(cause);
       }

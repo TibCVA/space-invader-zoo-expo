@@ -22,6 +22,7 @@ import {
 import { BandeauMesParties } from '../online/index.js';
 import { demarrerPartie } from '../state/store.js';
 import { lireLocal, partieReprenable } from '../state/persistence.js';
+import { aDesParties } from '../online/index.js';
 import { navigate } from '../router.js';
 import { EcranChargement, EcranPanne } from './shell.js';
 import type { Progression } from '../boot.js';
@@ -52,7 +53,22 @@ export function EcranMenus({ ecran, section, settings, onSettings }: EcranMenusP
   const [construction, setConstruction] = useState(false);
   const [erreur, setErreur] = useState<unknown>(null);
 
-  const reprenable = partieReprenable();
+  /*
+   * « Reprendre » doit aussi voir les parties EN LIGNE.
+   *
+   * `partieReprenable()` ne regarde que la sauvegarde locale, c'est-à-dire le
+   * mode solo. Une partie entre cousins n'a pas de sauvegarde locale — sa
+   * sauvegarde de référence est au serveur — si bien que l'accueil affichait
+   * « Aucune partie en cours » à un joueur dont la partie courait, et que la
+   * seule façon d'y revenir était de retrouver le lien de partage. Mesuré sur
+   * une vraie partie à deux bannières, servie par le vrai binaire.
+   *
+   * `aDesParties()` ne fait aucun appel réseau : elle regarde le trousseau de
+   * jetons du navigateur. Un jeton périmé mène à un bouton qui ramène à
+   * l'accueil — c'est bénin, et bien moins grave que l'inverse : un joueur qui
+   * ne retrouve pas sa partie.
+   */
+  const reprenable = partieReprenable() || aDesParties();
   const resume = (): { name: string; turn: number; week: number } | undefined => {
     const save = lireLocal();
     if (!save) return undefined;
