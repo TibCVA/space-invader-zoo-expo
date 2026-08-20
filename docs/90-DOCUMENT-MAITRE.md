@@ -205,6 +205,16 @@ Rang 6 — Chevalier du Forez → Banneret de Cervières Cavalerie de choc. Le
 Rang 7 — Griffon de Pamole → Griffon Couronné Créature volante d’interception. Le Griffon Couronné peut riposter jusqu’à trois fois par round.
 Statistiques de départ pour le prototype
 Les chiffres ci-dessous sont une base de test, pas un équilibrage définitif :
+
+> **Révision du 20/08 — la croissance a quitté cette base.** Prise au mot de
+> « pas un équilibrage définitif », et pour tenir le troisième critère du
+> propriétaire (une jouabilité identique à HMM3), la croissance suit désormais
+> l'échelle de HMM3 : **14 / 9 / 7 / 5 / 3 / 2 / 1** du rang 1 au rang 7, au
+> lieu du 18 / 12 / 8 / 6 / 4 / 2 / 1 listé ci-dessous. Relevé sur le wiki de
+> référence, pas de mémoire : les rangs 5 à 7 de HMM3 valent trois, deux et un.
+> La Citadelle multiplie cette base par 1,5 et le Château par 2. Les autres
+> statistiques ci-dessous restent en vigueur au chiffre près, et
+> `balance.test.ts` continue de les vérifier.
 	●	Manant : 4 PV, attaque 2, défense 2, dégâts 1–2, vitesse 4, croissance 18 ;
 	●	Gabelou : 12 PV, 5/6, dégâts 2–4, vitesse 5, croissance 12 ;
 	●	Arbalétrier : 20 PV, 8/6, dégâts 4–7, vitesse 5, croissance 8 ;

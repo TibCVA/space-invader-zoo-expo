@@ -24,25 +24,38 @@ import {
 } from './index.js';
 import { costWeight } from './util.js';
 
-/** Statistiques de prototype du document maître §5.1 et §5.2, à la lettre. */
+/**
+ * Statistiques de prototype du document maître §5.1 et §5.2, à la lettre —
+ * **sauf la croissance**, qui a sa propre échelle et son propre témoin.
+ *
+ * Le document maître dit lui-même de ses chiffres qu'ils sont « une base de
+ * test, pas un équilibrage définitif », et il fixait la croissance à
+ * 18/12/8/6/4/2/1. Or le troisième critère du propriétaire est une jouabilité
+ * identique à HMM3, et la croissance est le réglage qui gouverne le rythme de
+ * toute la partie : c'est elle qui décide de la taille d'une armée à la
+ * troisième semaine. Elle suit donc désormais l'échelle de HMM3, vérifiée sur
+ * le wiki plutôt que recopiée de mémoire (voir `CROISSANCE_HMM3`).
+ *
+ * Les autres statistiques restent celles du document, au chiffre près.
+ */
 const PROTOTYPE: Record<
   string,
-  { hp: number; attack: number; defense: number; dmgMin: number; dmgMax: number; speed: number; growth: number }
+  { hp: number; attack: number; defense: number; dmgMin: number; dmgMax: number; speed: number }
 > = {
-  granit_t1: { hp: 4, attack: 2, defense: 2, dmgMin: 1, dmgMax: 2, speed: 4, growth: 18 },
-  granit_t2: { hp: 12, attack: 5, defense: 6, dmgMin: 2, dmgMax: 4, speed: 5, growth: 12 },
-  granit_t3: { hp: 20, attack: 8, defense: 6, dmgMin: 4, dmgMax: 7, speed: 5, growth: 8 },
-  granit_t4: { hp: 34, attack: 10, defense: 12, dmgMin: 6, dmgMax: 10, speed: 6, growth: 6 },
-  granit_t5: { hp: 65, attack: 15, defense: 14, dmgMin: 11, dmgMax: 17, speed: 8, growth: 4 },
-  granit_t6: { hp: 115, attack: 20, defense: 19, dmgMin: 20, dmgMax: 30, speed: 9, growth: 2 },
-  granit_t7: { hp: 235, attack: 27, defense: 25, dmgMin: 38, dmgMax: 55, speed: 11, growth: 1 },
-  ermitage_t1: { hp: 5, attack: 2, defense: 3, dmgMin: 1, dmgMax: 2, speed: 4, growth: 18 },
-  ermitage_t2: { hp: 11, attack: 6, defense: 4, dmgMin: 2, dmgMax: 4, speed: 8, growth: 12 },
-  ermitage_t3: { hp: 22, attack: 9, defense: 7, dmgMin: 4, dmgMax: 7, speed: 8, growth: 8 },
-  ermitage_t4: { hp: 36, attack: 11, defense: 10, dmgMin: 7, dmgMax: 11, speed: 7, growth: 6 },
-  ermitage_t5: { hp: 70, attack: 14, defense: 16, dmgMin: 11, dmgMax: 18, speed: 8, growth: 4 },
-  ermitage_t6: { hp: 130, attack: 18, defense: 23, dmgMin: 20, dmgMax: 29, speed: 6, growth: 2 },
-  ermitage_t7: { hp: 245, attack: 28, defense: 23, dmgMin: 40, dmgMax: 58, speed: 12, growth: 1 },
+  granit_t1: { hp: 4, attack: 2, defense: 2, dmgMin: 1, dmgMax: 2, speed: 4 },
+  granit_t2: { hp: 12, attack: 5, defense: 6, dmgMin: 2, dmgMax: 4, speed: 5 },
+  granit_t3: { hp: 20, attack: 8, defense: 6, dmgMin: 4, dmgMax: 7, speed: 5 },
+  granit_t4: { hp: 34, attack: 10, defense: 12, dmgMin: 6, dmgMax: 10, speed: 6 },
+  granit_t5: { hp: 65, attack: 15, defense: 14, dmgMin: 11, dmgMax: 17, speed: 8 },
+  granit_t6: { hp: 115, attack: 20, defense: 19, dmgMin: 20, dmgMax: 30, speed: 9 },
+  granit_t7: { hp: 235, attack: 27, defense: 25, dmgMin: 38, dmgMax: 55, speed: 11 },
+  ermitage_t1: { hp: 5, attack: 2, defense: 3, dmgMin: 1, dmgMax: 2, speed: 4 },
+  ermitage_t2: { hp: 11, attack: 6, defense: 4, dmgMin: 2, dmgMax: 4, speed: 8 },
+  ermitage_t3: { hp: 22, attack: 9, defense: 7, dmgMin: 4, dmgMax: 7, speed: 8 },
+  ermitage_t4: { hp: 36, attack: 11, defense: 10, dmgMin: 7, dmgMax: 11, speed: 7 },
+  ermitage_t5: { hp: 70, attack: 14, defense: 16, dmgMin: 11, dmgMax: 18, speed: 8 },
+  ermitage_t6: { hp: 130, attack: 18, defense: 23, dmgMin: 20, dmgMax: 29, speed: 6 },
+  ermitage_t7: { hp: 245, attack: 28, defense: 23, dmgMin: 40, dmgMax: 58, speed: 12 },
 };
 
 describe('statistiques de prototype', () => {
@@ -57,8 +70,47 @@ describe('statistiques de prototype', () => {
         dmgMin: def.dmgMin,
         dmgMax: def.dmgMax,
         speed: def.speed,
-        growth: def.growth,
       }).toEqual(expected);
+    }
+  });
+
+  /*
+   * L'échelle de croissance de HMM3, par rang.
+   *
+   * Relevée sur le wiki de référence (heroes.thelazy.net, « Growth ») et non
+   * de mémoire, parce que la liste qui circulait dans nos propres notes de
+   * passation — 14/9/7/5/**4/3/2** — est fausse sur ses trois derniers rangs :
+   * le wiki est explicite, « the basic growth rate [for levels five to seven]
+   * is three, two and one respectively ». Aux rangs 1 à 4, HMM3 fait varier la
+   * croissance selon la créature ; 14/9/7/5 est le motif de ses châteaux les
+   * plus courants (Château : piquier 14, archer 9, griffon 7, épéiste 5 ;
+   * Rempart : centaure 14, nain 9, elfe 7, pégase 5).
+   *
+   * La Citadelle et le Château multiplient cette base par 1,5 puis par 2 —
+   * c'est déjà ce que fait `townGrowthBp`, et deux tests d'intégration le
+   * vérifient.
+   */
+  const CROISSANCE_HMM3: readonly number[] = [14, 9, 7, 5, 3, 2, 1];
+
+  it('fait croître les rangs à l’échelle de HMM3, et non à celle du prototype', () => {
+    for (const faction of ['granit', 'ermitage'] as const) {
+      for (let rang = 1; rang <= 7; rang += 1) {
+        const def = CREATURES[`${faction}_t${String(rang)}`];
+        expect(def, `${faction}_t${String(rang)}`).toBeDefined();
+        expect(def.growth, `${faction} rang ${String(rang)}`).toBe(CROISSANCE_HMM3[rang - 1]);
+      }
+    }
+  });
+
+  it('fait décroître la croissance à chaque rang, sans palier plat', () => {
+    // Un rang qui pousse autant que le précédent efface la hiérarchie des
+    // créatures : la troupe de masse et la troupe d'élite se confondraient.
+    for (const faction of ['granit', 'ermitage'] as const) {
+      for (let rang = 2; rang <= 7; rang += 1) {
+        const bas = CREATURES[`${faction}_t${String(rang - 1)}`].growth;
+        const haut = CREATURES[`${faction}_t${String(rang)}`].growth;
+        expect(haut, `${faction} rang ${String(rang)} contre ${String(rang - 1)}`).toBeLessThan(bas);
+      }
     }
   });
 
