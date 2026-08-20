@@ -156,6 +156,28 @@ function survivantsDe(state: GameState, side: 0 | 1): ArmyStack[] {
   return out;
 }
 
+/* ── Sortie de partie ───────────────────────────────────────────────────── */
+
+/**
+ * Rend à la neutralité tout ce qu'une bannière tenait sur la carte.
+ *
+ * Extrait de la reddition, qui était le **seul** endroit à le faire :
+ * l'extinction automatique de `checkVictory` posait `p.alive = false` sans
+ * toucher à `state.objects`, si bien que les gisements d'une maison morte
+ * gardaient ses couleurs — et son score de gisements — jusqu'à la fin de la
+ * partie. Les deux sorties de partie appellent désormais la même fonction,
+ * pour qu'elles ne puissent plus diverger.
+ *
+ * Les cités ne passent pas par ici : elles vivent dans `state.towns` et chaque
+ * sortie les traite à sa façon (la reddition les rend, l'extinction ne survient
+ * qu'une fois qu'il n'en reste aucune).
+ */
+export function abaisserPavois(state: GameState, player: PlayerId): void {
+  for (const uid of Object.keys(state.objects)) {
+    if (state.objects[uid].owner === player) state.objects[uid].owner = null;
+  }
+}
+
 /* ── Résultats ──────────────────────────────────────────────────────────── */
 
 function refuse(state: GameState, error: string): CommandResult {
@@ -800,9 +822,7 @@ export function applyCommand(state: GameState, cmd: Command, world: WorldMap): C
       p.towns = [];
       for (const uid of p.heroes.slice()) delete next.heroes[uid];
       p.heroes = [];
-      for (const uid of Object.keys(next.objects)) {
-        if (next.objects[uid].owner === player) next.objects[uid].owner = null;
-      }
+      abaisserPavois(next, player);
       events.push({ type: 'PlayerDefeated', player });
       events.push({
         type: 'Notice',

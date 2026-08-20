@@ -33,6 +33,11 @@ import {
   content,
   gameConfig,
 } from '../core/index.js';
+/* Import direct plutôt que par le baril `core/index.js` : `abaisserPavois` est
+   partagée entre la reddition et l'extinction, elle n'appartient pas au
+   contrat public du noyau (docs/02-API.md). Le sens core → world reste, lui,
+   interdit et passe toujours par le registre. */
+import { abaisserPavois } from '../core/apply.js';
 import {
   alivePlayers,
   ledgerInt,
@@ -447,6 +452,12 @@ export function checkVictory(state: GameState): GameEvent[] {
     if (!isEliminated(state, id)) continue;
     p.alive = false;
     p.defeatedAtTurn = state.turn;
+    /* Une maison éteinte cesse de pavoiser. Sans cet appel, ses gisements
+       gardaient son nom pour le reste de la partie : la carte montrait les
+       couleurs d'un mort et `scoreBreakdown` lui comptait encore ses mines.
+       C'est la fonction même qu'appelle la reddition, pour que les deux
+       sorties de partie ne puissent pas diverger. */
+    abaisserPavois(state, id);
     events.push({ type: 'PlayerDefeated', player: id });
     events.push(
       notice(

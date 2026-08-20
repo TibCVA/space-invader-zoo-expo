@@ -33,8 +33,17 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { bootstrapEngine } from '@auvergne/game';
 import { buildWorld } from '@auvergne/map';
-import { MAP_OBJECT_KINDS, createGame, visitObject } from '@auvergne/engine';
-import type { GameState, MapObject, MapObjectKind, PlayerId, WorldMap } from '@auvergne/engine';
+import { MAP_OBJECT_KINDS, captureTown, createGame, visitObject } from '@auvergne/engine';
+import type {
+  GameSetup,
+  GameState,
+  MapObject,
+  MapObjectKind,
+  PlayerId,
+  WorldMap,
+} from '@auvergne/engine';
+import { banners } from '@auvergne/ui';
+import { BANNERS } from '../art/palette.js';
 import { setupDemo, GRAINE_DEMO } from '../state/demo.js';
 import {
   PAVOISABLE,
@@ -159,6 +168,48 @@ describe('la bannière que porte un lieu', () => {
     expect(proprietaireLieu(state, state.objects[village!.uid])).toBe('P2');
   });
 
+  /**
+   * La prise d'une cité ne passe pas toujours par `visitSettlement`, seul
+   * endroit du moteur qui recopie le maître dans l'objet de carte. Trois
+   * chemins écrivent `town.owner` **seuls** :
+   *
+   *  - `captureTown` (core/movement.ts), pour une cité vide où l'on entre ;
+   *  - la victoire de siège (`combat/outcome.ts`) ;
+   *  - la sécession d'une cité révoltée (`world/gabelle.ts`), qui rend la
+   *    place à personne.
+   *
+   * Le test rejoue les trois sur la vraie cité liée à un vrai objet de carte,
+   * en appelant le moteur plutôt qu'en écrivant `town.owner` à la main : c'est
+   * le registre qui doit trancher, y compris pour dire « personne ».
+   */
+  it('suit la cité même après une prise qui ne touche pas l’objet de carte', () => {
+    const state = partie();
+    const objet = world.objects.find(
+      (o) =>
+        (o.kind === 'ville' || o.kind === 'village') &&
+        typeof o.data.townUid === 'string' &&
+        state.towns[o.data.townUid as string] !== undefined,
+    );
+    expect(objet).toBeTruthy();
+    const town = state.towns[objet!.data.townUid as string];
+
+    /* 1. Visite en règle : les deux registres s'accordent. */
+    state.objects[objet!.uid].owner = 'P1';
+    town.owner = 'P1';
+    expect(proprietaireLieu(state, objet!)).toBe('P1');
+
+    /* 2. Prise sans visite : le moteur ne touche que la cité. */
+    captureTown(state, town, 'P2');
+    expect(state.objects[objet!.uid].owner).toBe('P1');
+    expect(town.owner).toBe('P2');
+    expect(proprietaireLieu(state, objet!)).toBe('P2');
+
+    /* 3. Sécession : la place n'est plus à personne, le drapeau doit tomber. */
+    town.owner = null;
+    expect(state.objects[objet!.uid].owner).toBe('P1');
+    expect(proprietaireLieu(state, objet!)).toBeNull();
+  });
+
   it('suit le registre des sceaux, qui fait foi pour la victoire', () => {
     const state = partie();
     const sceau = world.objects.find((o) => o.kind === 'sceau');
@@ -269,5 +320,79 @@ describe('pavois des routes de démonstration', () => {
     expect([...PAVOISABLE].sort()).toEqual(
       ['belvedere', 'demeure', 'maison_tresor', 'mine', 'sceau', 'ville', 'village'].sort(),
     );
+  });
+});
+
+/* ───────────────── 4. Les trois tables de couleurs ne font qu'une ───────── */
+
+/**
+ * Un gonfanon est peint à trois endroits : le moteur inscrit couleur et motif
+ * dans `PlayerState` (`core/create-game.ts`), le design system les redonne aux
+ * fiches (`@auvergne/ui` — `tokens.ts`), et l'art Pixi les redonne à la carte
+ * (`art/palette.ts`). Les trois concordaient sans que rien ne les y oblige :
+ * changer l'une désaccorderait le drapeau planté sur la mine de celui affiché
+ * sur la fiche de la même mine, et le pavois cesserait de renseigner.
+ *
+ * Le test n'écrit aucune couleur : il fait ouvrir une vraie partie à cinq
+ * bannières et compare ce que le moteur a réellement inscrit aux deux tables.
+ */
+describe('les trois tables de bannières disent la même chose', () => {
+  /** Les cinq départs du Forez, un par bannière : la seule table à cinq entrées. */
+  function setupCinq(): GameSetup {
+    const base = setupDemo();
+    return {
+      ...base,
+      players: [
+        ...base.players,
+        {
+          id: 'P3',
+          name: 'Maison d’Arconsat',
+          faction: 'granit',
+          kind: 'ia',
+          aiProfile: 'equilibre',
+          start: 'arconsat',
+          hero: 'auguste',
+        },
+        {
+          id: 'P4',
+          name: 'Maison de Viscomtat',
+          faction: 'ermitage',
+          kind: 'ia',
+          aiProfile: 'equilibre',
+          start: 'viscomtat',
+          hero: 'mathilde',
+        },
+        {
+          id: 'P5',
+          name: 'Maison de La Renaudie',
+          faction: 'granit',
+          kind: 'ia',
+          aiProfile: 'equilibre',
+          start: 'renaudie',
+          hero: 'georges',
+        },
+      ],
+    };
+  }
+
+  it('couleur et motif s’accordent, du moteur au jeton et au gonfanon de la carte', () => {
+    const state = createGame(setupCinq(), world);
+    const rangs: PlayerId[] = ['P1', 'P2', 'P3', 'P4', 'P5'];
+    for (const id of rangs) {
+      const moteur = state.players[id];
+      const rang = rangBanniere(id);
+      const jeton = banners[rang - 1];
+      const gonfanon = BANNERS[rang - 1];
+      expect(jeton.color.toUpperCase(), id).toBe(moteur.color.toUpperCase());
+      expect(`#${gonfanon.color.toString(16).padStart(6, '0')}`.toUpperCase(), id).toBe(
+        moteur.color.toUpperCase(),
+      );
+      /* Le motif est l'autre moitié du renseignement : il porte la bannière
+         pour qui ne distingue pas le grenat du sinople. */
+      expect(gonfanon.pattern, id).toBe(moteur.pattern);
+      expect(jeton.pattern, id).toBe(gonfanon.patternName);
+      expect(gonfanon.player, id).toBe(id);
+      expect(jeton.id, id).toBe(id.toLowerCase());
+    }
   });
 });

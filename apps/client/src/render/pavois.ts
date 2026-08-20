@@ -78,15 +78,28 @@ export function pavoise(kind: MapObjectKind): boolean {
  *
  * Trois sources, dans cet ordre — c'est l'ordre d'autorité du moteur :
  *
- *  1. `state.objects[uid].owner`, l'état vivant du lieu (le gabarit de
+ *  1. pour une cité ou un village, le **registre** `state.towns`, désigné par
+ *     `data.townUid`. Il passe AVANT l'objet de carte, et c'est ce qui a été
+ *     corrigé : `visitSettlement` est le seul chemin du moteur qui recopie le
+ *     maître dans l'objet, alors que trois autres écrivent `town.owner` seuls —
+ *     `captureTown` (`core/movement.ts`) pour une cité vide où l'on entre, la
+ *     victoire de siège (`combat/outcome.ts`), et la sécession d'une cité
+ *     révoltée (`world/gabelle.ts`), qui rend la place à personne. Lire l'objet
+ *     d'abord faisait donc flotter la couleur du maître PRÉCÉDENT juste après
+ *     une prise — précisément l'instant où le renseignement compte — et
+ *     contredisait la fiche de cité, qui lit `cite.owner`. Le registre tranche
+ *     dans les deux sens : il donne le maître, et il donne la neutralité ;
+ *  2. `state.objects[uid].owner`, l'état vivant du lieu (le gabarit de
  *     `world.objects` n'est qu'un patron : il ne bouge jamais) ;
- *  2. pour une cité ou un village, le propriétaire de la **cité** liée par
- *     `data.townUid` — c'est `captureTown` qui le déplace, et l'objet de carte
- *     peut très bien ne pas avoir été touché (une cité prise par siège depuis
- *     l'écran de cité, par exemple) ;
  *  3. pour un sceau, le registre `state.seals`, qui fait foi pour la condition
  *     de victoire et que `visitSeal` tient à jour même quand l'objet n'est plus
  *     celui qu'on croit.
+ *
+ * Le moteur n'a pas été touché : tenir `obj.owner` à jour dans les trois
+ * chemins changerait `state.objects`, donc `hashState`, donc les rejeux et les
+ * empreintes de déterminisme — un risque hors de proportion avec un défaut
+ * d'affichage, quand le registre est déjà la source qui fait foi partout
+ * ailleurs (fiche de cité, revenus, score).
  */
 export function proprietaireLieu(
   etat: GameState | null,
@@ -95,13 +108,16 @@ export function proprietaireLieu(
 ): PlayerId | null {
   if (!pavoise(objet.kind)) return null;
   const vif = etat?.objects?.[objet.uid] ?? objet;
-  if (vif.owner) return vif.owner;
 
   const townUid = vif.data?.townUid as string | undefined;
   if (townUid) {
     const cite = etat?.towns?.[townUid];
-    if (cite?.owner) return cite.owner;
+    /* La cité existe : son registre fait foi, y compris pour dire « personne ».
+       Absente du registre, on retombe sur l'objet plutôt que sur du blanc. */
+    if (cite) return cite.owner ?? null;
   }
+
+  if (vif.owner) return vif.owner;
 
   if (vif.kind === 'sceau') {
     const seal = vif.data?.seal as SealId | undefined;
