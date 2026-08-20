@@ -59,8 +59,24 @@ pnpm --filter @auvergne/server build
 echo "▸ épreuve de chargement sous la CSP réelle"
 node tools/repro-chargement.mjs 3 40000
 
+# L'empreinte de révision, posée AVANT l'envoi.
+#
+# `/health` publie `commit`, lu dans `RAILWAY_GIT_COMMIT_SHA` puis `GIT_COMMIT`.
+# Railway ne renseigne le premier que pour un déploiement déclenché par GitHub ;
+# avec `railway up`, il est absent. Tant que personne ne posait le second, la
+# santé annonçait un commit vieux de plusieurs déploiements — et l'on ne pouvait
+# plus vérifier quelle version tournait, ce qui est précisément à quoi ce champ
+# sert. La variable est posée ici parce que c'est ici, et nulle part ailleurs,
+# qu'on sait ce qu'on expédie ; `--skip-deploys` évite un redéploiement à vide
+# juste avant le vrai.
+COMMIT="$(git rev-parse HEAD)"
+echo "▸ empreinte de révision : $COMMIT"
+railway variables --service "$SERVICE" --set "GIT_COMMIT=$COMMIT" --skip-deploys >/dev/null
+
 echo "▸ envoi vers Railway (service : $SERVICE)"
 # `--ci` : pas d'invite interactive, la sortie est un journal et non un écran.
 railway up --service "$SERVICE" --ci
 
 echo "▸ déployé. Vérifiez : https://auvergne-web-production.up.railway.app"
+echo "  la santé doit annoncer le commit $COMMIT :"
+echo "  curl -s https://auvergne-web-production.up.railway.app/health"
