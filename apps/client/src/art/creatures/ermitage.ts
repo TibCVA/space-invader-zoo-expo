@@ -59,7 +59,6 @@ import {
   orfevrerie,
   pointeLance,
   poser,
-  queue as dessinerQueue,
   rayonTete,
   sous,
   squeletteBipede,
@@ -771,7 +770,10 @@ function loupPieces(k: Kit, brumes: boolean): PieceDef[] {
           matiere: 'fourrure',
           matiereAlpha: 0.3,
           echelle: 0.3,
-          rim: i % 2 === 0,
+          /* Un liseré sur deux touffes mettait bout à bout un FIL D'OR continu
+             le long de l'échine — un câble, pas une lumière. Une sur trois le
+             casse en éclats, ce que fait la lumière sur du poil. */
+          rim: i % 3 === 0,
           /* Sans contour : cernée, chaque touffe se lisait comme une PLAQUE, et
              dix plaques alignées font un tatou. Le poil n'a pas de bord — il a
              une valeur, et c'est tout ce qu'on lui laisse. */
@@ -2081,11 +2083,10 @@ function teteVouivre(g: Graphics, k: Kit, S: number, couronnee: boolean, seed: n
 function vouivrePieces(k: Kit, couronnee: boolean): PieceDef[] {
   const S = couronnee ? 1.12 : 1;
   const ecaille = couronnee ? melanger(VERT_PROFOND, CUIVRE, 0.32) : melanger(VERT_PROFOND, MOUSSE, 0.28);
-  /* Le ventre du serpent, RABATTU. À 0,35 de pierre claire les cinq plaques de
-     chaque anneau ressortaient plus que la bête, et la chaîne d'anneaux rendait
-     une rangée de tablettes claires sous une crête verte — une chenille. Un
-     ventre de couleuvre est pâle, pas blanc. */
-  const ventre = melanger(CUIVRE, PIERRE_CLAIRE, 0.18);
+  /* Le ventre du serpent : pâle et CHAUD, tiré vers l'ocre plutôt que vers le
+     cuivre patiné. Le cuivre est un vert-bleu ; un ventre peint avec lui vire au
+     turquoise et se lit comme une pièce étrangère collée sous la bête. */
+  const ventre = melanger(melanger(CUIVRE, 0xc08a3e, 0.5), PIERRE_CLAIRE, 0.3);
   const A = 84 * S;
   const pieces: PieceDef[] = [];
 
@@ -2402,19 +2403,24 @@ function anneau(
    * ailes. Sans elle, un anneau de vouivre et un anneau de ver de terre se
    * ressemblent.
    */
-  const AILERONS = 5;
+  /* Trois ailerons par anneau, larges et bas — et non cinq hauts et étroits.
+     Quatre anneaux plus la queue en font une vingtaine à l'écran : à cinq par
+     anneau, cernés chacun, ils rendaient un buisson d'épines le long du dos, ce
+     que montrait la capture. Trois qui se RECOUVRENT font une frange. */
+  const AILERONS = 3;
   for (let i = 0; i < AILERONS; i += 1) {
     const t = i / (AILERONS - 1);
-    const x = -L * 0.36 + t * L * 0.72;
+    const x = -L * 0.32 + t * L * 0.64;
     /* Les plus hauts au milieu de l'anneau : une frange, pas une scie. */
-    const haut = h * (0.5 + 0.34 * Math.sin(t * Math.PI));
-    poser(g, k, fuseau(x, -h * 0.34, x - L * 0.05, -haut, h * 0.17, { seed: seed + i * 5, taper: 0.44 }), {
+    const haut = h * (0.44 + 0.24 * Math.sin(t * Math.PI));
+    poser(g, k, fuseau(x, -h * 0.34, x - L * 0.05, -haut, h * 0.28, { seed: seed + i * 5, taper: 0.44 }), {
       couleur: i % 2 ? melanger(dos, LIGHT.rim, 0.22) : assombrir(dos, 0.16),
       matiere: 'ecailles',
       matiereAlpha: 0.22,
       echelle: 0.3,
       modele: 0.85,
       rim: i % 2 === 0,
+      contour: false,
     });
   }
 
@@ -2435,27 +2441,49 @@ function anneau(
     }
   }
 
-  // plaques ventrales
-  const n = 5;
-  for (let i = 0; i < n; i += 1) {
-    const x = -L * 0.34 + (i / (n - 1)) * L * 0.68;
-    const pl = lisser(
-      perturber(densifier([pt(x - L * 0.07, h * 0.1), pt(x + L * 0.07, h * 0.08), pt(x + L * 0.06, h * 0.46), pt(x - L * 0.06, h * 0.48)], h * 0.16), h * 0.012, seed + i),
-      1,
-    );
-    poser(g, k, pl, {
-      couleur: i % 2 ? ventre : eclaircir(ventre, 0.07),
-      matiere: 'ecailles',
-      matiereAlpha: 0.2,
-      echelle: 0.3,
-      modele: 0.7,
-      rim: false,
-      /* Sans contour : cerclées, les cinq plaques claires se lisaient comme une
-         rangée de DENTS sous le corps — c'est ce qu'on voyait sous la vouivre
-         sur la capture. Un ventre de serpent est une bande continue, pas cinq
-         jetons. */
-      contour: false,
-    });
+  /*
+   * Le VENTRE : une seule bande continue, et les plaques dites au trait.
+   *
+   * Cinq polygones clairs cousus côte à côte sous chaque anneau, cerclés chacun
+   * du contour de la loi n°6 : mis bout à bout sur quatre anneaux et une queue,
+   * cela faisait vingt-cinq jetons turquoise enfilés sous la bête — un collier
+   * de perles, ou une chenille. Mesuré deux fois sur capture, et ni la teinte ni
+   * le contour ne suffisaient à le défaire, parce que le défaut n'était pas là :
+   * il était dans le DÉCOUPAGE. Un ventre de couleuvre est une bande d'un seul
+   * tenant, et les plaques ne s'y lisent qu'aux rainures qui les séparent.
+   */
+  const bande = lisser(
+    perturber(
+      densifier(
+        [
+          pt(-L * 0.4, h * 0.06),
+          pt(0, h * 0.02),
+          pt(L * 0.4, h * 0.08),
+          pt(L * 0.38, h * 0.44),
+          pt(0, h * 0.52),
+          pt(-L * 0.38, h * 0.42),
+        ],
+        h * 0.18,
+      ),
+      h * 0.012,
+      seed + 3,
+    ),
+    1,
+  );
+  poser(g, k, bande, {
+    couleur: ventre,
+    matiere: 'ecailles',
+    matiereAlpha: 0.22,
+    echelle: 0.3,
+    modele: 0.7,
+    rim: false,
+    contour: false,
+  });
+  for (let i = 1; i < 5; i += 1) {
+    const x = -L * 0.3 + (i / 5) * L * 0.6;
+    g.moveTo(x, h * 0.08);
+    g.quadraticCurveTo(x + L * 0.01, h * 0.28, x - L * 0.005, h * 0.46);
+    g.stroke({ color: ombreBleutee(ventre, 0.6), width: Math.max(0.8, h * 0.03), alpha: 0.42, cap: 'round' });
   }
   if (couronnee) {
     for (let i = 0; i < 3; i += 1) {
