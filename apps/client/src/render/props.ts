@@ -31,6 +31,7 @@ const HAUTEUR_CASES: Readonly<Record<PropKey, number>> = {
   hetre: 1.85,
   buisson: 0.72,
   rocher: 0.86,
+  aiguille: 2.5,
   muret: 0.62,
   borne: 0.7,
   croix: 1.05,
@@ -217,10 +218,27 @@ export class SemisProps {
             choix = r < 0.52 ? 'rocher' : r < 0.76 ? 'buisson' : 'sapin';
             break;
           }
-          case TER.rocher: {
-            chance = 0.34;
+          case TER.rocher:
+          case TER.falaise: {
+            /*
+             * Une chaîne de montagnes, pas une brume semée de cailloux.
+             *
+             * Le rocher ne portait de décor qu'une case sur trois, et ce décor
+             * était un bloc de 0,86 case de haut : depuis que les barrières de
+             * crête en font de longues chaînes continues — 15,5 % de la carte —
+             * la montagne se peignait comme un voile gris. Le joueur ne pouvait
+             * pas voir où il ne pouvait pas aller. On sème donc dense, et
+             * surtout haut : l'aiguille monte à deux cases et demie et donne à
+             * la chaîne sa silhouette. Rien ne marche là, donc rien n'est caché
+             * par cette densité.
+             *
+             * La falaise rejoint le rocher : elle est infranchissable elle
+             * aussi, et elle n'avait droit qu'au semis générique des voies —
+             * une case sur vingt.
+             */
+            chance = 0.82;
             const r = alea(col, row, 229);
-            choix = r < 0.78 ? 'rocher' : 'souche';
+            choix = r < 0.72 ? 'aiguille' : 'rocher';
             break;
           }
           case TER.lande: {

@@ -27,13 +27,18 @@
  * imprime le taux, et l'on garde le chiffre de soixante dans ce commentaire
  * pour que personne ne re-diagnostique un problème qui n'existe pas.
  *
- * **Ce qui reste ouvert, en revanche, et que le test mesure désormais.** Sur
- * les soixante parties, **vingt seulement se règlent par conquête** ; les
- * quarante autres butent sur le garde-fou de tours du harnais et sont
- * départagées au classement d'observation. À deux bannières, l'IA ne sait donc
- * pas conclure une conquête en cent soixante jours dans deux cas sur trois.
- * C'est un vrai sujet d'équilibrage — pas un défaut de mesure — et le test
- * l'affiche partie par partie plutôt que de le laisser sous le tapis.
+ * **Ce que les barrières de crête ont changé.** Cette mesure-là valait sept
+ * conquêtes sur vingt avant que la carte ne reçoive ses murs et ses cols ; elle
+ * en vaut **dix sur vingt** après. C'est le même moteur, la même IA, les mêmes
+ * graines : ce qui a changé est que la carte a des goulets. Un front rend la
+ * conquête décidable — on prend un col, on tient une zone — là où une esplanade
+ * la diluait. Et les parties tranchées le sont plus vite : quatre se règlent
+ * désormais en moins de cent jours, dont une en vingt-quatre.
+ *
+ * Il reste que la moitié des parties bute sur le garde-fou de tours du harnais
+ * et se départage au classement d'observation. C'est le chantier d'équilibrage
+ * ouvert, et le test l'affiche partie par partie plutôt que de le laisser sous
+ * le tapis.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -113,16 +118,28 @@ describe('duel expert contre prudent', () => {
         `prudent ${duel.prudent}/${GAMES} · sans vainqueur ${duel.draws}\n` +
         `  Fourchette des plans : ${BANDE_MIN} à ${BANDE_MAX} %. ` +
         `Sur soixante graines : 43/60, soit 71,7 %.\n` +
-        `  Parties réglées par conquête : ${decidees}/${GAMES} — le reste est départagé\n` +
-        `  au classement d'observation du harnais. C'est le chantier d'équilibrage ouvert :\n` +
-        `  à deux bannières, l'IA ne sait pas conclure en cent soixante jours.\n`,
+        `  Parties réglées par conquête : ${decidees}/${GAMES} — sept sur vingt avant que\n` +
+        `  la carte ne reçoive ses murs et ses cols. Le reste est départagé au classement\n` +
+        `  d'observation du harnais : c'est le chantier d'équilibrage ouvert.\n`,
     );
     process.stdout.write(lines.join(''));
 
     // Toutes les parties doivent au moins être allées au bout proprement.
     for (const game of duel.games) {
       expect(game.stalled, `partie ${game.seed} enlisée`).toBe(false);
-      expect(game.turns).toBeGreaterThan(30);
+      /*
+       * Le plancher était de trente jours, et il est tombé à dix.
+       *
+       * Il servait à repérer une partie qui s'arrête absurdement tôt — le signe
+       * d'une mise en place cassée. Depuis les barrières de crête, une partie
+       * s'est réglée en vingt-quatre jours par conquête franche, et ce n'est pas
+       * une anomalie : à deux bannières la rotation peut placer les deux
+       * capitales dans des zones voisines, et un héros sur voie couvre vingt à
+       * trente cases par jour. Une ruée qui aboutit est une manière de gagner,
+       * pas un défaut. En dessous de dix jours, en revanche, personne n'a eu le
+       * temps de lever une armée : là il y aurait à chercher.
+       */
+      expect(game.turns, `partie ${game.seed} : ${String(game.turns)} jours`).toBeGreaterThan(10);
     }
 
     /*
@@ -145,15 +162,14 @@ describe('duel expert contre prudent', () => {
     ).toBeLessThanOrEqual(BANDE_MAX);
 
     /*
-     * Et le plancher de conquête. Mesuré : sept sur vingt ici, vingt sur
-     * soixante au total. Le plancher est bas parce que la mesure est basse ; il
-     * n'est pas là pour dire que c'est bien, mais pour que l'on s'aperçoive si
-     * la conquête cessait tout à fait d'aboutir — ce qui serait la signature du
-     * retour d'un défaut de capture comme celui de `reglerGarde`.
+     * Et le plancher de conquête. Mesuré dix sur vingt, contre sept avant les
+     * barrières de crête. Le plancher est posé à sept — la mesure d'avant — de
+     * sorte qu'il attrape aussi bien le retour d'un défaut de capture comme
+     * celui de `reglerGarde` que la perte du front qu'on vient de gagner.
      */
     expect(
       decidees,
       `aucune conquête n’aboutit : ${decidees}/${GAMES} parties décidées par le jeu`,
-    ).toBeGreaterThanOrEqual(4);
+    ).toBeGreaterThanOrEqual(7);
   }, 900_000);
 });

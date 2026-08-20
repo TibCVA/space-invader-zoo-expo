@@ -37,6 +37,7 @@ export type PropKey =
   | 'hetre'
   | 'buisson'
   | 'rocher'
+  | 'aiguille'
   | 'muret'
   | 'borne'
   | 'croix'
@@ -352,6 +353,122 @@ function rocher(g: Graphics, mats: MaterialSet, v: number): void {
       color: melanger(MOUSSE, HETRE, rand() * 0.6),
       alpha: 0.55,
     });
+  }
+}
+
+/**
+ * L'aiguille : un ressaut de granit qui monte, et non un bloc posé à terre.
+ *
+ * **Pourquoi il fallait ce décor.** Les barrières de crête ont porté
+ * l'infranchissable de 8,6 % à 15,5 % de la carte, en longues chaînes continues
+ * — c'est ce qui donne enfin un front au pays. Vu en image, le massif se tient ;
+ * vu à l'écran, il ne se voyait pas. Le rocher se peint en bleu de pierre
+ * (`bleuBrume × bleuProfond` en altitude) et ne portait qu'un bloc de 0,86 case
+ * de haut sur une case sur trois : une chaîne de montagnes rendue comme une
+ * brume grise semée de cailloux. Le joueur ne pouvait pas voir où il ne pouvait
+ * pas aller, ce qui est le contraire de ce que fait HMM3 — chez lui, la roche
+ * infranchissable est un relief massif qu'on lit du premier coup d'œil.
+ *
+ * L'aiguille monte donc à deux cases et demie, avec un fût, une arête éclairée
+ * au vent et deux contreforts qui l'ancrent. Semée densément sur le rocher, elle
+ * donne à la chaîne une silhouette et une masse.
+ */
+function aiguille(g: Graphics, mats: MaterialSet, v: number): void {
+  const rand = prng(6500 + v * 97);
+  /*
+   * La variété est ici l'essentiel, et c'est une correction faite sur capture :
+   * la première version tirait toutes ses aiguilles dans la même fourchette
+   * étroite, et la chaîne rendait une palissade de cônes identiques — pas une
+   * montagne. On tire donc large, de la croupe massive au clocher, et l'on
+   * élargit les bases pour que deux voisines se fondent en un massif au lieu de
+   * se ranger côte à côte.
+   */
+  const trapu = rand();
+  const W = 34 + rand() * 16 + trapu * 12;
+  const H = 62 + rand() * 96 - trapu * 26;
+  ombreProjetee(g, 0, 0, W * 1.3, H * 0.22, { seed: v });
+
+  /* Deux contreforts d'abord : ils passent derrière le fût. */
+  for (let i = 0; i < 2; i += 1) {
+    const cote = i === 0 ? -1 : 1;
+    const w = W * (0.58 + rand() * 0.34);
+    const h = H * (0.3 + rand() * 0.3);
+    const x = cote * W * (0.52 + rand() * 0.2);
+    const face = lisser(
+      perturber(
+        densifier(
+          [
+            pt(x - w * 0.9, 0),
+            pt(x - w * 0.5, -h * 0.72),
+            pt(x + w * 0.15, -h),
+            pt(x + w * 0.85, -h * 0.42),
+            pt(x + w, 0),
+          ],
+          7,
+        ),
+        1.7,
+        v * 29 + i,
+      ),
+      0,
+    );
+    poser(g, mats, face, melanger(GRANIT, ARDOISE, 0.25 + i * 0.2), {
+      matiere: 'granit',
+      alpha: 0.34,
+      echelle: 0.5,
+      modele: 1.0,
+    });
+  }
+
+  /* Le fût : deux pans nets, l'un au soleil, l'autre à l'ombre, pour que
+     l'arête se lise même à petite échelle. */
+  const sommet = pt((rand() - 0.5) * W * 0.4, -H);
+  const pied = W * (0.86 + rand() * 0.3);
+  const pan = lisser(
+    perturber(
+      densifier([pt(-pied, 0), pt(-pied * 0.62, -H * 0.52), sommet, pt(pied * 0.2, -H * 0.34), pt(pied * 0.34, 0)], 9),
+      1.9,
+      v * 37,
+    ),
+    0,
+  );
+  poser(g, mats, pan, melanger(GRANIT_CLAIR, ARDOISE, 0.34), {
+    matiere: 'granit',
+    alpha: 0.3,
+    echelle: 0.58,
+    modele: 1.1,
+  });
+  const revers = lisser(
+    perturber(
+      densifier([sommet, pt(pied * 0.86, -H * 0.44), pt(pied, 0), pt(pied * 0.28, 0), pt(pied * 0.16, -H * 0.36)], 9),
+      1.9,
+      v * 41,
+    ),
+    0,
+  );
+  poser(g, mats, revers, melanger(GRANIT, ARDOISE, 0.42), {
+    matiere: 'granit',
+    alpha: 0.36,
+    echelle: 0.58,
+    modele: 1.1,
+  });
+
+  /* L'arête sommitale, éclairée : c'est elle qui donne l'altitude. */
+  g.moveTo(sommet.x, sommet.y);
+  g.lineTo(-pied * 0.55, -H * 0.46);
+  g.stroke({ color: eclaircir(GRANIT_CLAIR, 0.46), width: 1.6, alpha: 0.5 });
+
+  /* Éboulis au pied : la roche se défait, elle ne sort pas du sol nette. */
+  for (let i = 0; i < 7; i += 1) {
+    const x = -W * 1.1 + rand() * W * 2.2;
+    g.poly(
+      flat(
+        blob(x, -rand() * H * 0.06, 2.2 + rand() * 3, 1.8 + rand() * 2.4, {
+          seed: i * 7 + v,
+          points: 9,
+          wobble: 0.4,
+        }),
+      ),
+    ).fill({ color: melanger(GRANIT_CLAIR, TERRE, 0.3 + rand() * 0.3), alpha: 0.7 });
   }
 }
 
@@ -871,6 +988,7 @@ export const PROPS: Readonly<Record<PropKey, PropDef>> = {
   hetre: { variantes: 5, w: 130, h: 148, distance: 0, dessin: hetre },
   buisson: { variantes: 4, w: 84, h: 58, distance: 0, dessin: buisson },
   rocher: { variantes: 5, w: 92, h: 62, distance: 0, dessin: rocher },
+  aiguille: { variantes: 5, w: 104, h: 152, distance: 0, dessin: aiguille },
   muret: { variantes: 4, w: 130, h: 52, distance: 0, dessin: muret },
   borne: { variantes: 3, w: 44, h: 62, distance: 0, dessin: borne },
   croix: { variantes: 4, w: 56, h: 82, distance: 0, dessin: croix },
@@ -891,6 +1009,7 @@ export const PROP_LABELS: Readonly<Record<PropKey, string>> = {
   hetre: 'Hêtre',
   buisson: 'Buisson',
   rocher: 'Rocher',
+  aiguille: 'Aiguille de granit',
   muret: 'Muret',
   borne: 'Borne armoriée',
   croix: 'Croix de chemin',

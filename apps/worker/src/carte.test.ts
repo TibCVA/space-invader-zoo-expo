@@ -144,9 +144,9 @@ describe('la carte — ce qui est tenu', () => {
   });
 });
 
-describe('la carte — les murs de crête', () => {
+describe('la carte — le front', () => {
   /*
-   * Ce que les barrières ont changé, et ce qu'elles n'ont pas encore réglé.
+   * Ce que les barrières ont changé, et comment on a su qu'elles marchaient.
    *
    * Le relief ne fermait pas les zones, et il a fallu deux instruments neufs
    * pour le voir. Le compte de points d'articulation avait quadruplé, puis
@@ -157,18 +157,23 @@ describe('la carte — les murs de crête', () => {
    * générateur de HMM3 relie ses zones par « un à trois ». La cible se mesure
    * donc en COUPE : le nombre de cases à boucher pour séparer deux capitales.
    *
-   * Les murs sont posés, et ils tiennent : 155 cases sur 184 le long de la ligne
-   * de partage des eaux, contre une esplanade auparavant. La coupe est tombée à
-   * neuf autour d'Arconsat, mais elle reste de seize à dix-neuf entre les autres
-   * capitales, pour une cible de six. Ce qui manque est du contenu, pas de
-   * l'algorithme : cinq crêtes ne partagent pas le pays en douze zones, et deux
-   * de ces cinq passent par une capitale, qui les perce par construction.
+   * Les trois étapes, en chiffres, sur la graine de démonstration :
    *
-   * Les planchers ci-dessous ne disent pas « c'est bien » : ils disent « n'empire
-   * pas pendant qu'on travaille ailleurs ».
+   *   sans barrières            infranchissable  8,58 %  coupe 25
+   *   cinq crêtes murées                        10,98 %  coupe 19
+   *   plus cinq chaînes de partage              15,49 %  coupe  5
+   *
+   * Les deux cibles du plan — douze pour cent d'infranchissable, une coupe de
+   * six — sont donc tenues, et les tests ci-dessous les EXIGENT au lieu de figer
+   * un plancher de non-régression. Le reste n'a pas bougé : composante unique,
+   * une case sur trente-six porte un objet, zéro canton vide, glaneur à 3,8
+   * prises par journée de marche.
    */
-  it('ne descend pas sous la part d’infranchissable mesurée ce jour', () => {
-    expect(r.partInfranchissable, 'cible du plan : 0,12').toBeGreaterThanOrEqual(0.105);
+  it('porte la part d’infranchissable d’un relief HMM3', () => {
+    expect(r.partInfranchissable, 'cible du plan : 0,12').toBeGreaterThanOrEqual(0.12);
+    /* Et pas au point d'étouffer la carte : au-delà d'un quart, on rend de la
+       terre jouable contre une frontière, ce qui n'est plus un échange. */
+    expect(r.partInfranchissable).toBeLessThanOrEqual(0.25);
   });
 
   it('tient le mur de la ligne de partage des eaux', () => {
@@ -186,25 +191,44 @@ describe('la carte — les murs de crête', () => {
     expect(partage.trousVoie, 'plus aucune voie ne franchit la crête').toBeGreaterThan(0);
   });
 
-  it('mesure la coupe entre les dix paires de capitales', () => {
+  it('mure aussi les cinq chaînes de partage', () => {
+    for (const key of [
+      'barre_nord',
+      'barre_futaies_nord',
+      'barre_futaies_sud',
+      'barre_cervieres_sud',
+      'barre_marche',
+    ]) {
+      const m = r.murs.find((x) => x.crete === key);
+      expect(m, `chaîne absente : ${key}`).toBeDefined();
+      if (!m) continue;
+      /* Les chaînes sont tracées par marche de crête entre deux bouts, donc
+         elles ne rencontrent ni capitale ni site fixe par hasard : on peut leur
+         demander plus qu'aux crêtes du relief. */
+      expect(m.mur * 4, `${key} : ${String(m.mur)} sur ${String(m.axe)}`)
+        .toBeGreaterThanOrEqual(m.axe * 3);
+    }
+  });
+
+  it('ferme les zones comme HMM3 : une coupe de un à trois passages', () => {
     expect(r.coupes.length).toBe(10);
     for (const c of r.coupes) {
-      /* Aucune capitale coupée du monde, et aucune coupe qui plafonne : une
-         valeur au plafond signifierait que le calcul n'a rien pu mesurer. */
-      expect(c.coupe, `${c.de} ↔ ${c.a} : capitale isolée`).toBeGreaterThan(0);
-      expect(c.coupe, `${c.de} ↔ ${c.a} : coupe au plafond`).toBeLessThan(64);
+      /* Jamais coupée du monde, et jamais tenue par une seule case : le
+         générateur de HMM3 pose « un à trois » liaisons, et deux au moins
+         laissent au joueur le choix de son itinéraire. */
+      expect(c.coupe, `${c.de} ↔ ${c.a} : capitale isolée`).toBeGreaterThanOrEqual(2);
+      expect(c.coupe, `${c.de} ↔ ${c.a} : coupe trop large`).toBeLessThanOrEqual(6);
     }
-    const plusLarge = Math.max(...r.coupes.map((c) => c.coupe));
-    /* Plafond de non-régression, très au-dessus de la cible de six : c'est la
-       mesure du jour, et elle ne doit pas remonter. */
-    expect(plusLarge, 'cible du plan : 6').toBeLessThanOrEqual(19);
   });
 
   it('mesure les vrais goulets, même quand il n’y en a aucun', () => {
-    /* Pas de plancher à poser : il n'y en a pas un seul, et un plancher à zéro
-       ne tiendrait rien. Ce que ce test tient, c'est que l'INSTRUMENT existe et
-       répond — c'est lui qui a montré que la cible n'était pas atteinte alors
-       qu'on la croyait dépassée de onze points. */
+    /*
+     * Toujours zéro, et c'est désormais NORMAL : les frontières sont percées de
+     * deux à cinq passages, donc aucune ne tient à une case unique. C'est la
+     * démonstration en creux que la cible en points d'articulation était mal
+     * posée — l'atteindre aurait voulu dire construire des couloirs uniques.
+     * Ce que ce test tient, c'est que l'instrument existe et répond.
+     */
     expect(Number.isInteger(r.goulets)).toBe(true);
     expect(r.goulets).toBeLessThanOrEqual(r.articulations);
     expect(r.articulations).toBeGreaterThanOrEqual(20);

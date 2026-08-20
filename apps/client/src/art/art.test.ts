@@ -387,7 +387,9 @@ describe('dessin de toutes les vignettes', () => {
 
 describe('décor', () => {
   it('propose trois à cinq variantes par objet', () => {
-    expect(PROP_KEYS).toHaveLength(14);
+    /* Quinze depuis l'aiguille de granit, que les barrières de crête ont rendue
+       nécessaire : une chaîne de montagnes doit se voir. */
+    expect(PROP_KEYS).toHaveLength(15);
     for (const key of PROP_KEYS) {
       const def = PROPS[key];
       expect(def.variantes, key).toBeGreaterThanOrEqual(3);

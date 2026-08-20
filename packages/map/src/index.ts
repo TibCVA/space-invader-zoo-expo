@@ -61,7 +61,12 @@ export { MAX_ALTITUDE, MIN_ALTITUDE, buildElevation, computeSlope } from './elev
 export type { ElevationField, LigneDeCrete } from './elevation.js';
 export { LIGNES_DE_CRETE } from './elevation.js';
 
-export { integriteDesMurs, masqueBarrieres, poserBarrieres } from './barrieres.js';
+export {
+  integriteDesMurs,
+  masqueBarrieres,
+  poserBarrieres,
+  resetBarrieresCache,
+} from './barrieres.js';
 export type { Barrieres, ColDeCrete, MasqueBarrieres, MurMesure } from './barrieres.js';
 
 export { CROSSINGS, RIVERS, SAGNES, buildHydrography } from './hydrography.js';

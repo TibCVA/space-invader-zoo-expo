@@ -24,8 +24,7 @@
  *  4. **régions** — le corridor marchand suit les grandes chaussées ;
  *  5. **biomes** — altitude + pente + humidité + proximité de l'eau ;
  *  6. **emprises** — bourgs, sceaux et sites fixes sont aplanis ;
- *  7. **murs** — le masque s'applique au terrain classé, puis les brèches
- *     restantes se comblent ;
+ *  7. **murs** — le masque s'applique au terrain classé ;
  *  8. **désenclavement** — ce qui reste scellé se perce d'un col ;
  *  9. **lisières** — recalculées en dernier, une fois le terrain définitif.
  */
@@ -51,7 +50,7 @@ import { buildObjects, fixedPlots, type ObjectContext } from './objects.js';
 import { assignRegions } from './regions.js';
 import { buildRoads } from './roads.js';
 import { START_KEYS, START_POSITIONS } from './starts.js';
-import { classifyTerrain, couvre, fermerLesCretes, franchissable, markEdges } from './terrain.js';
+import { classifyTerrain, couvre, franchissable, markEdges } from './terrain.js';
 
 /** Version de la carte, enregistrée dans chaque partie et chaque sauvegarde. */
 export const MAP_VERSION = '1.0.0-forez';
@@ -174,6 +173,105 @@ function normaliseFlags(terrain: Uint8Array, flags: Uint16Array): void {
  * case n'existe (anneau épais), la poche est scellée en falaise : mieux vaut
  * un sommet muré qu'un trésor inatteignable.
  */
+/**
+ * Creuse un col : la traversée la moins épaisse entre une poche et la
+ * composante principale.
+ *
+ * Parcours en largeur **dans l'infranchissable**, au départ de toutes les cases
+ * de roche qui touchent une poche, jusqu'à en trouver une qui touche la
+ * principale. On ouvre le chemin trouvé, et lui seul : le col est aussi étroit
+ * que le mur est épais, jamais plus.
+ *
+ * L'eau n'est pas creusable — on ne perce pas un col dans une rivière — et l'on
+ * s'arrête au premier col trouvé : la boucle appelante rappellera la fonction
+ * tant qu'il reste des poches, ce qui garde une brèche par tour et par poche.
+ *
+ * @returns `true` si un col a été creusé.
+ */
+function creuserUnCol(
+  terrain: Uint8Array,
+  flags: Uint16Array,
+  composante: Int32Array,
+  principale: number,
+): boolean {
+  const venuDe = new Int32Array(CELLS).fill(-1);
+  const vu = new Uint8Array(CELLS);
+  const file = new Int32Array(CELLS);
+  let tete = 0;
+  let queue = 0;
+
+  const creusable = (i: number): boolean => terrain[i] !== T.eau && !franchissable(terrain[i]);
+
+  /* Départs : toute case de roche adjacente à une poche. */
+  for (let i = 0; i < CELLS; i++) {
+    if (!creusable(i)) continue;
+    const col = i % COLS;
+    const row = (i / COLS) | 0;
+    let touchePoche = false;
+    for (let dr = -1; dr <= 1 && !touchePoche; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (!dr && !dc) continue;
+        const c = col + dc;
+        const r = row + dr;
+        if (c < 0 || r < 0 || c >= COLS || r >= ROWS) continue;
+        const comp = composante[r * COLS + c];
+        if (comp >= 0 && comp !== principale) {
+          touchePoche = true;
+          break;
+        }
+      }
+    }
+    if (!touchePoche) continue;
+    vu[i] = 1;
+    file[queue++] = i;
+  }
+
+  while (tete < queue) {
+    const i = file[tete++];
+    const col = i % COLS;
+    const row = (i / COLS) | 0;
+    /* Cette case touche-t-elle la composante principale ? Alors le chemin
+       remonté depuis elle est le col le plus court. */
+    let touchePrincipale = false;
+    for (let dr = -1; dr <= 1 && !touchePrincipale; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (!dr && !dc) continue;
+        const c = col + dc;
+        const r = row + dr;
+        if (c < 0 || r < 0 || c >= COLS || r >= ROWS) continue;
+        if (composante[r * COLS + c] === principale) {
+          touchePrincipale = true;
+          break;
+        }
+      }
+    }
+    if (touchePrincipale) {
+      let cursor = i;
+      let garde = 0;
+      while (cursor >= 0 && garde++ < CELLS) {
+        terrain[cursor] = T.pente;
+        flags[cursor] |= CELL_PASSABLE;
+        cursor = venuDe[cursor];
+      }
+      return true;
+    }
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (!dr && !dc) continue;
+        const c = col + dc;
+        const r = row + dr;
+        if (c < 0 || r < 0 || c >= COLS || r >= ROWS) continue;
+        const j = r * COLS + c;
+        if (vu[j] === 1 || !creusable(j)) continue;
+        vu[j] = 1;
+        venuDe[j] = i;
+        file[queue++] = j;
+      }
+    }
+  }
+  return false;
+}
+
 function desenclaver(terrain: Uint8Array, flags: Uint16Array): void {
   const composante = new Int32Array(CELLS);
   const file = new Int32Array(CELLS);
@@ -254,13 +352,32 @@ function desenclaver(terrain: Uint8Array, flags: Uint16Array): void {
     }
 
     if (percees.size === 0) {
-      /* Plus aucune brèche d'une case : les poches restantes sont scellées. */
-      for (let i = 0; i < CELLS; i++) {
-        if ((flags[i] & CELL_PASSABLE) === 0 || composante[i] === principale) continue;
-        terrain[i] = terrain[i] === T.eau ? T.eau : T.falaise;
-        flags[i] &= ~(CELL_PASSABLE | CELL_BRIDGE | CELL_BUILDABLE);
+      /*
+       * Plus aucune brèche d'une case : on creuse un col.
+       *
+       * Cette branche scellait, et c'était tenable tant que les murs faisaient
+       * une case d'épaisseur — une poche ceinte d'un liséré a toujours une case
+       * qui touche les deux côtés. Depuis que les barrières de crête font trois
+       * cases de large, plus aucune n'en a : la poche entière était donc
+       * convertie en falaise, et l'on perdait la terre au lieu de l'ouvrir. Le
+       * symptôme s'est vu d'abord sur les tourbières, dont une part disparaissait
+       * du décompte sans raison apparente.
+       *
+       * On creuse donc : depuis chaque poche, la traversée la moins épaisse du
+       * mur jusqu'à la composante principale, par un parcours en largeur dans
+       * l'infranchissable. Un col taillé dans la roche, c'est-à-dire exactement
+       * ce que la montagne appelle un col — et ce que le lot 1.9 demande.
+       */
+      if (!creuserUnCol(terrain, flags, composante, principale)) {
+        /* Vraiment rien à creuser (poche cernée d'eau) : on scelle en dernier
+           recours, plutôt que de laisser un trésor inatteignable. */
+        for (let i = 0; i < CELLS; i++) {
+          if ((flags[i] & CELL_PASSABLE) === 0 || composante[i] === principale) continue;
+          terrain[i] = terrain[i] === T.eau ? T.eau : T.falaise;
+          flags[i] &= ~(CELL_PASSABLE | CELL_BRIDGE | CELL_BUILDABLE);
+        }
+        return;
       }
-      return;
     }
   }
 }
@@ -320,14 +437,10 @@ export function buildTerrain(): TerrainBuild {
     forceWalkable(terrain, flags, plot.at.col + 1, plot.at.row - 1);
   }
 
-  /*
-   * Les crêtes se murent, puis les brèches restantes se comblent — et les deux
-   * passes tombent AVANT le désenclavement, qui perce les cols dans les murs
-   * qu'on vient d'achever. Dans l'ordre inverse, on laisserait des poches
-   * scellées.
-   */
+  /* Les crêtes se murent AVANT le désenclavement, qui percera les cols dans les
+     murs qu'on vient d'achever. Dans l'ordre inverse, on laisserait des poches
+     scellées. */
   poserBarrieres(terrain, flags, barrieres);
-  fermerLesCretes(terrain, flags, elevation);
 
   normaliseFlags(terrain, flags);
   desenclaver(terrain, flags);

@@ -40,7 +40,7 @@
 import { CELL_BRIDGE, CELL_BUILDABLE, CELL_CACHE, CELL_PASSABLE, CELL_ROAD } from '@auvergne/engine';
 
 import { LIGNES_DE_CRETE } from './elevation.js';
-import { CELLS, COLS, ROWS, T, distToSegment2 } from './grid.js';
+import { CELLS, COLS, IntHeap, ROWS, T } from './grid.js';
 
 /**
  * Demi-largeur du mur, en cases.
@@ -73,6 +73,149 @@ const COLS_PAR_CRETE = 2;
  * impose à celui qui se trompe de col.
  */
 const ECART_COLS = 24;
+
+/**
+ * Les chaînes qui partagent le pays en zones.
+ *
+ * Les cinq crêtes d'`elevation.ts` ne suffisent pas, et la mesure le dit : murs
+ * posés, la coupe entre capitales tombait à neuf autour d'Arconsat mais restait
+ * de seize à dix-neuf ailleurs, pour une cible de six. La raison n'est pas
+ * algorithmique, elle est géographique : cinq lignes ne partagent pas un pays en
+ * sept zones, et trois d'entre elles passent par une capitale — Arconsat,
+ * Cervières et La Renaudie sont posées SUR leur crête, ce qui est fidèle (ce
+ * sont des villes de hauteur) mais perce le mur par construction.
+ *
+ * On ajoute donc des chaînes dont on ne donne que les DEUX BOUTS. Le tracé se
+ * fait par marche de crête : un plus-court-chemin qui paie le manque d'altitude,
+ * donc qui suit le faîte local d'un bout à l'autre. C'est ce qui les distingue
+ * d'un trait tiré à la règle — elles épousent le relief au lieu de le barrer, et
+ * l'on n'a pas à placer trente nœuds à la main pour cela.
+ *
+ * Ces chaînes ne touchent PAS le champ d'élévation, à la différence des crêtes
+ * d'`elevation.ts` qui le soulèvent. C'est un choix : soulever le terrain le
+ * long de quatre lignes de plus aurait redessiné tous les biomes de la carte —
+ * la classification lit l'altitude et la pente — et il n'y a aucune raison de
+ * payer ce prix pour poser un mur. Le pays garde son relief ; la roche affleure
+ * le long de son faîte, ce qui est exactement ce qu'elle fait dans la nature.
+ */
+interface ChaineDef {
+  key: string;
+  label: string;
+  de: { col: number; row: number };
+  a: { col: number; row: number };
+}
+
+const CHAINES: readonly ChaineDef[] = [
+  {
+    /* Ferme les Hauts d'Arconsat au sud : entre Chabreloche et les futaies,
+       jusqu'à rejoindre la ligne de partage des eaux. */
+    key: 'barre_nord',
+    label: 'la barre du Nord',
+    de: { col: 0, row: 32 },
+    a: { col: 61, row: 34 },
+  },
+  {
+    /* Ferme les Futaies de Viscomtat au nord ; la crête des Hautes-Futaies les
+       ferme déjà à l'est. */
+    key: 'barre_futaies_nord',
+    label: 'la barre des Futaies',
+    de: { col: 0, row: 57 },
+    a: { col: 33, row: 62 },
+  },
+  {
+    /* Et au sud, vers les hautes terres de Vollore. */
+    key: 'barre_futaies_sud',
+    label: 'la barre de Vollore',
+    de: { col: 0, row: 94 },
+    a: { col: 33, row: 88 },
+  },
+  {
+    /* Sépare la Châtellenie de Cervières du pays de Noirétable. */
+    key: 'barre_cervieres_sud',
+    label: 'la barre des Farges',
+    de: { col: 70, row: 73 },
+    a: { col: 112, row: 66 },
+  },
+  {
+    /* Sépare la Marche de La Renaudie de tout le reste. */
+    key: 'barre_marche',
+    label: 'la barre de la Marche',
+    de: { col: 0, row: 136 },
+    a: { col: 112, row: 128 },
+  },
+];
+
+/**
+ * Trace le faîte entre deux points : un plus-court-chemin qui paie le manque
+ * d'altitude.
+ *
+ * Le coût d'un pas est un plancher plus l'écart à l'altitude maximale du pays.
+ * Le chemin préfère donc le haut, tout en restant un chemin — il ne remonte pas
+ * indéfiniment chercher un sommet, parce que chaque pas coûte. Dijkstra, sans
+ * heuristique : la carte est petite et l'on veut le vrai optimum, pour que le
+ * tracé soit reproductible au pas près.
+ */
+function marcheDeCrete(
+  elevation: Int16Array,
+  de: { col: number; row: number },
+  a: { col: number; row: number },
+): number[] {
+  const depart = de.row * COLS + de.col;
+  const arrivee = a.row * COLS + a.col;
+  const cout = new Int32Array(CELLS).fill(0x7fffffff);
+  const venuDe = new Int32Array(CELLS).fill(-1);
+  const fait = new Uint8Array(CELLS);
+  const tas = new IntHeap(1 << 14);
+  cout[depart] = 0;
+  tas.push(0, depart);
+
+  while (tas.length > 0) {
+    const i = tas.pop();
+    if (i < 0) break;
+    if (fait[i] === 1) continue;
+    fait[i] = 1;
+    if (i === arrivee) break;
+    const col = i % COLS;
+    const row = (i / COLS) | 0;
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (!dc && !dr) continue;
+        const c = col + dc;
+        const r2 = row + dr;
+        if (c < 0 || r2 < 0 || c >= COLS || r2 >= ROWS) continue;
+        const j = r2 * COLS + c;
+        if (fait[j] === 1) continue;
+        /* Le plancher garde le tracé court ; l'écart à l'altitude maximale le
+           tient sur le faîte. La diagonale ne coûte pas plus : un mur en
+           diagonale est aussi étanche qu'un mur droit, dès lors qu'on l'épaissit
+           d'une case. */
+        const pas = PAS_CRETE + (ALTITUDE_REFERENCE - elevation[j]);
+        const total = cout[i] + (pas < 1 ? 1 : pas);
+        if (total >= cout[j]) continue;
+        cout[j] = total;
+        venuDe[j] = i;
+        tas.push(total, j);
+      }
+    }
+  }
+
+  if (venuDe[arrivee] < 0 && arrivee !== depart) return [];
+  const chemin: number[] = [];
+  let cursor = arrivee;
+  let garde = 0;
+  while (cursor >= 0 && garde++ < CELLS) {
+    chemin.push(cursor);
+    if (cursor === depart) break;
+    cursor = venuDe[cursor];
+  }
+  chemin.reverse();
+  return chemin;
+}
+
+/** Plancher du coût d'un pas de marche de crête. */
+const PAS_CRETE = 40;
+/** Altitude de référence : l'écart à ce plafond est ce qu'on paie. */
+const ALTITUDE_REFERENCE = 1265;
 
 /** Un col : le point bas d'une crête, par lequel on passe. */
 export interface ColDeCrete {
@@ -156,31 +299,27 @@ export function masqueBarrieres(elevation: Int16Array, protege: Uint8Array): Mas
   const mur = new Uint8Array(CELLS);
   const cols: ColDeCrete[] = [];
 
-  for (const ligne of LIGNES_DE_CRETE) {
-    const axe = axeDe(ligne.nodes);
-    const retenus = colsDe(axe, elevation);
-    for (const i of retenus) {
+  for (const { key, label, axe } of axesDesBarrieres(elevation)) {
+    for (const i of colsDe(axe, elevation)) {
       cols.push({
-        crete: ligne.key,
-        label: ligne.label,
+        crete: key,
+        label,
         col: i % COLS,
         row: (i / COLS) | 0,
         altitude: elevation[i],
       });
     }
-
-    const nodes = ligne.nodes;
-    for (let s = 0; s + 1 < nodes.length; s++) {
-      const a = nodes[s];
-      const b = nodes[s + 1];
-      const minCol = Math.max(0, Math.min(a.col, b.col) - RAYON_MUR);
-      const maxCol = Math.min(COLS - 1, Math.max(a.col, b.col) + RAYON_MUR);
-      const minRow = Math.max(0, Math.min(a.row, b.row) - RAYON_MUR);
-      const maxRow = Math.min(ROWS - 1, Math.max(a.row, b.row) + RAYON_MUR);
-      for (let row = minRow; row <= maxRow; row++) {
-        for (let col = minCol; col <= maxCol; col++) {
-          if (distToSegment2(col, row, a.col, a.row, b.col, b.row) > RAYON_MUR * RAYON_MUR) continue;
-          mur[row * COLS + col] = 1;
+    /* Le mur est l'axe dilaté d'une case : trois de large, connexe par les
+       côtés, donc étanche au déplacement diagonal. */
+    for (const i of axe) {
+      const col = i % COLS;
+      const row = (i / COLS) | 0;
+      for (let dr = -RAYON_MUR; dr <= RAYON_MUR; dr++) {
+        for (let dc = -RAYON_MUR; dc <= RAYON_MUR; dc++) {
+          const c = col + dc;
+          const r2 = row + dr;
+          if (c < 0 || r2 < 0 || c >= COLS || r2 >= ROWS) continue;
+          mur[r2 * COLS + c] = 1;
         }
       }
     }
@@ -201,6 +340,45 @@ export function masqueBarrieres(elevation: Int16Array, protege: Uint8Array): Mas
   for (let i = 0; i < CELLS; i++) if (protege[i] === 1) mur[i] = 0;
 
   return { mur, cols };
+}
+
+/** Un axe de barrière : la ligne de faîte à murer, case par case. */
+interface AxeBarriere {
+  key: string;
+  label: string;
+  axe: number[];
+}
+
+/**
+ * Tous les axes à murer : les crêtes du relief, puis les chaînes de partage.
+ *
+ * Le résultat est mis en cache — la géographie ne change jamais, et les marches
+ * de crête sont cinq Dijkstra sur vingt mille cases qu'il n'y a aucune raison de
+ * refaire à chaque appel.
+ */
+let axesCache: AxeBarriere[] | null = null;
+
+function axesDesBarrieres(elevation: Int16Array): AxeBarriere[] {
+  if (axesCache) return axesCache;
+  const out: AxeBarriere[] = LIGNES_DE_CRETE.map((ligne) => ({
+    key: ligne.key,
+    label: ligne.label,
+    axe: axeDe(ligne.nodes),
+  }));
+  for (const chaine of CHAINES) {
+    out.push({
+      key: chaine.key,
+      label: chaine.label,
+      axe: marcheDeCrete(elevation, chaine.de, chaine.a),
+    });
+  }
+  axesCache = out;
+  return out;
+}
+
+/** Réinitialise le cache des axes. Réservé aux tests et aux mesures. */
+export function resetBarrieresCache(): void {
+  axesCache = null;
 }
 
 /** L'état d'un mur, une fois le terrain définitif. */
@@ -232,19 +410,23 @@ export interface MurMesure {
  * de la ligne de partage des eaux. Un mur dont une route suit l'arête n'est pas
  * un mur, et aucun compte de cases posées ne l'aurait avoué.
  */
-export function integriteDesMurs(terrain: Uint8Array, flags: Uint16Array): MurMesure[] {
+export function integriteDesMurs(
+  terrain: Uint8Array,
+  flags: Uint16Array,
+  elevation: Int16Array,
+): MurMesure[] {
   const franchissable = (c: number): boolean => c !== T.eau && c !== T.falaise && c !== T.rocher;
-  return LIGNES_DE_CRETE.map((ligne) => {
+  return axesDesBarrieres(elevation).map(({ key, label, axe }) => {
     const m: MurMesure = {
-      crete: ligne.key,
-      label: ligne.label,
+      crete: key,
+      label,
       axe: 0,
       mur: 0,
       trousVoie: 0,
       trousEau: 0,
       trousAutres: 0,
     };
-    for (const i of axeDe(ligne.nodes)) {
+    for (const i of axe) {
       m.axe++;
       if (!franchissable(terrain[i])) {
         m.mur++;

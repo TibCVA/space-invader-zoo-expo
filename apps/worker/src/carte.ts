@@ -49,7 +49,15 @@
  * pas une porte de qualité. Le jour où la carte aura été densifiée, les seuils
  * deviendront des assertions dans `packages/map/src/objects.test.ts`.
  */
-import { buildWorld, COLS, ROWS, START_POSITIONS, integriteDesMurs, type MurMesure } from '@auvergne/map';
+import {
+  buildTerrain,
+  buildWorld,
+  COLS,
+  ROWS,
+  START_POSITIONS,
+  integriteDesMurs,
+  type MurMesure,
+} from '@auvergne/map';
 import { coupesEntreCapitales, type CoupeEntreCapitales } from './coupe.js';
 import {
   BASE_MOVEMENT,
@@ -437,7 +445,13 @@ export function mesurer(graine: number): Rapport {
        les sérialisations ; ici il est bien un `Uint8Array`. */
     /* `WorldMap` déclare ses tableaux en unions pour les sérialisations ; ici
        ce sont bien un `Uint8Array` et un `Uint16Array`. */
-    murs: integriteDesMurs(Uint8Array.from(w.terrain), Uint16Array.from(w.flags)),
+    /* `WorldMap` déclare ses tableaux en unions pour les sérialisations, et ne
+       porte pas l'élévation : on la reprend au terrain fixe, qui est le même. */
+    murs: integriteDesMurs(
+      Uint8Array.from(w.terrain),
+      Uint16Array.from(w.flags),
+      buildTerrain().elevation,
+    ),
     composantes,
     gardes,
     gardesBloquants,
