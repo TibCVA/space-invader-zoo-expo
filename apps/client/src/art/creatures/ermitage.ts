@@ -544,8 +544,12 @@ function loupPieces(k: Kit, brumes: boolean): PieceDef[] {
         const x = L * (-0.42 + t * 0.76);
         /* Cloche centrée au garrot, à peu près aux trois quarts de l'échine. */
         const cloche = Math.sin(Math.PI * Math.min(1, Math.max(0, (t + 0.18) / 1.18)));
-        const haut = Hs * (0.34 + 0.3 * cloche * cloche);
-        poser(g, kk, fuseau(x, -Hs * 0.28, x - L * 0.028, -haut, Hs * (0.1 + 0.06 * cloche), { seed: i + 3, taper: 0.5 }), {
+        /* Une CRINIÈRE, pas une crête de lézard : mesurée sur capture, la
+           première version montait à la moitié de la hauteur du garrot et
+           rendait un dos d'iguane. On l'abaisse, on l'élargit, et les touffes se
+           recouvrent — c'est le recouvrement qui fait le poil. */
+        const haut = Hs * (0.3 + 0.16 * cloche * cloche);
+        poser(g, kk, fuseau(x, -Hs * 0.26, x - L * 0.02, -haut, Hs * (0.15 + 0.07 * cloche), { seed: i + 3, taper: 0.72 }), {
           couleur: i % 2 ? eclaircir(poil, 0.24) : assombrir(poil, 0.24),
           matiere: 'fourrure',
           matiereAlpha: 0.3,
@@ -773,18 +777,61 @@ function ramure(g: Graphics, k: Kit, S: number, miraculeux: boolean, seed: numbe
       const bx = cote * S * 0.5 + Math.cos(a) * S * 1.1;
       const by = S * 0.2 + Math.sin(a) * S * 1.35;
       const len = S * (0.4 + (1 - t) * 0.5);
-      poser(g, k, fuseau(bx, by, bx + cote * len * 0.5, by - len, S * 0.14, { seed: i + seed, taper: 0.62 }), {
+      /*
+       * Les andouillers en ÉVENTAIL, et refourchés en haut.
+       *
+       * Ils partaient tous dans la même direction — un demi vers l'extérieur,
+       * un vers le haut — donc parallèles : sur la planche de contact, les deux
+       * cerfs portaient un râteau de jardin. Une ramure ne fait pas cela. Ses
+       * andouillers s'ouvrent progressivement, le premier vers l'avant, le
+       * dernier vers l'arrière, et les hauts se refourchent. C'est le seul de
+       * ces trois traits qu'on ne peut pas économiser : sans fourche, une pointe
+       * reste un piquet.
+       */
+      const phi = -Math.PI / 2 + cote * (0.62 - t * 1.24);
+      const tx = bx + Math.cos(phi) * len;
+      const ty = by + Math.sin(phi) * len;
+      poser(g, k, fuseau(bx, by, tx, ty, S * 0.14, { seed: i + seed, taper: 0.62 }), {
         couleur: i % 2 ? eclaircir(bois, 0.2) : bois,
         matiere: 'ecorce',
         matiereAlpha: 0.24,
         echelle: 0.28,
       });
+      if (i >= n - 2) {
+        /* La fourche part aux deux tiers de l'andouiller, vers l'extérieur. */
+        const fx = bx + Math.cos(phi) * len * 0.64;
+        const fy = by + Math.sin(phi) * len * 0.64;
+        const psi = phi + cote * 0.62;
+        poser(
+          g,
+          k,
+          fuseau(fx, fy, fx + Math.cos(psi) * len * 0.56, fy + Math.sin(psi) * len * 0.56, S * 0.1, {
+            seed: i + seed + 31,
+            taper: 0.6,
+          }),
+          { couleur: eclaircir(bois, 0.12), matiere: 'ecorce', matiereAlpha: 0.24, echelle: 0.26 },
+        );
+      }
       if (!miraculeux) {
-        // gouttes d'eau claire des sept vallons
-        g.poly(flat(blob(bx + cote * len * 0.5, by - len + S * 0.06, S * 0.06, S * 0.08, { seed: i * 3 + 5, points: 10, wobble: 0.22 }))).fill({
+        // gouttes d'eau claire des sept vallons, suspendues sous la pointe
+        g.poly(flat(blob(tx, ty + S * 0.08, S * 0.06, S * 0.08, { seed: i * 3 + 5, points: 10, wobble: 0.22 }))).fill({
           color: melanger(BRUME, LIGHT.chaude, 0.3),
           alpha: 0.66,
         });
+      }
+      /* Un peu de mousse sur le bois : la ramure du cerf des sources en porte,
+         et c'est ce qui la rattache au pays plutôt qu'à un trophée. */
+      for (let m = 0; m < 2; m += 1) {
+        const u = 0.3 + m * 0.34;
+        g.poly(
+          flat(
+            blob(bx + Math.cos(phi) * len * u, by + Math.sin(phi) * len * u, S * 0.05, S * 0.04, {
+              seed: i * 5 + m + 3,
+              points: 9,
+              wobble: 0.34,
+            }),
+          ),
+        ).fill({ color: melanger(SAUGE, MOUSSE, 0.4 + m * 0.2), alpha: 0.6 });
       }
     }
   }

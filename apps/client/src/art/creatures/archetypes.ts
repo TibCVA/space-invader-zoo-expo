@@ -2037,6 +2037,24 @@ export function squeletteQuadrupede(o: QuadrupedeOptions): PieceDef[] {
     },
   });
 
+  /*
+   * QUATRE pattes, pas deux.
+   *
+   * `clipsQuadrupede` anime `patte_ag`, `patte_ad`, `patte_pg` et `patte_pd`
+   * depuis toujours — c'est écrit dans son propre contrat quelques lignes plus
+   * haut — mais le squelette n'en posait que deux, celles du côté proche.
+   * Chaque ligne d'animation visant une patte du fond était donc gardée par
+   * `si(rig, …)` et ne trouvait rien : tous les quadrupèdes du jeu, loups,
+   * sangliers et cerfs, marchaient sur deux pattes. Vu sur la planche de contact
+   * une fois les bêtes affichées à taille lisible, un cerf ressemblait à une
+   * masse posée sur deux piquets.
+   *
+   * Les pattes du fond sont poussées EN PREMIER, donc peintes derrière tout le
+   * reste, décalées d'un peu et assombries : c'est la perspective d'un animal vu
+   * de flanc, où l'on aperçoit les deux pattes opposées entre les proches.
+   */
+  pieces.push(jambe('patte_ag', L * 0.22, Hs * 0.88, Hs * 0.12, -1));
+  pieces.push(jambe('patte_pg', -L * 0.38, Hs * 0.86, Hs * 0.14, -1));
   pieces.push(jambe('patte_ad', L * 0.3, Hs * 0.92, Hs * 0.14, 1));
   pieces.push(jambe('patte_pd', -L * 0.3, Hs * 0.9, Hs * 0.16, 1));
 
