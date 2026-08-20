@@ -185,6 +185,16 @@ export function chargerPartie(chargement: ChargementPartie): void {
     revision: etat.revision + 1,
   };
   notifier();
+
+  /*
+   * Une sauvegarde peut avoir été prise pendant qu'une bannière de
+   * l'ordinateur avait la main — on ferme l'onglet, la boucle s'arrête là.
+   * Sans ce rappel, rouvrir cette partie la retrouverait figée exactement au
+   * même endroit, et pour de bon. `installerPartieEnLigne` rebranche le relais
+   * juste après, ce qui coupe court : la garde du relais est relue à
+   * l'intérieur.
+   */
+  void deroulerIaLocale();
 }
 
 /**
@@ -286,7 +296,134 @@ export function dispatch(command: Command): DispatchResult {
      plusieurs jours d'intervalle la latence ne se voit pas. */
   relaisDeCommande?.(command);
 
+  /* Partie locale : les bannières confiées à l'ordinateur n'ont personne pour
+     les jouer. On les déroule ici, sans attendre — voir `deroulerIaLocale`. */
+  void deroulerIaLocale();
+
   return { ok: true, events: resultat.events };
+}
+
+/* ────────────────────────── Les tours de l'ordinateur ───────────────────── */
+
+/**
+ * QUI JOUE LES BANNIÈRES DE L'ORDINATEUR DANS UNE PARTIE LOCALE.
+ *
+ * **Le défaut.** « Nouvelle partie » monte une partie entièrement locale :
+ * `demarrerPartie` appelle `createGame` dans le navigateur et n'envoie rien au
+ * serveur. Or le serveur est le seul endroit du dépôt qui déroulait l'IA
+ * (`deroulerIa`, dans `routes/parties.ts`) — et il n'est pas dans la boucle
+ * d'une partie locale. Le client, lui, n'importait même pas `@auvergne/bots`.
+ *
+ * Résultat mesuré dans un vrai navigateur : on rend la main, la bannière de
+ * l'ordinateur prend le tour, et l'écran reste sur « La main est à Maison
+ * de… » **pour toujours**. Le chemin le plus naturel depuis l'accueil ne
+ * dépassait pas le premier tour.
+ *
+ * **La forme du correctif.** On imite le serveur, y compris son garde-fou et
+ * son cas « l'IA n'a rien à jouer » — sans quoi une bannière sans coup
+ * possible immobiliserait la partie sur elle. Trois différences tiennent au
+ * navigateur :
+ *
+ *  - `@auvergne/bots` est importé **paresseusement**. Il ne pèse sur le
+ *    premier chargement d'aucun joueur en ligne, qui n'en a pas besoin ;
+ *  - on rend la main au navigateur entre deux tours, faute de quoi la carte
+ *    ne se repeint pas et le joueur voit un écran figé au lieu de voir la
+ *    journée avancer ;
+ *  - un verrou empêche deux déroulés simultanés : `dispatch` peut être appelé
+ *    de nouveau pendant qu'on attend une image.
+ */
+
+/** Au plus autant de tours d'IA enchaînés après un coup humain. */
+const MAX_TOURS_IA_LOCAUX = 8;
+
+let iaEnCours = false;
+
+/** Rend la main au navigateur pour qu'il repeigne entre deux tours d'IA. */
+function respirer(): Promise<void> {
+  return new Promise((resoudre) => {
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => resoudre());
+    else setTimeout(resoudre, 16);
+  });
+}
+
+/** Vrai si cette bannière est tenue par l'ordinateur. */
+function estConfieeAlIa(setup: GameSetup | null, id: PlayerId): boolean {
+  return setup?.players.find((p) => p.id === id)?.kind === 'ia';
+}
+
+/**
+ * Déroule les tours de l'ordinateur tant que la main lui appartient.
+ *
+ * Ne fait rien en ligne (le serveur s'en charge et reste seul juge) ni en
+ * démonstration (dont les captures doivent rester reproductibles).
+ */
+export async function deroulerIaLocale(): Promise<void> {
+  if (iaEnCours || relaisDeCommande !== null || etat.demo) return;
+  if (!etat.game || !etat.world || !etat.setup) return;
+  if (!estConfieeAlIa(etat.setup, etat.game.activePlayer)) return;
+
+  iaEnCours = true;
+  try {
+    const { runBotTurn } = await import('@auvergne/bots');
+    for (let garde = 0; garde < MAX_TOURS_IA_LOCAUX; garde += 1) {
+      /*
+       * Le relais est relu à CHAQUE tour, et pas seulement à l'entrée.
+       * `chargerPartie` le met à `null` avant qu'`installerPartieEnLigne` ne le
+       * rebranche : entre les deux, une partie en ligne se présente comme
+       * locale. L'attente de l'import laisse passer cet instant, et sans cette
+       * relecture le navigateur jouerait lui-même les bannières d'IA d'une
+       * partie dont le serveur est seul juge.
+       */
+      if (relaisDeCommande !== null || etat.demo) return;
+      const { game, world, setup } = etat;
+      if (!game || !world || !setup) return;
+      if (game.phase === 'termine') return;
+      const actif = game.activePlayer;
+      if (!estConfieeAlIa(setup, actif)) return;
+
+      let suivant: GameState;
+      let evenements: GameEvent[];
+      try {
+        const tour = runBotTurn(game, world, actif);
+        if (tour.commands.length === 0) {
+          /* Une IA qui n'a rien à jouer doit tout de même passer la main, sans
+             quoi la partie s'immobiliserait sur sa bannière. */
+          const fin = applyCommand(game, { type: 'EndTurn' }, world);
+          if (!fin.ok) return;
+          suivant = fin.state;
+          evenements = fin.events;
+        } else {
+          suivant = tour.state;
+          evenements = tour.events;
+        }
+      } catch {
+        /*
+         * Une IA qui tombe ne doit pas emporter la partie avec elle : on lui
+         * fait passer la main et le joueur continue de jouer. Se taire ici
+         * serait pire que le défaut d'origine — la partie se figerait, mais
+         * sans trace.
+         */
+        const fin = applyCommand(game, { type: 'EndTurn' }, world);
+        if (!fin.ok) return;
+        suivant = fin.state;
+        evenements = fin.events;
+        poser({ notice: 'Une bannière de l’ordinateur a passé son tour.' });
+      }
+
+      const maintenant = typeof performance === 'undefined' ? Date.now() : performance.now();
+      poser({
+        game: suivant,
+        queue: [
+          ...etat.queue,
+          ...evenements.map((event) => ({ id: prochainEvenement++, event, at: maintenant })),
+        ],
+      });
+      planifierSauvegarde();
+      await respirer();
+    }
+  } finally {
+    iaEnCours = false;
+  }
 }
 
 /* ───────────────────────── Sélection et chemin ──────────────────────────── */
