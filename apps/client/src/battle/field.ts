@@ -221,6 +221,22 @@ const FOND_PEINT: Readonly<Record<Ambiance, string | null>> = {
  */
 const ALPHA_FOND_PEINT = 0.78;
 
+/**
+ * Les panoramas livrés qu'aucune ambiance n'emploie, et POURQUOI.
+ *
+ * Cette table est un AVEU, pas un réglage : chaque ligne coûte une image payée
+ * et non affichée. Deux tests la lisent — celui de ce module et la garde
+ * générale du manifeste (`art/manifeste.test.ts`) — et c'est le seul endroit où
+ * une image livrée peut être déclarée inemployée. Elle doit rester courte, et
+ * vide si possible.
+ */
+export const PANORAMAS_INEMPLOYES: Readonly<Record<string, string>> = {
+  combat_pont:
+    "il faudrait que le moteur dise qu'on se bat sur un franchissement. `CombatState` " +
+    'ne porte que le terrain, la région, la météo et le drapeau de siège — aucune ' +
+    'coordonnée de carte, donc aucun moyen de savoir qu’on est sur un pont ou un gué.',
+};
+
 /** La clef de panorama d'une ambiance, ou `null` si elle n'en a pas. */
 export function fondPeintDe(ambiance: Ambiance): string | null {
   return FOND_PEINT[ambiance];

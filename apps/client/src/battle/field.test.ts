@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TERRAINS } from '@auvergne/engine';
 
-import { AMBIANCE_LABELS, PALETTES_SOL, ambianceDe, fondPeintDe } from './field.js';
+import { AMBIANCE_LABELS, PALETTES_SOL, PANORAMAS_INEMPLOYES, ambianceDe, fondPeintDe } from './field.js';
 import type { Ambiance } from './field.js';
 
 /**
@@ -40,18 +40,6 @@ function manifeste(): EntreeBrute[] {
 }
 
 const AMBIANCES: readonly Ambiance[] = ['sapiniere', 'prairie', 'lande', 'rocher', 'humide', 'cour'];
-
-/**
- * Les panoramas livrés qu'aucune ambiance n'emploie, et POURQUOI.
- *
- * Cette liste est un aveu, pas un réglage : chaque ligne coûte une image payée
- * et non affichée. Elle doit rester courte, et vide si possible.
- */
-const PANORAMAS_INEMPLOYES: Readonly<Record<string, string>> = {
-  combat_pont:
-    "il faudrait que le moteur dise qu'on se bat sur un franchissement ; `ambianceDe` " +
-    'ne reçoit que la région, le terrain et le drapeau de siège',
-};
 
 describe('les ambiances du champ de bataille', () => {
   it('existe de bout en bout pour chacune : libellé, palette, pinceau', () => {
