@@ -366,7 +366,14 @@ du contenu — une chaîne de plus — non un réglage.
 
 ### P1 — la fidélité visuelle
 
-**P1.5 — Lot 2.2 : rampes du champ de bataille + soleil de l'atlas.**
+**P1.5 — Lot 2.2 : rampes du champ + soleil de l'atlas. ✅ FAIT, et les lignes
+de l'audit ci-dessus sont périmées.** Les rampes du sol sont tenues par
+`apps/client/src/battle/rampes.test.ts` (luminance moyenne ≥ 95, mesurée sur la
+rampe complète), et l'angle d'éclairage est tenu par `art.test.ts > loi n°2`, qui
+ne vérifie pas « 45 » mais que l'angle SE DÉDUIT du soleil déclaré et qu'aucun
+fichier d'art n'en passe plus en dur.
+
+*Ancien libellé, conservé pour mémoire :*
 `apps/client/src/battle/field.ts` : le sol a perdu 19 points de luminance et
 4 de saturation depuis que les dégradés peignent réellement — ré-étalonner
 les rampes contre une capture. `apps/client/src/art/shading.ts:419` :
@@ -414,7 +421,27 @@ corriger cela seul, recapturer.
 
 ### P2 — l'endgame
 
-**P2.8 — Simulation d'équilibrage (3.1).** Après P0.1 : `pnpm sim`
+**P2.8 — Simulation d'équilibrage (3.1). Les deux cibles chiffrées sont
+TENUES**, et la troisième inquiétude était un artefact de mesure.
+
+- *Expert contre prudent :* 13/20 sur les graines du test, **43/60 sur soixante
+  graines, soit 71,7 %** — dans la fourchette 60-85 % des plans. Le 65 % qu'on
+  lisait était un artefact d'échantillon : sur vingt parties, l'écart-type
+  binomial vaut deux parties entières.
+- *Durée médiane :* la cible est « ≥ 6 semaines » et l'on en est à **132 jours de
+  médiane**, soit dix-neuf semaines. C'est un minimum, pas un maximum : rien à
+  corriger de ce côté.
+- *« La moitié des parties ne conclut pas » :* faux, et c'est le plafond de tours
+  du harnais qui le faisait croire. À 700 tours au lieu de 320, **huit parties
+  sur dix se règlent par conquête**. Le plafond existe pour tenir le duel sous
+  son propre délai, pas pour mesurer le jeu.
+
+*Ce qui reste, et c'est étroit :* deux parties sur dix ne se tranchent pas même
+en trois cent cinquante jours. C'est là qu'il faut regarder — et nulle part
+ailleurs. Reste aussi le taux de victoire par capitale en partie à cinq, jamais
+mesuré (cible 18 à 22 % chacune, document maître §20.3).
+
+*Ancien libellé, conservé pour mémoire :* Après P0.1 : `pnpm sim`
 20 parties × 3 graines ; ajuster revenus/coûts/croissance jusqu'aux cibles
 (durée médiane ≥ 6 semaines ; win-rates par capitale dans une fourchette
 raisonnable ; expert vs prudent 60-85 %).

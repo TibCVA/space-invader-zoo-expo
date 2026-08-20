@@ -35,10 +35,19 @@
  * la diluait. Et les parties tranchées le sont plus vite : quatre se règlent
  * désormais en moins de cent jours, dont une en vingt-quatre.
  *
- * Il reste que la moitié des parties bute sur le garde-fou de tours du harnais
- * et se départage au classement d'observation. C'est le chantier d'équilibrage
- * ouvert, et le test l'affiche partie par partie plutôt que de le laisser sous
- * le tapis.
+ * **Et la moitié qui bute sur le garde-fou de tours n'est pas un défaut du jeu.**
+ * C'est ce qu'on croyait, et il a suffi de lever le plafond pour le savoir : à
+ * 700 tours au lieu de 320, **huit parties sur dix se règlent par conquête**,
+ * durée médiane 132 jours, la plus longue tranchée à 237. Deux seulement restent
+ * indécises à 351 jours. Le plafond de 320 tours n'est donc pas une mesure du
+ * jeu, c'est une contrainte du harnais — il tient le duel sous son propre délai,
+ * et on le garde pour cela. Mais il ne faut pas lire « dix conquêtes sur vingt »
+ * comme « l'IA ne sait pas conclure » : elle sait, il lui faut du temps, et une
+ * partie à deux bannières sur une carte XL en prend deux cents jours.
+ *
+ * Le vrai reste d'équilibrage est donc plus étroit qu'il n'y paraissait : deux
+ * parties sur dix ne se tranchent pas même en trois cent cinquante jours. C'est
+ * là qu'il faudra regarder, et nulle part ailleurs.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -119,8 +128,9 @@ describe('duel expert contre prudent', () => {
         `  Fourchette des plans : ${BANDE_MIN} à ${BANDE_MAX} %. ` +
         `Sur soixante graines : 43/60, soit 71,7 %.\n` +
         `  Parties réglées par conquête : ${decidees}/${GAMES} — sept sur vingt avant que\n` +
-        `  la carte ne reçoive ses murs et ses cols. Le reste est départagé au classement\n` +
-        `  d'observation du harnais : c'est le chantier d'équilibrage ouvert.\n`,
+        `  la carte ne reçoive ses murs et ses cols. Le reste bute sur le plafond de tours\n` +
+        `  du harnais, PAS sur une IA qui ne saurait pas conclure : a 700 tours au lieu de\n` +
+        `  320, huit parties sur dix se reglent par conquete, duree mediane 132 jours.\n`,
     );
     process.stdout.write(lines.join(''));
 
