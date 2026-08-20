@@ -22,9 +22,11 @@ import {
   type CSSProperties,
   type ReactElement,
 } from 'react';
+import { MAP_COLS, MAP_ROWS } from '@auvergne/engine';
 import type { FactionId, GameSetup, HeroId, PlayerId } from '@auvergne/engine';
 import { CONTENT_VERSION, FACTIONS, HEROES, heroesOf } from '@auvergne/content';
 import {
+  CELL_HEIGHT_M,
   EXPOSITION_DEPART,
   MAP_VERSION,
   START_KEYS,
@@ -234,9 +236,19 @@ function CarteDepart({ drafts }: MiniProps): ReactElement {
           </>
         ) : null}
       </div>
+      {/*
+        Les dimensions se LISENT dans le moteur, elles ne se recopient pas.
+        Cette phrase annonçait « 256 × 416 cases, environ 48 mètres par case »
+        alors que la carte a été ramenée à la taille d'une très grande de HMM3 —
+        113 × 184 — à la demande du propriétaire : « je veux la taille max de
+        HMM3 mais pas plus ». Un chiffre recopié à la main finit toujours par
+        mentir, et celui-là mentait sur la seule chose que le joueur peut
+        vérifier d'un coup d'œil sur la vignette.
+      */}
       <p className="hmm-acc-carte-legende">
-        Massif des Bois Noirs — 256 × 416 cases, environ 48 mètres par case. Le coffre marque la Maison du
-        Trésor.
+        Massif des Bois Noirs — {MAP_COLS} × {MAP_ROWS} cases, environ{' '}
+        {Math.round(CELL_HEIGHT_M)} mètres par case, soit l'aire d'une très grande carte de
+        HMM3. Le coffre marque la Maison du Trésor.
       </p>
     </div>
   );
