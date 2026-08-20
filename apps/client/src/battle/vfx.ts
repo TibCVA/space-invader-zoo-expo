@@ -56,6 +56,38 @@ export class Secousse {
 
 /* ═════════════════════════════ La couche ═════════════════════════════════ */
 
+/**
+ * Les quatre natures de trait, et ce qui les distingue en vol.
+ *
+ * `arc` est la part de la portée reprise en hauteur de courbe, `traine` la
+ * fraction de vol que la traînée laisse voir derrière la tête, `fer` teinte le
+ * trait vers l'acier plutôt que vers le bois.
+ */
+export type NatureTrait = 'carreau' | 'fleche' | 'pierre' | 'trait';
+
+interface Trait {
+  arc: number;
+  arcMax: number;
+  traine: number;
+  epaisseur: number;
+  tete: number;
+  aplati: number;
+  empenne: boolean;
+  fer: boolean;
+}
+
+/** La table des natures, exposée pour que les tests puissent la lire. */
+export const TRAITS_LISIBLES: Readonly<Record<NatureTrait, Trait>> = {
+  /* Le carreau d'arbalète : tendu, presque droit, court et lourd de fer. */
+  carreau: { arc: 0.07, arcMax: 22, traine: 0.09, epaisseur: 3.2, tete: 2.4, aplati: 0.7, empenne: false, fer: true },
+  /* La flèche de chasse : longue courbe, hampe fine, empennage visible. */
+  fleche: { arc: 0.2, arcMax: 62, traine: 0.16, epaisseur: 2.2, tete: 2.2, aplati: 0.55, empenne: true, fer: false },
+  /* La pierre de fronde ou de tour : monte haut, retombe, masse ronde. */
+  pierre: { arc: 0.34, arcMax: 96, traine: 0.06, epaisseur: 2, tete: 4.2, aplati: 1, empenne: false, fer: false },
+  /* Tout le reste : un jet quelconque, celui d'avant. */
+  trait: { arc: 0.22, arcMax: 70, traine: 0.12, epaisseur: 2.6, tete: 2.6, aplati: 0.77, empenne: false, fer: false },
+};
+
 export class CoucheVfx {
   readonly container = new Container();
   readonly secousse = new Secousse();
@@ -216,29 +248,44 @@ export class CoucheVfx {
 
   /* ────────────────────────────── Traits ───────────────────────────────── */
 
-  /** Trait de projectile : flèche, carreau ou bloc de pierre, avec sa traîne. */
+  /**
+   * Trait de projectile.
+   *
+   * Le commentaire annonçait « flèche, carreau ou bloc de pierre » et une
+   * seule géométrie était dessinée, avec une teinte codée en dur à l'appel :
+   * l'arbalétrier des Farges, le veneur sylvestre et une tour de siège
+   * lançaient rigoureusement le même trait brun. Chaque nature a maintenant sa
+   * ligne de vol, son épaisseur et sa tête, parce que c'est à cela qu'on
+   * reconnaît qui tire — un carreau file droit, une flèche décrit sa courbe,
+   * une pierre monte et retombe.
+   */
   projectile(
     depuis: { x: number; y: number },
     vers: { x: number; y: number },
     duree = 0.34,
     teinte: number = PALETTE.brunFougere,
+    nature: NatureTrait = 'trait',
   ): void {
     const g = new Graphics();
     g.zIndex = 45;
     this.container.addChild(g);
     const dx = vers.x - depuis.x;
     const dy = vers.y - depuis.y;
-    const arc = Math.min(70, Math.hypot(dx, dy) * 0.22);
-    this.pousser(g, duree, (noeud, t) => {
+    const portee = Math.hypot(dx, dy);
+    const t = TRAITS_LISIBLES[nature];
+    const arc = Math.min(t.arcMax, portee * t.arc);
+    const teinteTrait = t.fer ? melanger(teinte, PALETTE.granitClair, 0.55) : teinte;
+    this.pousser(g, duree, (noeud, u) => {
       const gg = noeud as Graphics;
       gg.clear();
-      const x = depuis.x + dx * t;
-      const y = depuis.y + dy * t - Math.sin(Math.PI * t) * arc;
-      const xp = depuis.x + dx * Math.max(0, t - 0.12);
-      const yp = depuis.y + dy * Math.max(0, t - 0.12) - Math.sin(Math.PI * Math.max(0, t - 0.12)) * arc;
+      const x = depuis.x + dx * u;
+      const y = depuis.y + dy * u - Math.sin(Math.PI * u) * arc;
+      const uq = Math.max(0, u - t.traine);
+      const xp = depuis.x + dx * uq;
+      const yp = depuis.y + dy * uq - Math.sin(Math.PI * uq) * arc;
       gg.moveTo(xp, yp).lineTo(x, y).stroke({
-        color: melanger(teinte, LIGHT.chaude, 0.3),
-        width: 2.6,
+        color: melanger(teinteTrait, LIGHT.chaude, 0.3),
+        width: t.epaisseur,
         alpha: 0.9,
         cap: 'round',
       });
@@ -248,10 +295,21 @@ export class CoucheVfx {
         alpha: LIGHT.rimAlpha + 0.25,
         cap: 'round',
       });
-      gg.poly(flat(blob(x, y, 2.6, 2, { seed: 3, points: 8, wobble: 0.3 }))).fill({
-        color: eclaircir(teinte, 0.5),
+      // La tête : pointe fine pour un carreau, masse ronde pour une pierre.
+      gg.poly(flat(blob(x, y, t.tete, t.tete * t.aplati, { seed: 3, points: 8, wobble: 0.3 }))).fill({
+        color: eclaircir(teinteTrait, 0.5),
         alpha: 0.95,
       });
+      // L'empennage d'une flèche : deux barbes en arrière de la hampe.
+      if (t.empenne && portee > 1) {
+        const nx = dx / portee;
+        const ny = dy / portee;
+        for (const s of [-1, 1]) {
+          gg.moveTo(xp, yp);
+          gg.lineTo(xp - nx * 4 + ny * 2.6 * s, yp - ny * 4 - nx * 2.6 * s);
+        }
+        gg.stroke({ color: eclaircir(teinteTrait, 0.35), width: 1.2, alpha: 0.8, cap: 'round' });
+      }
     });
   }
 

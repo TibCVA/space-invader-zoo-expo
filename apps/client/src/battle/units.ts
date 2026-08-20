@@ -72,6 +72,8 @@ const GEL_DES_GREEMENTS = false;
 export class PileVue {
   readonly container = new Container();
   readonly rig: CreatureRig;
+  /** Identifiant de la créature : le trait qu'elle lance en dépend. */
+  readonly creature: string;
 
   /** position affichée, en pixels du plateau (espace non étiré) */
   readonly pos = { x: 0, y: 0 };
@@ -111,6 +113,7 @@ export class PileVue {
   ) {
     this.uid = unit.uid;
     this.side = unit.side;
+    this.creature = unit.creature;
     this.hex = { col: unit.at.col, row: unit.at.row };
     this.phase = (hexKey(unit.at) % 97) / 97;
     this.container.label = `pile-${unit.uid}`;

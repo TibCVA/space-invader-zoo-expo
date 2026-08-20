@@ -328,7 +328,22 @@ export function siegeTowerVolley(state: GameState, combat: CombatState, events: 
       res.kills > 0
         ? `Un trait de la tour frappe ${unitLabel(best)} : ${res.kills} ${res.kills > 1 ? 'pertes' : 'perte'}.`
         : `Un trait de la tour frappe ${unitLabel(best)}.`,
-      { cible: best.uid, degats: COMBAT_TUNING.towerDamage, pertes: res.kills },
+      /*
+       * `tourCol` / `tourRow` disent D'OÙ part le trait.
+       *
+       * L'entrée ne portait que la cible, et la vue s'arrête net quand elle ne
+       * sait pas qui attaque (`anim.ts`, « if (!uidA) return »). La volée
+       * infligeait donc ses dégâts sans qu'on voie rien : la pile perdait des
+       * hommes sans cause visible à l'écran. Un siège où les tours frappent
+       * l'invisible n'apprend rien au joueur sur l'intérêt d'un Château.
+       */
+      {
+        cible: best.uid,
+        degats: COMBAT_TUNING.towerDamage,
+        pertes: res.kills,
+        tourCol: at.col,
+        tourRow: at.row,
+      },
     );
   }
 }

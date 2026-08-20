@@ -26,7 +26,10 @@ import { describe, expect, it } from 'vitest';
 import { hexBlocked, hexDistance, hexLine, unitAt } from '@auvergne/engine';
 import type { CombatObstacle, CombatState, HexCoord } from '@auvergne/engine';
 import { army, makeBattle } from '@auvergne/engine/combat/testkit';
-import { cheminDeMarche } from './anim.js';
+import { FileAnimations, VOL_DU_TRAIT, cheminDeMarche, natureDuTrait } from './anim.js';
+import { TRAITS_LISIBLES } from './vfx.js';
+import type { ContexteAnim } from './anim.js';
+import type { GameEvent } from '@auvergne/engine';
 
 /** Un mur de rochers en travers de la ligne droite, avec un passage au sud. */
 function poserMur(combat: CombatState, col: number, rows: number[]): void {
@@ -109,3 +112,149 @@ describe('cheminDeMarche', () => {
     expect(chemin).toEqual(hexLine(de, vers));
   });
 });
+
+/**
+ * Ce que lance chaque tireur, et quand l'impact tombe.
+ *
+ * Deux défauts que l'audit a chiffrés et que ces tests verrouillent.
+ *
+ * Le premier : `projectile()` annonçait dans son commentaire « flèche, carreau
+ * ou bloc de pierre » et dessinait une seule géométrie, avec une teinte écrite
+ * en dur à l'appel. L'arbalétrier des Farges, le veneur sylvestre et une tour
+ * de siège lançaient rigoureusement le même trait brun.
+ *
+ * Le second : l'attente de l'impact au tir était écrite en dur à 0,28 s quand
+ * le projectile volait 0,3 s — l'impact tombait 20 ms avant l'arrivée du
+ * trait. C'était le résidu d'une avance de 117 ms corrigée au corps à corps
+ * mais pas au tir. Les deux nombres lisent maintenant la même constante, et
+ * c'est cela que le test tient : non pas sa valeur, mais son unicité.
+ */
+describe('le trait de chaque tireur', () => {
+  it('donne un carreau à l’arbalétrier, une flèche au veneur', () => {
+    // Les deux seuls tireurs du contenu, améliorés ou non.
+    expect(natureDuTrait('granit_t3')).toBe('carreau');
+    expect(natureDuTrait('granit_t3_up')).toBe('carreau');
+    expect(natureDuTrait('ermitage_t4')).toBe('fleche');
+    expect(natureDuTrait('ermitage_t4_up')).toBe('fleche');
+  });
+
+  it('ne donne ni carreau ni flèche à qui n’est pas tireur', () => {
+    for (const id of ['granit_t1', 'granit_t7', 'ermitage_t1', 'ermitage_t7']) {
+      expect(natureDuTrait(id), id).toBe('trait');
+    }
+  });
+
+  it('distingue vraiment les natures : aucune n’en double une autre', () => {
+    const natures = ['carreau', 'fleche', 'pierre', 'trait'] as const;
+    const signatures = natures.map((n) => JSON.stringify(TRAITS_LISIBLES[n]));
+    expect(new Set(signatures).size, signatures.join(' | ')).toBe(natures.length);
+  });
+
+  /*
+   * Les deux cas se jouent pour de vrai : on enfile l'événement dans la file
+   * d'animations avec des doublures, puis on regarde le trait qui est parti.
+   * `reducedMotion` fait vider la file d'un bloc, donc tout s'exécute dans
+   * l'appel — pas d'horloge à faire tourner.
+   */
+  function jouer(detail: Record<string, unknown>, texte: string): Trace[] {
+    const traces: Trace[] = [];
+    const ctx = contexteDoublure(traces);
+    const ev: GameEvent = {
+      type: 'CombatAction',
+      entry: { kind: 'attaque', text: texte, detail } as never,
+    } as never;
+    new FileAnimations(ctx).enfiler([ev]);
+    return traces;
+  }
+
+  it('lance le carreau de l’arbalétrier depuis sa case', () => {
+    const traces = jouer({ attaquant: 'A', cible: 'C', degats: 30 }, 'A tire sur C');
+    expect(traces).toHaveLength(1);
+    expect(traces[0].nature).toBe('carreau');
+  });
+
+  it('fait tirer la tour de siège, qui n’a pas d’attaquant', () => {
+    /*
+     * C'est le défaut que ce test tient : sans case de tour dans le détail, la
+     * vue s'arrêtait sur « if (!uidA) return » et la volée frappait
+     * l'invisible — la pile perdait des hommes sans qu'un trait ne parte de
+     * quelque part.
+     */
+    const traces = jouer(
+      { cible: 'C', degats: 40, pertes: 2, tourCol: 12, tourRow: 1 },
+      'Un trait de la tour frappe la pile.',
+    );
+    expect(traces).toHaveLength(1);
+    expect(traces[0].nature).toBe('pierre');
+    // Le trait part de la tour, pas de la cible.
+    expect(traces[0].depuis).toEqual({ col: 12, row: 1 });
+  });
+
+  it('ne lance rien quand ni attaquant ni tour ne sont connus', () => {
+    expect(jouer({ cible: 'C', degats: 10 }, 'quelque chose frappe')).toHaveLength(0);
+  });
+
+  it('fait voler le trait et attendre l’impact sur la même durée', () => {
+    // Le contrat n'est pas « 0,3 seconde », c'est « une seule source ».
+    expect(VOL_DU_TRAIT).toBeGreaterThan(0);
+    const traces = jouer({ attaquant: 'A', cible: 'C', degats: 30 }, 'A tire sur C');
+    expect(traces[0].duree).toBe(VOL_DU_TRAIT);
+  });
+});
+
+interface Trace {
+  nature: string;
+  duree: number;
+  depuis: { col: number; row: number };
+}
+
+/**
+ * Un contexte d'animation réduit à ce que le chemin d'attaque touche.
+ *
+ * La géométrie rend la case elle-même comme position, ce qui permet au test de
+ * lire l'ORIGINE du trait en colonne et ligne au lieu de pixels — c'est bien
+ * « il part de la tour » qu'on veut vérifier, pas une coordonnée d'écran.
+ */
+function contexteDoublure(traces: Trace[]): ContexteAnim {
+  const piles = {
+    pile: (uid: string) =>
+      uid === 'A' || uid === 'C'
+        ? {
+            uid,
+            creature: uid === 'A' ? 'granit_t3' : 'ermitage_t1',
+            hex: uid === 'A' ? { col: 1, row: 1 } : { col: 8, row: 5 },
+            pos: uid === 'A' ? { x: 1, y: 1 } : { x: 8, y: 5 },
+            jouer: () => {},
+            frapper: () => {},
+            orienter: () => {},
+            imposerPosition: () => {},
+            imposerProfondeur: () => {},
+            libre: () => {},
+          }
+        : null,
+  };
+  const vfx = {
+    projectile: (
+      depuis: { x: number; y: number },
+      _vers: { x: number; y: number },
+      duree: number,
+      _teinte: number,
+      nature: string,
+    ) => {
+      traces.push({ nature, duree, depuis: { col: depuis.x, row: depuis.y } });
+    },
+    impact: () => {},
+    sang: () => {},
+    nombrePertes: () => {},
+    mention: () => {},
+    poussiere: () => {},
+    secousse: { declencher: () => {} },
+  };
+  return {
+    geo: { taille: 0, etirement: 1, local: (h: { col: number; row: number }) => ({ x: h.col, y: h.row }) },
+    piles,
+    vfx,
+    combat: () => ({}) as never,
+    reducedMotion: true,
+  } as unknown as ContexteAnim;
+}

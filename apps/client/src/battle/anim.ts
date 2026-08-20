@@ -18,6 +18,7 @@ import { hexDistance, hexLine, hexPath } from '@auvergne/engine';
 import type { CombatLogEntry, CombatState, GameEvent, HexCoord } from '@auvergne/engine';
 import { LIGHT, PALETTE, melanger } from '../art/palette.js';
 import { CONTACT_CORPS_A_CORPS, LACHER_DU_TRAIT } from '../art/creatures/archetypes.js';
+import type { NatureTrait } from './vfx.js';
 import type { Geometrie } from './hexgrid.js';
 import type { CoucheUnites, PileVue } from './units.js';
 import type { CoucheVfx } from './vfx.js';
@@ -294,6 +295,20 @@ export class FileAnimations {
     const pertes = typeof d.pertes === 'number' ? d.pertes : 0;
     const riposte = e.text.includes('riposte contre');
     const tir = e.text.includes('tire sur');
+    /*
+     * Une volée de tour n'a pas d'attaquant : elle a une tour.
+     *
+     * Sans ce cas, la vue s'arrêtait ici et la volée de siège frappait
+     * l'invisible — la pile perdait des hommes sans qu'un trait ne parte de
+     * quelque part. Le moteur inscrit maintenant la case de la tour dans le
+     * détail, et on lance une pierre depuis ce point.
+     */
+    const tourCol = typeof d.tourCol === 'number' ? d.tourCol : null;
+    const tourRow = typeof d.tourRow === 'number' ? d.tourRow : null;
+    if (!uidA && tourCol !== null && tourRow !== null && uidC) {
+      this.voleeDeTour({ col: tourCol, row: tourRow }, uidC, degats, pertes, index);
+      return;
+    }
     if (!uidA) return;
 
     let a: PileVue | null = null;
@@ -350,12 +365,22 @@ export class FileAnimations {
         ctx.vfx.projectile(
           { x: depart.x, y: depart.y * et - ctx.geo.taille * 0.9 },
           { x: cible.x, y: cible.y * et - ctx.geo.taille * 0.7 },
-          0.3,
+          VOL_DU_TRAIT,
           PALETTE.brunFougere,
+          natureDuTrait(a.creature),
         );
       },
     });
-    if (tir) this.taches.push({ index, duree: 0.28 });
+    /*
+     * L'impact attend l'ARRIVÉE du trait, pas 20 ms avant.
+     *
+     * Le calage du corps à corps avait été corrigé de 117 ms d'avance ; il
+     * restait au tir un résidu de 20 ms, parce que l'attente était écrite en
+     * dur à 0,28 s quand le projectile volait 0,3 s. Les deux nombres lisent
+     * désormais la même constante — le décalage ne peut plus revenir par
+     * l'oubli de l'un des deux.
+     */
+    if (tir) this.taches.push({ index, duree: VOL_DU_TRAIT });
 
     /* l'impact */
     this.taches.push({
@@ -388,6 +413,61 @@ export class FileAnimations {
       },
       fin: () => {
         a?.libre();
+      },
+    });
+  }
+
+  /**
+   * Une volée de tour : la pierre part du rempart, la pile encaisse.
+   *
+   * On ne réutilise pas `attaque` parce qu'il n'y a personne à faire fendre :
+   * la tour ne joue pas de clip, ne se retourne pas, ne riposte pas. Le vol et
+   * l'impact, eux, sont exactement les mêmes que pour un tireur — même
+   * constante de vol, donc l'impact ne peut pas se désynchroniser.
+   */
+  private voleeDeTour(
+    tour: { col: number; row: number },
+    uidCible: string,
+    degats: number,
+    pertes: number,
+    index: number,
+  ): void {
+    const ctx = this.ctx;
+    let c: PileVue | null = null;
+    let depart = { x: 0, y: 0 };
+    let arrivee = { x: 0, y: 0 };
+
+    this.taches.push({
+      index,
+      duree: 0,
+      debut: () => {
+        c = ctx.piles.pile(uidCible);
+        if (!c) return;
+        const t = ctx.geo.local(tour);
+        const et = ctx.geo.etirement;
+        depart = { x: t.x, y: t.y * et - ctx.geo.taille * 1.15 };
+        arrivee = { x: c.pos.x, y: c.pos.y * et - ctx.geo.taille * 0.7 };
+        ctx.vfx.projectile(depart, arrivee, VOL_DU_TRAIT, PALETTE.granitClair, 'pierre');
+      },
+    });
+    this.taches.push({ index, duree: VOL_DU_TRAIT });
+    this.taches.push({
+      index,
+      duree: 0.42,
+      debut: () => {
+        if (!c) return;
+        const et = ctx.geo.etirement;
+        const x = c.pos.x;
+        const y = c.pos.y * et - ctx.geo.taille * 0.7;
+        c.jouer('impact');
+        c.frapper(Math.min(4, 1.6 + degats / 90));
+        ctx.vfx.impact(x, y, Math.min(1.7, 0.7 + degats / 140), PALETTE.granitClair);
+        if (pertes > 0) ctx.vfx.sang(x, c.pos.y * et + ctx.geo.taille * 0.1, Math.min(2, pertes / 4));
+        ctx.vfx.nombrePertes(x, y - ctx.geo.taille * 0.5, degats, pertes);
+        ctx.vfx.secousse.declencher(Math.min(6.5, 1.4 + degats / 70));
+      },
+      fin: () => {
+        c?.libre();
       },
     });
   }
@@ -565,6 +645,31 @@ export function cheminDeMarche(
 export type EcoleSort = 'braises' | 'sources' | 'brumes' | 'racines';
 
 const ECOLES: readonly EcoleSort[] = ['braises', 'sources', 'brumes', 'racines'];
+
+/**
+ * Durée de vol d'un trait, en secondes.
+ *
+ * Une seule constante, lue à la fois par le lancement du projectile et par
+ * l'attente de l'impact : c'est la seule façon d'empêcher les deux de
+ * redivorcer, ce qu'ils avaient fait de 20 ms.
+ */
+export const VOL_DU_TRAIT = 0.3;
+
+/**
+ * Ce que lance chaque tireur.
+ *
+ * L'arbalétrier des Farges compte ses carreaux avant ses prières — un carreau
+ * file tendu. Le veneur sylvestre chasse à l'arc — sa flèche décrit sa courbe.
+ * Tout le reste qui frappe à distance jette ce qu'il a sous la main.
+ *
+ * On lit le préfixe de rang plutôt que la liste des variantes améliorées :
+ * `granit_t3` et `granit_t3_up` sont le même homme avec une meilleure arbalète.
+ */
+export function natureDuTrait(creature: string): NatureTrait {
+  if (creature.startsWith('granit_t3')) return 'carreau';
+  if (creature.startsWith('ermitage_t4')) return 'fleche';
+  return 'trait';
+}
 
 /**
  * École d'un sort : celle que le moteur inscrit au journal (`detail.ecole`),
