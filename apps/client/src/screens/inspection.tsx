@@ -134,9 +134,12 @@ export function FicheInspection(props: FicheInspectionProps): ReactElement | nul
             hint={fiche.force && !fiche.force.exacte ? 'estimation' : 'compté'}
             size="compact"
           />
-          {/* Pas de pastille sur sa propre armée : on ne se jauge pas soi-même,
-              et annoncer « aucun héros pour juger » sur la fiche du héros qui
-              juge est un contresens — vu en capture. */}
+          {/* Pas de pastille sur ce qu'on tient déjà — héros, cité, gisement —
+              ni sur une place que personne ne garde : dans les deux cas il n'y
+              a aucun combat à jauger, et une pastille verte y annoncerait une
+              victoire imaginaire. Vu en capture sur la cité de Cervières
+              (« Sans péril », tenue par le joueur) et sur la scierie
+              d'Arconsat (« Sans péril », force « aucune compagnie »). */}
           {fiche.difficulte ? (
             <Badge tone={TONS_DIFFICULTE[fiche.difficulte]}>
               {LIBELLES_DIFFICULTE[fiche.difficulte]}

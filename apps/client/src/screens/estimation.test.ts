@@ -21,20 +21,42 @@
  *    quand il n'y en a pas — dire « hors de portée » à un joueur qui n'a rien
  *    sélectionné serait un renseignement faux.
  *
+ * 5. **Une même créature ne se compte qu'une fois.** Le générateur pose
+ *    volontiers deux emplacements de la même créature sur un lieu — soixante-
+ *    trois des cent soixante-cinq lieux gardés de la carte de démonstration. La
+ *    répartition en emplacements ne doit rien changer à ce que la fiche dit :
+ *    ni la liste des lignes, ni la fourchette, ni la pastille.
+ *
+ * 6. **On ne jauge pas ce qu'on tient déjà.** Sa propre cité, sa propre mine,
+ *    son propre héros : aucune pastille, aucune ligne de juge.
+ *
+ * 7. **On ne jauge pas ce qui n'oppose personne.** Un gisement que rien ne
+ *    garde n'est pas un combat facile, c'est l'absence de combat.
+ *
  * ## Comment il a été éprouvé
  *
  * En défaisant chaque garde (voir le rapport) : rendre l'effectif exact dans
  * `estimerPiles` sans vision fait rougir le point 2 ; retirer la lecture du
  * voile fait rougir le point 3 ; rendre `sans_peril` au lieu de `inconnue`
  * quand la puissance du héros est nulle fait rougir le point 4 ; décaler d'une
- * unité une borne de `PAQUETS` fait rougir le point 1.
+ * unité une borne de `PAQUETS` fait rougir le point 1 ; retirer l'appel à
+ * `regrouperParCreature` en tête de `estimerPiles` fait rougir les trois tests
+ * du point 5 ; retirer `aMoi` puis `!force` de la garde de `jugement` fait
+ * rougir les points 6 et 7 séparément.
  */
 
 import { beforeAll, describe, expect, it } from 'vitest';
 import { bootstrapEngine } from '@auvergne/game';
 import { buildWorld } from '@auvergne/map';
 import { armyPower, createGame } from '@auvergne/engine';
-import type { GameState, HeroInstance, MapObject, WorldMap } from '@auvergne/engine';
+import type {
+  ArmyStack,
+  CreatureId,
+  GameState,
+  HeroInstance,
+  MapObject,
+  WorldMap,
+} from '@auvergne/engine';
 import { setupDemo, GRAINE_DEMO } from '../state/demo.js';
 import {
   PAQUETS,
@@ -65,11 +87,50 @@ function regardAveugle(state: GameState, heros: HeroInstance | null): Regard {
   return { moi: 'P1', fog: new Uint8Array(world.cols * world.rows), cols: world.cols, heros };
 }
 
+/** Le même regard, mais la case visée est sous les yeux : les effectifs se comptent. */
+function regardVoyant(state: GameState, at: { col: number; row: number }): Regard {
+  const fog = new Uint8Array(world.cols * world.rows);
+  fog[at.row * world.cols + at.col] = 2;
+  return { moi: 'P1', fog, cols: world.cols, heros: state.heroes[state.players.P1.heroes[0]] };
+}
+
 /** Le lieu le mieux gardé de la carte : soixante créatures de rang 5 à 7. */
 function maisonDuTresor(): MapObject {
   const o = world.objects.find((q) => q.kind === 'maison_tresor');
   if (!o) throw new Error('la Maison du Trésor a disparu de la carte');
   return o;
+}
+
+/** Le lieu nommé de la carte de démonstration, ou une erreur qui le dit. */
+function lieuNomme(nom: string): MapObject {
+  const o = world.objects.find((q) => q.data.name === nom);
+  if (!o) throw new Error(`${nom} a disparu de la carte de démonstration`);
+  return o;
+}
+
+/**
+ * Les lieux dont la garde pose deux emplacements de la même créature.
+ *
+ * Ce n'est pas une curiosité : soixante-trois des cent soixante-cinq lieux
+ * gardés de la carte de démonstration sont dans ce cas. La liste est lue sur la
+ * carte, jamais recopiée.
+ */
+function lieuxAGardeRedondante(state: GameState): MapObject[] {
+  return world.objects.filter((o) => {
+    const garde = (state.objects[o.uid] ?? o).guard ?? [];
+    return garde.length > 0 && new Set(garde.map((s) => s.creature)).size < garde.length;
+  });
+}
+
+/** Effectif total par créature d'une garde, dans l'ordre de première apparition. */
+function totauxParCreature(garde: readonly ArmyStack[]): ArmyStack[] {
+  const ordre: CreatureId[] = [];
+  const totaux = new Map<CreatureId, number>();
+  for (const s of garde) {
+    if (!totaux.has(s.creature)) ordre.push(s.creature);
+    totaux.set(s.creature, (totaux.get(s.creature) ?? 0) + s.count);
+  }
+  return ordre.map((creature) => ({ creature, count: totaux.get(creature) ?? 0 }));
 }
 
 /* ─────────────────────── 1. L'échelle des paquets ───────────────────────── */
@@ -168,12 +229,6 @@ describe('une garde qu’on n’a pas reconnue', () => {
 });
 
 describe('une garde qu’on a sous les yeux', () => {
-  function regardVoyant(state: GameState, at: { col: number; row: number }): Regard {
-    const fog = new Uint8Array(world.cols * world.rows);
-    fog[at.row * world.cols + at.col] = 2;
-    return { moi: 'P1', fog, cols: world.cols, heros: state.heroes[state.players.P1.heroes[0]] };
-  }
-
   it('se compte au grain près', () => {
     const state = partie();
     const gabarit = maisonDuTresor();
@@ -214,6 +269,88 @@ describe('une garde qu’on a sous les yeux', () => {
   });
 });
 
+/* ────────────── 2 bis. Une même créature ne se compte qu'une fois ───────── */
+
+describe('deux emplacements de la même créature', () => {
+  it('ne font qu’une ligne, et l’effectif s’additionne', () => {
+    const state = partie();
+    const lieux = lieuxAGardeRedondante(state);
+    /* Vide, la boucle ne garderait rien : la carte de démonstration en porte
+       soixante-trois. */
+    expect(lieux.length).toBeGreaterThan(10);
+    for (const lieu of lieux) {
+      const garde = state.objects[lieu.uid].guard ?? [];
+      const attendu = totauxParCreature(garde);
+      const fiche = ficheDuLieu(state, lieu, regardVoyant(state, lieu.at));
+      expect(fiche.piles.map((p) => p.creature), String(lieu.data.name)).toEqual(
+        attendu.map((t) => t.creature),
+      );
+      expect(fiche.piles.map((p) => p.effectif), String(lieu.data.name)).toEqual(
+        attendu.map((t) => t.count),
+      );
+    }
+  });
+
+  it('donnent la même fourchette que la même armée écrite en une seule pile', () => {
+    /*
+     * Le cœur du défaut : la façon dont le générateur de carte a réparti une
+     * armée entre les emplacements ne doit rien changer à ce que la fiche en
+     * dit. Sans fusion, chaque emplacement recevait son propre paquet flou —
+     * deux fois « une poignée de » (1 à 4) là où la garde compte quatre
+     * créatures, au lieu d'une fois « quelques » (5 à 9) — et la fourchette
+     * comptait deux fois le même paquet.
+     *
+     * On compare donc la fiche du lieu tel qu'il est à la fiche du même lieu
+     * dont la garde a été réécrite en piles déjà fusionnées : même armée, même
+     * puissance, la fiche doit être mot pour mot la même.
+     */
+    const state = partie();
+    const lieux = lieuxAGardeRedondante(state);
+    for (const lieu of lieux) {
+      const garde = state.objects[lieu.uid].guard ?? [];
+      const vraie = armyPower(garde);
+      const nom = `${String(lieu.data.name ?? lieu.kind)} (${String(vraie)})`;
+      const eclatee = ficheDuLieu(state, lieu, regardAveugle(state, null));
+
+      state.objects[lieu.uid].guard = totauxParCreature(garde);
+      const fusionnee = ficheDuLieu(state, lieu, regardAveugle(state, null));
+      expect(armyPower(state.objects[lieu.uid].guard ?? []), nom).toBe(vraie);
+
+      expect(eclatee.force, nom).toEqual(fusionnee.force);
+      expect(eclatee.piles, nom).toEqual(fusionnee.piles);
+      /* Et la fourchette continue d'encadrer la vraie puissance. */
+      expect(eclatee.force!.min, nom).toBeLessThanOrEqual(vraie);
+      expect(eclatee.force!.max, nom).toBeGreaterThanOrEqual(vraie);
+    }
+  });
+
+  it('rendent son verdict à Chabreloche : redoutable, et non hors de portée', () => {
+    /*
+     * Mesuré sur la carte de démonstration avant correction. Chabreloche porte
+     * `[{ermitage_t5,2},{granit_t5,2},{granit_t5,2}]`, puissance réelle 6 612,
+     * et le héros de premier jour de P1 pèse 1 682.
+     *
+     *                     fourchette       médiane   pastille
+     *   éclaté         3 306 – 13 224       8 265    hors_de_portee
+     *   fusionné       2 227 –  8 908       5 568    redoutable
+     *
+     * 6 612 / 1 682 = 3,93 : le combat est « Redoutable », il n'est pas hors de
+     * portée. Le joueur renonçait à un combat qu'il gagne.
+     */
+    const state = partie();
+    const heros = state.heroes[state.players.P1.heroes[0]];
+    const chabreloche = lieuNomme('Chabreloche');
+    const garde = state.objects[chabreloche.uid].guard ?? [];
+    const fiche = ficheDuLieu(state, chabreloche, regardAveugle(state, heros));
+
+    expect(fiche.piles.length).toBe(2);
+    expect(fiche.difficulte).toBe('redoutable');
+    /* Et le mot n'est pas un hasard : c'est celui que rendrait la vraie
+       puissance si on la connaissait. */
+    expect(difficulteDe(armyPower(garde), armyPower(heros.army))).toBe(fiche.difficulte);
+  });
+});
+
 /* ─────────────────────── 3. L'échelle de difficulté ─────────────────────── */
 
 describe('l’appréciation de difficulté', () => {
@@ -237,6 +374,66 @@ describe('l’appréciation de difficulté', () => {
 
   it('une place vide est sans péril, jamais « inconnue »', () => {
     expect(difficulteDe(0, 5000)).toBe('sans_peril');
+  });
+
+  it('se tait sur ce que la bannière du joueur tient déjà', () => {
+    /*
+     * Mesuré : cliquer sa propre cité de Cervières affichait « Sans péril » et
+     * « Jugé sur l'armée de Clotilde (puissance 1 682) » ; cliquer sa propre
+     * mine annonçait « Redoutable ». Il n'y a aucun combat à livrer contre sa
+     * propre garnison, et une pastille y est un contresens — le même que
+     * `ficheDuHeros` corrigeait déjà pour les héros, et lui seul.
+     */
+    const state = partie();
+    const heros = state.heroes[state.players.P1.heroes[0]];
+    const regard = regardAveugle(state, heros);
+
+    const cite = state.towns[state.players.P1.towns[0]];
+    const ficheCite = ficheDeLaCite(state, cite, regard);
+    expect(ficheCite.proprietaire?.id).toBe('P1');
+    expect(ficheCite.difficulte, `${cite.name} est à moi`).toBeNull();
+    expect(ficheCite.juge).toBeNull();
+
+    const mine = world.objects.find((o) => o.kind === 'mine' && (o.guard?.length ?? 0) > 0)!;
+    state.objects[mine.uid].owner = 'P1';
+    const ficheMine = ficheDuLieu(state, mine, regard);
+    /* La garde est bien là, et comptée : c'est la pastille qui n'a pas lieu. */
+    expect(ficheMine.force!.exacte).toBe(true);
+    expect(ficheMine.force!.min).toBeGreaterThan(0);
+    expect(ficheMine.difficulte, String(mine.data.name)).toBeNull();
+    expect(ficheMine.juge).toBeNull();
+  });
+
+  it('se tait là où personne n’est en armes', () => {
+    /*
+     * Mesuré sur la scierie d'Arconsat, gisement neutre que rien ne garde :
+     * `force = « aucune compagnie »` et pourtant pastille verte « Sans péril »,
+     * comme s'il y avait là un affrontement facile. Il n'y a pas
+     * d'affrontement.
+     *
+     * La correction est chez les appelants, pas dans `difficulteDe` : celle-ci
+     * garde son contrat propre — « une place vide est sans péril » —, verrouillé
+     * juste au-dessus, parce qu'un assaut sur une garnison décimée en cours de
+     * partie est bel et bien sans péril.
+     */
+    const state = partie();
+    const heros = state.heroes[state.players.P1.heroes[0]];
+    const nue = world.objects.find((o) => o.kind === 'mine' && (o.guard?.length ?? 0) === 0);
+    if (!nue) throw new Error('plus un seul gisement neutre sans garde sur la carte');
+
+    const fiche = ficheDuLieu(state, nue, regardAveugle(state, heros));
+    expect(fiche.force).toBeNull();
+    expect(fiche.piles).toEqual([]);
+    expect(fiche.difficulte, String(nue.data.name)).toBeNull();
+    expect(fiche.juge).toBeNull();
+
+    /* Une cité sans garnison ne se juge pas davantage. */
+    const cite = Object.values(state.towns).find((t) => t.owner === null)!;
+    cite.garrison = cite.garrison.map(() => null);
+    cite.garrisonHero = null;
+    const ficheCite = ficheDeLaCite(state, cite, regardAveugle(state, heros));
+    expect(ficheCite.force).toBeNull();
+    expect(ficheCite.difficulte).toBeNull();
   });
 
   it('juge la Maison du Trésor hors de portée d’un héros de premier jour', () => {

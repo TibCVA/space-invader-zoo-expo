@@ -200,7 +200,8 @@ export interface Fiche {
   readonly force: Force | null;
   /**
    * Appréciation de difficulté, ou `null` quand la comparaison n'a **pas de
-   * sens** — la fiche de son propre héros, par exemple.
+   * sens** : ce qu'on tient déjà (héros, cité, gisement) et ce qui n'oppose
+   * personne. Voir `jugement`.
    *
    * `null` et `'inconnue'` ne disent pas la même chose, et la capture l'a
    * montré : la fiche de Clotilde affichait la pastille « Aucun héros pour
@@ -263,6 +264,37 @@ function nomCreature(id: CreatureId, pluriel: boolean): string {
   return pluriel ? def.namePlural : def.name;
 }
 
+/**
+ * Les piles d'une même créature, additionnées en une seule.
+ *
+ * **C'est une correction, et elle change le verdict.** Le générateur de carte
+ * pose volontiers deux emplacements de la même créature sur un même lieu :
+ * soixante-trois des cent soixante-cinq lieux gardés de la carte de
+ * démonstration. Chabreloche portait
+ * `[{ermitage_t5,2},{granit_t5,2},{granit_t5,2}]`, et la fiche affichait
+ * « Sangliers Cuirassés » deux fois de suite — mais surtout, chaque
+ * emplacement recevait son propre paquet flou, donc sa propre fourchette. Deux
+ * fois « une poignée de » (1 à 4) au lieu d'une fois « quelques » (5 à 9) :
+ * fourchette 3 306–13 224 pour une puissance réelle de 6 612, médiane 8 265,
+ * pastille « Hors de portée » sur un combat que le héros de référence
+ * (puissance 1 682) livre au cran « Redoutable ». Le renseignement était faux
+ * d'un cran, du mauvais côté : le joueur renonçait à un combat gagnable.
+ *
+ * L'ordre de première apparition est conservé — c'est celui du champ de
+ * bataille, et la fiche doit se lire comme les rangs se présentent.
+ */
+function regrouperParCreature(piles: readonly (ArmyStack | null)[]): ArmyStack[] {
+  const ordre: CreatureId[] = [];
+  const totaux = new Map<CreatureId, number>();
+  for (const s of piles) {
+    if (!s || s.count <= 0) continue;
+    const dejaVu = totaux.get(s.creature);
+    if (dejaVu === undefined) ordre.push(s.creature);
+    totaux.set(s.creature, (dejaVu ?? 0) + s.count);
+  }
+  return ordre.map((creature) => ({ creature, count: totaux.get(creature) ?? 0 }));
+}
+
 /** Les piles telles qu'on les laisse voir, et la fourchette de force qui va avec. */
 function estimerPiles(
   piles: readonly (ArmyStack | null)[],
@@ -271,8 +303,7 @@ function estimerPiles(
   const vues: PileEstimee[] = [];
   let min = 0;
   let max = 0;
-  for (const s of piles) {
-    if (!s || s.count <= 0) continue;
+  for (const s of regrouperParCreature(piles)) {
     if (exacte) {
       vues.push({
         creature: s.creature,
@@ -334,6 +365,39 @@ function ligneDeJuge(regard: Regard): string | null {
   return `Jugé sur l’armée de ${nom} (puissance ${nombre(armyPower(h.army))}).`;
 }
 
+/**
+ * La pastille et la ligne qui l'accompagne — ou rien du tout.
+ *
+ * **Deux silences, et tous deux corrigent un contresens vu à l'écran.**
+ *
+ * 1. *Ce qui est à moi ne se jauge pas.* Cliquer sa propre cité de Cervières
+ *    affichait « Sans péril » et « Jugé sur l'armée de Clotilde (puissance
+ *    1 682) » ; cliquer sa propre mine annonçait « Redoutable ». Il n'y a
+ *    aucun combat à livrer contre sa propre garnison. Le garde-fou existait
+ *    déjà pour les héros (`ficheDuHeros`), il manquait aux lieux et aux cités.
+ *
+ * 2. *Une place vide ne se combat pas.* Une scierie neutre que personne ne
+ *    garde rendait `force = null` — « aucune compagnie » — et pourtant une
+ *    pastille verte « Sans péril », comme s'il y avait là un affrontement
+ *    facile. Il n'y a pas d'affrontement du tout.
+ *
+ * Le silence se dit `null`, jamais `'inconnue'` : `'inconnue'` annonce une
+ * lacune de renseignement, ce qui serait une troisième contrevérité.
+ * `difficulteDe` n'est pas touchée — elle garde son propre contrat, y compris
+ * « une place vide est sans péril », que son test verrouille.
+ */
+function jugement(
+  force: Force | null,
+  regard: Regard,
+  aMoi: boolean,
+): { difficulte: Difficulte | null; juge: string | null } {
+  if (aMoi || !force) return { difficulte: null, juge: null };
+  return {
+    difficulte: difficulteDe(forceMediane(force), regard.heros ? armyPower(regard.heros.army) : 0),
+    juge: ligneDeJuge(regard),
+  };
+}
+
 /* ── Lieux de carte ─────────────────────────────────────────────────────── */
 
 /**
@@ -377,8 +441,7 @@ export function ficheDuLieu(etat: GameState, gabarit: MapObject, regard: Regard)
     neutre: proprietaire === null,
     piles,
     force,
-    difficulte: difficulteDe(forceMediane(force), regard.heros ? armyPower(regard.heros.army) : 0),
-    juge: ligneDeJuge(regard),
+    ...jugement(force, regard, aMoi),
     notes,
     at: objet.at,
   };
@@ -422,8 +485,7 @@ export function ficheDeLaCite(etat: GameState, cite: TownState, regard: Regard):
     neutre: cite.owner === null,
     piles,
     force,
-    difficulte: difficulteDe(forceMediane(force), regard.heros ? armyPower(regard.heros.army) : 0),
-    juge: ligneDeJuge(regard),
+    ...jugement(force, regard, aMoi),
     notes,
     at: cite.at,
   };
@@ -450,10 +512,7 @@ export function ficheDuHeros(etat: GameState, heros: HeroInstance, regard: Regar
     neutre: false,
     piles,
     force,
-    difficulte: aMoi
-      ? null
-      : difficulteDe(forceMediane(force), regard.heros ? armyPower(regard.heros.army) : 0),
-    juge: aMoi ? null : ligneDeJuge(regard),
+    ...jugement(force, regard, aMoi),
     notes,
     at: heros.at,
   };
