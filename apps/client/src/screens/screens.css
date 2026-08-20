@@ -519,6 +519,31 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  /*
+   * L'ombre de défilement, et pourquoi elle n'est pas un ornement.
+   *
+   * Sur la capture iPhone, la liste des paquets se coupait au MILIEU d'une
+   * ligne — « QUELQUES Colosses de Granit » tranché horizontalement — sans
+   * qu'aucune barre ne dise qu'il y avait une suite. Une ligne coupée en deux
+   * se lit comme un défaut d'affichage, pas comme un contenu qui continue ; le
+   * propriétaire joue sur iPhone et l'aurait pris pour un bogue.
+   *
+   * Le procédé est le classique « scroll shadow » de Roman Komarov : deux
+   * dégradés de la couleur du fond, ancrés au CONTENU (`local`), masquent deux
+   * ombres ancrées au CADRE (`scroll`). Quand on est en haut, le dégradé
+   * recouvre l'ombre haute ; quand on descend, il s'en va avec le contenu et
+   * l'ombre apparaît. Aucune ligne de script, donc rien à faire côté CSP, et
+   * l'indication disparaît d'elle-même quand il n'y a plus rien à faire défiler.
+   */
+  background:
+    linear-gradient(var(--hmm-parchemin, #e8dcc0) 34%, rgba(232, 220, 192, 0)) top / 100% 26px
+      no-repeat local,
+    linear-gradient(rgba(232, 220, 192, 0), var(--hmm-parchemin, #e8dcc0) 66%) bottom / 100% 26px
+      no-repeat local,
+    radial-gradient(farthest-side at 50% 0, rgba(36, 28, 20, 0.26), rgba(36, 28, 20, 0)) top /
+      100% 13px no-repeat scroll,
+    radial-gradient(farthest-side at 50% 100%, rgba(36, 28, 20, 0.26), rgba(36, 28, 20, 0)) bottom /
+      100% 13px no-repeat scroll;
 }
 
 /* La bannière et le nom du maître des lieux : la couleur ne porte jamais seule

@@ -33,12 +33,33 @@ const GRAINE = Number(process.argv[3] ?? 20250816) | 0;
 interface Compte {
   jouees: number;
   gagnees: number;
+  /*
+   * Ce que la position LAISSE en fin de partie, et non seulement si elle
+   * gagne. Écrasée tôt ou jamais capable de conclure, ce n'est pas la même
+   * maladie — et le seul taux de victoire ne permet pas de les distinguer.
+   * Mesuré une fois l'équité économique obtenue : la richesse accessible ne
+   * diffère plus que de trois pour cent entre les cinq départs, et le taux de
+   * victoire va encore de 44 % à 8 %.
+   */
+  cites: number;
+  gisements: number;
+  puissance: number;
+  niveau: number;
+  vivantes: number;
 }
 
 function main(): void {
   const parCapitale = new Map<string, Compte>();
   for (const key of Object.keys(START_POSITIONS)) {
-    parCapitale.set(key, { jouees: 0, gagnees: 0 });
+    parCapitale.set(key, {
+      jouees: 0,
+      gagnees: 0,
+      cites: 0,
+      gisements: 0,
+      puissance: 0,
+      niveau: 0,
+      vivantes: 0,
+    });
   }
 
   let decidees = 0;
@@ -63,6 +84,11 @@ function main(): void {
       if (!c) continue;
       c.jouees++;
       if (b.id === g.winner) c.gagnees++;
+      c.cites += b.towns;
+      c.gisements += b.mines;
+      c.puissance += b.power;
+      c.niveau += b.heroLevel;
+      if (b.alive) c.vivantes++;
     }
     process.stdout.write(
       `${String(i + 1).padStart(3)}/${String(PARTIES)} graine ${String(g.seed).padStart(8)} ` +
@@ -87,6 +113,19 @@ function main(): void {
         ` = ${l.taux.toFixed(1).padStart(5)} %  ± ${marge.toFixed(1)}`,
     );
   }
+  console.log(`\n  ce que chaque position LAISSE en fin de partie, en moyenne :`);
+  for (const l of lignes) {
+    const c = l.c;
+    const j = Math.max(1, c.jouees);
+    console.log(
+      `  ${l.nom.padEnd(14)} ${(c.cites / j).toFixed(1)} cités · ` +
+        `${(c.gisements / j).toFixed(1)} gisements · ` +
+        `${Math.round(c.puissance / j).toString().padStart(7)} de puissance · ` +
+        `niveau ${(c.niveau / j).toFixed(1)} · ` +
+        `debout ${String(c.vivantes)}/${String(c.jouees)}`,
+    );
+  }
+
   console.log(`\n  cible du document maître §20.3 : 18 à 22 % par position`);
   console.log(`  parties décidées ${String(decidees)}/${String(PARTIES)} · par conquête ${String(conquetes)}/${String(PARTIES)}`);
   console.log(`  durée moyenne ${(joursTotal / PARTIES).toFixed(0)} jours`);
