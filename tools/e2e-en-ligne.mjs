@@ -16,7 +16,7 @@ import { spawn } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { portLibre } from './port-libre.mjs';
-import { monterPartie, munirDuJeton, poster as posterVers } from './partie-en-ligne.mjs';
+import { monterPartie, munirDuJeton } from './partie-en-ligne.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = await portLibre();
@@ -43,7 +43,6 @@ async function attendre(url, ms = 60_000) {
 
 /* Le montage du salon vit dans `partie-en-ligne.mjs` : le harnais de capture
    monte la même partie, et deux copies d'un même parcours dérivent. */
-const poster = (chemin, corps, jeton, jar) => posterVers(base, chemin, corps, jeton, jar);
 
 const serveur = spawn('node', ['apps/server/dist/server.js'], {
   cwd: ROOT, stdio: 'ignore', detached: true,

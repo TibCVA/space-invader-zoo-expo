@@ -216,8 +216,8 @@ Citadelle et le Château sont là (×1,5 puis ×2, quatre tours au siège).
 |---|---|---|
 | P0.2a calage de l'impact | fait | **fait des deux côtés** : `VOL_DU_TRAIT` est une constante unique lue par le lancement du projectile ET par l'attente de l'impact, précisément pour qu'ils ne redivorcent pas |
 | P0.2b effet par école | à faire | **fait** — `vfx.aura(ecole)` distingue les quatre écoles |
-| P0.2b projectiles, cadavres | à faire | absents tous les deux ; le conteneur `siege.ts:305` des projectiles de tour n'est jamais alimenté |
-| P0.2c densité d'obstacles | à faire | table d'origine intacte ; l'icône épée/flèche n'est posée que sur la case du curseur, et sur téléphone le toucher attaque aussitôt — elle n'est donc quasi jamais vue |
+| P0.2b projectiles, cadavres | ~~à faire~~ | **les deux sont FAITS depuis** (relu le 20/08 au soir) : les dépouilles vivent dans `units.ts:255` (`mourir()` garde la pile, joue `mort`, la range sous les vivants par une bande de profondeur négative, gardé par `depouille.test.ts`) ; les volées de tour partent du moteur (`siegeTowerVolley`, appelée par `order.ts:156`) avec `tourCol`/`tourRow`, et `anim.ts:306-309` les anime. Ne subsistent que `Fortifications.volee` et `Fortifications.projectiles` (`siege.ts:305`), **zéro appelant** : du code mort, pas un manque |
+| P0.2c densité d'obstacles | ~~à faire~~ | **fait aussi** : `obstacles.test.ts:41` exige désormais ≥ 4 obstacles de moyenne, et le double appui au doigt existe (`index.ts:1963` — le premier appui vise et pose le curseur, le second dépense le tour) |
 | P1.5 rampes du champ | à faire | **une seule ligne** a changé dans `field.ts` depuis le correctif des dégradés, et ce n'était pas un arrêt de rampe (mesure : luminance 89,6 pour une cible à 95) |
 | P1.5 angle du soleil | à faire | **fait** : `degradeSurface` passe `ANGLE_LUMIERE`, déduit du soleil déclaré et non recopié ; l'en-tête de la fonction porte la trace de l'erreur (135 = haute lumière au nord-EST, donc chaque surface à quatre-vingt-dix degrés de ses propres ombres) |
 | P1.7 resculpture | à faire | commencé le 20/08, voir §1 quinquies. Le constat « le sanglier est une caisse sur pattes » était juste ET amplifié par le cadrage de la planche, qui affichait les bêtes en timbre-poste |
@@ -569,6 +569,121 @@ une mesure. Recadrer à trois fois la taille, ou mesurer, avant de toucher.
 | **Le zoom large** laisse du vide à côté d'une carte en portrait sur un écran en paysage | 113 × 184 sur 1920 × 1080 : le vide est géométrique. Relever le plancher de zoom réglerait l'un et coûterait l'autre — arbitrage à demander au propriétaire |
 | **L'asymétrie des capitales** 44 / 20 / 20 / 8 / 8 % | deux hypothèses mesurées et éliminées (richesse, accès aux bourgs neutres). Décrit honnêtement dans l'écran de nouvelle partie plutôt que masqué |
 | **`combat_pont`** livré et inemployé | `CombatState` ne porte aucune coordonnée de carte : impossible de savoir qu'on se bat sur un franchissement |
+| ~~Une scène de capture sur une partie EN LIGNE manque au harnais~~ | **CLOS le 20/08 au soir** : scène `en_ligne`, trois moments, deux points de vue. Voir §1 nonies — elle a trouvé le défaut le plus grave du dépôt en une image |
+| **Ce que le harnais ne visite toujours pas** | le COMBAT et la CITÉ d'une vraie partie en ligne : `en_ligne` s'arrête à la carte. Un combat en ligne ne se déclenche qu'en marchant sur une garde, ce qui demande de piloter un déplacement dans la capture. C'est le prochain trou par ordre de risque — et le précédent a coûté un jeu où l'on ne pouvait pas rendre la main |
+
+## 1 nonies. Session du 20/08 (soir) — l'instrument qui manquait, et ce qu'il a trouvé
+
+### On ne pouvait pas rendre la main
+
+C'est le défaut le plus grave trouvé jusqu'ici, et il tenait en une absence.
+`EndTurn` existait dans le moteur (`types.ts:758`), dans le protocole
+(`schemas.ts:346`) et dans les tests. Elle n'était émise par **aucun** chemin
+de l'interface : le client ne produisait que `MoveHero`, `CombatAction` et
+`AutoResolveCombat`. Pas de bouton, pas de raccourci, et cinq commandes de
+pouce qui sont toutes de la navigation (Carte, Héros, Cité, Royaume, Menu).
+
+Sur un jeu asynchrone dont c'est **toute la boucle** — chacun joue son tour et
+passe le relais au cousin suivant —, la partie ne dépassait pas le tour du
+premier joueur.
+
+**Pourquoi c'est resté invisible.** `tools/e2e-en-ligne.mjs` prouvait la boucle
+en postant `{ type: 'EndTurn' }` directement à l'API. L'épreuve était verte, et
+honnêtement : c'est le serveur qu'elle vérifiait, et le serveur allait bien. Le
+geste du joueur n'était vérifié nulle part. C'est le même angle mort que le
+cadrage sur territoire inexploré, et il faut le retenir sous cette forme
+générale : **une épreuve qui court-circuite l'interface prouve le serveur, pas
+le jeu.**
+
+L'épreuve rend désormais la main **en cliquant le bouton**. Débranchée
+volontairement, elle rougit trois fois et reproduit exactement le défaut
+d'origine : pas de bouton, séquence figée à 3, main qui reste à P1.
+
+### La scène de capture qui a tout déclenché
+
+Le manque était nommé dans le §1 octies : « une scène de capture sur une partie
+EN LIGNE manque encore au harnais ». Elle existe — `en_ligne` dans
+`tools/screenshot.mjs`. Elle monte une vraie partie à deux bannières par l'API,
+entre avec le jeton du joueur qui a la main, et photographie **trois moments
+dans un seul contexte** : après « Entrer dans la partie », après un
+rechargement, et sur `#/partie` ouvert à froid. Le montage du salon est passé
+dans `tools/partie-en-ligne.mjs`, partagé avec l'épreuve de bout en bout —
+deux copies d'un même parcours dérivent, et c'est celle qui sert aux captures
+qui aurait fini par photographier un écran de salon en croyant montrer une
+carte.
+
+Si le bouton « Entrer dans la partie » n'apparaît pas, la capture est prise
+quand même **et l'échec est inscrit** : un instrument qui se tait ment.
+
+Ce que la première exécution a montré, en une image : la reprise et l'ouverture
+à froid marchent (le correctif du §1 octies tient sur les deux portes), et le
+trésor n'était nulle part.
+
+### Le trésor n'était nulle part
+
+Sur la carte d'aventure, le joueur ne voyait **ni écus, ni bois, ni fer**. Le
+trésor n'existait que dans `#/partie/royaume`, à un écran de distance ; la
+cité, l'autre écran où l'on dépense, ne l'affichait pas davantage. Dans HMM3 la
+barre est en permanence à l'écran parce que chaque décision de la carte se
+prend contre elle.
+
+`ResourceBar` existait déjà, finie et accessible, dans le système de design.
+Elle n'était posée nulle part. Elle l'est maintenant à droite du bandeau, sur
+la carte et sur la cité, et cliquer une ressource ouvre le royaume — le geste
+de HMM3.
+
+Le revenu affiché est **net de l'entretien**. Le royaume peut montrer le brut,
+il pose l'entretien juste à côté ; le bandeau n'a pas cette place, et « +15 » à
+côté de l'or quand on paie 20 par jour met le joueur en dette sans qu'il l'ait
+vu venir.
+
+### Une variante que personne ne pouvait regarder
+
+`ResourceBar` accepte un `onSelect` qui change chaque case en bouton.
+`.hmm-ressource__bouton` ne déclarait que trois choses et n'annulait rien de la
+parure que le navigateur donne d'office à un `<button>`. Le défaut ne pouvait
+pas se voir : `onSelect` n'était passé **nulle part** dans le produit, ni par le
+royaume, ni par la galerie. Le premier appel réel l'a sorti en une capture —
+mesuré, un liseré **blanc pur** de deux pixels autour de chaque case, sur une
+palette où le blanc pur n'existe pas.
+
+La galerie montre désormais la variante. *Une variante qu'on ne peut pas
+regarder est une variante qu'on ne maintient pas* — c'est exactement pour cela
+que celle-ci est restée nue.
+
+### Le serrage réglé à la mesure, en deux passes
+
+Sept ressources sur 390 points. Première version : le fil d'or coupé par le
+bord droit. Deuxième version, trop serrée dans l'autre sens — mesurée à **267
+points sur 390**, cent vingt-trois de perdus sur l'écran où la lisibilité est
+le plus en jeu. Troisième : icônes à vingt points, chiffres au corps de
+lecture, **374 sur 390**, les sept lisibles et les écus en toutes lettres. On
+n'abrège pas un trésor.
+
+### Quatre lignes du tableau d'audit étaient PÉRIMÉES
+
+Le tableau du §1 ter donnait quatre chantiers de combat « à faire ». Relus dans
+le code : dépouilles **faites**, volées de tour **faites** (moteur et vue),
+densité d'obstacles **faite** (le test exige ≥ 4), double appui au doigt
+**fait**. Seuls `Fortifications.volee` et `.projectiles` restent — zéro
+appelant, du code mort. Le tableau est corrigé sur place.
+
+**La leçon** : une passation qui vieillit sans être relue envoie le suivant
+réparer ce qui va bien. Quatre heures y seraient passées si le code n'avait pas
+été ouvert avant de le croire.
+
+### Une cinquième impression refusée par la mesure
+
+« Le brouillard laisse lire tout le réseau de routes sur la carte en ligne. »
+Mesuré sur la capture même : en territoire jamais exploré, écart-type de **4,6
+à 5,4** sur une moyenne de 41 (amplitude 27–63) ; en terrain vu, **32,0** sur
+une moyenne de 85 (18–237). La structure résiduelle vaut un septième du
+contraste du terrain visible. Le voile fait ce qu'il annonce. C'est la même
+impression que la n°3 du §1 octies, et elle est fausse pour la deuxième fois.
+
+Dans la foulée, « la minicarte est vide » : mesurée, **4,8 % de pixels clairs
+et colorés** — la tache explorée, le cadre de vue et le pion du héros. Au
+premier tour, une minicarte HMM3 est noire elle aussi. Rien à corriger.
 
 ## 2. LA LISTE — par importance pour le feeling HMM3
 
