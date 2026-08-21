@@ -23,6 +23,78 @@ import type { Geometrie } from './hexgrid.js';
 import type { CoucheUnites, PileVue } from './units.js';
 import type { CoucheVfx } from './vfx.js';
 
+/* ══════════════════════════ Cadence de la marche ═════════════════════════ */
+
+/**
+ * LA MARCHE D'UNE PILE, EN COMBAT.
+ *
+ * **Le défaut.** Le propriétaire, en jouant : « les déplacements des combats
+ * sont quasi instantanés or ils devraient être lents ».
+ *
+ * Mesuré sur l'ancienne formule — `max(0,12 ; min(1,6 ; 0,17 × pas))` :
+ *
+ * ```
+ *    1 hex →   170 ms      170 ms/hex
+ *    4 hex →   680 ms      170 ms/hex
+ *   10 hex →  1600 ms      160 ms/hex
+ *   14 hex →  1600 ms      114 ms/hex
+ *   18 hex →  1600 ms       89 ms/hex
+ * ```
+ *
+ * Deux fautes, dont la seconde est la plus grave.
+ *
+ * La première : 170 ms pour franchir un hexagone, c'est un glissement, pas un
+ * pas. Sur un champ de quinze colonnes, une pile qui avance d'une case a
+ * bougé avant qu'on ait tourné les yeux vers elle.
+ *
+ * La seconde : LE PLAFOND CORRIGEAIT À L'ENVERS. Passé dix hexagones la durée
+ * totale était bornée, donc la cadence par case s'effondrait — et la charge
+ * qui traverse tout le champ, le mouvement le plus spectaculaire du jeu,
+ * devenait le PLUS rapide de tous. C'est exactement la faute qui avait été
+ * trouvée sur la marche du héros sur la carte, et elle vivait ici aussi.
+ *
+ * **Le réglage.** Une seule cadence pour tout le jeu : 260 ms, la même que le
+ * pas du héros sur la carte d'aventure (`render/heroes.ts`). Un jeu qui marche
+ * à deux vitesses selon l'écran se lit comme deux jeux.
+ *
+ * **Et un genou, pas un plafond.** Le premier correctif remplaçait le plafond
+ * de 1,6 s par un plafond de 3 s, et sa propre garde l'a pris en défaut : de
+ * douze à dix-sept hexagones la durée totale restait clouée à 3000 ms exactes,
+ * si bien qu'une charge de douze cases et une charge de dix-sept duraient
+ * autant. C'est le défaut d'origine déplacé, pas corrigé — tout plafond sur la
+ * durée TOTALE finit par rendre deux trajets différents identiques.
+ *
+ * On borne donc la CROISSANCE et non la durée : la pleine cadence court
+ * jusqu'au genou, au-delà duquel chaque hexagone supplémentaire coûte moins
+ * cher, mais coûte toujours quelque chose. La durée croît alors strictement
+ * avec le chemin, à toute longueur, et aucune ne repasse sous la cadence dont
+ * le propriétaire s'est plaint.
+ *
+ * Le genou est placé à onze hexagones parce que c'est la portée d'une pile
+ * rapide : dans le domaine réellement jouable, la cadence est constante et
+ * vaut 260 ms. Au-delà, on n'est plus que dans les chemins de contournement.
+ */
+
+/** Cadence de croisière, en millisecondes par hexagone. */
+const MS_PAR_HEX = 260;
+/** Longueur jusqu'à laquelle la pleine cadence s'applique, en hexagones. */
+const GENOU_HEX = 11;
+/** Ce que coûte chaque hexagone au-delà du genou, en millisecondes. */
+const MS_PAR_HEX_AU_DELA = 140;
+
+/**
+ * Durée d'une marche de `hexagones` pas, EN SECONDES — l'unité de la file.
+ *
+ * Strictement croissante : deux chemins de longueurs différentes ne prennent
+ * jamais le même temps.
+ */
+export function dureeDeMarche(hexagones: number): number {
+  if (!Number.isFinite(hexagones) || hexagones <= 0) return MS_PAR_HEX / 1000;
+  const pleins = Math.min(hexagones, GENOU_HEX);
+  const au_dela = Math.max(0, hexagones - GENOU_HEX);
+  return (pleins * MS_PAR_HEX + au_dela * MS_PAR_HEX_AU_DELA) / 1000;
+}
+
 /* ═══════════════════════════════ Tâches ══════════════════════════════════ */
 
 interface Tache {
@@ -254,7 +326,7 @@ export class FileAnimations {
           return;
         }
         chemin = cheminDeMarche(ctx.combat(), uid, pile.hex, vers);
-        tache.duree = Math.max(0.12, Math.min(1.6, 0.17 * Math.max(1, chemin.length - 1)));
+        tache.duree = dureeDeMarche(Math.max(1, chemin.length - 1));
         pile.jouer('marche');
         pile.orienter(vers.col >= pile.hex.col ? 1 : -1);
       },
