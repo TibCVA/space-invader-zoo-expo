@@ -24,6 +24,17 @@ import {
 import type { ArtAtlas } from '../art/index.js';
 import type { Progression } from '../boot.js';
 import { Bandeau, EcranChargement, EcranPanne } from './shell.js';
+import { consommerEvenements, viewStore } from '../state/store.js';
+import type { GameEvent } from '@auvergne/engine';
+
+/**
+ * Le strict minimum pour animer : ce que `GameView` promet en plus d'une scène.
+ * On ne dépend pas de `GameView` entier — une scène de démonstration n'a pas de
+ * contrat de jeu et doit rester montable ici.
+ */
+interface VuePouvantAnimer {
+  playEvents(events: readonly GameEvent[]): Promise<void>;
+}
 
 /* ────────────────────────── Ce qu'une scène doit savoir faire ───────────── */
 
@@ -119,6 +130,8 @@ export function ScenePixi(props: ScenePixiProps): ReactElement {
     let observateur: ResizeObserver | null = null;
     let canvas: HTMLCanvasElement | null = null;
     let detacherDefilement: (() => void) | null = null;
+    /** Désabonnement de la file d'animation, posé quand la scène est prête. */
+    let desabonnerFile: (() => void) | null = null;
     /** relance la boucle d'images ; posée dès qu'elle existe */
     let reveil: (() => void) | null = null;
 
@@ -270,6 +283,54 @@ export function ScenePixi(props: ScenePixiProps): ReactElement {
         app.render();
         boucle = requestAnimationFrame(image);
         setPrete(true);
+
+        /*
+         * LA FILE D'ANIMATION ÉTAIT DÉBRANCHÉE DES DEUX CÔTÉS.
+         *
+         * `dispatch` empile chaque `GameEvent` dans `etat.queue`
+         * (`state/store.ts`), `consommerEvenements()` existe pour la vider, et
+         * `playEvents()` est écrite sur la carte comme sur le champ de
+         * bataille pour la jouer. **Aucune des deux n'était appelée par qui
+         * que ce soit** : la file grossissait sans fin et rien ne s'animait.
+         *
+         * Ce que voyait le joueur, et ce qu'il a signalé : « sur la carte, les
+         * déplacements sont instantanés au lieu de voir le héros avancer
+         * lentement ». Le héros se téléporte parce que `animerDeplacement`, qui
+         * le fait marcher de case en case, n'est jamais atteinte.
+         *
+         * On relie donc les deux bouts ici, au seul endroit qui tient à la fois
+         * la scène montée et son cycle de vie. Trois garanties :
+         *
+         *  - **une lecture à la fois** : `enTrainDeJouer` empêche deux séries
+         *    de se chevaucher, sinon deux marches du même héros se disputent sa
+         *    position ;
+         *  - **l'état n'est jamais touché** : le moteur a déjà tout appliqué,
+         *    l'animation est purement visuelle et ne peut rien changer ;
+         *  - **une série qui échoue ne fige rien** : on relâche le verrou et on
+         *    reprend la file, quitte à sauter une animation.
+         */
+        let enTrainDeJouer = false;
+        const jouerLaFile = (): void => {
+          if (!vivant || enTrainDeJouer) return;
+          const vue = scene as SceneMontee & Partial<VuePouvantAnimer>;
+          if (typeof vue.playEvents !== 'function') return;
+          const attente = consommerEvenements();
+          if (attente.length === 0) return;
+          enTrainDeJouer = true;
+          void vue
+            .playEvents(attente)
+            .catch(() => {
+              /* Une animation qui casse ne doit pas emporter la partie : l'état
+                 du moteur est déjà juste, seule l'image est perdue. */
+            })
+            .finally(() => {
+              enTrainDeJouer = false;
+              reveil?.();
+              jouerLaFile();
+            });
+        };
+        desabonnerFile = viewStore.subscribe(jouerLaFile);
+        jouerLaFile();
       } catch (cause) {
         if (!vivant) return;
         noterMontageScene({
@@ -296,6 +357,7 @@ export function ScenePixi(props: ScenePixiProps): ReactElement {
     return () => {
       vivant = false;
       if (boucle) cancelAnimationFrame(boucle);
+      desabonnerFile?.();
       detacherDefilement?.();
       observateur?.disconnect();
       scene?.destroy?.();
