@@ -134,35 +134,40 @@ export function resolutionEcran(): number {
 }
 
 /**
- * Quel moteur demander en premier.
+ * Quel moteur demander en premier — et pourquoi c'est WebGL.
  *
- * Partout, WebGPU : il est plus rapide et mieux taillé pour ce que fait la
- * carte. **Sauf sur WebKit**, où il vient d'arriver et où l'implémentation est
- * encore partielle. Un iPhone a rendu la carte d'aventure entièrement vide et
- * la cité réduite à deux aplats, alors que les écrans de texte s'affichaient
- * normalement : le moteur s'ouvrait donc, mais ne dessinait pas ce qu'on lui
- * demandait.
+ * **Le même défaut a été observé deux fois, sur deux plateformes WebGPU
+ * différentes, et jamais sous WebGL.**
  *
- * C'est une **hypothèse**, pas un fait établi : on ne dispose ici ni d'un
- * appareil Apple, ni de WebKit, et rien de tout cela ne se reproduit sous
- * Chromium. Elle est retenue parce qu'elle explique l'écart observé — les
- * formes simples passent, les scènes composées non — et parce que le repli sur
- * WebGL ne coûte rien : c'est le chemin éprouvé, celui que le jeu a toujours
- * emprunté ailleurs. `#/diagnostic` tranchera, sur l'appareil lui-même.
+ *  1. Sur iPhone : « la carte d'aventure entièrement vide et la cité réduite à
+ *     deux aplats », alors que les écrans de texte s'affichaient normalement.
+ *     On l'avait mis sur le compte de WebKit, dont l'implémentation venait
+ *     d'arriver, et forcé WebGL pour ce seul moteur.
+ *  2. Sur **Windows / Chrome**, signalé par le propriétaire : « la carte ne
+ *     s'affiche vraiment pas du tout ni la cité ». Signature identique — le
+ *     moteur s'ouvre (aucune exception, donc aucun écran de panne), et ne
+ *     dessine pas ce qu'on lui demande.
  *
- * On ne teste pas « iOS » : depuis iPadOS 13, un iPad se présente comme un
- * Macintosh. On teste WebKit, qui est ce qui compte ici — Safari sur toutes
- * les plateformes, et tout navigateur sur iPhone, qui n'a pas le choix du
- * moteur.
+ * Deux plateformes sans rien de commun sinon WebGPU : l'hypothèse « c'est
+ * WebKit » ne tient plus. La cause probable est notre usage de WebGPU, pas tel
+ * ou tel navigateur — et un écran vide est une perte totale, là où WebGL ne
+ * coûte qu'une part de vitesse sur une scène qui tient déjà ses soixante
+ * images.
+ *
+ * On demande donc **WebGL partout**. C'est le chemin éprouvé : toutes les
+ * captures de revue, toutes les épreuves de bout en bout et toutes les parties
+ * jouées sans incident l'ont emprunté.
+ *
+ * WebGPU reste atteignable, mais **sur demande explicite** — `?rendu=webgpu`
+ * dans l'adresse. C'est ce qui permettra de vérifier un jour, sur la machine
+ * du propriétaire et avec `#/diagnostic`, si le défaut vient de là ; ce n'est
+ * pas au joueur de servir de banc d'essai sans l'avoir demandé.
  */
 export function preferenceRendu(): 'webgpu' | 'webgl' {
-  if (typeof navigator === 'undefined') return 'webgpu';
-  const ua = navigator.userAgent;
-  const webkitApple =
-    /\b(iPhone|iPad|iPod)\b/.test(ua) ||
-    (/Safari\//.test(ua) && !/Chrome|Chromium|Edg\//.test(ua)) ||
-    (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
-  return webkitApple ? 'webgl' : 'webgpu';
+  if (typeof location !== 'undefined' && typeof location.search === 'string') {
+    if (new URLSearchParams(location.search).get('rendu') === 'webgpu') return 'webgpu';
+  }
+  return 'webgl';
 }
 
 function nomDuRendu(app: Application): MoteurRendu {

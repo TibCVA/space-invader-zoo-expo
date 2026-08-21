@@ -281,6 +281,39 @@ export function App(_props: AppProps = {}): ReactElement {
     return relireEmplacements();
   }, [route.name, relireEmplacements]);
 
+  /* ── Le combat s'ouvre, et se referme, tout seul ───────────────────────── */
+
+  /**
+   * LE COMBAT ÉTAIT INATTEIGNABLE.
+   *
+   * Marcher sur une garde neutre pose `state.combat` et fait passer la partie
+   * en phase de combat (`packages/engine/src/core/movement.ts`). Or **aucun
+   * chemin du client ne navigue vers `#/partie/combat`** : `partie-combat`
+   * n'apparaissait que dans le routeur et dans le `switch` ci-dessous, jamais
+   * dans un `navigate`. L'écran de bataille existait, entièrement écrit, et
+   * personne ne pouvait y arriver.
+   *
+   * Ce que vivait le joueur : il attaque, rien ne s'ouvre, il reste sur la
+   * carte — et la partie est bloquée, car la fin de tour s'efface pendant un
+   * combat et la fiche de héros refuse de s'ouvrir. Un cul-de-sac sans message.
+   *
+   * On regarde donc l'état plutôt qu'on ne devine la commande : dès qu'un
+   * combat existe, on l'ouvre ; dès qu'il n'existe plus, on revient à la carte.
+   * Peu importe qui l'a déclenché — un déplacement, une garde, un siège.
+   */
+  const combatEnCours = Boolean(etat.game?.combat);
+  useEffect(() => {
+    if (isDemoRoute(route)) return;
+    if (combatEnCours && route.name !== 'partie-combat') {
+      navigate({ name: 'partie-combat' });
+    } else if (!combatEnCours && route.name === 'partie-combat') {
+      /* Le combat est fini : on rend la carte, en REMPLAÇANT l'entrée
+         d'historique — sans quoi le bouton « précédent » y ramènerait, sur un
+         combat qui n'existe plus. */
+      navigate({ name: 'partie' }, true);
+    }
+  }, [combatEnCours, route]);
+
   /* ── Barre de pouce ────────────────────────────────────────────────────── */
   const demo = isDemoRoute(route);
   const enPartie = needsGame(route) || (demo && besoin !== 'aucun');

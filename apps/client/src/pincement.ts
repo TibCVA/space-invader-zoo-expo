@@ -50,6 +50,18 @@ export function brancherPincement(cible: HTMLElement, o: OptionsPincement): () =
   const doigts = new Map<number, Doigt>();
   let ecart = 0;
   let centre: { x: number; y: number } | null = null;
+  /**
+   * Vrai dès que DEUX doigts se sont posés en même temps pendant ce geste.
+   *
+   * **Le défaut que ce drapeau corrige.** `surFin` était appelé à chaque
+   * relâché laissant moins de deux doigts — c'est-à-dire à la fin de tout
+   * appui simple. La garde du relâché s'armait donc à chaque tapotement, et
+   * `avaleLeClic()` mangeait le `pointertap` suivant. La cité et le champ de
+   * bataille branchent cette garde ; la souris était épargnée, `surDown`
+   * ignorant tout ce qui n'est pas tactile — d'où un défaut invisible sur
+   * ordinateur et permanent au doigt.
+   */
+  let plusieursDoigts = false;
 
   const pointDe = (e: PointerEvent): Doigt => {
     const r = cible.getBoundingClientRect();
@@ -69,6 +81,7 @@ export function brancherPincement(cible: HTMLElement, o: OptionsPincement): () =
   const surDown = (e: PointerEvent): void => {
     if (e.pointerType !== 'touch') return;
     doigts.set(e.pointerId, pointDe(e));
+    if (doigts.size >= 2) plusieursDoigts = true;
     const m = mesure();
     if (m) {
       ecart = m.ecart;
@@ -111,6 +124,12 @@ export function brancherPincement(cible: HTMLElement, o: OptionsPincement): () =
     if (doigts.size < 2) {
       ecart = 0;
       centre = null;
+    }
+    /* On n'annonce la fin qu'une fois, et seulement si deux doigts s'étaient
+       posés : un appui simple n'est pas un pincement, et sa fin ne doit pas
+       faire avaler le clic qui la suit. */
+    if (plusieursDoigts && doigts.size < 2) {
+      plusieursDoigts = false;
       o.surFin?.();
     }
   };
