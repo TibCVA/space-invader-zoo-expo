@@ -154,6 +154,22 @@ const QUALITES: readonly { id: SceneQuality; name: string; text: string }[] = [
   { id: 'haute', name: 'Peinte', text: 'Tous les plans, toutes les particules, résolution maximale.' },
 ];
 
+/*
+ * Trois états et non une bascule.
+ *
+ * Le réglage était un booléen, combiné à la préférence du système par un OU :
+ * un joueur dont l'appareil demande moins de mouvement — la case « Réduire les
+ * animations » d'iOS, très répandue — n'avait AUCUNE animation, et aucun moyen
+ * de les rallumer. L'écran le disait sans le corriger : « Imposé par les
+ * réglages du système ». Un réglage d'accessibilité doit être un défaut, pas
+ * une prison ; le joueur a maintenant le dernier mot, dans les deux sens.
+ */
+const MOUVEMENTS: readonly { id: 'auto' | 'completes' | 'reduites'; name: string; text: string }[] = [
+  { id: 'auto', name: 'Suivre l’appareil', text: 'Ce que demandent vos réglages système.' },
+  { id: 'completes', name: 'Complètes', text: 'Tout bouge : marche, parallaxe, particules.' },
+  { id: 'reduites', name: 'Réduites', text: 'La scène reste peinte, mais immobile.' },
+];
+
 const ECHELLES: readonly { id: string; name: string; text: string }[] = [
   { id: '85', name: 'Serrée', text: 'Plus de contenu à l’écran' },
   { id: '100', name: 'Normale', text: 'Réglage de référence' },
@@ -251,16 +267,16 @@ export function OptionsPage({ settings, onChange, onBack, children }: OptionsPag
             options={QUALITES}
             onChange={(v): void => mettreAJour({ qualite: v })}
           />
-          <Bascule
-            label="Réduire les animations"
-            hint="Coupe la parallaxe, les particules et les transitions. La scène reste peinte, mais immobile."
-            checked={settings.animationsReduites || systeme}
-            forced={
+          <Choix
+            label="Le mouvement"
+            hint={
               systeme
-                ? 'Imposé par les réglages du système : votre appareil demande moins de mouvement.'
-                : undefined
+                ? 'Votre appareil demande moins de mouvement. « Suivre l’appareil » l’écoute ; « Complètes » passe outre — la marche des héros et des piles se voit alors, comme le reste.'
+                : 'La marche des héros et des piles, la parallaxe, les particules et les transitions. La scène reste peinte dans tous les cas.'
             }
-            onChange={(v): void => mettreAJour({ animationsReduites: v })}
+            value={settings.animations}
+            options={MOUVEMENTS}
+            onChange={(v): void => mettreAJour({ animations: v })}
           />
         </section>
 

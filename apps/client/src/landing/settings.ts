@@ -18,7 +18,22 @@ export interface GameSettings {
   /** échelle du texte, de 85 à 140 (pour cent) */
   echelleTexte: number;
   contrasteRenforce: boolean;
-  animationsReduites: boolean;
+  /**
+   * Le mouvement : suivre le système, tout montrer, ou tout couper.
+   *
+   * C'était un booléen, `animationsReduites`, et il était combiné au réglage
+   * du système par un OU. Conséquence : un joueur dont l'appareil demande
+   * moins de mouvement — la case « Réduire les animations » d'iOS, très
+   * répandue — n'avait AUCUNE animation dans le jeu, et aucun moyen de les
+   * rallumer. La bascule ne pouvait qu'ajouter de la réduction, jamais en
+   * retirer, et l'écran des options le disait sans le corriger : « Imposé par
+   * les réglages du système ».
+   *
+   * Un réglage d'accessibilité doit être un DÉFAUT, pas une prison. « auto »
+   * suit l'appareil et reste la valeur de départ ; un choix explicite du
+   * joueur l'emporte, dans les deux sens.
+   */
+  animations: 'auto' | 'completes' | 'reduites';
   /** motifs de bannière en plus de la couleur (accessibilité) */
   motifsAccessibles: boolean;
   /** la seule langue livrée ; le champ existe pour ne pas mentir au joueur */
@@ -32,7 +47,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   qualite: 'haute',
   echelleTexte: 100,
   contrasteRenforce: false,
-  animationsReduites: false,
+  animations: 'auto',
   motifsAccessibles: true,
   langue: 'fr',
 };
@@ -57,7 +72,11 @@ export function loadSettings(): GameSettings {
     if (!raw) return { ...DEFAULT_SETTINGS };
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== 'object' || parsed === null) return { ...DEFAULT_SETTINGS };
-    const o = parsed as Partial<Record<keyof GameSettings, unknown>>;
+    /* `animationsReduites` n'est plus au type mais dort encore dans le
+       stockage des joueurs d'avant : on le lit pour le convertir. */
+    const o = parsed as Partial<Record<keyof GameSettings, unknown>> & {
+      animationsReduites?: unknown;
+    };
     return {
       musique: clampInt(o.musique, 0, 100, DEFAULT_SETTINGS.musique),
       effets: clampInt(o.effets, 0, 100, DEFAULT_SETTINGS.effets),
@@ -65,7 +84,15 @@ export function loadSettings(): GameSettings {
       qualite: asQuality(o.qualite),
       echelleTexte: clampInt(o.echelleTexte, 85, 140, DEFAULT_SETTINGS.echelleTexte),
       contrasteRenforce: o.contrasteRenforce === true,
-      animationsReduites: o.animationsReduites === true,
+      /* Reprise des réglages enregistrés avant le passage à trois états : une
+         réduction demandée reste demandée, tout le reste redevient « auto ».
+         Personne ne doit perdre son choix en rechargeant la page. */
+      animations:
+        o.animations === 'completes' || o.animations === 'reduites' || o.animations === 'auto'
+          ? o.animations
+          : o.animationsReduites === true
+            ? 'reduites'
+            : 'auto',
       motifsAccessibles: o.motifsAccessibles !== false,
       langue: 'fr',
     };
@@ -90,9 +117,17 @@ export function systemPrefersReducedMotion(): boolean {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-/** Le mouvement est coupé si le système **ou** le joueur le demande. */
+/**
+ * Le mouvement est-il coupé ?
+ *
+ * Le choix du joueur l'emporte quand il est explicite, DANS LES DEUX SENS ;
+ * « auto » suit l'appareil. Voir `GameSettings.animations` pour ce que
+ * l'ancien OU coûtait.
+ */
 export function motionDisabled(settings: GameSettings): boolean {
-  return settings.animationsReduites || systemPrefersReducedMotion();
+  if (settings.animations === 'reduites') return true;
+  if (settings.animations === 'completes') return false;
+  return systemPrefersReducedMotion();
 }
 
 /**
