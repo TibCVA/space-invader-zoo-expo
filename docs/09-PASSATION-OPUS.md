@@ -685,6 +685,83 @@ Dans la foulée, « la minicarte est vide » : mesurée, **4,8 % de pixels clair
 et colorés** — la tache explorée, le cadre de vue et le pion du héros. Au
 premier tour, une minicarte HMM3 est noire elle aussi. Rien à corriger.
 
+## 1 decies. Session du 21/08 — le jeu n'était pas jouable, et voici pourquoi
+
+Le propriétaire a demandé : « que tout marche pour que je puisse jouer contre
+l'IA et/ou avec mes cousins, sur iPhone et sur ordinateur ». La vérification a
+trouvé **quatre défauts bloquants**, tous de la même famille : une pièce du jeu
+existait dans le moteur et n'était reliée à rien dans l'interface.
+
+### La mesure qui les a tous révélés
+
+Une seule commande, à refaire avant toute déclaration de « ça marche » :
+
+```
+for c in StartGame MoveHero HeroInteract BuildInTown RecruitCreatures \
+         UpgradeCreatures HireHero SwapArmy EquipArtifact UnequipArtifact \
+         CastAdventureSpell ChooseLevelUp SetCharter SetGabelle \
+         TradeResources UseBorne CombatAction AutoResolveCombat EndTurn Surrender; do
+  printf "%-20s " "$c"
+  grep -rn "'$c'" apps/client/src --include=*.ts --include=*.tsx | grep -v '\.test\.' | wc -l
+done
+```
+
+Au matin du 21/08, elle rendait **4 commandes sur 20**. Le soir, **10**.
+
+### Les quatre blocages
+
+1. **On ne pouvait pas rendre la main** (`EndTurn`, §1 nonies). Sur un jeu
+   asynchrone, la partie ne dépassait pas le tour du premier joueur.
+2. **Personne ne jouait les bannières de l'ordinateur en solo.** « Nouvelle
+   partie » monte une partie entièrement LOCALE ; le serveur, seul endroit du
+   dépôt qui déroulait l'IA, n'est pas dans cette boucle, et le client
+   n'importait même pas `@auvergne/bots`. Mesuré dans un navigateur : l'écran
+   restait sur « La main est à Maison de… » pour toujours.
+   → `deroulerIaLocale`, dans `state/store.ts`.
+3. **On ne pouvait ni bâtir ni recruter.** Aucune croissance, donc pas de
+   partie. → le panneau de cité, `screens/cite-commandes.tsx`.
+4. **Sur ordinateur, la cité, le héros, le royaume et le menu étaient
+   INATTEIGNABLES.** `.jeu-pouce` ne s'affichait que sous 900 pixels, et c'est
+   le seul chemin vers ces quatre écrans — `panneaux.tsx` est le seul endroit
+   du client qui navigue vers `partie-cite` et `partie-heros`.
+
+S'y ajoute, grâce à un agent : la montée de niveau (le joueur ne choisissait
+rien, `leveling.ts:288` appliquait d'office la première voie), les artefacts, et
+l'échange de troupes héros ↔ garnison.
+
+### La leçon, et elle est générale
+
+**Une épreuve qui court-circuite l'interface prouve le serveur, pas le jeu.**
+`e2e-en-ligne.mjs` postait `EndTurn` directement à l'API : verte, honnête, et
+aveugle au fait qu'aucun bouton ne l'émettait. Les tests unitaires purs ont le
+même angle mort. Trois épreuves cliquent désormais pour de bon :
+
+| Épreuve | Ce qu'elle joue |
+|---|---|
+| `tools/e2e-solo.mjs [url]` | nouvelle partie → fin de tour → l'IA joue → la journée avance → bâtir → recruter, sur **ordinateur ET iPhone**, en exigeant que le trésor BOUGE |
+| `tools/e2e-en-ligne.mjs` | deux cousins, la main qui passe **en cliquant** le bouton |
+| `tools/e2e-ia-en-ligne.mjs [url]` | une bannière humaine, une confiée à l'ordinateur, déroulée par le serveur |
+| `tools/fumee-production.mjs [url]` | une vraie partie **sur le site déployé**, par l'API |
+
+### Ce que ce conteneur ne peut pas faire, et qu'il ne faut pas croire fait
+
+**Chromium n'y joint pas l'internet public.** Mesuré trois fois — avec l'option
+mandataire de Playwright, avec `--proxy-server`, et sans — toujours
+`net::ERR_CONNECTION_RESET`, et le mandataire n'enregistre **aucune** tentative
+(`curl "$HTTPS_PROXY/__agentproxy/status"`). Les épreuves de navigateur portent
+donc sur le paquet LOCAL, construit depuis la révision qui sert en ligne ; le
+site déployé est éprouvé par l'API. Ne pas conclure d'un `e2e-solo` vert que le
+site en ligne a été piloté au navigateur : il ne l'a pas été.
+
+### Ce qui reste, honnêtement
+
+| Ce qui reste | État mesuré |
+|---|---|
+| **Dix commandes du moteur sur vingt** restent sans interface | `HireHero`, `UpgradeCreatures`, `CastAdventureSpell`, `SetCharter`, `SetGabelle`, `TradeResources`, `UseBorne`, `HeroInteract`, `Surrender`, `StartGame`. Aucune n'empêche de jouer une partie complète ; toutes manquent au feeling HMM3 |
+| **Pas de fractionnement de pile** | `SwapArmy` n'envoie jamais `count` : une pile part entière |
+| **Le combat d'une vraie partie n'est éprouvé par aucune sonde** | il faut marcher sur une garde pour le déclencher, donc piloter un déplacement dans la capture. C'est le prochain trou par ordre de risque |
+| **La cité en ligne** n'est pas visitée par le harnais de capture | `en_ligne` s'arrête à la carte |
+
 ## 2. LA LISTE — par importance pour le feeling HMM3
 
 ### P0 — le cœur du jeu (sans quoi ce n'est pas HMM3)
