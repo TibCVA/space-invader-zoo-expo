@@ -56,6 +56,39 @@ export interface OffreRecrue {
   readonly coutUnitaire: Partial<Resources>;
   /** Combien la bourse permet d'en prendre, plafonné par la disponibilité. */
   readonly abordables: number;
+  /**
+   * La demeure qui loge cette créature — « ni où elles sont », disait le
+   * propriétaire. Sans ce nom, la liste des recrues est une liste d'espèces
+   * flottantes : on ne sait pas quel bâtiment on a levé pour les obtenir, ni
+   * lequel lever pour obtenir les suivantes.
+   */
+  readonly demeure: string | null;
+  /**
+   * Ce qu'on achète, en quatre nombres. Ce sont ceux que HMM3 met en avant au
+   * moment de recruter : ce que la pile encaisse, ce qu'elle rend, et à quelle
+   * vitesse elle traverse le champ.
+   */
+  readonly vie: number;
+  readonly attaque: number;
+  readonly defense: number;
+  readonly vitesse: number;
+  readonly degats: { readonly min: number; readonly max: number };
+}
+
+/**
+ * Le bâtiment qui loge une créature donnée.
+ *
+ * On interroge les octrois (`grants`) des bâtiments plutôt qu'une table
+ * parallèle : c'est la même source que celle dont le moteur se sert pour
+ * remplir `town.available`, et une table recopiée finirait par mentir.
+ */
+export function demeureDe(creature: CreatureId): string | null {
+  for (const def of Object.values(BUILDINGS)) {
+    for (const octroi of def.grants) {
+      if (octroi.kind === 'dwelling' && octroi.creature === creature) return def.name;
+    }
+  }
+  return null;
 }
 
 /**
@@ -140,6 +173,12 @@ export function offresRecrues(game: GameState, town: TownState): OffreRecrue[] {
       disponibles: town.available[id] ?? 0,
       coutUnitaire: recruitCost(id, 1),
       abordables: recruesAbordables(game, town, id),
+      demeure: demeureDe(id),
+      vie: def.hp,
+      attaque: def.attack,
+      defense: def.defense,
+      vitesse: def.speed,
+      degats: { min: def.dmgMin, max: def.dmgMax },
     });
   }
   offres.sort((a, b) => a.rang - b.rang);

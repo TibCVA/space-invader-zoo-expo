@@ -12,10 +12,11 @@
  * ils ouvrent le même panneau — mais ils ne sont plus le SEUL chemin.
  */
 
-import { useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { BuildingId, CreatureId, GameState, TownState } from '@auvergne/engine';
 import { Button, Panel } from '@auvergne/ui';
 import { dispatch } from '../state/store.js';
+import { vignetteCreature } from '../art/vignette.js';
 import { nombre } from './format.js';
 import {
   destinataireRecrues,
@@ -69,6 +70,31 @@ function LigneBatiment({ offre, town }: { offre: OffreBatiment; town: TownState 
   );
 }
 
+/**
+ * La vignette de la créature, extraite de l'atlas.
+ *
+ * Elle arrive après coup : l'extraction demande le rendu partagé, qui n'est
+ * prêt qu'une fois la scène montée. On réserve donc sa place tout de suite —
+ * un cadre vide plutôt qu'une ligne qui saute quand l'image arrive.
+ */
+function VignetteRecrue({ id }: { id: CreatureId }): ReactElement {
+  const [image, setImage] = useState<string | null>(null);
+  useEffect(() => {
+    let vivant = true;
+    void vignetteCreature(id).then((src) => {
+      if (vivant) setImage(src);
+    });
+    return () => {
+      vivant = false;
+    };
+  }, [id]);
+  return (
+    <span className="cite-cmd__vignette" aria-hidden="true">
+      {image ? <img src={image} alt="" loading="lazy" decoding="async" /> : null}
+    </span>
+  );
+}
+
 function LigneRecrue({ offre, town }: { offre: OffreRecrue; town: TownState }): ReactElement {
   const [nb, setNb] = useState(0);
   /* La quantité par défaut est le maximum abordable : c'est le geste de HMM3,
@@ -79,6 +105,7 @@ function LigneRecrue({ offre, town }: { offre: OffreRecrue; town: TownState }): 
 
   return (
     <li className="cite-cmd__ligne">
+      <VignetteRecrue id={offre.id} />
       <div className="cite-cmd__texte">
         <p className="cite-cmd__nom">
           {offre.nomPluriel} <span className="cite-cmd__rang">rang {offre.rang}</span>
@@ -87,6 +114,23 @@ function LigneRecrue({ offre, town }: { offre: OffreRecrue; town: TownState }): 
           {offre.disponibles} disponible{offre.disponibles > 1 ? 's' : ''} ·{' '}
           {ecrireCout(offre.coutUnitaire)} l’unité
         </p>
+        {/* Ce qu'on achète, en quatre nombres, et d'où elles sortent. Sans
+            cela, la liste ne dit ni ce que vaut la bête, ni quel bâtiment l'a
+            fait naître — les deux manques signalés par le propriétaire. */}
+        {/* Des mots, pas des pictogrammes : ⚔ ⛨ ♥ ↦ ne sont pas dans les fontes
+            du jeu et se rendaient en glyphes de secours, illisibles à onze
+            pixels. Trois lettres tiennent la même place et ne dépendent de
+            rien. */}
+        <p className="cite-cmd__stats jeu-tabulaire">
+          <span title="Attaque">Att {offre.attaque}</span>
+          <span title="Défense">Déf {offre.defense}</span>
+          <span title="Points de vie">PV {offre.vie}</span>
+          <span title="Dégâts par créature">
+            Dég {offre.degats.min}–{offre.degats.max}
+          </span>
+          <span title="Vitesse sur le champ de bataille">Vit {offre.vitesse}</span>
+        </p>
+        {offre.demeure ? <p className="cite-cmd__demeure">{offre.demeure}</p> : null}
         {offre.disponibles > 0 && offre.abordables === 0 ? (
           <p className="cite-cmd__refus">Le trésor ne suffit pas pour une seule recrue.</p>
         ) : null}

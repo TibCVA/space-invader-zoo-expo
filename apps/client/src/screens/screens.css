@@ -279,6 +279,52 @@
   min-width: 0;
 }
 
+/* La vraie bête, extraite de l'atlas — pas un symbole choisi à sa place. Sa
+   place est réservée avant qu'elle n'arrive : l'extraction attend le rendu
+   partagé, et une ligne qui saute quand l'image apparaît se lit comme un
+   défaut. */
+.cite-cmd__vignette {
+  flex: 0 0 auto;
+  /* 68 et non 52 : la vignette extraite mesure 192 × 208 et la bête n'en
+     occupe qu'une part — le reste est la marge transparente et son ombre
+     portée. À 52 pixels de cadre, le Manant tombait à une trentaine de pixels
+     de haut, soit une silhouette qu'on devine sans la reconnaître. */
+  width: 68px;
+  height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--hmm-filet-fin) solid var(--hmm-separateur);
+  border-radius: var(--hmm-radius-sm);
+  background: rgba(26, 31, 38, 0.14);
+  overflow: hidden;
+}
+
+.cite-cmd__vignette img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* Attaque, défense, vie, dégâts, vitesse : ce que HMM3 met sous les yeux au
+   moment de recruter. En chasse tabulaire, pour que deux rangs se comparent
+   d'un coup d'œil. */
+.cite-cmd__stats {
+  margin: 3px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hmm-space-2);
+  font-size: var(--hmm-fs-micro);
+  color: var(--hmm-texte-doux);
+}
+
+.cite-cmd__demeure {
+  margin: 2px 0 0;
+  font-size: var(--hmm-fs-micro);
+  font-style: italic;
+  opacity: 0.75;
+}
+
 .cite-cmd__nom {
   margin: 0;
   font-weight: 600;

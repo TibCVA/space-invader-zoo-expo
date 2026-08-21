@@ -19,8 +19,25 @@ import { LIGHT, PALETTE, assombrir, melanger } from '../art/palette.js';
 import { borne, xEcran, yEcran } from './commun.js';
 import type { Cadrage } from './commun.js';
 
-/** Durée d'un pas de héros, en millisecondes. */
-const MS_PAR_CASE = 145;
+/**
+ * Durée d'un pas de héros, en millisecondes.
+ *
+ * Elle valait 145 ms, et le propriétaire l'a jugée trop rapide dès qu'elle a
+ * commencé à s'appliquer — la file d'animation venait d'être rebranchée, et un
+ * trajet de trois cases se jouait en 435 ms, à peine le temps de voir partir
+ * le héros. On la porte à 260 ms : un pas devient lisible, on suit la troupe
+ * du regard, et l'on comprend où passe la route.
+ *
+ * Le plafond compte autant que la cadence. Sans lui, la durée croît avec le
+ * chemin : à 260 ms la case, une marche de vingt cases immobiliserait le
+ * joueur cinq secondes, chaque tour. Au-delà de `MARCHE_MAX_MS`, les pas se
+ * resserrent d'eux-mêmes — le trajet reste lisible, il ne devient jamais une
+ * attente.
+ */
+const MS_PAR_CASE = 260;
+
+/** Durée totale au-delà de laquelle la marche se resserre. */
+const MARCHE_MAX_MS = 2200;
 
 interface Jeton {
   uid: string;
@@ -46,6 +63,8 @@ interface Deplacement {
   points: MapCoord[];
   index: number;
   t: number;
+  /** Cadence retenue pour CE trajet, plafond de durée totale compris. */
+  msParCase: number;
   resoudre: () => void;
 }
 
@@ -370,8 +389,12 @@ export class JetonsHeros {
       jeton.row = fin.row;
       return Promise.resolve();
     }
+    /* Le plafond n'écourte que les longs trajets : un chemin court garde la
+       pleine cadence, un chemin de vingt cases se resserre pour tenir dans
+       `MARCHE_MAX_MS`. */
+    const msParCase = Math.min(MS_PAR_CASE, MARCHE_MAX_MS / chemin.length);
     return new Promise<void>((resoudre) => {
-      this.deplacement = { uid, points: [...chemin], index: 0, t: 0, resoudre };
+      this.deplacement = { uid, points: [...chemin], index: 0, t: 0, msParCase, resoudre };
     });
   }
 
@@ -385,7 +408,7 @@ export class JetonsHeros {
       this.deplacement = null;
       return;
     }
-    d.t += dtMs / MS_PAR_CASE;
+    d.t += dtMs / d.msParCase;
     while (d.t >= 1 && d.index < d.points.length) {
       d.t -= 1;
       const p = d.points[d.index];
