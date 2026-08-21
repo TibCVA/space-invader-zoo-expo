@@ -36,8 +36,39 @@ import type { Cadrage } from './commun.js';
  */
 const MS_PAR_CASE = 260;
 
-/** Durée totale au-delà de laquelle la marche se resserre. */
-const MARCHE_MAX_MS = 2200;
+/**
+ * Durée totale au-delà de laquelle la marche se resserre.
+ *
+ * Elle valait 2200 ms, et c'était une faute de calcul : un héros dispose de
+ * 1300 à 2000 points de marche et la case de chemin en coûte 70, donc une
+ * journée de route fait jusqu'à VINGT-HUIT cases. À 2200 ms de plafond, ce
+ * trajet-là se serait joué à 79 ms la case — deux fois plus vite que les
+ * 145 ms que le propriétaire venait de juger trop rapides. Le plafond
+ * corrigeait les longs trajets dans le mauvais sens.
+ */
+const MARCHE_MAX_MS = 3400;
+
+/**
+ * Cadence PLANCHER, en millisecondes par case.
+ *
+ * Aucun trajet, si long soit-il, ne va plus vite que cela. C'est la garantie
+ * qui manquait : quelle que soit la longueur du chemin, la marche reste plus
+ * lente que celle dont le propriétaire s'est plaint.
+ */
+const MS_PAR_CASE_MIN = 170;
+
+/**
+ * Cadence retenue pour un trajet de `cases` cases, en millisecondes par case.
+ *
+ * Un chemin court garde la pleine cadence — c'est lui qu'on regarde. Un long
+ * trajet se resserre, comme un courrier qui prend le trot, sans jamais
+ * descendre sous le plancher : la plus longue marche possible tient alors en
+ * moins de cinq secondes tout en restant lisible.
+ */
+export function cadenceDeMarche(cases: number): number {
+  if (!Number.isFinite(cases) || cases <= 0) return MS_PAR_CASE;
+  return Math.max(MS_PAR_CASE_MIN, Math.min(MS_PAR_CASE, MARCHE_MAX_MS / cases));
+}
 
 interface Jeton {
   uid: string;
@@ -389,10 +420,7 @@ export class JetonsHeros {
       jeton.row = fin.row;
       return Promise.resolve();
     }
-    /* Le plafond n'écourte que les longs trajets : un chemin court garde la
-       pleine cadence, un chemin de vingt cases se resserre pour tenir dans
-       `MARCHE_MAX_MS`. */
-    const msParCase = Math.min(MS_PAR_CASE, MARCHE_MAX_MS / chemin.length);
+    const msParCase = cadenceDeMarche(chemin.length);
     return new Promise<void>((resoudre) => {
       this.deplacement = { uid, points: [...chemin], index: 0, t: 0, msParCase, resoudre };
     });

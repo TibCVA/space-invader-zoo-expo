@@ -48,7 +48,7 @@ function ecrireCout(cout: Partial<Record<string, number>>): string {
 
 function LigneBatiment({ offre, town }: { offre: OffreBatiment; town: TownState }): ReactElement {
   return (
-    <li className="cite-cmd__ligne">
+    <li className="cite-cmd__ligne cite-cmd__ligne--bati">
       <div className="cite-cmd__texte">
         <p className="cite-cmd__nom">{offre.nom}</p>
         <p className="cite-cmd__detail">{ecrireCout(offre.cout)}</p>
@@ -181,6 +181,17 @@ export interface PanneauCiteProps {
    */
   ongletInitial?: 'batir' | 'recruter';
   onFermer(): void;
+  /**
+   * Ressortir sur la carte, SANS refermer d'abord.
+   *
+   * Plainte du propriétaire : « la navigation entre bâtiments et sortie et
+   * recrutement est pas fluide ». Le panneau remplaçait la barre où vivait
+   * « Quitter la cité » : une fois dedans, sortir demandait de fermer, puis de
+   * viser un second bouton. L'épreuve de bout en bout le mesure — elle
+   * cherchait la sortie pendant vingt secondes sans la trouver, sur les deux
+   * appareils. La sortie est maintenant toujours là.
+   */
+  onQuitter(): void;
 }
 
 /** Le panneau, posé par-dessus la peinture de la cité. */
@@ -189,6 +200,7 @@ export function PanneauCite({
   town,
   ongletInitial = 'batir',
   onFermer,
+  onQuitter,
 }: PanneauCiteProps): ReactElement {
   const [onglet, setOnglet] = useState<'batir' | 'recruter'>(ongletInitial);
   /* Un nouveau geste sur la maquette rouvre le panneau sur l'onglet demandé,
@@ -216,9 +228,14 @@ export function PanneauCite({
               Recruter
             </Button>
           </div>
-          <Button variant="fantome" onClick={onFermer}>
-            Fermer
-          </Button>
+          <div className="cite-cmd__issues">
+            <Button variant="fantome" onClick={onFermer}>
+              Fermer
+            </Button>
+            <Button variant="secondaire" onClick={onQuitter}>
+              Quitter la cité
+            </Button>
+          </div>
         </div>
 
         {onglet === 'batir' ? (

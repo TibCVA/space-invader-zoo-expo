@@ -244,6 +244,55 @@ try {
         recrute && apresRecrue !== null && avantRecrue !== null && apresRecrue < avantRecrue,
         `le trésor a payé les recrues : ${String(avantRecrue)} → ${String(apresRecrue)} écus`,
       );
+
+      /*
+       * ON DOIT VOIR CE QU'ON RECRUTE, ET D'OÙ ÇA VIENT.
+       *
+       * Plainte du propriétaire : « ce n'est pas clair quelle créature (pas
+       * d'image) on recrute ni où elles sont ». La ligne de recrutement
+       * n'avait qu'un nom et un prix.
+       *
+       * L'image n'est PAS un fichier du manifeste — il n'y a aucune peinture
+       * de créature —, c'est la bête de l'atlas, extraite du rendu partagé au
+       * vol. Elle ne peut donc être prouvée QUE dans un vrai navigateur : le
+       * test unitaire de `vignetteCreature` passerait tout aussi bien si le
+       * rendu ne rendait rien. On exige ici une image réellement décodée par
+       * le navigateur, largeur naturelle non nulle — un `src` présent mais
+       * vide donnerait un cadre vide sans rien casser, et c'est exactement ce
+       * qu'une première capture avait laissé croire.
+       */
+      const vignette = page.locator('.cite-cmd__vignette img').first();
+      let peinte = false;
+      try {
+        await vignette.waitFor({ state: 'attached', timeout: 30_000 });
+        peinte = await vignette.evaluate(
+          (n) => n instanceof HTMLImageElement && n.complete && n.naturalWidth > 8,
+        );
+      } catch { /* pas d'image du tout */ }
+      exige(peinte, 'la ligne de recrutement montre la créature elle-même');
+
+      const demeures = await page.locator('.cite-cmd__demeure').count();
+      exige(demeures > 0, `chaque recrue dit de quelle demeure elle sort (${demeures})`);
+
+      /*
+       * ET ON DOIT POUVOIR RESSORTIR.
+       *
+       * « la navigation entre bâtiments et sortie et recrutement est pas
+       * fluide ». On revient donc à la carte par le bouton de sortie, et l'on
+       * exige que la carte soit bien là — un panneau qui se ferme sur une
+       * page morte n'est pas une sortie.
+       */
+      let sortie = true;
+      try {
+        await page.getByRole('button', { name: /Quitter la cité/i }).first()
+          .click({ timeout: 20_000 });
+        await page.locator('.jeu-scene__legende').waitFor({ state: 'visible', timeout: 90_000 });
+      } catch (e) {
+        sortie = false;
+        await page.screenshot({ path: `shots/echec-sortie-${appareil.nom}.png` }).catch(() => {});
+        console.log('      ', String(e).split('\n')[0].slice(0, 160));
+      }
+      exige(sortie, 'la porte de la cité ramène à la carte');
     }
 
     exige(erreurs.length === 0, `aucune erreur console (${erreurs.length})`);

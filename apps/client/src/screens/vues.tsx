@@ -409,6 +409,7 @@ export function EcranCite({ state, reducedMotion, uid, demoTown }: EcranCiteProp
             town={cible}
             ongletInitial={ongletCite}
             onFermer={(): void => setCommandes(false)}
+            onQuitter={(): void => navigate({ name: 'partie' })}
           />
         ) : (
           /* Une cité qu'on ne peut pas commander n'affiche rien : sur une cité

@@ -204,7 +204,18 @@
     var(--hmm-space-4);
   max-height: min(70%, 620px);
   overflow-y: auto;
-  z-index: 3;
+  /*
+   * AU-DESSUS DE LA FIN DE TOUR, et pas en dessous.
+   *
+   * « Fin du tour » est posée à la racine de l'application, en `fixed`, au
+   * rang de collage — au-dessus de tout ce que porte une scène. Sur un écran
+   * large elle est à gauche et le panneau à droite : ils ne se voient pas. Sur
+   * 390 points le panneau prend toute la largeur, et la commande lui tombait
+   * EN PLEIN MILIEU, par-dessus une ligne de recrue (mesuré sur capture
+   * iPhone : elle recouvrait « Gabelous »). Le panneau passe devant : tant
+   * qu'on commande la cité, on ne rend pas la main par accident.
+   */
+  z-index: calc(var(--hmm-z-colle) + 1);
 }
 
 .jeu-racine--avec-pouce .cite-cmd {
@@ -248,8 +259,18 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--hmm-space-3);
+  flex-wrap: wrap;
+  gap: var(--hmm-space-2) var(--hmm-space-3);
   margin-bottom: var(--hmm-space-3);
+}
+
+/* Fermer le panneau et quitter la cité : deux issues, jamais l'une derrière
+   l'autre. Le panneau prenait la place de la barre où vivait « Quitter la
+   cité », et sortir demandait alors deux gestes au lieu d'un. */
+.cite-cmd__issues {
+  display: flex;
+  align-items: center;
+  gap: var(--hmm-space-2);
 }
 
 .cite-cmd__onglets {
@@ -266,19 +287,72 @@
   gap: var(--hmm-space-2);
 }
 
+/*
+ * UNE LIGNE DE RECRUE TIENT SUR DEUX RANGS, PAS SUR UNE COLONNE DE MOTS.
+ *
+ * Elle était un seul rang souple : vignette, texte, puis le compteur et son
+ * bouton. Sur 390 points, une fois les 68 pixels de vignette et les ~190 du
+ * couple compteur-bouton retirés, il restait une centaine de pixels au texte —
+ * et « 0 disponible · 55 écus l'unité » s'y empilait à raison d'un mot par
+ * ligne. Mesuré sur capture iPhone : une seule recrue occupait six cents
+ * pixels de haut, et l'on ne pouvait plus comparer deux rangs, ce qui est
+ * pourtant tout l'objet de l'écran.
+ *
+ * En grille, la prise descend sur son propre rang et rend sa largeur au texte.
+ * L'aire porte un nom : c'est ce qui permet de la remonter d'un rang dès que
+ * la place existe, sans réécrire la ligne.
+ */
 .cite-cmd__ligne {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    'vignette texte'
+    'prise    prise';
   align-items: center;
-  justify-content: space-between;
-  gap: var(--hmm-space-3);
+  gap: var(--hmm-space-2) var(--hmm-space-3);
   padding: var(--hmm-space-2) var(--hmm-space-3);
   border: var(--hmm-filet-fin) solid var(--hmm-separateur);
   border-radius: var(--hmm-radius-sm);
   background: rgba(232, 220, 192, 0.34);
 }
 
+.cite-cmd__ligne > .cite-cmd__vignette {
+  grid-area: vignette;
+}
+
 .cite-cmd__texte {
+  grid-area: texte;
   min-width: 0;
+}
+
+.cite-cmd__ligne > .cite-cmd__prise {
+  grid-area: prise;
+  justify-self: end;
+}
+
+/*
+ * Une ligne de BÂTIMENT n'a pas de vignette : son texte et son bouton tiennent
+ * sur un seul rang, quelle que soit la largeur. La classe est portée par le
+ * composant plutôt que déduite d'un `:has()` — la règle doit tenir sur le
+ * navigateur d'un cousin qui ne met pas son téléphone à jour.
+ */
+.cite-cmd__ligne--bati {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'texte prise';
+}
+
+/* Dès que la ligne a de quoi respirer — panneau de bureau, ou téléphone en
+   paysage —, la prise remonte à côté du texte et la ligne redevient un rang. */
+@media (min-width: 560px) {
+  .cite-cmd__ligne {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'vignette texte prise';
+  }
+
+  .cite-cmd__ligne--bati {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'texte prise';
+  }
 }
 
 /* La vraie bête, extraite de l'atlas — pas un symbole choisi à sa place. Sa
