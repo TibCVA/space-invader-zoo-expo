@@ -232,6 +232,8 @@
  * à 166 et la seconde commence à 225 : elles ne se touchent pas.
  */
 .cite-cmd__ouvrir {
+  display: flex;
+  gap: var(--hmm-space-2);
   position: absolute;
   right: calc(var(--hmm-space-4) + var(--hmm-safe-droite));
   bottom: calc(var(--hmm-space-4) + var(--hmm-safe-bas) + 56px);

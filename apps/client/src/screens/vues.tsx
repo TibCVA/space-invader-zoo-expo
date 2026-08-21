@@ -18,12 +18,13 @@ import { createMapView } from '../render/index.js';
 import { pavoisDemonstration } from '../render/pavois.js';
 import { createTownView } from '../town/index.js';
 import { createBattleView } from '../battle/index.js';
-import type { DemoTownKey } from '../router.js';
+import { navigate, type DemoTownKey } from '../router.js';
 import { ScenePixi, type FabriqueScene } from './scene.js';
 import { calendrierLong, nombre, pluriel } from './format.js';
 import { FicheInspection } from './inspection.js';
 import { BarreTresor } from './tresor.js';
 import { PanneauCite } from './cite-commandes.js';
+import { estUneDemeure } from './cite-offres.js';
 import type { Cible } from './cible.js';
 import { Button, ConfirmBar } from '@auvergne/ui';
 
@@ -333,13 +334,33 @@ export function EcranCite({ state, reducedMotion, uid, demoTown }: EcranCiteProp
    * souris et pas au doigt, mais c'est le geste que cherche un joueur de HMM3.
    */
   const [commandes, setCommandes] = useState(false);
+  /* Ce que le joueur vient de désigner sur la maquette décide de l'onglet. */
+  const [ongletCite, setOngletCite] = useState<'batir' | 'recruter'>('batir');
 
   const fabrique = useCallback<FabriqueScene>(
     async ({ app, atlas, width, height }) => {
       if (!game || !world || !localPlayer || !cible) throw new Error("Aucune cité à montrer.");
       return createTownView({
-        onPickPlot: (): void => setCommandes(true),
-        onPickBuilding: (): void => setCommandes(true),
+        /*
+         * LE PANNEAU RÉPOND À CE QU'ON A TOUCHÉ.
+         *
+         * Un emplacement vide ouvre « Bâtir » ; une DEMEURE ouvre « Recruter »,
+         * puisque c'est la seule chose qu'on vient y faire. Sans cela, toucher
+         * la Corvée du bourg ouvrait la liste des chantiers et il fallait
+         * changer d'onglet à la main.
+         */
+        onPickPlot: (): void => {
+          setOngletCite('batir');
+          setCommandes(true);
+        },
+        onPickBuilding: (b): void => {
+          setOngletCite(estUneDemeure(b) ? 'recruter' : 'batir');
+          setCommandes(true);
+        },
+        /* La porte de la cité ramène à la carte. Le rappel existait au contrat
+           et n'était branché nulle part : toucher la porte ne faisait rien, et
+           la seule sortie était la barre de commandes. */
+        onLeave: (): void => navigate({ name: 'partie' }),
         app,
         atlas,
         store: viewStore,
@@ -383,12 +404,25 @@ export function EcranCite({ state, reducedMotion, uid, demoTown }: EcranCiteProp
     >
       {game && cible && cible.owner === localPlayer ? (
         commandes ? (
-          <PanneauCite game={game} town={cible} onFermer={(): void => setCommandes(false)} />
+          <PanneauCite
+            game={game}
+            town={cible}
+            ongletInitial={ongletCite}
+            onFermer={(): void => setCommandes(false)}
+          />
         ) : (
           /* Une cité qu'on ne peut pas commander n'affiche rien : sur une cité
              neutre ou ennemie, un bouton « Bâtir » qui refuse tout serait pire
              que son absence. */
           <div className="cite-cmd__ouvrir">
+            {/* La sortie est écrite, à côté de l'entrée. La porte peinte sur la
+                maquette porte bien « QUITTER LA CITÉ », mais sur un écran large
+                elle tombe à moitié hors du cadre — mesuré sur capture en
+                1536 × 864 : l'arche est coupée par le bas. Un bouton ne dépend
+                pas du cadrage. */}
+            <Button variant="secondaire" onClick={(): void => navigate({ name: 'partie' })}>
+              Quitter la cité
+            </Button>
             <Button variant="principal" onClick={(): void => setCommandes(true)}>
               Bâtir et recruter
             </Button>

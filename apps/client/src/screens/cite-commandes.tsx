@@ -173,12 +173,27 @@ function LigneRecrue({ offre, town }: { offre: OffreRecrue; town: TownState }): 
 export interface PanneauCiteProps {
   game: GameState;
   town: TownState;
+  /**
+   * L'onglet à ouvrir. Toucher une DEMEURE ouvre « Recruter », toucher un
+   * emplacement vide ouvre « Bâtir » : le panneau répond à ce qu'on a désigné
+   * plutôt que de commencer toujours au même endroit, ce qui obligeait à
+   * changer d'onglet à la main une fois sur deux.
+   */
+  ongletInitial?: 'batir' | 'recruter';
   onFermer(): void;
 }
 
 /** Le panneau, posé par-dessus la peinture de la cité. */
-export function PanneauCite({ game, town, onFermer }: PanneauCiteProps): ReactElement {
-  const [onglet, setOnglet] = useState<'batir' | 'recruter'>('batir');
+export function PanneauCite({
+  game,
+  town,
+  ongletInitial = 'batir',
+  onFermer,
+}: PanneauCiteProps): ReactElement {
+  const [onglet, setOnglet] = useState<'batir' | 'recruter'>(ongletInitial);
+  /* Un nouveau geste sur la maquette rouvre le panneau sur l'onglet demandé,
+     même s'il était déjà ouvert sur l'autre. */
+  useEffect(() => setOnglet(ongletInitial), [ongletInitial]);
   const batiments = useMemo(() => offresBatiments(game, town), [game, town]);
   const recrues = useMemo(() => offresRecrues(game, town), [game, town]);
   const vers = destinataireRecrues(town);

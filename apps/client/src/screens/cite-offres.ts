@@ -196,3 +196,15 @@ export function offresRecrues(game: GameState, town: TownState): OffreRecrue[] {
 export function destinataireRecrues(town: TownState): HeroUid | null {
   return town.visitingHero ?? town.garrisonHero ?? null;
 }
+
+/**
+ * Vrai si ce bâtiment loge une créature.
+ *
+ * Sert à décider de l'onglet quand on touche un bâtiment de la maquette : une
+ * demeure appelle « Recruter », tout le reste « Bâtir ».
+ */
+export function estUneDemeure(batiment: BuildingId): boolean {
+  const def = BUILDINGS[batiment];
+  if (!def) return false;
+  return def.grants.some((o) => o.kind === 'dwelling');
+}
