@@ -211,7 +211,7 @@ export function besaceDuHeros(hero: HeroInstance): readonly PieceDeBesace[] {
       rarete: def ? ARTIFACT_RARITY_LABELS[def.rarity] : 'objet hors codex',
       effets: def ? describeEffectList(def.effects) : [],
       emplacements,
-      cible: def ? (freeSlotFor(hero, def) ?? slotsFor(def)[0]) : null,
+      cible: def ? slotsFor(def)[0] : null,
       refus: verdict.ok ? null : (verdict.reason ?? 'Équipement impossible.'),
     };
   });

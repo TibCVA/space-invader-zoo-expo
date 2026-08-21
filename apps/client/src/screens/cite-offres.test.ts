@@ -81,7 +81,15 @@ describe('les bâtiments proposés au chantier', () => {
   it('met devant ce qui est faisable tout de suite', () => {
     const { game, cite } = partie();
     const offres = offresBatiments(game, cite);
-    const dernierPossible = offres.findLastIndex((o) => o.possible);
+    /* `findLastIndex` n'est pas dans la bibliothèque visée par le projet : on
+       balaie à l'envers plutôt que de relever la cible pour une ligne. */
+    let dernierPossible = -1;
+    for (let i = offres.length - 1; i >= 0; i -= 1) {
+      if (offres[i].possible) {
+        dernierPossible = i;
+        break;
+      }
+    }
     const premierImpossible = offres.findIndex((o) => !o.possible);
     if (dernierPossible >= 0 && premierImpossible >= 0) {
       expect(dernierPossible).toBeLessThan(premierImpossible);
