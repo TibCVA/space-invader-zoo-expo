@@ -211,7 +211,7 @@ export function besaceDuHeros(hero: HeroInstance): readonly PieceDeBesace[] {
       rarete: def ? ARTIFACT_RARITY_LABELS[def.rarity] : 'objet hors codex',
       effets: def ? describeEffectList(def.effects) : [],
       emplacements,
-      cible: def ? slotsFor(def)[0] : null,
+      cible: def ? (freeSlotFor(hero, def) ?? slotsFor(def)[0]) : null,
       refus: verdict.ok ? null : (verdict.reason ?? 'Équipement impossible.'),
     };
   });
@@ -377,11 +377,16 @@ export function echangeDePiles(
       commande,
     };
   }
+  /* `videLeHeros` et non `false` : la valeur est calculée une seule fois pour
+     les trois gestes. Un `false` écrit à la main ici serait juste — un échange
+     rend toujours une pile — mais il rendrait la garde intestable, et c'est
+     exactement ce qu'une défaite tentée a montré : muter `perdSaPile` ne
+     faisait rougir aucun test tant que cette branche l'ignorait. */
   return {
     quoi: 'commande',
     geste: 'echange',
     libelle: `Échanger ${nomCreature(source)} et ${nomCreature(cible)}`,
-    videLeHeros: false,
+    videLeHeros,
     commande,
   };
 }

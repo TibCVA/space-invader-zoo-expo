@@ -528,10 +528,14 @@ body {
   display: flex;
 }
 
+/* Les écrans de données s'arrêtent au-dessus de la barre, sur tous les
+   écrans depuis qu'elle y est : sans ce rembourrage, le bas du royaume et de
+   la fiche de héros passe sous elle sur un ordinateur. */
+.jeu-racine--avec-pouce .jeu-page {
+  padding-bottom: calc(var(--hmm-touch-ample) + var(--hmm-space-10) + var(--hmm-safe-bas));
+}
+
 @media (max-width: 899px) {
-  .jeu-racine--avec-pouce .jeu-page {
-    padding-bottom: calc(var(--hmm-touch-ample) + var(--hmm-space-10) + var(--hmm-safe-bas));
-  }
   /*
    * La scène accélérée doit s'arrêter AU-DESSUS de la barre de pouce, comme
    * les pages de données le font déjà.

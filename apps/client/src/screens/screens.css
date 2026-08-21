@@ -609,10 +609,14 @@
   z-index: var(--hmm-z-colle);
 }
 
-@media (max-width: 899px) {
-  .jeu-racine--avec-pouce .jeu-confirmation {
-    bottom: calc(var(--hmm-touch-ample) + var(--hmm-space-3) + var(--hmm-safe-bas));
-  }
+/* La barre de confirmation se pose AU-DESSUS de la barre de commandes.
+   La réserve était conditionnée à « moins de 900 pixels », du temps où la
+   barre de commandes n'existait que là. Depuis qu'elle est sur tous les
+   écrans, la condition rendait la confirmation inatteignable sur ordinateur :
+   mesuré par la sonde, le clic sur « Rendre la main » était intercepté par
+   `.jeu-pouce` et l'épreuve expirait au bout de trente secondes. */
+.jeu-racine--avec-pouce .jeu-confirmation {
+  bottom: calc(var(--hmm-space-3) + var(--hmm-reserve-pouce));
 }
 
 /* ─────────────────── Indicateur de sauvegarde flottant ─────────────────── */

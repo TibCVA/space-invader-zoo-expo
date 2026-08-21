@@ -17,7 +17,13 @@
  *
  * ## Comment ils ont été éprouvés
  *
- * Chaque défaite tentée est notée dans le rapport, avec le test qui a rougi.
+ * Vingt-trois défaites tentées sur `heros-actions.ts`, une édition ciblée à la
+ * fois : chacune a fait rougir le test qui la gardait, et le rapport les liste.
+ * L'une d'elles a d'abord échoué à rougir — muter `perdSaPile` ne changeait
+ * rien tant que la branche « échanger » retournait `videLeHeros: false` écrit
+ * en dur. Le test n'était pas en cause, le code l'était : la valeur est
+ * maintenant calculée une seule fois et utilisée par les trois gestes, et la
+ * même défaite rougit.
  */
 
 import { beforeAll, describe, expect, it } from 'vitest';

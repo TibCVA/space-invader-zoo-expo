@@ -60,6 +60,24 @@ const serveur = distant
 
 let navigateur;
 
+/**
+ * Le nombre d'écus lu dans la barre du trésor du bandeau.
+ *
+ * On lit l'ÉCRAN et non l'état interne : c'est le nombre que le propriétaire
+ * regarde, et c'est lui qui doit bouger quand il paie. L'espace fine
+ * insécable qui sépare les milliers est retirée avant conversion.
+ */
+async function lireOr(page) {
+  const brut = await page
+    .locator('.jeu-bandeau__tresor .hmm-ressource__valeur')
+    .first()
+    .innerText()
+    .catch(() => null);
+  if (brut === null) return null;
+  const n = Number(brut.replace(/[^\d-]/g, ''));
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Les deux appareils sur lesquels les cousins jouent. */
 const APPAREILS = [
   { nom: 'ordinateur', viewport: { width: 1440, height: 900 }, mobile: false },
@@ -145,6 +163,75 @@ try {
       exige(
         calendrierAvant !== '' && calendrierApres !== '' && calendrierApres !== calendrierAvant,
         `la journée a avancé : « ${calendrierAvant} » → « ${calendrierApres} »`,
+      );
+    }
+
+    /*
+     * BÂTIR ET RECRUTER — le reste de la boucle de HMM3.
+     *
+     * Le client n'émettait ni `BuildInTown` ni `RecruitCreatures` : on pouvait
+     * marcher, se battre et rendre la main, mais rien faire grandir. Des tests
+     * de logique pure ne prouvent PAS qu'un bouton est branché — c'est
+     * exactement la leçon de la fin de tour, dont les gardes unitaires étaient
+     * vertes alors qu'aucun chemin de l'interface n'émettait la commande. On
+     * clique donc, et on exige que le trésor bouge.
+     */
+    console.log('   — la cité : bâtir');
+    const alerteCite = page.getByRole('button', { name: /^Cité$/i });
+    let cite = true;
+    try {
+      await alerteCite.waitFor({ state: 'visible', timeout: 20_000 });
+      await alerteCite.click();
+      /* Le panneau liste les places tenues : on entre dans la première. */
+      await page.locator('.royaume__vignette').first().click({ timeout: 20_000 });
+      await page.getByRole('button', { name: /Bâtir et recruter/i }).click({ timeout: 180_000 });
+    } catch (e) {
+      cite = false;
+      await page.screenshot({ path: `shots/echec-cite-${appareil.nom}.png` }).catch(() => {});
+      console.log('      ', String(e).split('\n')[0].slice(0, 160));
+    }
+    exige(cite, 'on atteint sa cité et on ouvre ses commandes');
+
+    if (cite) {
+      const orAvant = await lireOr(page);
+      const batir = page.locator('.cite-cmd__ligne button:not([disabled])').first();
+      let bati = true;
+      try {
+        await batir.waitFor({ state: 'visible', timeout: 20_000 });
+        await batir.click();
+        await page.waitForTimeout(1500);
+      } catch (e) {
+        bati = false;
+        await page.screenshot({ path: `shots/echec-batir-${appareil.nom}.png` }).catch(() => {});
+        console.log('      ', String(e).split('\n')[0].slice(0, 160));
+      }
+      exige(bati, 'un bâtiment au moins est finançable et son bouton répond');
+      const orApres = await lireOr(page);
+      exige(
+        bati && orApres !== null && orAvant !== null && orApres < orAvant,
+        `le trésor a payé la construction : ${String(orAvant)} → ${String(orApres)} écus`,
+      );
+
+      console.log('   — la cité : recruter');
+      let recrute = true;
+      let avantRecrue = null;
+      try {
+        await page.getByRole('button', { name: /^Recruter$/i }).first().click({ timeout: 20_000 });
+        await page.waitForTimeout(600);
+        avantRecrue = await lireOr(page);
+        const recruter = page.locator('.cite-cmd__ligne button:not([disabled])').first();
+        await recruter.waitFor({ state: 'visible', timeout: 20_000 });
+        await recruter.click();
+        await page.waitForTimeout(1500);
+      } catch (e) {
+        recrute = false;
+        await page.screenshot({ path: `shots/echec-recrue-${appareil.nom}.png` }).catch(() => {});
+        console.log('      ', String(e).split('\n')[0].slice(0, 160));
+      }
+      const apresRecrue = await lireOr(page);
+      exige(
+        recrute && apresRecrue !== null && avantRecrue !== null && apresRecrue < avantRecrue,
+        `le trésor a payé les recrues : ${String(avantRecrue)} → ${String(apresRecrue)} écus`,
       );
     }
 
