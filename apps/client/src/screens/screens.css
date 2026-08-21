@@ -759,6 +759,40 @@
 
 /* ─────────────────── Indicateur de sauvegarde flottant ─────────────────── */
 
+/*
+ * LA PASTILLE NE DOIT PAS S'ASSEOIR SUR LE TRÉSOR.
+ *
+ * Elle est en position fixe, en haut à droite, au rang des bulles — et c'est
+ * exactement là que le bandeau range la barre des sept ressources dès que
+ * l'écran dépasse 719 points. Mesuré sur capture en 1440 × 900 : les deux
+ * dernières ressources disparaissaient sous « Partie enregistrée ». La barre,
+ * elle, ne débordait pas — 478 pixels pour 478, ses sept ressources bien
+ * présentes ; c'est la pastille qui passait devant, et chercher la panne dans
+ * la barre n'aurait rien donné.
+ *
+ * Sur un téléphone le conflit n'existe pas : sous 720 points la barre passe
+ * sur sa propre ligne et la pastille survole le titre, qui est court.
+ *
+ * On réserve donc la place à droite du bandeau, mais SEULEMENT quand la
+ * pastille est affichée — la racine porte alors `jeu-racine--enregistre`. Une
+ * réserve permanente creuserait un trou dans le bandeau de tous les écrans,
+ * pour une pastille qui n'y est presque jamais.
+ */
+@media (min-width: 720px) {
+  .jeu-racine--enregistre .jeu-bandeau {
+    padding-right: var(--jeu-reserve-etat);
+  }
+}
+
+/*
+ * Largeur de la réserve. Mesurée dans la vraie page, sur les cinq libellés
+ * possibles : le plus large est « Enregistré sur cet appareil » à 190 px. On
+ * ajoute la marge du bord droit.
+ */
+.jeu-racine {
+  --jeu-reserve-etat: 206px;
+}
+
 .jeu-etat-sauvegarde {
   position: fixed;
   right: calc(var(--hmm-space-4) + var(--hmm-safe-droite));

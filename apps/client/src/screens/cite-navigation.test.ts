@@ -116,3 +116,48 @@ describe('navigation dans la cité', () => {
     expect(panneau).not.toMatch(/z-index:\s*3\s*;/);
   });
 });
+
+/**
+ * LA PASTILLE DE SAUVEGARDE NE DOIT PAS S'ASSEOIR SUR LE TRÉSOR.
+ *
+ * Trouvée en regardant une capture, pas en lisant le code. La pastille est en
+ * position fixe en haut à droite, au rang des bulles — exactement là où le
+ * bandeau range la barre des sept ressources dès 720 points. Mesuré en
+ * 1440 × 900 : les deux dernières ressources disparaissaient dessous.
+ *
+ * Le piège de diagnostic mérite d'être noté : la barre elle-même ne débordait
+ * PAS — 478 pixels pour 478, ses sept ressources bien présentes. Chercher la
+ * panne dans la barre n'aurait rien donné ; c'est la pastille qui passait
+ * devant.
+ */
+describe('pastille de sauvegarde', () => {
+  const APP: string = code('../App.tsx');
+
+  it('le bandeau lui réserve sa place sur un écran large', () => {
+    const sans = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+    const i = sans.indexOf('.jeu-racine--enregistre .jeu-bandeau');
+    expect(i, 'aucune réserve pour la pastille').toBeGreaterThan(0);
+    expect(sans.slice(i, i + 160)).toContain('padding-right: var(--jeu-reserve-etat)');
+    /* Sous 720 points la barre est sur sa propre ligne : la réserve n'a pas
+       lieu d'être, et elle rognerait le titre. */
+    const media = sans.lastIndexOf('@media (min-width: 720px)', i);
+    expect(media, 'la réserve n’est pas bornée aux écrans larges').toBeGreaterThan(0);
+    expect(media).toBeLessThan(i);
+  });
+
+  it('la réserve tient le plus long des cinq libellés', () => {
+    const reserve = Number(/--jeu-reserve-etat:\s*(\d+)px/.exec(CSS)?.[1] ?? 0);
+    /* Mesurés dans la vraie page : 142, 190, 144, 143 et 153 pixels. */
+    expect(reserve).toBeGreaterThanOrEqual(190);
+  });
+
+  it('la réserve et la pastille apparaissent ENSEMBLE', () => {
+    /* Deux conditions séparées finiraient par diverger, et le bandeau garderait
+       son trou sur tous les écrans. Une seule vérité, lue deux fois. */
+    expect(APP).toContain('const montrerSauvegarde =');
+    expect((APP.match(/montrerSauvegarde/g) ?? []).length).toBe(3);
+    expect(APP).toContain("'jeu-racine--enregistre'");
+    /* L'ancienne condition en double, explicitement interdite. */
+    expect((APP.match(/etat\.save\.status !== 'repos'/g) ?? []).length).toBe(1);
+  });
+});

@@ -503,8 +503,25 @@ export function App(_props: AppProps = {}): ReactElement {
     }
   })();
 
+  /* Une seule vérité pour « la pastille est-elle à l'écran » : la classe de
+     réserve et la pastille elle-même doivent apparaître et disparaître
+     ensemble, sinon le bandeau garde son trou. */
+  const montrerSauvegarde = etat.save.status !== 'repos' && !etat.demo;
+
   return (
-    <div className={avecPouce ? 'jeu-racine jeu-racine--avec-pouce' : 'jeu-racine'}>
+    <div
+      className={[
+        'jeu-racine',
+        avecPouce ? 'jeu-racine--avec-pouce' : '',
+        /* La pastille de sauvegarde flotte en haut à droite, par-dessus le
+           bandeau : la classe dit à la feuille de lui réserver la place, et
+           seulement quand elle est là — une réserve permanente laisserait un
+           trou dans le bandeau de tous les autres écrans. */
+        montrerSauvegarde ? 'jeu-racine--enregistre' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       <LimiteErreur cle={`${route.name}-${'uid' in route ? route.uid : ''}`}>{contenu}</LimiteErreur>
 
       {etat.notice ? <Avis texte={etat.notice} onFermer={effacerNotice} /> : null}
@@ -522,7 +539,7 @@ export function App(_props: AppProps = {}): ReactElement {
       {avecPouce ? (
         <BarrePouce active={commandeDe(route)} onCommande={surCommande} desactivees={desactivees} />
       ) : null}
-      {etat.save.status !== 'repos' && !etat.demo ? (
+      {montrerSauvegarde ? (
         <div className="jeu-etat-sauvegarde">
           <IndicateurSauvegarde save={etat.save} />
         </div>
