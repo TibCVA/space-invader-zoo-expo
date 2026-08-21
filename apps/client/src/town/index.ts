@@ -49,6 +49,8 @@ import type { Archetype, MatieresCite, PaletteBati } from './batiments.js';
 import {
   SPRITE_FACTEUR,
   basePct,
+  empriseDe,
+  planDeMasse,
   clefAssetBatiment,
   moduleDe,
   tailleDe as tailleDeMasse,
@@ -231,6 +233,8 @@ class TableauCite implements TownView {
 
   private batis: NoeudBati[] = [];
   private places: NoeudPlace[] = [];
+  /** Le plan de masse desserré du tableau courant, en % du cadre, par id. */
+  private plan: ReadonlyMap<string, { x: number; y: number }> = new Map();
 
   private town: TownState | null = null;
   private cadre: CadreCite = { x: 0, y: 0, w: 1, h: 1 };
@@ -541,31 +545,36 @@ class TableauCite implements TownView {
     const bâtis = new Set<string>(town?.built ?? []);
     const catalogue = buildingsOf(this.deps.faction);
 
-    /* — Les bâtiments levés, triés du fond vers le premier plan. Une
-       amélioration remplace sa demeure sur la même emprise (`visiblesDe`) ;
-       l'ordre suit le pied ACCROCHÉ aux terrasses, pas la déclaration. — */
-    const piedY = (d: BuildingDef): number =>
-      basePct(d, this.deps.faction, this.fond.portrait).y;
-    const poses = visiblesDe(catalogue, bâtis)
-      .sort((a, b) => piedY(a) - piedY(b) || a.scene.z - b.scene.z);
+    /* — Les bâtiments levés. Une amélioration remplace sa demeure sur la même
+       emprise (`visiblesDe`). — */
+    const poses = visiblesDe(catalogue, bâtis);
 
-    for (const def of poses) this.poserBatiment(def);
-
-    /* — Les emplacements encore libres : ce que la cité peut lever ensuite — */
-    const libres = catalogue
+    /* — Les emplacements encore libres : ce que la cité peut lever ensuite.
+       Un seul jalon par emprise : deux chaînes ne se disputent pas la place. — */
+    const occupees = new Set<string>(poses.map(empriseDe));
+    const libres: BuildingDef[] = [];
+    for (const def of catalogue
       .filter((d) => !bâtis.has(d.id) && d.requires.every((r) => bâtis.has(r)))
-      .sort((a, b) => a.scene.y - b.scene.y);
-    /* Un seul jalon par emprise : deux chaînes ne se disputent pas la place. */
-    const occupees = new Set<string>();
-    for (const d of poses) occupees.add(cleEmprise(d));
-    let index = 0;
-    for (const def of libres) {
-      const cle = cleEmprise(def);
+      .sort((a, b) => a.scene.y - b.scene.y)) {
+      const cle = empriseDe(def);
       if (occupees.has(cle)) continue;
       occupees.add(cle);
-      this.poserEmplacement(def, index);
-      index += 1;
+      libres.push(def);
     }
+
+    /* — Le plan de masse, calculé UNE fois pour tout ce qui se pose. Les
+         chantiers vides en font partie : ils occupent la place qu'occupera le
+         bâtiment, sinon le tableau se réorganiserait le jour de sa levée. — */
+    this.plan = planDeMasse([...poses, ...libres], this.deps.faction, this.fond.portrait);
+
+    /* Du fond vers le premier plan : l'ordre suit le pied RÉEL — terrasses et
+       desserrage compris — pas la position déclarée. */
+    const piedY = (d: BuildingDef): number =>
+      this.plan.get(d.id)?.y ?? basePct(d, this.deps.faction, this.fond.portrait).y;
+    poses.sort((a, b) => piedY(a) - piedY(b) || a.scene.z - b.scene.z);
+
+    for (const def of poses) this.poserBatiment(def);
+    libres.forEach((def, index) => this.poserEmplacement(def, index));
 
     this.peindrePorte();
     this.ecrireCartouche();
@@ -670,9 +679,13 @@ class TableauCite implements TownView {
     };
   }
 
-  /** Pied d'un bâtiment : la déclaration du contenu, accrochée aux terrasses. */
+  /**
+   * Pied d'un bâtiment : sa place dans le plan de masse desserré. Le repli sur
+   * `basePct` ne sert qu'aux bâtiments qui ne figurent pas au plan — il n'y en
+   * a pas, mais un pied manquant vaut mieux qu'un tableau qui ne se dessine pas.
+   */
   private piedDe(def: BuildingDef): { x: number; y: number } {
-    const p = basePct(def, this.deps.faction, this.fond.portrait);
+    const p = this.plan.get(def.id) ?? basePct(def, this.deps.faction, this.fond.portrait);
     return this.pointDe(p.x, p.y);
   }
 
@@ -1046,9 +1059,6 @@ function hashTexte(texte: string): number {
 }
 
 /** Deux bâtiments d'une même chaîne partagent la même emprise sur le tableau. */
-function cleEmprise(def: BuildingDef): string {
-  return `${Math.round(def.scene.x)}:${Math.round(def.scene.y)}`;
-}
 
 /**
  * Compose le jeu de matières du tableau : chaque emplacement de l'atlas

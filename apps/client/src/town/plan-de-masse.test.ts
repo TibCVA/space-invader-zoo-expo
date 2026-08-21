@@ -31,7 +31,10 @@ import {
   SPRITE_FACTEUR,
   TERRASSES,
   basePct,
+  demiVuePct,
+  empriseDe,
   moduleDe,
+  planDeMasse,
   tailleDe,
   visiblesDe,
 } from './masse.js';
@@ -62,14 +65,24 @@ function toutConstruit(faction: FactionId): { catalogue: BuildingDef[]; visibles
   return { catalogue, visibles: visiblesDe(catalogue, batis) };
 }
 
-/** Emprise du canevas peint d'un bâtiment, en pixels du cadre — le pied
-    passe par `basePct`, exactement comme dans la vue (terrasses comprises). */
+/**
+ * Le plan de masse d'un cas, tout construit — LE MÊME appel que la vue :
+ * position déclarée, accrochage aux terrasses, desserrage des voisins. Le
+ * desserrage a d'abord vécu dans la vue seule, et les gardes ont mesuré
+ * pendant ce temps-là un tableau que personne ne dessinait.
+ */
+function planDuCas(faction: FactionId, cas: Cas): Map<string, { x: number; y: number }> {
+  return planDeMasse(toutConstruit(faction).visibles, faction, cas.portrait);
+}
+
+/** Emprise du canevas peint d'un bâtiment, en pixels du cadre. */
 function emprise(
   def: BuildingDef,
   cas: Cas,
   faction: FactionId,
+  plan: ReadonlyMap<string, { x: number; y: number }>,
 ): { gauche: number; droite: number; haut: number; bas: number } {
-  const p = basePct(def, faction, cas.portrait);
+  const p = plan.get(def.id) ?? basePct(def, faction, cas.portrait);
   const x = cas.cadre.x + (cas.cadre.w * p.x) / 100;
   const y = cas.cadre.y + (cas.cadre.h * p.y) / 100;
   const cote = tailleDe(def, moduleDe(cas.cadre.w, cas.portrait)) * SPRITE_FACTEUR;
@@ -85,6 +98,7 @@ describe('plan de masse — tout construit couvre les terrasses', () => {
            bâtiment peut réellement se poser — pas sur le rectangle englobant,
            qui compte murets et falaises comme des espaces à couvrir. */
         const { visibles } = toutConstruit(faction);
+        const plan = planDuCas(faction, cas);
         const terrasses = TERRASSES[faction][cas.portrait ? 'portrait' : 'paysage'];
         const NX = 160;
         const NY = 100;
@@ -106,7 +120,7 @@ describe('plan de masse — tout construit couvre les terrasses', () => {
         expect(total).toBeGreaterThan(0);
         const grille = new Uint8Array(NX * NY);
         for (const def of visibles) {
-          const e = emprise(def, cas, faction);
+          const e = emprise(def, cas, faction, plan);
           const versPct = (px: number, horizontal: boolean): number =>
             horizontal
               ? ((px - cas.cadre.x) / cas.cadre.w) * 100
@@ -128,10 +142,13 @@ describe('plan de masse — tout construit couvre les terrasses', () => {
       });
 
       it(`${faction}, ${cas.nom} : chaque pied de bâtiment est dans une terrasse`, () => {
+        /* DESSERRAGE COMPRIS : c'est la garde qui interdit qu'en écartant deux
+           voisins on décroche un bâtiment du sol peint. */
         const { visibles } = toutConstruit(faction);
+        const plan = planDuCas(faction, cas);
         const terrasses = TERRASSES[faction][cas.portrait ? 'portrait' : 'paysage'];
         for (const def of visibles) {
-          const p = basePct(def, faction, cas.portrait);
+          const p = plan.get(def.id) ?? basePct(def, faction, cas.portrait);
           const dedans = terrasses.some(
             (z) => p.x >= z.x0 && p.x <= z.x1 && p.y >= z.y0 && p.y <= z.y1,
           );
@@ -196,5 +213,78 @@ describe('plan de masse — tout construit couvre les terrasses', () => {
         expect(g.scene.y).toBe(guildes[0].scene.y);
       }
     });
+  }
+});
+
+/**
+ * LA DISTANCE ENTRE DEUX BÂTIMENTS DISTINCTS.
+ *
+ * Plainte du propriétaire, en jouant : « les bâtiments sont trop proches les
+ * uns des autres ». Aucune des seize gardes ci-dessus ne tenait cela — elles
+ * tiennent les terrasses, l'axe de la porte, les chaînes et la couverture,
+ * c'est-à-dire chaque bâtiment SEUL et le tableau ENTIER, jamais une paire.
+ * `basePct` place d'ailleurs chaque pied sans jamais regarder ses voisins.
+ *
+ * Mesuré alors, tout construit : un bâtiment de la Châtellenie disparaissait à
+ * 87 % dans son voisin (« Écuries du Forez / Porte des Farges »), et
+ * l'Ermitage en portrait avait trente-neuf paires à moitié enfouies.
+ *
+ * On mesure sur la MASSE VISIBLE (`demiVuePct`) et non sur le canevas peint :
+ * le carré du WebP est aux deux tiers transparent, deux canevas qui se
+ * recouvrent ne veulent pas dire deux maisons qui se recouvrent.
+ */
+describe('plan de masse — deux bâtiments distincts ne se marchent pas dessus', () => {
+  /** Le rapport le plus serré du tableau, et les paires à moitié enfouies. */
+  function serrage(faction: FactionId, cas: Cas) {
+    const { visibles } = toutConstruit(faction);
+    const plan = planDuCas(faction, cas);
+    /* Un point de hauteur pèse moins qu'un point de largeur : le tableau est
+       en perspective, et le cadre n'est pas carré. */
+    const aspect = cas.cadre.h / cas.cadre.w;
+    let pire = Infinity;
+    let pireNom = '—';
+    let enfouies = 0;
+    for (let i = 0; i < visibles.length; i += 1) {
+      for (let j = i + 1; j < visibles.length; j += 1) {
+        const a = visibles[i];
+        const b = visibles[j];
+        /* Même emprise = même place au sol, par construction : une chaîne qui
+           monte, une guilde qui grandit. Les écarter serait le défaut. */
+        if (empriseDe(a) === empriseDe(b)) continue;
+        const pa = plan.get(a.id) ?? basePct(a, faction, cas.portrait);
+        const pb = plan.get(b.id) ?? basePct(b, faction, cas.portrait);
+        const d = Math.hypot(pa.x - pb.x, (pa.y - pb.y) * aspect);
+        const rapport = d / (demiVuePct(a, cas.portrait) + demiVuePct(b, cas.portrait));
+        if (rapport < 0.6) enfouies += 1;
+        if (rapport < pire) {
+          pire = rapport;
+          pireNom = `${a.name} / ${b.name}`;
+        }
+      }
+    }
+    return { pire, pireNom, enfouies };
+  }
+
+  for (const faction of FACTIONS) {
+    for (const cas of CAS) {
+      it(`${faction}, ${cas.nom} : aucun bâtiment n'est enterré dans son voisin`, () => {
+        const { pire, pireNom } = serrage(faction, cas);
+        /* 1 = les deux masses se touchent sans se recouvrir. Un tableau de
+           ville EST serré — on n'exige pas l'isolement, on interdit
+           l'enfouissement. Sans desserrage : de 0,07 à 0,25 selon le panorama. */
+        expect(pire, `paire la plus serrée : ${pireNom} (${pire.toFixed(2)})`).toBeGreaterThan(0.45);
+      });
+
+      it(`${faction}, ${cas.nom} : presque aucune paire à moitié enfouie`, () => {
+        const { enfouies } = serrage(faction, cas);
+        /* Sans desserrage : 2, 15, 27 et 39 selon le panorama. L'Ermitage en
+           portrait en garde quatre — ses clairières ne peuvent matériellement
+           pas tenir trente-deux bâtiments, et le sol l'emporte sur l'écart.
+           Éprouvée en débranchant le desserrage : rougit sur trois panoramas
+           des quatre. La Châtellenie en paysage n'en avait que deux, sous la
+           barre ; là c'est la garde de l'enfouissement (0,13) qui tient. */
+        expect(enfouies, `${enfouies} paires recouvertes de plus de 40 %`).toBeLessThanOrEqual(6);
+      });
+    }
   }
 });
