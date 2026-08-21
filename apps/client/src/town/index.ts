@@ -66,6 +66,7 @@ import {
 import type { CadreCite } from './panorama.js';
 import { Banniere, Eau, Habitants, Lumieres, Oiseaux } from './vie.js';
 import { brancherPincement, echelleBornee, gardePincement } from '../pincement.js';
+import { amplitudeDerive } from './camera.js';
 
 /* ═══════════════════════════════ Réglages ════════════════════════════════ */
 
@@ -246,6 +247,8 @@ class TableauCite implements TownView {
   private phase: number;
   private parallaxeCible = { x: 0, y: 0 };
   private parallaxe = { x: 0, y: 0 };
+  /** Vrai tant que deux doigts pincent : la dérive de caméra ne suit plus. */
+  private pinceEnCours = false;
   private survole: BuildingId | null = null;
   private impose: BuildingId | null = null;
   private surPorte = false;
@@ -321,9 +324,15 @@ class TableauCite implements TownView {
     const toile = deps.app.canvas as HTMLCanvasElement | undefined;
     if (toile && typeof toile.addEventListener === 'function') {
       this.debrancherPince = brancherPincement(toile, {
-        surFin: this.gardePince.surFin,
+        surFin: () => {
+          this.pinceEnCours = false;
+          this.gardePince.surFin();
+        },
         surPincement: (g) => {
           if (this.detruit) return;
+          /* Les deux doigts produisent des `pointermove` en rafale, dans un
+             repère qui se dilate : la dérive de caméra cesse de les écouter. */
+          this.pinceEnCours = true;
           const { echelle, applique } = echelleBornee(this.zoom, g.facteur, 1, ZOOM_CITE_MAX);
           this.zoom = echelle;
           /* Le point pincé ne doit pas glisser sous les doigts : on corrige
@@ -463,8 +472,7 @@ class TableauCite implements TownView {
       this.parallaxe.x += (this.parallaxeCible.x - this.parallaxe.x) * k;
       this.parallaxe.y += (this.parallaxeCible.y - this.parallaxe.y) * k;
     }
-    const dx = this.parallaxe.x * DERIVE_MAX;
-    const dy = this.parallaxe.y * DERIVE_MAX * 0.5;
+    const { dx, dy } = this.derive();
     /* Ce qui est peint dans le panorama — la porte, l'eau, les allées — dérive
        avec lui, sinon les repères se décollent de la peinture. Seuls les
        bâtiments posés par-dessus prennent la pleine dérive de leur plan. */
@@ -912,7 +920,7 @@ class TableauCite implements TownView {
   private readonly surDeplacement = (e: FederatedPointerEvent): void => {
     if (this.detruit) return;
     const p = e.getLocalPosition(this.racine);
-    if (!this.deps.reducedMotion) {
+    if (!this.deps.reducedMotion && !this.pinceEnCours) {
       this.parallaxeCible = {
         x: Math.max(-1, Math.min(1, (p.x / this.largeur) * 2 - 1)),
         y: Math.max(-1, Math.min(1, (p.y / this.hauteur) * 2 - 1)),
@@ -957,6 +965,19 @@ class TableauCite implements TownView {
     else if (cible.kind === 'place') this.deps.onPickPlot?.(cible.index);
   };
 
+  /**
+   * Dérive de caméra courante, en pixels du cadre. Éteinte au grossissement :
+   * une respiration du panorama au repos devient du flottement dès qu'on est
+   * entré dedans (`camera.ts`).
+   */
+  private derive(): { dx: number; dy: number } {
+    const amplitude = amplitudeDerive(this.zoom);
+    return {
+      dx: this.parallaxe.x * DERIVE_MAX * amplitude,
+      dy: this.parallaxe.y * DERIVE_MAX * 0.5 * amplitude,
+    };
+  }
+
   /** Résolution du survol : du premier plan vers le fond, la porte d'abord. */
   private cibleSous(
     x: number,
@@ -966,8 +987,9 @@ class TableauCite implements TownView {
     | { kind: 'porte' }
     | { kind: 'bati'; id: BuildingId }
     | { kind: 'place'; index: number } {
-    const dx = this.parallaxe.x * DERIVE_MAX;
-    const dy = this.parallaxe.y * DERIVE_MAX * 0.5;
+    /* LA MÊME dérive que celle qui dessine : une boîte de clic qui suivrait
+       une autre dérive que le dessin viserait à côté du bâtiment. */
+    const { dx, dy } = this.derive();
 
     const porte = this.porteActive();
     const c = this.pointDe(porte.x, porte.y);
