@@ -11,11 +11,11 @@
  * vérifié ici, c'est **la boucle de jeu** : entrée dans la partie, séquence qui
  * avance après un coup, et l'autre navigateur qui voit le changement.
  */
-import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { portLibre } from './port-libre.mjs';
+import { lancerNavigateur } from './navigateur.mjs';
 import { monterPartie, munirDuJeton } from './partie-en-ligne.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -59,7 +59,7 @@ try {
   exige(typeof code === 'string' && code.length > 5, `partie créée : ${code}`);
   exige(actif === 'P1' || actif === 'P2', `la partie est lancée, la main est à ${String(actif)}`);
 
-  navigateur = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+  navigateur = await lancerNavigateur(false);
 
   /** Ouvre un navigateur muni d'un jeton, et entre dans la partie. */
   const ouvrir = async (jeton, nom) => {

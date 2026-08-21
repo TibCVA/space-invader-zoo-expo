@@ -21,11 +21,11 @@
  *   node tools/e2e-solo.mjs            → sert le bundle local
  *   node tools/e2e-solo.mjs <url>      → éprouve un site déjà déployé
  */
-import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { portLibre } from './port-libre.mjs';
+import { lancerNavigateur } from './navigateur.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const distant = process.argv[2] && !process.argv[2].startsWith('--') ? process.argv[2] : null;
@@ -86,7 +86,7 @@ const APPAREILS = [
 
 try {
   await attendre(distant ? `${base}/health` : `${base}/api/parties/mes-parties`);
-  navigateur = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+  navigateur = await lancerNavigateur(Boolean(distant));
 
   for (const appareil of APPAREILS) {
     console.log(`\n▸ partie solo contre l'IA — ${appareil.nom}`);

@@ -17,11 +17,11 @@
  *   node tools/e2e-ia-en-ligne.mjs           → sert le bundle local
  *   node tools/e2e-ia-en-ligne.mjs <url>     → éprouve un site déjà déployé
  */
-import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { portLibre } from './port-libre.mjs';
+import { lancerNavigateur } from './navigateur.mjs';
 import { monterPartie, munirDuJeton } from './partie-en-ligne.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -64,7 +64,7 @@ try {
   const { code, jetonActif } = await monterPartie(base, { deuxiemeBanniere: 'ia' });
   exige(typeof code === 'string' && code.length > 5, `partie créée : ${code}`);
 
-  navigateur = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+  navigateur = await lancerNavigateur(Boolean(distant));
   const ctx = await navigateur.newContext({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 3,
