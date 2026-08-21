@@ -111,6 +111,55 @@ describe('pincer-zoomer', () => {
     expect(surPincement).not.toHaveBeenCalled();
   });
 
+  /**
+   * LE DÉFAUT QUE CES DEUX GARDES ONT LAISSÉ PASSER, ET QUI A COÛTÉ LE JEU AU
+   * DOIGT.
+   *
+   * `surFin` était appelé à chaque relâché laissant moins de deux doigts —
+   * donc à la fin de TOUT appui simple. La garde du relâché s'armait à chaque
+   * tapotement et avalait le `pointertap` suivant. Dans la cité, toucher un
+   * bâtiment ne faisait rien ; au combat, aucune case ne répondait. Le
+   * propriétaire : « quand je touche un bâtiment construit rien ne s'ouvre ».
+   *
+   * Aucun des tests d'alors ne posait un seul doigt puis le levait : ils
+   * partaient tous de deux doigts. C'est cette absence-là qu'on comble.
+   */
+  it('un appui simple n’annonce AUCUNE fin de geste', () => {
+    const el = faussElement();
+    const surFin = vi.fn();
+    brancherPincement(el, { surPincement: () => {}, surFin });
+    el.emettre('pointerdown', doigt(1, 100, 200));
+    el.emettre('pointerup', doigt(1, 100, 200));
+    expect(surFin).not.toHaveBeenCalled();
+  });
+
+  it('n’annonce la fin qu’une fois, même quand les deux doigts se lèvent', () => {
+    const el = faussElement();
+    const surFin = vi.fn();
+    brancherPincement(el, { surPincement: () => {}, surFin });
+    el.emettre('pointerdown', doigt(1, 100, 200));
+    el.emettre('pointerdown', doigt(2, 200, 200));
+    el.emettre('pointerup', doigt(2, 200, 200));
+    el.emettre('pointerup', doigt(1, 100, 200));
+    expect(surFin).toHaveBeenCalledTimes(1);
+  });
+
+  it('un appui simple APRÈS un pincement reste un vrai appui', () => {
+    const el = faussElement();
+    const garde = gardePincement();
+    brancherPincement(el, { surPincement: () => {}, surFin: garde.surFin });
+    /* Le pincement, puis le clic qu'il faut bien avaler. */
+    el.emettre('pointerdown', doigt(1, 0, 0));
+    el.emettre('pointerdown', doigt(2, 40, 0));
+    el.emettre('pointerup', doigt(2, 40, 0));
+    el.emettre('pointerup', doigt(1, 0, 0));
+    expect(garde.avaleLeClic()).toBe(true);
+    /* Et le tapotement suivant, lui, doit passer. */
+    el.emettre('pointerdown', doigt(3, 10, 10));
+    el.emettre('pointerup', doigt(3, 10, 10));
+    expect(garde.avaleLeClic()).toBe(false);
+  });
+
   it('prévient quand le second doigt se lève', () => {
     const el = faussElement();
     const surFin = vi.fn();

@@ -221,15 +221,25 @@
   }
 }
 
+/*
+ * Posé sur la MÊME ligne que la fin de tour, et au-dessus de la légende.
+ *
+ * Il était au ras du bas, à droite : mesuré sur capture iPhone, il recouvrait
+ * la légende de la cité — « Arconsat — 3 bâtiments levés · agitatio[n] »
+ * tranché net. Le bas de l'écran se partage donc ainsi : la légende occupe la
+ * dernière ligne sur toute la largeur, et la ligne au-dessus porte la fin de
+ * tour à gauche et cette commande à droite. Sur 390 points, la première finit
+ * à 166 et la seconde commence à 225 : elles ne se touchent pas.
+ */
 .cite-cmd__ouvrir {
   position: absolute;
-  right: var(--hmm-space-4);
-  bottom: calc(var(--hmm-space-4) + var(--hmm-safe-bas));
+  right: calc(var(--hmm-space-4) + var(--hmm-safe-droite));
+  bottom: calc(var(--hmm-space-4) + var(--hmm-safe-bas) + 56px);
   z-index: 3;
 }
 
 .jeu-racine--avec-pouce .cite-cmd__ouvrir {
-  bottom: calc(var(--hmm-space-4) + var(--hmm-reserve-pouce));
+  bottom: calc(var(--hmm-space-4) + var(--hmm-reserve-pouce) + 56px);
 }
 
 .cite-cmd__tete {
