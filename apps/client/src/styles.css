@@ -566,6 +566,18 @@ body {
    */
 }
 
+/*
+ * La réserve est posée DEUX fois, et ce n'est pas une étourderie.
+ *
+ * Sur la racine, pour les éléments qui vivent hors de la scène — la commande
+ * de fin de tour, désormais posée à la racine pour exister sur tous les écrans
+ * de jeu. Sur `.jeu-scene`, parce que celle-ci porte un défaut à `0px` qui,
+ * sans cette seconde déclaration, l'emporterait sur la valeur héritée à
+ * l'intérieur de la scène — et la toile repasserait sous la barre.
+ */
+.jeu-racine--avec-pouce {
+  --hmm-reserve-pouce: calc(var(--hmm-touch-ample) + var(--hmm-space-2) + var(--hmm-safe-bas));
+}
 .jeu-racine--avec-pouce .jeu-scene {
   --hmm-reserve-pouce: calc(var(--hmm-touch-ample) + var(--hmm-space-2) + var(--hmm-safe-bas));
 }

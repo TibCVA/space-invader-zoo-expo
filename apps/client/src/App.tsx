@@ -47,6 +47,7 @@ import {
   useAppState,
 } from './state/store.js';
 import { EcranDiagnostic } from './screens/diagnostic.js';
+import { FinDeTour } from './screens/fin-de-tour.js';
 import { combatDemo, etatDemo, emplacementsDemo, HEROS_DEMO, partieDemo } from './state/demo.js';
 import { listerEmplacements, lireLocal, reprendreLocal, effacerLocal } from './state/persistence.js';
 import {
@@ -285,6 +286,22 @@ export function App(_props: AppProps = {}): ReactElement {
   const enPartie = needsGame(route) || (demo && besoin !== 'aucun');
   const avecPouce = enPartie || route.name === 'demo-heros' || route.name === 'demo-royaume';
 
+  /*
+   * La commande de fin de tour n'apparaît que sur les écrans qui sont un
+   * PLATEAU — la carte et la cité, deux scènes accélérées. Elle y flotte
+   * au-dessus d'une toile et ne cache rien.
+   *
+   * Elle est écartée des écrans de DONNÉES (royaume, fiche de héros), et c'est
+   * une mesure qui l'a décidé : sur la vue du royaume, capturée en 390 × 844,
+   * le bouton recouvrait une tuile de ressource entière — « 7 … par jour »
+   * illisible derrière lui. Un bouton flottant au-dessus d'un texte qui défile
+   * masquera toujours quelque chose. HMM3 fait d'ailleurs de même : la fin de
+   * tour vit dans la barre latérale de la carte, pas dans les registres. La
+   * barre de commandes ramène à la carte d'un seul appui.
+   */
+  const surUnPlateau =
+    !demo && (route.name === 'partie' || route.name === 'partie-cite') && etat.game !== null;
+
   const surCommande = useCallback(
     (commande: CommandePouce): void => {
       switch (commande) {
@@ -458,6 +475,16 @@ export function App(_props: AppProps = {}): ReactElement {
       <LimiteErreur cle={`${route.name}-${'uid' in route ? route.uid : ''}`}>{contenu}</LimiteErreur>
 
       {etat.notice ? <Avis texte={etat.notice} onFermer={effacerNotice} /> : null}
+      {/*
+        LA FIN DU TOUR EST POSÉE ICI, ET NON DANS LA CARTE.
+        Elle ne vivait que sur `#/partie` : dans sa cité, sa fiche de héros ou
+        sa vue du royaume, le joueur n'avait aucun moyen de rendre la main sans
+        d'abord retrouver la carte. Le propriétaire, sur iPhone : « je ne
+        comprends pas comment terminer un tour ». Posée à la racine, elle est au
+        même endroit sur tous les écrans de jeu — et `etatFinDeTour` l'efface
+        d'elle-même pendant un combat.
+      */}
+      {surUnPlateau ? <FinDeTour game={etat.game} joueur={etat.localPlayer} /> : null}
       {avecPouce ? <PanneauMobile state={etat} demo={demo} /> : null}
       {avecPouce ? (
         <BarrePouce active={commandeDe(route)} onCommande={surCommande} desactivees={desactivees} />

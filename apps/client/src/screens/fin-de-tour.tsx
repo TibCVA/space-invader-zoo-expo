@@ -28,7 +28,7 @@
  * au joueur à confirmer sans lire.
  */
 
-import { useState, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import type { GameState, PlayerId } from '@auvergne/engine';
 import { Button, ConfirmBar } from '@auvergne/ui';
 import { dispatch } from '../state/store.js';
@@ -90,6 +90,42 @@ export interface FinDeTourProps {
 export function FinDeTour({ game, joueur }: FinDeTourProps): ReactElement | null {
   const [demande, setDemande] = useState(false);
   const etat = etatFinDeTour(game, joueur);
+  const pret = etat.quoi === 'prete';
+  const herosEnAttente = etat.quoi === 'prete' ? etat.herosEnAttente : 0;
+
+  /*
+   * ESPACE ou ENTRÉE rend la main — la touche de HMM3.
+   *
+   * Le propriétaire l'a cherchée : « je ne comprends pas comment terminer un
+   * tour (dans HMM3 il y a une touche pour cela) ». Elle n'existait pas.
+   *
+   * Trois précautions : on ne l'écoute que quand la commande est réellement
+   * disponible ; on ne vole jamais la frappe d'un champ de saisie (le nombre de
+   * recrues de la cité en est un) ; et elle passe par la même confirmation que
+   * le bouton, faute de quoi une barre d'espace malheureuse rendrait la main
+   * pour la journée.
+   */
+  useEffect(() => {
+    if (!pret) return undefined;
+    const surTouche = (e: KeyboardEvent): void => {
+      if (e.key !== ' ' && e.key !== 'Enter' && e.key !== 'Spacebar') return;
+      if (e.repeat || e.altKey || e.ctrlKey || e.metaKey) return;
+      const cible = e.target;
+      if (cible instanceof HTMLElement) {
+        const balise = cible.tagName;
+        if (balise === 'INPUT' || balise === 'TEXTAREA' || balise === 'SELECT') return;
+        if (cible.isContentEditable) return;
+        /* Entrée sur un bouton déjà visé doit actionner CE bouton, pas finir
+           le tour : sinon le clavier devient un piège. */
+        if (balise === 'BUTTON' || balise === 'A') return;
+      }
+      e.preventDefault();
+      if (herosEnAttente > 0) setDemande(true);
+      else dispatch({ type: 'EndTurn' });
+    };
+    window.addEventListener('keydown', surTouche);
+    return () => window.removeEventListener('keydown', surTouche);
+  }, [pret, herosEnAttente]);
 
   if (etat.quoi === 'cache' || etat.quoi === 'combat') return null;
 

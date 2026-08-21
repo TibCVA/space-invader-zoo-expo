@@ -161,10 +161,16 @@
    c'est aussi celui que le pouce atteint sans lâcher le téléphone.
    ======================================================================== */
 .jeu-fin-tour {
-  position: absolute;
+  /*
+   * `fixed`, et non `absolute` : la commande vit désormais à la racine de
+   * l'application et non dans la scène de la carte, pour être au même endroit
+   * dans la cité, la fiche de héros et la vue du royaume. Elle n'a donc plus
+   * d'ancêtre positionné à qui se référer.
+   */
+  position: fixed;
   left: calc(var(--hmm-space-4) + var(--hmm-safe-gauche));
   bottom: calc(var(--hmm-space-4) + var(--hmm-safe-bas) + 56px);
-  z-index: 2;
+  z-index: var(--hmm-z-colle);
 }
 
 .jeu-fin-tour--attente {

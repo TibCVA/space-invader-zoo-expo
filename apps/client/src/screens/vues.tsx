@@ -23,7 +23,6 @@ import { ScenePixi, type FabriqueScene } from './scene.js';
 import { calendrierLong, nombre, pluriel } from './format.js';
 import { FicheInspection } from './inspection.js';
 import { BarreTresor } from './tresor.js';
-import { FinDeTour } from './fin-de-tour.js';
 import { PanneauCite } from './cite-commandes.js';
 import type { Cible } from './cible.js';
 import { Button, ConfirmBar } from '@auvergne/ui';
@@ -259,14 +258,7 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
           onFermer={(): void => setCible(null)}
         />
       ) : null}
-      {state.pathPreview ? (
-        <BarreDeChemin preview={state.pathPreview} />
-      ) : (
-        /* Un seul temps de confirmation à la fois : tant qu'un tracé attend sa
-           réponse, la commande de fin de tour s'efface. Deux barres empilées
-           dans le même angle, c'est le clic pris pour l'autre. */
-        <FinDeTour game={game} joueur={localPlayer} />
-      )}
+      {state.pathPreview ? <BarreDeChemin preview={state.pathPreview} /> : null}
     </ScenePixi>
   );
 }
