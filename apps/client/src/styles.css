@@ -454,7 +454,11 @@ body {
   right: 0;
   bottom: 0;
   z-index: var(--hmm-z-colle);
-  display: none;
+  /* Elle s'affiche sur TOUS les écrans : voir le pavé plus bas. Deux règles
+     qui se contredisent — l'une cachant, l'autre montrant — laissent croire
+     que la barre est facultative, et c'est ce qui a fait chercher la panne au
+     mauvais endroit. */
+  display: flex;
   gap: var(--hmm-space-1);
   padding: var(--hmm-space-1) calc(var(--hmm-space-2) + var(--hmm-safe-droite))
     calc(var(--hmm-space-1) + var(--hmm-safe-bas)) calc(var(--hmm-space-2) + var(--hmm-safe-gauche));
@@ -523,10 +527,10 @@ body {
  * Elle s'affiche donc partout, et les réserves qui l'accompagnaient — la
  * toile, la légende — perdent la même condition : elles décrivent la place
  * que prend une barre qui existe désormais toujours.
+ *
+ * `display: flex` est posé sur la règle de base, plus haut : une seule règle,
+ * une seule vérité.
  */
-.jeu-pouce {
-  display: flex;
-}
 
 /* Les écrans de données s'arrêtent au-dessus de la barre, sur tous les
    écrans depuis qu'elle y est : sans ce rembourrage, le bas du royaume et de

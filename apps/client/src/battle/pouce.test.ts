@@ -61,6 +61,25 @@ function regle(css: string, selecteur: string): string | null {
 }
 
 const NU = sansCommentaires(CSS);
+
+/**
+ * LA BARRE EXISTE SUR TOUS LES ÉCRANS DEPUIS LE 21/08 — et ces gardes ont
+ * changé de cible pour le dire.
+ *
+ * Elles exigeaient que la réserve vive DANS `@media (max-width: 899px)`,
+ * parce que la barre ne s'affichait que là. Or elle est le seul chemin vers la
+ * cité, le héros, le royaume et le menu : sur un ordinateur, aucun de ces
+ * écrans n'était atteignable. La barre s'affiche donc partout, et les réserves
+ * l'ont suivie hors de la requête média.
+ *
+ * Ce n'est pas un test affaibli pour redevenir vert : l'exigence est plus
+ * forte qu'avant. On vérifiait « la règle existe pour le téléphone » ; on
+ * vérifie maintenant « la règle existe pour TOUS les écrans », et l'ancienne
+ * formulation est explicitement interdite — une réserve confinée à une requête
+ * média laisserait de nouveau la barre manger le bas de la scène sur
+ * ordinateur, ce qui a réellement eu lieu : la sonde de bout en bout a trouvé
+ * le clic sur « Rendre la main » intercepté par `.jeu-pouce`.
+ */
 const TELEPHONE = blocMedia(NU, '@media (max-width: 899px)');
 
 describe('réserve de la barre de pouce sur la scène accélérée', () => {
@@ -82,9 +101,9 @@ describe('réserve de la barre de pouce sur la scène accélérée', () => {
     expect(apresInset?.[1]).toMatch(/bottom:\s*[^;]*var\(\s*--hmm-reserve-pouce/);
   });
 
-  it('la requête média du téléphone donne à la réserve la hauteur de la barre', () => {
-    const corps = regle(TELEPHONE, '.jeu-racine--avec-pouce .jeu-scene');
-    expect(corps, 'règle de la scène sous la barre de pouce').not.toBeNull();
+  it('la réserve vaut la hauteur de la barre, sur TOUS les écrans', () => {
+    const corps = regle(NU, '.jeu-racine--avec-pouce .jeu-scene');
+    expect(corps, 'règle de la scène sous la barre de commandes').not.toBeNull();
     expect(corps).toMatch(/--hmm-reserve-pouce:/);
     /* La barre mesure une cible tactile ample plus la marge de sécurité du
        bas de l'appareil : la réserve doit couvrir les deux. */
@@ -92,18 +111,33 @@ describe('réserve de la barre de pouce sur la scène accélérée', () => {
     expect(corps).toMatch(/--hmm-safe-bas/);
   });
 
+  it('ne confine plus la réserve à la requête média du téléphone', () => {
+    /* C'est l'exigence qui a remplacé l'ancienne, et elle garde le défaut
+       réellement observé : la barre existe partout, une réserve réservée au
+       téléphone la laisse manger le bas de la scène sur ordinateur. */
+    expect(regle(TELEPHONE, '.jeu-racine--avec-pouce .jeu-scene')).toBeNull();
+    expect(regle(TELEPHONE, '.jeu-racine--avec-pouce .jeu-scene__legende')).toBeNull();
+  });
+
+  it('la barre elle-même s’affiche hors de toute requête média', () => {
+    const corps = regle(NU, '.jeu-pouce');
+    expect(corps, 'règle de la barre de commandes').not.toBeNull();
+    expect(corps).toMatch(/display:\s*flex/);
+  });
+
   it('ne réclame plus la réserve en rembourrage, qui n’enlève rien à la toile', () => {
-    const corps = regle(TELEPHONE, '.jeu-racine--avec-pouce .jeu-scene') ?? '';
+    const corps = regle(NU, '.jeu-racine--avec-pouce .jeu-scene');
+    expect(corps, 'la règle doit exister pour que ce test ait un sens').not.toBeNull();
     expect(corps).not.toMatch(/padding-bottom/);
   });
 
   it('remonte aussi la légende de la scène, posée elle aussi en absolu', () => {
-    const corps = regle(TELEPHONE, '.jeu-racine--avec-pouce .jeu-scene__legende');
-    expect(corps, 'règle de la légende sous la barre de pouce').not.toBeNull();
+    const corps = regle(NU, '.jeu-racine--avec-pouce .jeu-scene__legende');
+    expect(corps, 'règle de la légende sous la barre de commandes').not.toBeNull();
     expect(corps).toMatch(/bottom:\s*[^;]*var\(\s*--hmm-reserve-pouce/);
   });
 
-  it('la réserve vaut zéro hors téléphone : rien n’est volé au grand écran', () => {
+  it('la réserve vaut zéro par défaut : une scène sans barre ne perd rien', () => {
     const corps = regle(NU, '.jeu-scene');
     expect(corps).not.toBeNull();
     expect(corps).toMatch(/--hmm-reserve-pouce:\s*0px/);

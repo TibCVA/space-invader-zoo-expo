@@ -86,12 +86,17 @@
   box-shadow: var(--hmm-ombre-assise);
 }
 
+/* `flex: 1 1 140px` et non `1 1 auto` : le panneau de montée vit dans la
+   colonne étroite de la fiche (280 px au plus resserré), et sans base de
+   rétrécissement la pastille « Montée de rang » restait collée au titre, qui
+   se cassait alors en trois lignes. Avec une base, c'est la pastille qui passe
+   dessous — mesuré sur la capture de la fiche à 1500 px comme à 390 px. */
 .fiche__voie-corps {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 1 1 140px;
 }
 
 .fiche__voie-titre {
@@ -106,6 +111,15 @@
    se retrouverait à des centaines de pixels du geste qu'elle confirme. */
 .fiche__confirmation {
   margin-top: var(--hmm-space-4);
+}
+
+/* Le fil des trois temps (`Choix · Aperçu · Confirmation`) est en `flex` sans
+   retour à la ligne dans le design system, où la barre occupe toute la largeur
+   de la carte. Dans la colonne étroite de la fiche il débordait : la capture
+   montrait « CONFIRM… » coupé net au bord du panneau. On l'autorise à passer à
+   la ligne, ici seulement. */
+.fiche__confirmation .hmm-confirmation__etapes {
+  flex-wrap: wrap;
 }
 
 /* ──────────────────────────── Artefacts ─────────────────────────────────── */
