@@ -24,8 +24,9 @@ import { calendrierLong, nombre, pluriel } from './format.js';
 import { FicheInspection } from './inspection.js';
 import { BarreTresor } from './tresor.js';
 import { FinDeTour } from './fin-de-tour.js';
+import { PanneauCite } from './cite-commandes.js';
 import type { Cible } from './cible.js';
-import { ConfirmBar } from '@auvergne/ui';
+import { Button, ConfirmBar } from '@auvergne/ui';
 
 /* ─────────────────────── Rythme de confirmation ──────────────────────────── */
 
@@ -318,10 +319,22 @@ export function EcranCite({ state, reducedMotion, uid, demoTown }: EcranCiteProp
     return trouvee ?? Object.values(game.towns)[0] ?? null;
   }, [game, uid, demoTown]);
 
+  /*
+   * Le panneau des commandes de la cité — bâtir et recruter.
+   *
+   * Il s'ouvre par ses deux onglets, et AUSSI en touchant un emplacement ou un
+   * bâtiment de la maquette. Les deux chemins mènent au même panneau : viser un
+   * emplacement de trente pixels dans un tableau en perspective marche à la
+   * souris et pas au doigt, mais c'est le geste que cherche un joueur de HMM3.
+   */
+  const [commandes, setCommandes] = useState(false);
+
   const fabrique = useCallback<FabriqueScene>(
     async ({ app, atlas, width, height }) => {
       if (!game || !world || !localPlayer || !cible) throw new Error("Aucune cité à montrer.");
       return createTownView({
+        onPickPlot: (): void => setCommandes(true),
+        onPickBuilding: (): void => setCommandes(true),
         app,
         atlas,
         store: viewStore,
@@ -362,7 +375,22 @@ export function EcranCite({ state, reducedMotion, uid, demoTown }: EcranCiteProp
           </>
         ) : null
       }
-    />
+    >
+      {game && cible && cible.owner === localPlayer ? (
+        commandes ? (
+          <PanneauCite game={game} town={cible} onFermer={(): void => setCommandes(false)} />
+        ) : (
+          /* Une cité qu'on ne peut pas commander n'affiche rien : sur une cité
+             neutre ou ennemie, un bouton « Bâtir » qui refuse tout serait pire
+             que son absence. */
+          <div className="cite-cmd__ouvrir">
+            <Button variant="principal" onClick={(): void => setCommandes(true)}>
+              Bâtir et recruter
+            </Button>
+          </div>
+        )
+      ) : null}
+    </ScenePixi>
   );
 }
 

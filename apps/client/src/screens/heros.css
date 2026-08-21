@@ -1,0 +1,173 @@
+/**
+ * FICHE DE HÉROS — ce que la fiche a gagné en devenant jouable.
+ *
+ * `styles.css` §9 habille la fiche de LECTURE : dix cases d'artefacts, sept
+ * piles, des lignes de compétence. Rien n'y était cliquable, parce que rien
+ * n'y était cliquable. Cette feuille n'ajoute que ce qu'exigent les trois
+ * commandes nouvellement branchées — choisir une voie de niveau, porter ou
+ * retirer un artefact, ranger une pile — et réutilise les classes existantes
+ * partout où elles suffisaient : un `<button>` porte `.fiche__ligne` ou
+ * `.fiche__artefact` et n'a besoin que d'un décapage.
+ *
+ * Deux contraintes tiennent la mise en page :
+ *  - **44 px de cible tactile au minimum.** `.fiche__ligne` et
+ *    `.fiche__artefact` posent déjà `min-height: var(--hmm-touch-min)` (48 px) ;
+ *    les boutons nouveaux le reprennent explicitement.
+ *  - **390 × 844 utilisable.** Au-dessous de 900 px la fiche passe déjà sur une
+ *    colonne ; les grilles introduites ici s'effondrent au même point plutôt
+ *    que de pousser la page à déborder de côté.
+ */
+
+/* ───────────────────── Décapage d'un bouton habillé ─────────────────────── */
+
+/*
+ * Un `<button>` apporte sa propre police, son centrage et son fond. On les
+ * retire, on garde l'habillage de la classe posée à côté (`.fiche__ligne`,
+ * `.fiche__artefact`) : sans cela une ligne cliquable ne ressemble plus du tout
+ * à la ligne voisine qui ne l'est pas.
+ */
+.fiche__cliquable {
+  width: 100%;
+  min-height: var(--hmm-touch-min);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  transition:
+    border-color var(--hmm-duree) var(--hmm-courbe),
+    box-shadow var(--hmm-duree) var(--hmm-courbe);
+}
+
+.fiche__cliquable:hover:not(:disabled),
+.fiche__cliquable:focus-visible {
+  border-color: var(--hmm-or);
+  box-shadow: var(--hmm-ombre-assise), 0 0 0 1px rgba(201, 162, 39, 0.45);
+  outline: none;
+}
+
+.fiche__cliquable:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.fiche__cliquable:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+/* La pile retenue par le premier clic : un anneau d'or franc, doublé d'un mot
+   dans la ligne d'aide — la couleur seule ne dit rien à qui ne la voit pas. */
+.fiche__cliquable--retenue {
+  border-color: var(--hmm-or);
+  box-shadow: var(--hmm-ombre-assise), 0 0 0 2px var(--hmm-or);
+}
+
+/* ───────────────────────── Montée de niveau ─────────────────────────────── */
+
+.fiche__voies {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: var(--hmm-space-3);
+}
+
+/* La voie est un choix définitif : elle se donne plus d'air qu'une ligne de
+   liste, et se lit d'un coup d'œil — icône, titre du moteur, effets du rang. */
+.fiche__voie {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--hmm-space-3);
+  padding: var(--hmm-space-3);
+  min-height: var(--hmm-touch-ample);
+  border: var(--hmm-filet-fin) solid rgba(36, 28, 20, 0.22);
+  border-left: var(--hmm-filet-epais) solid var(--hmm-or-attenue);
+  border-radius: var(--hmm-radius-xs);
+  background-image: linear-gradient(172deg, rgba(255, 233, 194, 0.34) 0%, rgba(201, 185, 150, 0.26) 100%);
+  box-shadow: var(--hmm-ombre-assise);
+}
+
+.fiche__voie-corps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.fiche__voie-titre {
+  font-family: var(--hmm-font-titre);
+  font-size: var(--hmm-fs-base);
+  letter-spacing: var(--hmm-ls-cartouche);
+  color: var(--hmm-encre);
+}
+
+/* La barre d'engagement, posée dans le flux du panneau et non en surimpression
+   comme sur la carte : la fiche défile, et une barre fixée au bas de l'écran
+   se retrouverait à des centaines de pixels du geste qu'elle confirme. */
+.fiche__confirmation {
+  margin-top: var(--hmm-space-4);
+}
+
+/* ──────────────────────────── Artefacts ─────────────────────────────────── */
+
+/* Les boutons d'emplacement d'une pièce de besace : « Porter », ou les deux
+   anneaux quand le moteur en ouvre deux. Ils passent sous le texte dès que la
+   colonne se resserre plutôt que d'écraser le nom de l'artefact. */
+.fiche__poser {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hmm-space-2);
+  flex: 0 0 auto;
+}
+
+/* Un artefact hors codex, ou refusé par le moteur : on affiche le refus tel
+   qu'il est écrit, en grenat, plutôt qu'un bouton qui échouerait. */
+.fiche__refus {
+  font-family: var(--hmm-font-recit);
+  font-size: var(--hmm-fs-petit);
+  line-height: var(--hmm-lh-normal);
+  color: var(--hmm-grenat);
+}
+
+/* ─────────────────────────────── Armée ──────────────────────────────────── */
+
+.fiche__rangee + .fiche__rangee {
+  margin-top: var(--hmm-space-3);
+}
+
+.fiche__aide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hmm-space-3);
+  margin: var(--hmm-space-3) 0 0;
+  font-family: var(--hmm-font-recit);
+  font-size: var(--hmm-fs-petit);
+  line-height: var(--hmm-lh-normal);
+  color: var(--hmm-texte-doux);
+}
+
+.fiche__aide-texte {
+  flex: 1 1 12ch;
+  min-width: 0;
+}
+
+/* ─────────────────────────── Mouvement réduit ───────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .fiche__cliquable {
+    transition: none;
+  }
+
+  .fiche__cliquable:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+:root[data-animations='reduites'] .fiche__cliquable {
+  transition: none;
+}
+
+:root[data-animations='reduites'] .fiche__cliquable:active:not(:disabled) {
+  transform: none;
+}

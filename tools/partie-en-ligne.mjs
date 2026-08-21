@@ -88,13 +88,36 @@ export async function monterPartie(base, options = {}) {
     creation.corps.jeton,
     hote,
   );
-  const p2 = await poster(
-    base,
-    `/api/parties/${code}/rejoindre`,
-    { slot: 'P2', nom: 'Jean', faction: 'ermitage', heros: 'agathe', depart: 'renaudie' },
-    null,
-    cousin,
-  );
+  /*
+   * La seconde bannière est prise par un cousin, ou confiée à l'ordinateur.
+   *
+   * Le second cas n'est pas un détail d'épreuve : c'est la façon dont on joue
+   * contre l'IA en ligne, et c'est le serveur qui déroule ces tours-là
+   * (`deroulerIa`). Sans une épreuve qui l'emprunte, ce chemin ne serait
+   * vérifié nulle part — et l'on sait maintenant ce que coûte un chemin de jeu
+   * que personne ne parcourt.
+   */
+  let p2 = { statut: 201, corps: { jeton: null } };
+  if (options.deuxiemeBanniere === 'ia') {
+    const ia = await poster(
+      base,
+      `/api/parties/${code}/ia`,
+      { slot: 'P2', action: 'confier', profil: options.profilIa ?? 'equilibre' },
+      p1.corps.jeton,
+      hote,
+    );
+    if (ia.statut !== 200) {
+      throw new Error(`bannière d'IA refusée (${String(ia.statut)}) : ${JSON.stringify(ia.corps)}`);
+    }
+  } else {
+    p2 = await poster(
+      base,
+      `/api/parties/${code}/rejoindre`,
+      { slot: 'P2', nom: 'Jean', faction: 'ermitage', heros: 'agathe', depart: 'renaudie' },
+      null,
+      cousin,
+    );
+  }
   /* `rejoindre` crée une ressource : 201, et non 200. */
   if (p1.statut !== 201 || p2.statut !== 201) {
     throw new Error(`bannières refusées (${String(p1.statut)}, ${String(p2.statut)})`);

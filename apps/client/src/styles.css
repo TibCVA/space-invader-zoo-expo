@@ -506,10 +506,29 @@ body {
   height: 24px;
 }
 
+/*
+ * LA BARRE DE COMMANDES EXISTE SUR TOUS LES ÉCRANS.
+ *
+ * Elle était affichée sous 900 pixels seulement. Or elle est le SEUL chemin
+ * vers la cité, la fiche de héros, la vue du royaume et le menu :
+ * `panneaux.tsx` est le seul endroit du client qui navigue vers
+ * `partie-cite` et `partie-heros`, et l'on n'y accède que par elle.
+ *
+ * Autrement dit, sur un ordinateur, on ne pouvait ni entrer dans sa cité, ni
+ * ouvrir son héros, ni voir son royaume, ni atteindre le menu. Le jeu s'y
+ * réduisait à déplacer un héros, se battre et rendre la main. Mesuré en
+ * cherchant les appelants : `grep -rn "partie-cite" apps/client/src` n'en
+ * trouve qu'un, et il est derrière cette barre.
+ *
+ * Elle s'affiche donc partout, et les réserves qui l'accompagnaient — la
+ * toile, la légende — perdent la même condition : elles décrivent la place
+ * que prend une barre qui existe désormais toujours.
+ */
+.jeu-pouce {
+  display: flex;
+}
+
 @media (max-width: 899px) {
-  .jeu-pouce {
-    display: flex;
-  }
   .jeu-racine--avec-pouce .jeu-page {
     padding-bottom: calc(var(--hmm-touch-ample) + var(--hmm-space-10) + var(--hmm-safe-bas));
   }
@@ -537,13 +556,14 @@ body {
    * retranchent EUX-MÊMES de leur `bottom`. C'est le seul endroit où elle
    * mord vraiment.
    */
-  .jeu-racine--avec-pouce .jeu-scene {
-    --hmm-reserve-pouce: calc(var(--hmm-touch-ample) + var(--hmm-space-2) + var(--hmm-safe-bas));
-  }
-  /* La légende se pose au-dessus de la barre, comme la toile. */
-  .jeu-racine--avec-pouce .jeu-scene__legende {
-    bottom: calc(var(--hmm-space-4) + var(--hmm-reserve-pouce));
-  }
+}
+
+.jeu-racine--avec-pouce .jeu-scene {
+  --hmm-reserve-pouce: calc(var(--hmm-touch-ample) + var(--hmm-space-2) + var(--hmm-safe-bas));
+}
+/* La légende se pose au-dessus de la barre, comme la toile. */
+.jeu-racine--avec-pouce .jeu-scene__legende {
+  bottom: calc(var(--hmm-space-4) + var(--hmm-reserve-pouce));
 }
 
 /* ========================= 9. FICHE DE HÉROS ============================= */
