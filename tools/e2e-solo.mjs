@@ -116,14 +116,25 @@ try {
        en cache — et il a été mesuré à plus de cent vingt secondes là où le
        second passe en quarante-cinq. Une épreuve qui échoue sur la lenteur du
        premier essai ne dit rien du produit. */
-    const finDuTour = page.getByRole('button', { name: /^Fin du tour$/i });
+    /*
+     * LE SIGNAL D'OUVERTURE EST LA LÉGENDE DE LA SCÈNE, PAS LE BOUTON.
+     *
+     * « Fin du tour » vit désormais à la RACINE de l'application, hors de la
+     * scène Pixi, pour exister aussi dans la cité. Il apparaît donc AVANT que
+     * la carte ne soit peinte, et l'attendre faisait mesurer trop tôt : la
+     * légende n'était pas encore dans le document et l'épreuve lisait un
+     * calendrier vide. La légende, elle, n'est rendue que lorsque la scène est
+     * prête (`scene.tsx` : `prete && legende`).
+     */
     let arrive = true;
     try {
-      await finDuTour.waitFor({ state: 'visible', timeout: 240_000 });
+      await page.locator('.jeu-scene__legende').waitFor({ state: 'visible', timeout: 240_000 });
     } catch {
       arrive = false;
     }
-    exige(arrive, 'la carte s’ouvre et offre « Fin du tour »');
+    exige(arrive, 'la carte s’ouvre');
+    const finDuTour = page.getByRole('button', { name: /^Fin du tour$/i });
+    exige(await finDuTour.isVisible().catch(() => false), 'elle offre « Fin du tour »');
 
     if (arrive) {
       /* Le calendrier AVANT le coup, pour pouvoir exiger qu'il ait bougé. */

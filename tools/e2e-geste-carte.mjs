@@ -80,7 +80,10 @@ try {
   await munirDuJeton(page, base, code, jetonActif);
   await page.goto(`${base}/#/en-ligne/${code}`, { waitUntil: 'load', timeout: 60_000 });
   await page.getByRole('button', { name: /Entrer dans la partie/i }).click();
-  await page.getByRole('button', { name: /^Fin du tour$/i }).waitFor({ state: 'visible', timeout: 240_000 });
+  /* La légende n'est rendue que lorsque la scène est prête : c'est elle le
+     signal d'ouverture, et non « Fin du tour », qui vit désormais hors de la
+     scène et apparaît avant que la carte ne soit peinte. */
+  await page.locator('.jeu-scene__legende').waitFor({ state: 'visible', timeout: 240_000 });
   await page.waitForTimeout(2500);
 
   /** La position du héros, relue au serveur — jamais dans le navigateur. */
