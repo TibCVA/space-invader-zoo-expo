@@ -156,23 +156,36 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
         quality: 'haute',
         demo,
         focus: cadrageInitial(game, localPlayer, demo === true),
+        /*
+         * LES `onPick*` CHOISISSENT ; SEUL `onInspect` OUVRE LA FICHE.
+         *
+         * Ils ouvraient tous la fiche, et c'est ce qui rendait la carte
+         * injouable au doigt : marcher demande trois appuis — choisir son
+         * héros, viser, confirmer — et le premier posait un carton sur les
+         * deux suivants. Mesuré sur iPhone : 45 % de la carte recouverte,
+         * juste au-dessus du héros.
+         */
         onPickCell: (at): void => {
-          setCible(null);
           selectionner({ kind: 'case', at });
         },
         onPickHero: (uid): void => {
           herosRef.current = uid;
           selectionner({ kind: 'heros', uid });
-          setCible({ kind: 'heros', uid });
         },
         onPickTown: (uid): void => {
           selectionner({ kind: 'cite', uid });
-          setCible({ kind: 'cite', uid });
         },
-        /* Le rappel du contrat des vues n'était pas branché : cliquer une garde
-           neutre, un gisement ou un repaire ne produisait rien. */
-        onPickObject: (objet): void => {
-          setCible({ kind: 'objet', uid: objet.uid });
+        onPickObject: (): void => {
+          /* Rien : c'est `onInspect` qui montre. Le rappel reste branché parce
+             que le contrat le prévoit et qu'une vue peut vouloir le sonoriser. */
+        },
+        /* Appui long au doigt, clic droit à la souris — et l'appui court qui
+           n'avait rien à faire. C'est le seul chemin vers la fiche. */
+        onInspect: (c): void => {
+          if (c.kind === 'heros') setCible({ kind: 'heros', uid: c.uid });
+          else if (c.kind === 'cite') setCible({ kind: 'cite', uid: c.uid });
+          else if (c.kind === 'objet') setCible({ kind: 'objet', uid: c.object.uid });
+          else setCible(null);
         },
       });
     },

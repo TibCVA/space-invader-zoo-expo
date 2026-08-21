@@ -33,6 +33,7 @@ import type {
   MapCoord,
   MapObject,
   PlayerId,
+  TownUid,
 } from '@auvergne/engine';
 import type { MapCamera, MapView, MapViewDeps } from '../view-contract.js';
 import type { PathPreview, Selection } from '../state/types.js';
@@ -646,7 +647,10 @@ class CarteAventure implements MapView {
 
   /* ────────────────────────────── Interaction ──────────────────────────── */
 
-  private point(e: PointerEvent | WheelEvent): { x: number; y: number } {
+  /* `MouseEvent` et non `PointerEvent | WheelEvent` : les deux en héritent, et
+     le clic droit arrive en `MouseEvent` nu. Seules `clientX`/`clientY` sont
+     lues, qui sont déclarées là. */
+  private point(e: MouseEvent): { x: number; y: number } {
     const rect = this.deps.app.canvas.getBoundingClientRect();
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }
@@ -739,8 +743,9 @@ class CarteAventure implements MapView {
         return;
       }
       if (suivi.tactile && duree >= APPUI_LONG_MS) {
-        /* Appui long : on inspecte, on n'agit pas. */
+        /* Appui long : on informe, on n'agit pas. C'est le clic droit de HMM3. */
         this.majSurvol(p);
+        this.inspecter(p);
         return;
       }
       this.cliquer(p);
@@ -761,7 +766,12 @@ class CarteAventure implements MapView {
       this.camera.zoomer(Math.exp(-pas * 0.0016), p);
     };
 
-    const surMenu = (e: Event): void => e.preventDefault();
+    /* Clic droit : le geste d'information de HMM3, à la souris. Il ne déplace
+       rien et n'ouvre jamais le menu du navigateur. */
+    const surMenu = (e: Event): void => {
+      e.preventDefault();
+      if (e instanceof MouseEvent) this.inspecter(this.point(e));
+    };
 
     canvas.addEventListener('pointerdown', surDown);
     canvas.addEventListener('pointermove', surMove);
@@ -816,13 +826,31 @@ class CarteAventure implements MapView {
   }
 
   /**
-   * Le rythme imposé : **premier clic sélectionne ou prévisualise, second clic
-   * confirme**. Aucun déplacement au premier clic, jamais.
+   * L'ACTION L'EMPORTE SUR L'INFORMATION.
+   *
+   * Le rythme reste celui de HMM3 — **premier appui prévisualise, second
+   * confirme**, aucun déplacement au premier appui, jamais. Ce qui change,
+   * c'est qu'un appui court n'ouvre plus de fiche quand il y a quelque chose à
+   * faire.
+   *
+   * **Le défaut corrigé, mesuré sur iPhone dans une vraie partie.** Toucher
+   * son héros appelait `onPickHero`, la coquille en tirait un carton
+   * d'inspection couvrant 45 % de la carte, posé juste au-dessus de l'endroit
+   * où il fallait toucher ensuite. Le propriétaire : « dès que je veux cliquer
+   * sur un endroit pour que le héros s'y rende, cela ouvre la vignette de
+   * l'endroit et cache la carte ». Trois appuis sont nécessaires pour marcher
+   * — choisir, viser, confirmer — et le premier des trois masquait les deux
+   * suivants.
+   *
+   * La règle est donc : on tente d'AGIR ; on n'informe que si rien n'était
+   * faisable. L'appui long, lui, informe toujours (`inspecter`).
    */
   private cliquer(p: { x: number; y: number }): void {
     const v = this.cadrage();
     const at = this.cellAt(p.x, p.y);
 
+    /* 1 — son propre héros : on le choisit, et c'est tout. La fiche viendra
+       d'un appui long, si le joueur la demande. */
     const heros = this.jetons.jetonSous(v, p.x, p.y);
     if (heros && at) {
       const hero = this.etat?.heroes[heros];
@@ -832,21 +860,60 @@ class CarteAventure implements MapView {
       return;
     }
 
+    /* 2 — une route est possible vers cette case : on la trace, ou on part.
+       Cela vaut aussi bien pour une case nue que pour une garde, une mine ou
+       une cité : dans HMM3 on marche DESSUS, et c'est le geste le plus
+       fréquent de toute la partie. */
+    if (at && this.essayerChemin(at)) return;
+
+    /* 3 — rien à faire ici : alors seulement, on informe. */
     const objet = this.objets.objetSous(v, p.x, p.y);
-    if (objet && !this.previewVers(at)) {
+    if (objet) {
       const townUid = objet.data?.townUid as string | undefined;
       if (townUid && this.etat?.towns?.[townUid]) {
         this.deps.onPickTown?.(townUid, objet.at);
+        this.deps.onInspect?.({ kind: 'cite', uid: townUid as TownUid, at: objet.at });
       } else {
         this.deps.onPickObject?.(objet);
+        this.deps.onInspect?.({ kind: 'objet', object: objet });
       }
-      if (at) this.essayerChemin(at);
       return;
     }
 
     if (!at) return;
-    if (this.essayerChemin(at)) return;
     this.deps.onPickCell?.(at);
+  }
+
+  /**
+   * Le geste d'INFORMATION : appui long au doigt, clic droit à la souris.
+   *
+   * Il n'agit jamais. Il ne consomme ni la sélection ni la route en cours :
+   * on doit pouvoir demander « qui garde ce pont ? » au milieu d'un tracé
+   * sans perdre le tracé.
+   */
+  private inspecter(p: { x: number; y: number }): void {
+    const v = this.cadrage();
+    const at = this.cellAt(p.x, p.y);
+
+    const heros = this.jetons.jetonSous(v, p.x, p.y);
+    if (heros) {
+      const hero = this.etat?.heroes[heros];
+      this.deps.onInspect?.({ kind: 'heros', uid: heros, at: hero ? hero.at : (at ?? { col: 0, row: 0 }) });
+      return;
+    }
+
+    const objet = this.objets.objetSous(v, p.x, p.y);
+    if (objet) {
+      const townUid = objet.data?.townUid as string | undefined;
+      if (townUid && this.etat?.towns?.[townUid]) {
+        this.deps.onInspect?.({ kind: 'cite', uid: townUid as TownUid, at: objet.at });
+      } else {
+        this.deps.onInspect?.({ kind: 'objet', object: objet });
+      }
+      return;
+    }
+
+    if (at) this.deps.onInspect?.({ kind: 'case', at });
   }
 
   /** Vrai si `at` est déjà la destination prévisualisée. */

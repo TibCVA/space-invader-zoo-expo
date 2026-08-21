@@ -124,6 +124,20 @@ export interface MapCamera {
   readonly zoom: number;
 }
 
+/**
+ * Ce qu'on désigne quand on demande une FICHE, et non une action.
+ *
+ * Le geste d'information est distinct du geste d'action. Sur la carte, un
+ * appui court AGIT — il choisit un héros, trace une route, la confirme — et
+ * n'ouvre une fiche que s'il n'y avait rien à faire. Un appui LONG informe
+ * toujours. C'est la traduction au doigt du clic gauche / clic droit de HMM3.
+ */
+export type CibleCarte =
+  | { readonly kind: 'heros'; readonly uid: string; readonly at: MapCoord }
+  | { readonly kind: 'cite'; readonly uid: TownUid; readonly at: MapCoord }
+  | { readonly kind: 'objet'; readonly object: MapObject }
+  | { readonly kind: 'case'; readonly at: MapCoord };
+
 /** Ce que la carte signale à la coquille. Aucun de ces rappels ne mute l'état. */
 export interface MapViewCallbacks {
   /** case cliquée (clic simple, ou tapotement) */
@@ -134,6 +148,21 @@ export interface MapViewCallbacks {
   onPickTown?(uid: TownUid, at: MapCoord): void;
   /** objet de carte cliqué */
   onPickObject?(object: MapObject): void;
+  /**
+   * On demande la FICHE de ce qui est sous le doigt.
+   *
+   * **Pourquoi ce rappel existe.** Mesuré sur iPhone dans une vraie partie :
+   * toucher son propre héros ouvrait un carton couvrant 45 % de la carte —
+   * exactement au-dessus de l'endroit où il faut toucher ensuite pour tracer
+   * une route. Le propriétaire l'a signalé ainsi : « dès que je veux cliquer
+   * sur un endroit pour que le héros s'y rende, cela ouvre la vignette de
+   * l'endroit et cache la carte ». Le geste d'information mangeait le geste
+   * de jeu.
+   *
+   * La coquille n'ouvre donc la fiche QUE sur ce rappel-ci, jamais sur les
+   * `onPick*`, qui ne servent plus qu'à choisir.
+   */
+  onInspect?(cible: CibleCarte): void;
   /** survol (souris) ou glissement long (tactile) : sert à prévisualiser */
   onHoverCell?(at: MapCoord | null): void;
   /** la caméra a bougé, pour synchroniser une minicarte */
