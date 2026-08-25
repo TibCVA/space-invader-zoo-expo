@@ -98,10 +98,9 @@ En combat, le client émet 7 des 8 `CombatAction` : `move, attack, shoot,
 wait, defend, cast, ability` — il manque **`surrender`** (la reddition en
 combat, avec son coût en écus, mécanique importante de HMM3).
 
-Autre manque mesuré : `SwapArmy` est émis **sans `count`**
-(`apps/client/src/screens/heros-actions.ts:336`) — **aucune découpe de pile**.
-Dans HMM3 c'est un geste quotidien (garnisons, chair à canon, chaînes de
-héros).
+(La découpe de pile — `SwapArmy` sans `count`, mesurée le 21/08 — est
+livrée : champ « Emporter » sur la fiche, gardes dans
+`heros-actions.test.ts`.)
 
 **Priorité recommandée pour ce qui RESTE** :
 1. `UseBorne` (le réseau de bornes est le fast-travel du jeu) ;
@@ -131,8 +130,8 @@ maintenant (`landing/settings.ts`). **Toute nouvelle animation doit être
 regardée avec ce réglage dans les trois états.**
 
 Reste à faire, dans l'ordre où l'œil le voit :
-- le ramassage de ressource n'a pas de geste (l'objet disparaît sec — HMM3
-  fait voler la ressource vers le bandeau) ;
+- ~~le ramassage n'a pas de geste~~ — livré le 25/08 : « +5 bois » flotte au
+  pas du héros (`render/gains.ts`), pertes exclues, mouvement réduit respecté ;
 - pas de file de chemin visible AVANT de confirmer un déplacement long sur PC
   (la prévisualisation existe au doigt ; vérifier la parité souris) ;
 - les transitions d'écran (carte↔cité↔combat) sont des coupes franches ;
