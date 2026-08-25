@@ -75,10 +75,13 @@ eslint verts sur les onze paquets.
 
 ---
 
-## 2. Le déficit central : dix commandes du moteur restent injouables
+## 2. ~~Le déficit central~~ RÉSOLU le 25/08 : les vingt commandes ont un chemin
 
 Le moteur accepte 20 types de `Command` (`packages/engine/src/types.ts:739`).
-Mesure du 21/08 (grep `type: '<Nom>'` dans `apps/client/src`, tests exclus) :
+Au 25/08 au soir, **les vingt sont jouables** (`StartGame` passant par la
+route serveur, par conception). Le protocole en ligne les couvre toutes
+(`schemas.ts`, preuve de compilation `_commandMatchesEngine` ; `SwapArmy` y
+admet `count`). Histoire de la mesure :
 
 | Commande | État | Ce que ça veut dire pour le joueur |
 |---|---|---|
@@ -91,8 +94,9 @@ Mesure du 21/08 (grep `type: '<Nom>'` dans `apps/client/src`, tests exclus) :
 | SwapArmy `count` | **livrée le 25/08** | découpe de pile — champ « Emporter » sur la fiche |
 | `UseBorne` | **livrée le 25/08** | fiche de borne : les pierres du registre, voyage d'un bouton, refus motivés (`screens/bornes.ts`) |
 | `HeroInteract` | **livrée le 25/08** | « Agir sur place » sur la fiche du lieu (`screens/visite.ts`) |
-| `SetCharter`, `SetGabelle` | **orphelines** | les politiques de cité/royaume sont invisibles |
-| `Surrender` | **orpheline** | pas d'abandon de partie (ni la reddition EN combat, `kind: 'surrender'`) |
+| `SetCharter` | **livrée le 25/08** | la charte du village, onglet Bâtir, confirmation grave — choix permanent (`politiques.ts`) |
+| `SetGabelle` | **livrée le 25/08** | vue du royaume, panneau « Le pays » : le détenteur de la Maison du Trésor décrète, aperçu par `gabelleIncome` |
+| `Surrender` | **livrée le 25/08** | « Rendre les armes… » au menu de partie, confirmation la plus grave du jeu |
 
 En combat, le client émet les **8 `CombatAction` sur 8** — la reddition
 (« Se rendre », deux touches, la seconde confirme) a rejoint la barre le
@@ -102,9 +106,9 @@ En combat, le client émet les **8 `CombatAction` sur 8** — la reddition
 livrée : champ « Emporter » sur la fiche, gardes dans
 `heros-actions.test.ts`.)
 
-**Priorité recommandée pour ce qui RESTE** :
-1. `Surrender` (l'abandon de PARTIE — la reddition en combat est livrée) ;
-2. politiques (`SetCharter`, `SetGabelle`).
+**Il ne reste AUCUNE commande orpheline.** Les chantiers suivants sont ceux
+du §3 (transitions d'écran, annonces de tour en combat, son) et du §4
+(multijoueur : rejeu du tour adverse, notifications).
 Livré le 25/08, en plus des commandes : « Héros suivant » (touche E + bouton,
 cycle stable, centre la caméra), Échap (chemin → fiche → panneau), gains
 flottants « +5 bois » au pas du héros (`render/gains.ts`).
