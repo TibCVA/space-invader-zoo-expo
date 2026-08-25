@@ -31,7 +31,9 @@ import {
   canUpgrade,
   countInTown,
   drawTavernOffers,
+  marketBp,
   recruitCost,
+  tradeOutcome,
   upgradeUnitCost,
   upgradesOf,
 } from '@auvergne/engine';
@@ -41,6 +43,8 @@ import type {
   GameState,
   HeroId,
   HeroUid,
+  PlayerId,
+  ResourceKey,
   Resources,
   TownState,
 } from '@auvergne/engine';
@@ -412,4 +416,81 @@ export function taverneDe(game: GameState, town: TownState): Taverne {
   }
 
   return { ouverte: true, cout: HERO_HIRE_COST, refus, offres };
+}
+
+/* ─────────────────────────────── Le marché ───────────────────────────────── */
+
+/** L'aperçu d'un échange : ce qu'on verra AVANT de céder quoi que ce soit. */
+export type ApercuEchange =
+  | { readonly ok: true; readonly recu: number; readonly texte: string }
+  | { readonly ok: false; readonly raison: string };
+
+/**
+ * Le marché est-il ouvert dans cette cité ?
+ *
+ * Le moteur, lui, échange même sans bâtiment — à un taux de misère. On suit
+ * HMM3 : pas de Marché levé, pas d'écran de change. Le taux amélioré du
+ * bâtiment est justement la raison de le bâtir.
+ */
+export function marcheOuvert(town: TownState): boolean {
+  return town.built.some((id) => BUILDINGS[id]?.grants.some((g) => g.kind === 'market'));
+}
+
+/**
+ * Le change, prévu avec le juge du moteur.
+ *
+ * `TradeResources` n'était émis nulle part : une bannière riche en bois et
+ * pauvre en fer restait bloquée devant sa forge — dans HMM3, le marché est la
+ * soupape de toute l'économie. On ne recalcule AUCUN taux ici : chaque aperçu
+ * est un appel à `tradeOutcome`, la fonction même qu'`applyCommand` consulte,
+ * donc ce qui s'affiche est ce qui se paie.
+ */
+export function apercuEchange(
+  game: GameState,
+  player: PlayerId,
+  cede: ResourceKey,
+  quantite: number,
+  recoit: ResourceKey,
+): ApercuEchange {
+  const verdict = tradeOutcome(game, player, cede, quantite, recoit);
+  if (!verdict.ok || verdict.taken === undefined) {
+    return { ok: false, raison: verdict.reason ?? 'Le marché refuse cet échange.' };
+  }
+  return {
+    ok: true,
+    recu: verdict.taken,
+    texte: `${quantite} contre ${verdict.taken}`,
+  };
+}
+
+/**
+ * La plus petite quantité cédée qui rapporte quelque chose — le « prix
+ * d'appel » que HMM3 affiche comme taux. Bisection sur le juge du moteur,
+ * comme partout : aucun taux recopié qui finirait par mentir.
+ */
+export function minimumUtile(
+  game: GameState,
+  player: PlayerId,
+  cede: ResourceKey,
+  recoit: ResourceKey,
+): number | null {
+  const bourse = game.players[player]?.resources[cede] ?? 0;
+  const essai = (n: number): boolean => tradeOutcome(game, player, cede, n, recoit).ok;
+  /* Borne haute : au-delà de la bourse, le moteur refuse pour réserves. On
+     cherche donc dans [1, bourse] ; une bourse vide n'a pas de prix d'appel. */
+  if (bourse <= 0) return null;
+  if (!essai(bourse)) return null;
+  let bas = 1;
+  let haut = bourse;
+  while (bas < haut) {
+    const milieu = Math.floor((bas + haut) / 2);
+    if (essai(milieu)) haut = milieu;
+    else bas = milieu + 1;
+  }
+  return bas;
+}
+
+/** Le rendement du marché, pour l'afficher : 10000 = valeur contre valeur. */
+export function rendementDuMarche(game: GameState, player: PlayerId): number {
+  return marketBp(game, player);
 }

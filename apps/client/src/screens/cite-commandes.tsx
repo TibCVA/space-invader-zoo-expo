@@ -13,7 +13,7 @@
  */
 
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import type { BuildingId, CreatureId, GameState, HeroId, TownState } from '@auvergne/engine';
+import type { BuildingId, CreatureId, GameState, HeroId, ResourceKey, TownState } from '@auvergne/engine';
 import { Button, HeroAvatar, Panel } from '@auvergne/ui';
 import { dispatch } from '../state/store.js';
 import { vignetteCreature } from '../art/vignette.js';
@@ -23,6 +23,9 @@ import {
   offresAmelioration,
   offresBatiments,
   offresRecrues,
+  apercuEchange,
+  marcheOuvert,
+  minimumUtile,
   taverneDe,
   type OffreAmelioration,
   type OffreBatiment,
@@ -284,6 +287,122 @@ function LigneTaverne({
   );
 }
 
+/** Les sept ressources, dans l'ordre du bandeau. */
+const RESSOURCES: readonly ResourceKey[] = [
+  'ecus',
+  'bois',
+  'granit',
+  'fer',
+  'sel',
+  'essence',
+  'filDor',
+];
+
+/**
+ * LE COMPTOIR DU MARCHÉ — `TradeResources` n'était émis nulle part.
+ *
+ * Une bannière riche en bois et pauvre en fer restait bloquée devant sa
+ * forge : dans HMM3 le marché est la soupape de toute l'économie. Deux
+ * choix, une quantité, et l'aperçu du change AVANT de céder quoi que ce
+ * soit — chaque aperçu est un appel à `tradeOutcome`, la fonction même que
+ * le moteur consulte, donc ce qui s'affiche est ce qui se paie.
+ */
+function ComptoirMarche({ game, town }: { game: GameState; town: TownState }): ReactElement {
+  const [cede, setCede] = useState<ResourceKey>('bois');
+  const [recoit, setRecoit] = useState<ResourceKey>('ecus');
+  const [brut, setBrut] = useState('');
+  const joueur = town.owner;
+
+  if (!joueur) return <p className="cite-cmd__vide">Cette cité n’a pas de bannière.</p>;
+
+  const bourse = game.players[joueur].resources[cede] | 0;
+  const appel = minimumUtile(game, joueur, cede, recoit);
+  const quantite = brut.trim() === '' ? (appel ?? 0) : Math.max(0, Math.trunc(Number(brut) || 0));
+  const apercu = quantite > 0 ? apercuEchange(game, joueur, cede, quantite, recoit) : null;
+
+  return (
+    <>
+      <p className="cite-cmd__vers">
+        On cède d’une main, on reçoit de l’autre — le change s’affiche avant de conclure.
+      </p>
+      <div className="cite-cmd__marche">
+        <label className="cite-cmd__marche-choix">
+          Céder
+          <select
+            className="cite-cmd__choix"
+            value={cede}
+            onChange={(e): void => setCede(e.target.value as ResourceKey)}
+          >
+            {RESSOURCES.map((r) => (
+              <option key={r} value={r}>
+                {NOMS_RESSOURCES[r] ?? r}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="cite-cmd__marche-choix">
+          Quantité
+          <input
+            className="cite-cmd__nombre jeu-tabulaire"
+            type="text"
+            inputMode="numeric"
+            value={quantite === 0 ? '' : String(quantite)}
+            aria-label={`Quantité de ${NOMS_RESSOURCES[cede] ?? cede} à céder, sur ${nombre(bourse)}`}
+            onChange={(e): void => setBrut(e.target.value)}
+          />
+        </label>
+        <label className="cite-cmd__marche-choix">
+          Recevoir
+          <select
+            className="cite-cmd__choix"
+            value={recoit}
+            onChange={(e): void => setRecoit(e.target.value as ResourceKey)}
+          >
+            {RESSOURCES.map((r) => (
+              <option key={r} value={r}>
+                {NOMS_RESSOURCES[r] ?? r}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <p className="cite-cmd__detail">
+        Réserves : {nombre(bourse)} {NOMS_RESSOURCES[cede] ?? cede}
+        {appel !== null
+          ? ` · à partir de ${nombre(appel)} ${NOMS_RESSOURCES[cede] ?? cede} cédé${appel > 1 ? 's' : ''}`
+          : ''}
+      </p>
+      {apercu ? (
+        apercu.ok ? (
+          <p className="cite-cmd__stats jeu-tabulaire">
+            {nombre(quantite)} {NOMS_RESSOURCES[cede] ?? cede} → {nombre(apercu.recu)}{' '}
+            {NOMS_RESSOURCES[recoit] ?? recoit}
+          </p>
+        ) : (
+          <p className="cite-cmd__refus">{apercu.raison}</p>
+        )
+      ) : null}
+      <div className="cite-cmd__prise">
+        <Button
+          variant="principal"
+          disabled={!apercu || !apercu.ok}
+          onClick={(): void => {
+            dispatch({
+              type: 'TradeResources',
+              give: cede,
+              giveAmount: quantite,
+              take: recoit,
+            });
+            setBrut('');
+          }}
+        >
+          Conclure l’échange
+        </Button>
+      </div>
+    </>
+  );
+}
+
 export interface PanneauCiteProps {
   game: GameState;
   town: TownState;
@@ -316,7 +435,7 @@ export function PanneauCite({
   onFermer,
   onQuitter,
 }: PanneauCiteProps): ReactElement {
-  const [onglet, setOnglet] = useState<'batir' | 'recruter' | 'taverne'>(ongletInitial);
+  const [onglet, setOnglet] = useState<'batir' | 'recruter' | 'taverne' | 'marche'>(ongletInitial);
   /* Un nouveau geste sur la maquette rouvre le panneau sur l'onglet demandé,
      même s'il était déjà ouvert sur l'autre. */
   useEffect(() => setOnglet(ongletInitial), [ongletInitial]);
@@ -324,6 +443,7 @@ export function PanneauCite({
   const recrues = useMemo(() => offresRecrues(game, town), [game, town]);
   const promotions = useMemo(() => offresAmelioration(game, town), [game, town]);
   const taverne = useMemo(() => taverneDe(game, town), [game, town]);
+  const marche = marcheOuvert(town);
   const vers = destinataireRecrues(town);
 
   return (
@@ -351,6 +471,14 @@ export function PanneauCite({
                 Auberge
               </Button>
             ) : null}
+            {marche ? (
+              <Button
+                variant={onglet === 'marche' ? 'principal' : 'secondaire'}
+                onClick={(): void => setOnglet('marche')}
+              >
+                Marché
+              </Button>
+            ) : null}
           </div>
           <div className="cite-cmd__issues">
             <Button variant="fantome" onClick={onFermer}>
@@ -362,7 +490,9 @@ export function PanneauCite({
           </div>
         </div>
 
-        {onglet === 'taverne' && taverne.ouverte ? (
+        {onglet === 'marche' && marche ? (
+          <ComptoirMarche game={game} town={town} />
+        ) : onglet === 'taverne' && taverne.ouverte ? (
           <>
             <p className="cite-cmd__vers">
               {taverne.refus ??

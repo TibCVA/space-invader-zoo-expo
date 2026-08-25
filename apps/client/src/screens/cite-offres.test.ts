@@ -18,6 +18,9 @@ import { BUILDINGS } from '@auvergne/content';
 import { setupDemo } from '../state/demo.js';
 import {
   ameliorationsAbordables,
+  apercuEchange,
+  marcheOuvert,
+  minimumUtile,
   taverneDe,
   destinataireRecrues,
   offresAmelioration,
@@ -351,5 +354,89 @@ describe('l’auberge des Bannières', () => {
     cite.visitingHero = heros.uid;
     const t = taverneDe(game, cite);
     expect(t.refus).toContain('occupe déjà');
+  });
+});
+
+/**
+ * LE MARCHÉ — `TradeResources` n'était émis nulle part : une bannière riche
+ * en bois et pauvre en fer restait bloquée devant sa forge. Le comptoir ne
+ * recalcule AUCUN taux : l'aperçu appelle `tradeOutcome`, la fonction même
+ * qu'`applyCommand` consulte — ce qui s'affiche est ce qui se paie, et la
+ * garde du milieu le prouve au chiffre près.
+ */
+describe('le comptoir du marché', () => {
+  function citeMarchande(): { game: GameState; cite: TownState } {
+    const { game } = partie();
+    const cite = Object.values(game.towns).find((t) => t.owner === game.activePlayer);
+    if (!cite) throw new Error('le joueur actif doit posséder une cité au départ');
+    if (!marcheOuvert(cite)) cite.built.push('marche' as never);
+    return { game, cite };
+  }
+
+  it('fermé sans le bâtiment, ouvert avec', () => {
+    const { game } = partie();
+    const cite = Object.values(game.towns).find((t) => t.owner === game.activePlayer);
+    if (!cite) throw new Error('cité absente');
+    const sans = cite.built.filter(
+      (id) => !BUILDINGS[id]?.grants.some((g) => g.kind === 'market'),
+    ) as typeof cite.built;
+    cite.built = sans;
+    expect(marcheOuvert(cite)).toBe(false);
+    cite.built = [...sans, 'marche'] as typeof cite.built;
+    expect(marcheOuvert(cite)).toBe(true);
+    void game;
+  });
+
+  it('l’aperçu annonce EXACTEMENT ce que le moteur verse', () => {
+    const { game } = citeMarchande();
+    const joueur = game.activePlayer;
+    game.players[joueur].resources.bois = 40;
+
+    const apercu = apercuEchange(game, joueur, 'bois', 20, 'ecus');
+    expect(apercu.ok).toBe(true);
+    if (!apercu.ok) return;
+    expect(apercu.recu).toBeGreaterThan(0);
+
+    const res = applyCommand(
+      game,
+      { type: 'TradeResources', give: 'bois', giveAmount: 20, take: 'ecus' },
+      buildWorld(setupDemo().seed),
+    );
+    expect(res.ok, res.error).toBe(true);
+    const avant = game.players[joueur].resources;
+    const apres = res.state.players[joueur].resources;
+    expect(avant.bois - apres.bois).toBe(20);
+    expect(apres.ecus - avant.ecus).toBe(apercu.recu);
+  });
+
+  it('un échange qui ne rapporterait rien est refusé avec la phrase du moteur', () => {
+    const { game } = citeMarchande();
+    const joueur = game.activePlayer;
+    game.players[joueur].resources.bois = 40;
+    /* Un seul bois contre du fil d'or : la valeur ne suffit pas. */
+    const apercu = apercuEchange(game, joueur, 'bois', 1, 'filDor');
+    expect(apercu.ok).toBe(false);
+    if (apercu.ok) return;
+    expect(apercu.raison.length).toBeGreaterThan(0);
+  });
+
+  it('le prix d’appel est au bord exact : lui passe, un de moins échoue', () => {
+    const { game } = citeMarchande();
+    const joueur = game.activePlayer;
+    game.players[joueur].resources.bois = 500;
+    const appel = minimumUtile(game, joueur, 'bois', 'filDor');
+    expect(appel).not.toBeNull();
+    if (appel === null) return;
+    expect(apercuEchange(game, joueur, 'bois', appel, 'filDor').ok).toBe(true);
+    if (appel > 1) {
+      expect(apercuEchange(game, joueur, 'bois', appel - 1, 'filDor').ok).toBe(false);
+    }
+  });
+
+  it('bourse vide : pas de prix d’appel, pas de mensonge', () => {
+    const { game } = citeMarchande();
+    const joueur = game.activePlayer;
+    game.players[joueur].resources.essence = 0;
+    expect(minimumUtile(game, joueur, 'essence', 'ecus')).toBeNull();
   });
 });

@@ -1188,3 +1188,30 @@
 .cite-cmd__section {
   margin-top: var(--hmm-space-3);
 }
+
+/* Le comptoir du marché : trois commandes sur une ligne qui replie. Les
+   listes reprennent le gabarit du compteur — hauteur tactile, encre sur
+   parchemin. */
+.cite-cmd__marche {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hmm-space-3);
+  margin-bottom: var(--hmm-space-2);
+}
+
+.cite-cmd__marche-choix {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hmm-space-2);
+  font-size: var(--hmm-fs-petit);
+}
+
+.cite-cmd__choix {
+  min-height: var(--hmm-touch-min);
+  padding: 0 var(--hmm-space-2);
+  border: var(--hmm-filet-fin) solid var(--hmm-separateur);
+  border-radius: var(--hmm-radius-sm);
+  background: rgba(255, 253, 246, 0.7);
+  color: var(--hmm-encre);
+  font: inherit;
+}
