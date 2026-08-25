@@ -436,6 +436,19 @@ export function PanneauCite({
   onQuitter,
 }: PanneauCiteProps): ReactElement {
   const [onglet, setOnglet] = useState<'batir' | 'recruter' | 'taverne' | 'marche'>(ongletInitial);
+
+  /* Échap referme — le réflexe de HMM3, où la touche annule toujours ce qui
+     est au premier plan. Même depuis un champ : fermer est bien ce qu'on
+     demande, et rien ici n'a de saisie à plusieurs étapes à protéger. */
+  useEffect(() => {
+    const surTouche = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      onFermer();
+    };
+    window.addEventListener('keydown', surTouche);
+    return () => window.removeEventListener('keydown', surTouche);
+  }, [onFermer]);
   /* Un nouveau geste sur la maquette rouvre le panneau sur l'onglet demandé,
      même s'il était déjà ouvert sur l'autre. */
   useEffect(() => setOnglet(ongletInitial), [ongletInitial]);

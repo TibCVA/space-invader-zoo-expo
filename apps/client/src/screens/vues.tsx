@@ -221,6 +221,18 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
   useEffect(() => {
     if (demo) return undefined;
     const surTouche = (e: KeyboardEvent): void => {
+      /* Échap annule le TRANSITOIRE le plus haut, comme dans HMM3 : d'abord
+         le chemin en attente de confirmation, sinon la fiche d'inspection. */
+      if (e.key === 'Escape') {
+        if (viewStore.get().pathPreview) {
+          e.preventDefault();
+          annulerChemin();
+        } else {
+          e.preventDefault();
+          setCible(null);
+        }
+        return;
+      }
       if (e.key !== 'e' && e.key !== 'E') return;
       const cible = e.target as HTMLElement | null;
       /* Les mêmes gardes que la fin de tour : jamais pendant une saisie. */

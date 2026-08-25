@@ -161,3 +161,26 @@ describe('pastille de sauvegarde', () => {
     expect((APP.match(/etat\.save\.status !== 'repos'/g) ?? []).length).toBe(1);
   });
 });
+
+/**
+ * ÉCHAP — le réflexe d'annulation de HMM3 : la touche referme toujours ce qui
+ * est au premier plan. Gardes de branchement, code lu SANS commentaires — la
+ * leçon du faux vert de « Quitter la cité » (voir `code()` plus haut).
+ */
+describe('échap referme le premier plan', () => {
+  it('le panneau de la cité écoute Échap et appelle onFermer', () => {
+    expect(PANNEAU).toMatch(/e\.key !== 'Escape'/);
+    expect(PANNEAU).toMatch(/onFermer\(\);/);
+    expect(PANNEAU).toContain("window.addEventListener('keydown'");
+  });
+
+  it('sur la carte : le chemin en attente d’abord, la fiche ensuite', () => {
+    const i = VUES.indexOf("e.key === 'Escape'");
+    expect(i, 'aucun Échap sur la carte').toBeGreaterThan(0);
+    const bloc = VUES.slice(i, i + 400);
+    /* L'ordre EST la règle : annuler un chemin sans fermer la fiche qu'on
+       lit, puis fermer la fiche au coup suivant. */
+    expect(bloc.indexOf('annulerChemin()')).toBeGreaterThan(0);
+    expect(bloc.indexOf('setCible(null)')).toBeGreaterThan(bloc.indexOf('annulerChemin()'));
+  });
+});
