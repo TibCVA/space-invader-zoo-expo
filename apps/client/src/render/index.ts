@@ -46,6 +46,7 @@ import { pavoisDemonstration } from './pavois.js';
 import { JetonsHeros } from './heroes.js';
 import { Brouillard } from './fog.js';
 import { CheminPerles } from './path.js';
+import { GainsFlottants } from './gains.js';
 import { Minicarte } from './minimap.js';
 import { Meteo } from './weather.js';
 import { creerPostFx } from './postfx.js';
@@ -91,6 +92,7 @@ class CarteAventure implements MapView {
   private readonly jetons: JetonsHeros;
   private readonly voile: Brouillard;
   private readonly perles: CheminPerles;
+  private readonly gains = new GainsFlottants();
   private readonly minicarte: Minicarte;
   private readonly meteo: Meteo;
   private readonly postfx: PostTraitement | null;
@@ -159,6 +161,7 @@ class CarteAventure implements MapView {
     this.scene.addChild(this.objets.couche);
     this.scene.addChild(this.perles.couche);
     this.scene.addChild(this.jetons.couche);
+    this.scene.addChild(this.gains.couche);
     this.scene.addChild(this.meteo.couche);
     if (this.voileSecours) this.scene.addChild(this.voileSecours.couche);
     if (this.postfx) this.scene.filters = [this.postfx.filtre];
@@ -372,11 +375,25 @@ class CarteAventure implements MapView {
 
   async playEvents(events: readonly GameEvent[]): Promise<void> {
     const immediat = this.deps.reducedMotion;
+    /* La case du dernier pas joué : c'est là que naissent les gains du même
+       lot d'événements — le moteur émet `HeroMoved` PUIS ce que la case
+       rapporte, dans cet ordre. */
+    let derniereCase: MapCoord | null = null;
     for (const e of events) {
       if (this.detruit) return;
       switch (e.type) {
         case 'HeroMoved':
           await this.jetons.animerDeplacement(e.hero, e.path, immediat);
+          derniereCase = e.path.length > 0 ? e.path[e.path.length - 1] : derniereCase;
+          break;
+        case 'ResourcesChanged':
+          /* « +5 bois » au pas du héros — le fil entre l'objet ramassé et le
+             trésor du bandeau. Seulement NOS gains, seulement en mouvement
+             complet, et seulement quand on sait OÙ : un revenu de fin de tour
+             n'a pas de case, il ne flotte pas. */
+          if (!immediat && derniereCase && e.player === this.deps.localPlayer) {
+            this.gains.montrer(derniereCase, e.delta);
+          }
           break;
         case 'FogRevealed':
           this.majFog();
@@ -439,6 +456,7 @@ class CarteAventure implements MapView {
     this.objets.majVue(v, this.temps, connu);
     this.perles.majVue(v, this.temps);
     this.jetons.majVue(v, this.temps, this.selection?.kind === 'heros' ? this.selection.uid : null, this.deps.reducedMotion);
+    this.gains.majVue(v, dtMs / 1000);
     this.meteo.animer(dtMs);
     this.minicarte.majVue(v, dtMs);
     this.peindreSurbrillance(v);
@@ -472,6 +490,7 @@ class CarteAventure implements MapView {
   destroy(): void {
     if (this.detruit) return;
     this.detruit = true;
+    this.gains.detruire();
     this.desabonner?.();
     this.desabonner = null;
     for (const d of this.detacher) d();
