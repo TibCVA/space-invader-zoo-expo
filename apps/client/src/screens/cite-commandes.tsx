@@ -13,8 +13,8 @@
  */
 
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import type { BuildingId, CreatureId, GameState, TownState } from '@auvergne/engine';
-import { Button, Panel } from '@auvergne/ui';
+import type { BuildingId, CreatureId, GameState, HeroId, TownState } from '@auvergne/engine';
+import { Button, HeroAvatar, Panel } from '@auvergne/ui';
 import { dispatch } from '../state/store.js';
 import { vignetteCreature } from '../art/vignette.js';
 import { nombre } from './format.js';
@@ -23,9 +23,11 @@ import {
   offresAmelioration,
   offresBatiments,
   offresRecrues,
+  taverneDe,
   type OffreAmelioration,
   type OffreBatiment,
   type OffreRecrue,
+  type OffreTaverne,
 } from './cite-offres.js';
 
 const NOMS_RESSOURCES: Readonly<Record<string, string>> = {
@@ -237,6 +239,51 @@ function LignePromotion({ offre, town }: { offre: OffreAmelioration; town: TownS
   );
 }
 
+/**
+ * UN CAPITAINE DE PASSAGE — la ligne de l'onglet Auberge.
+ *
+ * Le portrait est celui de la fiche (`HeroAvatar`, même source que le salon) ;
+ * la ligne dit sa classe, sa spécialité, ses quatre caractéristiques et la
+ * troupe qu'il amène — ce que HMM3 montre dans sa taverne, dans le même
+ * ordre : on choisit d'abord un métier, ensuite une escorte.
+ */
+function LigneTaverne({
+  offre,
+  town,
+  refus,
+}: {
+  offre: OffreTaverne;
+  town: TownState;
+  refus: string | null;
+}): ReactElement {
+  return (
+    <li className="cite-cmd__ligne">
+      <span className="cite-cmd__vignette" aria-hidden="true">
+        <HeroAvatar heroId={offre.id} size={64} />
+      </span>
+      <div className="cite-cmd__texte">
+        <p className="cite-cmd__nom">
+          {offre.nom} <span className="cite-cmd__rang">{offre.classe}</span>
+        </p>
+        <p className="cite-cmd__detail">{offre.titre}</p>
+        <p className="cite-cmd__stats jeu-tabulaire">{offre.caracteristiques}</p>
+        {offre.armee ? <p className="cite-cmd__demeure">Arrive avec {offre.armee}</p> : null}
+      </div>
+      <div className="cite-cmd__prise">
+        <Button
+          variant="principal"
+          disabled={refus !== null}
+          onClick={(): void => {
+            dispatch({ type: 'HireHero', town: town.uid, hero: offre.id as HeroId });
+          }}
+        >
+          Engager
+        </Button>
+      </div>
+    </li>
+  );
+}
+
 export interface PanneauCiteProps {
   game: GameState;
   town: TownState;
@@ -269,13 +316,14 @@ export function PanneauCite({
   onFermer,
   onQuitter,
 }: PanneauCiteProps): ReactElement {
-  const [onglet, setOnglet] = useState<'batir' | 'recruter'>(ongletInitial);
+  const [onglet, setOnglet] = useState<'batir' | 'recruter' | 'taverne'>(ongletInitial);
   /* Un nouveau geste sur la maquette rouvre le panneau sur l'onglet demandé,
      même s'il était déjà ouvert sur l'autre. */
   useEffect(() => setOnglet(ongletInitial), [ongletInitial]);
   const batiments = useMemo(() => offresBatiments(game, town), [game, town]);
   const recrues = useMemo(() => offresRecrues(game, town), [game, town]);
   const promotions = useMemo(() => offresAmelioration(game, town), [game, town]);
+  const taverne = useMemo(() => taverneDe(game, town), [game, town]);
   const vers = destinataireRecrues(town);
 
   return (
@@ -295,6 +343,14 @@ export function PanneauCite({
             >
               Recruter
             </Button>
+            {taverne.ouverte ? (
+              <Button
+                variant={onglet === 'taverne' ? 'principal' : 'secondaire'}
+                onClick={(): void => setOnglet('taverne')}
+              >
+                Auberge
+              </Button>
+            ) : null}
           </div>
           <div className="cite-cmd__issues">
             <Button variant="fantome" onClick={onFermer}>
@@ -306,7 +362,25 @@ export function PanneauCite({
           </div>
         </div>
 
-        {onglet === 'batir' ? (
+        {onglet === 'taverne' && taverne.ouverte ? (
+          <>
+            <p className="cite-cmd__vers">
+              {taverne.refus ??
+                `Engager un capitaine coûte ${nombre(taverne.cout)} écus : il arrive avec sa troupe et prend la cité pour quartier.`}
+            </p>
+            {taverne.offres.length === 0 ? (
+              <p className="cite-cmd__vide">
+                Personne ne se présente à l’auberge aujourd’hui : repassez demain.
+              </p>
+            ) : (
+              <ul className="cite-cmd__liste">
+                {taverne.offres.map((o) => (
+                  <LigneTaverne key={o.id} offre={o} town={town} refus={taverne.refus} />
+                ))}
+              </ul>
+            )}
+          </>
+        ) : onglet === 'batir' ? (
           batiments.length === 0 ? (
             <p className="cite-cmd__vide">Tout est levé à {town.name}.</p>
           ) : (

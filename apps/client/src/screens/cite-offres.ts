@@ -23,11 +23,14 @@
  */
 
 import {
+  HERO_HIRE_COST,
+  HERO_LIMIT,
   buildCost,
   canBuild,
   canRecruit,
   canUpgrade,
   countInTown,
+  drawTavernOffers,
   recruitCost,
   upgradeUnitCost,
   upgradesOf,
@@ -36,11 +39,12 @@ import type {
   BuildingId,
   CreatureId,
   GameState,
+  HeroId,
   HeroUid,
   Resources,
   TownState,
 } from '@auvergne/engine';
-import { BUILDINGS, CREATURES } from '@auvergne/content';
+import { BUILDINGS, CREATURES, HEROES } from '@auvergne/content';
 
 /** Un bâtiment proposé au chantier, avec son coût et, s'il est refusé, pourquoi. */
 export interface OffreBatiment {
@@ -308,4 +312,104 @@ export function offresAmelioration(game: GameState, town: TownState): OffreAmeli
   }
   offres.sort((x, y) => (CREATURES[x.de]?.tier ?? 0) - (CREATURES[y.de]?.tier ?? 0));
   return offres;
+}
+
+/* ─────────────────────────────── L'auberge ───────────────────────────────── */
+
+/** Un capitaine de passage à l'Auberge des Bannières. */
+export interface OffreTaverne {
+  readonly id: HeroId;
+  readonly nom: string;
+  readonly classe: string;
+  /** sa spécialité, telle que la fiche la met en avant */
+  readonly titre: string;
+  readonly devise: string | null;
+  /** « 20 Manants · 4 Gabelous » — ce qu'il amène en s'engageant */
+  readonly armee: string;
+  /** « Vai 2 · Gar 1 · Mys 0 · Sav 1 » — les quatre caractéristiques */
+  readonly caracteristiques: string;
+}
+
+/** L'Auberge des Bannières d'une cité : qui se présente, et à quel prix. */
+export interface Taverne {
+  /** le bâtiment est levé */
+  readonly ouverte: boolean;
+  readonly cout: number;
+  /** pourquoi on ne peut pas engager AUJOURD'HUI (limite, visiteur, écus) */
+  readonly refus: string | null;
+  readonly offres: readonly OffreTaverne[];
+}
+
+function armeeDe(id: HeroId): string {
+  const def = HEROES[id];
+  if (!def) return '';
+  return def.start.army
+    .map((s) => {
+      const c = CREATURES[s.creature];
+      return `${s.count} ${c ? (s.count > 1 ? c.namePlural : c.name) : s.creature}`;
+    })
+    .join(' · ');
+}
+
+/**
+ * L'auberge de la cité — `HireHero` n'était émis NULLE PART.
+ *
+ * Mesuré au rapport de passation : sans taverne, on ne peut JAMAIS engager de
+ * second héros. Or tout HMM3 tient aux héros multiples — les chaînes qui
+ * relaient une armée, l'éclaireur qui ramasse pendant que l'armée principale
+ * se bat, le porteur qui ramène les recrues au front. Un seul héros, et le
+ * jeu est plat.
+ *
+ * **Le tirage se prévoit sans se consommer.** Le moteur tire les capitaines
+ * du jour PARESSEUSEMENT — au premier `HireHero` (`apply.ts:452`). Le panneau
+ * doit pourtant les montrer AVANT toute commande. On prévoit donc le tirage
+ * avec le même dé, sur une COPIE du rng : `pickWeighted` avance l'état qu'on
+ * lui tend, et le faire sur l'état vivant désynchroniserait le client du
+ * serveur — le capitaine affiché ne serait pas celui que le serveur tire.
+ * Même état, même dé, même tirage : ce qu'on montre est ce qu'on obtient.
+ */
+export function taverneDe(game: GameState, town: TownState): Taverne {
+  const ouverte = town.built.some((id) =>
+    BUILDINGS[id]?.grants.some((g) => g.kind === 'tavern'),
+  );
+  if (!ouverte || !town.owner) {
+    return { ouverte: false, cout: HERO_HIRE_COST, refus: null, offres: [] };
+  }
+  const joueur = game.players[town.owner];
+
+  const ids =
+    joueur.tavernOffers.length > 0
+      ? joueur.tavernOffers
+      : drawTavernOffers({ ...game, rng: { ...game.rng } }, town.owner);
+
+  const offres: OffreTaverne[] = [];
+  for (const id of ids) {
+    const def = HEROES[id as HeroId];
+    if (!def) continue;
+    offres.push({
+      id: def.id,
+      nom: def.name,
+      classe: def.class,
+      titre: def.title,
+      devise: def.devise ?? null,
+      armee: armeeDe(def.id),
+      caracteristiques:
+        `Vai ${def.start.vaillance} · Gar ${def.start.garde} · ` +
+        `Mys ${def.start.mystique} · Sav ${def.start.savoir}`,
+    });
+  }
+
+  /* Les empêchements, dans l'ordre où le moteur les dit (`apply.ts:429-461`).
+     On les dit AVANT le geste : un bouton qui échoue en silence coûte plus
+     cher qu'un bouton grisé qui s'explique. */
+  let refus: string | null = null;
+  if (joueur.heroes.length >= HERO_LIMIT) {
+    refus = 'Quatre héros au maximum par bannière.';
+  } else if (joueur.resources.ecus < HERO_HIRE_COST) {
+    refus = `Recruter un héros coûte ${HERO_HIRE_COST} écus.`;
+  } else if (town.visitingHero) {
+    refus = 'Un héros occupe déjà la cité : déplacez-le d’abord.';
+  }
+
+  return { ouverte: true, cout: HERO_HIRE_COST, refus, offres };
 }

@@ -11,12 +11,14 @@
  * qui recopie la table qu'il garde descend avec elle.
  */
 import { describe, expect, it } from 'vitest';
-import { applyCommand, canBuild, canRecruit, createGame, upgradesOf } from '@auvergne/engine';
+import { HERO_HIRE_COST, HERO_LIMIT, applyCommand, canBuild, canRecruit, createGame, upgradesOf } from '@auvergne/engine';
 import type { CreatureId, GameState, TownState } from '@auvergne/engine';
 import { buildWorld } from '@auvergne/map';
+import { BUILDINGS } from '@auvergne/content';
 import { setupDemo } from '../state/demo.js';
 import {
   ameliorationsAbordables,
+  taverneDe,
   destinataireRecrues,
   offresAmelioration,
   offresBatiments,
@@ -262,5 +264,92 @@ describe('les promotions proposées', () => {
       buildWorld(setupDemo().seed),
     );
     expect(res.ok).toBe(false);
+  });
+});
+
+/**
+ * L'AUBERGE — `HireHero` n'était émis nulle part : jamais de second héros,
+ * donc ni chaînes, ni éclaireur, ni porteur de recrues. Tout HMM3 tient aux
+ * héros multiples, et le jeu n'en offrait qu'un pour toute la partie.
+ *
+ * La subtilité gardée ici : le moteur tire les capitaines du jour
+ * PARESSEUSEMENT, au premier `HireHero`. Le panneau les montre AVANT toute
+ * commande, en prévoyant le tirage sur une COPIE du rng. La garde du milieu
+ * prouve les deux moitiés du contrat : la prévision ne consomme pas le dé, et
+ * ce qu'elle annonce est EXACTEMENT ce que le moteur tire ensuite.
+ */
+describe('l’auberge des Bannières', () => {
+  function citeAvecAuberge(): { game: GameState; cite: TownState } {
+    const { game } = partie();
+    const cite = Object.values(game.towns).find((t) => t.owner === game.activePlayer);
+    if (!cite) throw new Error('le joueur actif doit posséder une cité au départ');
+    if (!cite.built.includes('taverne' as never)) cite.built.push('taverne' as never);
+    return { game, cite };
+  }
+
+  it('fermée tant que le bâtiment n’est pas levé', () => {
+    /* La cité de départ naît AVEC son auberge (premier rouge de cette garde,
+       et une bonne nouvelle : l'onglet existe dès le premier jour). On la
+       démolit donc explicitement pour éprouver la fermeture. */
+    const { game, cite } = citeAvecAuberge();
+    cite.built = cite.built.filter(
+      (id) => !(BUILDINGS[id]?.grants.some((g) => g.kind === 'tavern')),
+    ) as typeof cite.built;
+    const t = taverneDe(game, cite);
+    expect(t.ouverte).toBe(false);
+    expect(t.offres).toEqual([]);
+  });
+
+  it('des capitaines se présentent, de la maison ou de nulle part, jamais déjà en jeu', () => {
+    const { game, cite } = citeAvecAuberge();
+    const t = taverneDe(game, cite);
+    expect(t.ouverte).toBe(true);
+    expect(t.offres.length).toBeGreaterThan(0);
+    expect(t.offres.length).toBeLessThanOrEqual(2);
+    const enJeu = new Set(Object.values(game.heroes).map((h) => h.def));
+    for (const o of t.offres) {
+      expect(enJeu.has(o.id)).toBe(false);
+      expect(o.nom.length).toBeGreaterThan(0);
+      expect(o.caracteristiques).toMatch(/Vai \d/);
+    }
+  });
+
+  it('la prévision ne consomme pas le dé, et le moteur engage CELUI qu’elle annonce', () => {
+    const { game, cite } = citeAvecAuberge();
+    const de_avant = JSON.stringify(game.rng);
+    const t = taverneDe(game, cite);
+    expect(JSON.stringify(game.rng), 'le dé a été consommé par la prévision').toBe(de_avant);
+    expect(t.refus).toBeNull();
+    const elu = t.offres[0];
+
+    const res = applyCommand(
+      game,
+      { type: 'HireHero', town: cite.uid, hero: elu.id },
+      buildWorld(setupDemo().seed),
+    );
+    expect(res.ok, res.error).toBe(true);
+    const engages = Object.values(res.state.heroes).filter((h) => h.def === elu.id);
+    expect(engages.length).toBe(1);
+    expect(engages[0].inTown).toBe(cite.uid);
+    /* Le prix annoncé est le prix payé. */
+    const avant = game.players[game.activePlayer].resources.ecus;
+    const apres = res.state.players[game.activePlayer].resources.ecus;
+    expect(avant - apres).toBe(HERO_HIRE_COST);
+  });
+
+  it('quatre héros, et l’auberge s’explique au lieu de griser en silence', () => {
+    const { game, cite } = citeAvecAuberge();
+    const joueur = game.players[game.activePlayer];
+    while (joueur.heroes.length < HERO_LIMIT) joueur.heroes.push(`H_fictif_${joueur.heroes.length}`);
+    const t = taverneDe(game, cite);
+    expect(t.refus).toContain('Quatre héros');
+  });
+
+  it('un visiteur occupe la cité : l’auberge le dit avec les mots du moteur', () => {
+    const { game, cite } = citeAvecAuberge();
+    const heros = game.heroes[game.players[game.activePlayer].heroes[0]];
+    cite.visitingHero = heros.uid;
+    const t = taverneDe(game, cite);
+    expect(t.refus).toContain('occupe déjà');
   });
 });
