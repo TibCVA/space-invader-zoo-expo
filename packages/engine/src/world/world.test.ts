@@ -672,6 +672,12 @@ describe('intégration au noyau', () => {
       'gabelleIncome',
       'checkVictory',
       'weeklyEvent',
+      /* Le tirage de l'auberge est entré au contrat : `apply.ts` importait le
+         REPLI en dur pendant que le baril public servait la version du monde
+         — deux barèmes, même dé, et la prévision du client mentait. C'est
+         PRÉCISÉMENT la collision de noms que cette sentinelle surveille, et
+         elle a rougi au moment du correctif : c'est son travail. */
+      'drawTavernOffers',
       'worldModulePack',
     ];
     for (const name of contract) {

@@ -36,7 +36,7 @@ import type { WorldModulePack } from '../core/index.js';
 
 import { activeEffects, heroStats, skillRank } from './hero-stats.js';
 import { applyLevelChoice, grantXp, xpForLevel } from './leveling.js';
-import { visitObject } from './objects.js';
+import { drawTavernOffers, visitObject } from './objects.js';
 import { castAdventureSpell } from './spells-adventure.js';
 import { advanceWeather, weatherModifiers } from './weather.js';
 import { gabelleIncome } from './gabelle.js';
@@ -73,6 +73,7 @@ export function worldModulePack(): WorldModulePack {
     gabelleIncome,
     checkVictory,
     weeklyEvent,
+    drawTavernOffers,
   };
 }
 

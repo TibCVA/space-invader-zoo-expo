@@ -205,7 +205,15 @@ try {
 
     if (cite) {
       const orAvant = await lireOr(page);
-      const batir = page.locator('.cite-cmd__ligne button:not([disabled])').first();
+      /* Le Marché, et pas « le premier abordable » : la cité n'a droit qu'à
+         UNE construction par jour (règle du moteur, vue en capture d'échec —
+         tous les boutons grisés « Une seule construction par cité et par
+         jour »), et c'est le comptoir du Marché que l'épreuve doit ouvrir
+         deux pas plus loin. */
+      const batir = page
+        .locator('.cite-cmd__ligne', { hasText: 'Marché' })
+        .locator('button:not([disabled])')
+        .first();
       let bati = true;
       try {
         await batir.waitFor({ state: 'visible', timeout: 20_000 });
@@ -273,6 +281,56 @@ try {
 
       const demeures = await page.locator('.cite-cmd__demeure').count();
       exige(demeures > 0, `chaque recrue dit de quelle demeure elle sort (${demeures})`);
+
+      /*
+       * LE MARCHÉ — TradeResources, orpheline jusqu'ici.
+       *
+       * Le comptoir vit dans un onglet qui n'existe que si le bâtiment est
+       * levé. On le lève DEPUIS l'onglet Bâtir (700 écus, 6 bois : toujours
+       * abordable au premier jour), puis on cède du bois contre des écus et
+       * on exige que les écus MONTENT — un échange qui ne change pas le
+       * trésor n'est pas un échange.
+       */
+      console.log('   — la cité : le marché');
+      let marchande = true;
+      let ecusApresMarche = null;
+      try {
+        await page.getByRole('button', { name: /^Marché$/i }).first().click({ timeout: 20_000 });
+        const avantEcus = await lireOr(page);
+        await page.getByRole('button', { name: /Conclure l’échange/i }).click({ timeout: 20_000 });
+        await page.waitForTimeout(1200);
+        ecusApresMarche = await lireOr(page);
+        marchande = avantEcus !== null && ecusApresMarche !== null && ecusApresMarche > avantEcus;
+      } catch (e) {
+        marchande = false;
+        await page.screenshot({ path: `shots/echec-marche-${appareil.nom}.png` }).catch(() => {});
+        console.log('      ', String(e).split('\n')[0].slice(0, 160));
+      }
+      exige(marchande, 'le marché change du bois en écus, et les écus montent');
+
+      /*
+       * L'AUBERGE — HireHero, orpheline jusqu'ici.
+       *
+       * La cité de départ naît avec son auberge : l'onglet est là dès le
+       * premier jour. Engager le premier capitaine doit coûter exactement
+       * 2500 écus — le prix annoncé est le prix payé.
+       */
+      console.log('   — la cité : l’auberge');
+      let engage = true;
+      try {
+        await page.getByRole('button', { name: /^Auberge$/i }).first().click({ timeout: 20_000 });
+        const avantEcus = await lireOr(page);
+        await page.getByRole('button', { name: /^Engager$/i }).first().click({ timeout: 20_000 });
+        await page.waitForTimeout(1500);
+        const apresEcus = await lireOr(page);
+        engage = avantEcus !== null && apresEcus !== null && avantEcus - apresEcus === 2500;
+        if (!engage) console.log(`       écus : ${String(avantEcus)} → ${String(apresEcus)}`);
+      } catch (e) {
+        engage = false;
+        await page.screenshot({ path: `shots/echec-auberge-${appareil.nom}.png` }).catch(() => {});
+        console.log('      ', String(e).split('\n')[0].slice(0, 160));
+      }
+      exige(engage, 'l’auberge engage un capitaine pour 2500 écus exactement');
 
       /*
        * ET ON DOIT POUVOIR RESSORTIR.

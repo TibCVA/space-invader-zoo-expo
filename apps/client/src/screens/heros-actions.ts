@@ -56,6 +56,7 @@ import type {
   Command,
   GameState,
   HeroInstance,
+  HeroUid,
   PlayerId,
   SkillId,
   SkillRank,
@@ -446,4 +447,38 @@ export function echangeDePiles(
     videLeHeros,
     commande,
   };
+}
+
+/* ─────────────────────────── Le héros suivant ────────────────────────────── */
+
+/**
+ * LE CYCLE DES HÉROS — le geste « E » de HMM3.
+ *
+ * Tant que `HireHero` était orpheline, une bannière n'avait qu'un héros et le
+ * cycle n'existait pas faute d'objet. L'auberge livrée, un joueur à trois
+ * héros n'avait AUCUN moyen d'aller au suivant sans le chercher à l'œil sur
+ * la carte — dans HMM3 c'est une touche, pressée des centaines de fois par
+ * partie.
+ *
+ * L'ordre est celui des uid triés — stable d'un jour à l'autre, c'est le même
+ * tri que le moteur applique à `p.heroes` en engageant. On saute les héros à
+ * terre (`downUntilTurn > turn`) : le moteur refuse de toute façon chacun de
+ * leurs gestes, et « suivant » doit mener à quelqu'un qui peut agir.
+ */
+export function prochainHeros(
+  state: GameState,
+  joueur: PlayerId,
+  courant: string | null,
+): HeroUid | null {
+  const p = state.players[joueur];
+  if (!p) return null;
+  const disponibles = [...p.heroes]
+    .sort()
+    .filter((uid) => {
+      const h = state.heroes[uid];
+      return h !== undefined && h.downUntilTurn <= state.turn;
+    });
+  if (disponibles.length === 0) return null;
+  const i = courant === null ? -1 : disponibles.indexOf(courant);
+  return disponibles[(i + 1) % disponibles.length] as HeroUid;
 }

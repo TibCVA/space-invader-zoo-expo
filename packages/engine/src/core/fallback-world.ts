@@ -733,6 +733,7 @@ export function fallbackWorldModule(): WorldModulePack {
     gabelleIncome,
     checkVictory,
     weeklyEvent,
+    drawTavernOffers,
   };
 }
 

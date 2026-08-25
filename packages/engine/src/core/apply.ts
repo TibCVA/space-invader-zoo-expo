@@ -52,7 +52,7 @@ import { computePath, bumpPathRevision, invalidateWorldCache } from './pathfindi
 import { executeMove, objectAtCell, townAtCell } from './movement.js';
 import { revealFog } from './fog.js';
 import { endTurn, journal, journalFromEvents, visionOf } from './turn.js';
-import { drawTavernOffers } from './fallback-world.js';
+
 import { formatCost, sameCoord, subResources } from './util.js';
 
 /* ── Suites d'un combat contre la garde d'un lieu ───────────────────────── */
@@ -449,7 +449,13 @@ export function applyCommand(state: GameState, cmd: Command, world: WorldMap): C
       if (!content().HEROES[cmd.hero]) {
         return refuse(state, `Héros inconnu : « ${cmd.hero} ».`);
       }
-      if (p.tavernOffers.length === 0) p.tavernOffers = drawTavernOffers(next, player);
+      /* Par la COUTURE (`worldModule()`), comme `heroStats` et `visitObject` :
+         l'import direct du repli tirait d'un AUTRE barème que l'auberge de la
+         carte et que le baril public — la prévision du client annonçait un
+         capitaine, le moteur en tirait un autre et refusait. */
+      if (p.tavernOffers.length === 0) {
+        p.tavernOffers = worldModule().drawTavernOffers(next, player);
+      }
       if (p.tavernOffers.length > 0 && !p.tavernOffers.includes(cmd.hero)) {
         return refuse(state, 'Ce héros ne se présente pas à l’auberge aujourd’hui.');
       }

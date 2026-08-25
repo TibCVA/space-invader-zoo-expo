@@ -175,6 +175,19 @@ export interface WorldModulePack {
   gabelleIncome(state: GameState): { ecus: number; sel: number; unrest: number };
   checkVictory(state: GameState): GameEvent[];
   weeklyEvent(state: GameState): GameEvent[];
+  /**
+   * Les capitaines du jour à l'auberge d'une bannière.
+   *
+   * À LA COUTURE, et pas importé en direct : deux implémentations homonymes
+   * vivaient l'une dans le repli (`core/fallback-world`), l'autre dans le
+   * monde complet (`world/objects`) — poids 10/40 contre 14/40, et le verrou
+   * du héros neutre en plus. `apply.ts` importait le REPLI en dur, même moteur
+   * complet monté ; le client, lui, lisait le baril public — l'implémentation
+   * du monde. Même dé, pools différents : la prévision de l'interface
+   * annonçait « lise », le moteur tirait « ines » et refusait l'engagement —
+   * mesuré, séquence complète, avant ce correctif.
+   */
+  drawTavernOffers(state: GameState, player: PlayerId): string[];
 }
 
 /** Contrat de `packages/engine/src/combat/index.ts` (docs/02-API.md). */
