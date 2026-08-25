@@ -163,6 +163,24 @@ describe('la reddition, en deux touches', () => {
     expect(VUE).toContain('encore une fois pour confirmer');
   });
 
+  it('offert pendant SA PROPRE activation — jamais pendant celle d’en face', () => {
+    /* Le moteur fait perdre le camp de la pile ACTIVE (`reddition.test.ts`
+       du moteur). Placé dans la branche adverse, le bouton ferait capituler
+       L'ADVERSAIRE — et `declencher` avale de toute façon tout clic de cette
+       branche : le geste était doublement mort. */
+    const listes = VUE.indexOf('private listeActions(');
+    const brancheAdverse = VUE.slice(
+      VUE.indexOf('if (this.adversaireDoitJouer) {', listes),
+      VUE.indexOf('const def = unitDef(u);', listes),
+    );
+    expect(brancheAdverse.length).toBeGreaterThan(0);
+    expect(brancheAdverse).not.toContain("cle: 'reddition'");
+    /* Et il vit bien dans la liste du tour du joueur, avec Défendre. */
+    const i = VUE.indexOf("cle: 'defendre'");
+    const listeDuJoueur = VUE.slice(i, VUE.indexOf('];', i));
+    expect(listeDuJoueur).toContain("cle: 'reddition'");
+  });
+
   it('la première touche arme, la seconde émet surrender', () => {
     const i = VUE.indexOf("case 'reddition':");
     expect(i).toBeGreaterThan(0);

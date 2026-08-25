@@ -169,9 +169,11 @@ describe('le branchement de « Rendre les armes »', () => {
     expect(PANNEAUX).toContain("dispatch({ type: 'Surrender' })");
     expect(PANNEAUX).toContain('setReddition(true)');
     expect(PANNEAUX).toMatch(/grave/);
-    /* Jamais en démonstration : une bannière de démonstration n'a rien à
-       abaisser. */
-    expect(PANNEAUX).toMatch(/\{!demo \? \(\s*reddition \?/);
+    /* Jamais en démonstration, et JAMAIS HORS DE SON TOUR : le moteur
+       attribue la commande à `activePlayer` — offerte pendant le tour du
+       cousin, elle abaisserait SA bannière (garde-de-tour.test.ts prouve le
+       refus du magasin ; l'écran, lui, la tait). */
+    expect(PANNEAUX).toMatch(/\{!demo && game\.activePlayer === moi \? \(\s*reddition \?/);
   });
 
   it('le dispatch ne part QUE du chemin confirmé', () => {

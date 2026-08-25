@@ -332,6 +332,13 @@ export interface OffreTaverne {
   readonly armee: string;
   /** « Vai 2 · Gar 1 · Mys 0 · Sav 1 » — les quatre caractéristiques */
   readonly caracteristiques: string;
+  /**
+   * Déjà en lice sous une AUTRE bannière : le tirage du joueur peut recouper
+   * celui d'un cousin, et le moteur refuse alors (`apply.ts` : « Ce héros est
+   * déjà engagé dans la partie. »). La ligne reste visible mais le dit —
+   * un bouton actif qui échoue coûte plus cher qu'une ligne qui s'explique.
+   */
+  readonly engage: boolean;
 }
 
 /** L'Auberge des Bannières d'une cité : qui se présente, et à quel prix. */
@@ -386,6 +393,9 @@ export function taverneDe(game: GameState, town: TownState): Taverne {
       ? joueur.tavernOffers
       : drawTavernOffers({ ...game, rng: { ...game.rng } }, town.owner);
 
+  const enLice = new Set<string>();
+  for (const uid of Object.keys(game.heroes)) enLice.add(game.heroes[uid].def);
+
   const offres: OffreTaverne[] = [];
   for (const id of ids) {
     const def = HEROES[id as HeroId];
@@ -400,6 +410,7 @@ export function taverneDe(game: GameState, town: TownState): Taverne {
       caracteristiques:
         `Vai ${def.start.vaillance} · Gar ${def.start.garde} · ` +
         `Mys ${def.start.mystique} · Sav ${def.start.savoir}`,
+      engage: enLice.has(def.id),
     });
   }
 

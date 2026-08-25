@@ -458,9 +458,18 @@ export function applyUpgrade(
       if (!s || s.creature !== from) continue;
       const take = Math.min(left, s.count);
       s.count -= take;
-      left -= take;
       if (s.count === 0) army[i] = null;
-      addToArmy(army, to, take);
+      /* La pose peut échouer : armée pleine, aucune pile du rang amélioré, et
+         la pile d'origine garde son emplacement (amélioration PARTIELLE). Les
+         créatures reprennent alors leur place telles quelles — les payer pour
+         les détruire en silence était le défaut mesuré. Le retour, honnête,
+         laisse `applyCommand` refuser le tout. */
+      if (!addToArmy(army, to, take)) {
+        if (army[i] === null) army[i] = { creature: from, count: take };
+        else s.count += take;
+        continue;
+      }
+      left -= take;
     }
   }
   return count - left;

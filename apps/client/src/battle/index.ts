@@ -1631,16 +1631,7 @@ class VueCombat implements BattleView {
           note: `${this.camps[u.side].nom} — ${unitLabel(u)}`,
           actif: false,
         },
-        {
-        cle: 'reddition',
-        libelle: 'Se rendre',
-        /* Deux touches, comme viser puis frapper : la première arme, la
-           seconde livre le combat — un camp ne se rend pas d'un doigt qui
-           glisse. Toute autre commande désarme. */
-        note: this.redditionArmee ? 'encore une fois pour confirmer' : 'l’adversaire l’emporte',
-        actif: true,
-      },
-      { cle: 'auto', libelle: 'Résoudre', note: 'automatiquement', actif: true },
+        { cle: 'auto', libelle: 'Résoudre', note: 'automatiquement', actif: true },
       ];
     }
     const def = unitDef(u);
@@ -1685,6 +1676,19 @@ class VueCombat implements BattleView {
       { cle: 'sorts', libelle: 'Grimoire', note: heros ? `${heros.mana} manne` : 'sans héros', actif: sortDispo },
       { cle: 'defendre', libelle: 'Défendre', note: '+ défense', actif: !u.defending },
       { cle: 'attendre', libelle: 'Attendre', note: u.hasWaited ? 'déjà fait' : 'plus tard', actif: !u.hasWaited },
+      {
+        cle: 'reddition',
+        libelle: 'Se rendre',
+        /* PENDANT SA PROPRE ACTIVATION, jamais pendant celle d'en face : le
+           moteur fait perdre le camp de la pile ACTIVE (`actions.ts`,
+           `surrender` : `loser = active.side`). Offert pendant le tour
+           adverse, le même geste ferait capituler L'ADVERSAIRE — une
+           victoire volée que le serveur validerait. Deux touches, comme
+           viser puis frapper : la première arme, la seconde livre le
+           combat. Toute autre commande désarme. */
+        note: this.redditionArmee ? 'encore une fois pour confirmer' : 'l’adversaire l’emporte',
+        actif: true,
+      },
       { cle: 'auto', libelle: 'Résoudre', note: 'automatiquement', actif: true },
     ];
   }

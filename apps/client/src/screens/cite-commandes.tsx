@@ -272,11 +272,14 @@ function LigneTaverne({
         <p className="cite-cmd__detail">{offre.titre}</p>
         <p className="cite-cmd__stats jeu-tabulaire">{offre.caracteristiques}</p>
         {offre.armee ? <p className="cite-cmd__demeure">Arrive avec {offre.armee}</p> : null}
+        {offre.engage ? (
+          <p className="cite-cmd__refus">Ce héros est déjà engagé dans la partie.</p>
+        ) : null}
       </div>
       <div className="cite-cmd__prise">
         <Button
           variant="principal"
-          disabled={refus !== null}
+          disabled={refus !== null || offre.engage}
           onClick={(): void => {
             dispatch({ type: 'HireHero', town: town.uid, hero: offre.id as HeroId });
           }}
@@ -503,8 +506,11 @@ export function PanneauCite({
     return () => window.removeEventListener('keydown', surTouche);
   }, [onFermer]);
   /* Un nouveau geste sur la maquette rouvre le panneau sur l'onglet demandé,
-     même s'il était déjà ouvert sur l'autre. */
-  useEffect(() => setOnglet(ongletInitial), [ongletInitial]);
+     même s'il était déjà ouvert sur l'autre. Et CHANGER DE CITÉ repart de
+     l'onglet initial : le composant survit à la navigation de cité en cité,
+     et un onglet « Marché » retenu d'une cité qui en a une laissait la
+     suivante, qui n'en a pas, sans onglet actif. */
+  useEffect(() => setOnglet(ongletInitial), [ongletInitial, town.uid]);
   const batiments = useMemo(() => offresBatiments(game, town), [game, town]);
   const recrues = useMemo(() => offresRecrues(game, town), [game, town]);
   const promotions = useMemo(() => offresAmelioration(game, town), [game, town]);

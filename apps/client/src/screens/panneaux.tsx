@@ -223,8 +223,12 @@ function Corps({
             C'est la courtoisie du jeu par correspondance : on ne bloque plus
             l'ordre du tour des cousins. La décision la plus lourde du jeu
             porte donc la confirmation la plus grave.
+
+            ET SEULEMENT PENDANT SON TOUR : le moteur attribue la commande à
+            `activePlayer` — offerte hors tour, elle abaisserait la bannière
+            d'un autre. L'écran la tait, la garde du magasin la refuse.
           */}
-          {!demo ? (
+          {!demo && game.activePlayer === moi ? (
             reddition ? (
               <ConfirmBar
                 stage="confirmation"

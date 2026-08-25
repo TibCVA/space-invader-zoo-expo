@@ -102,6 +102,20 @@ En combat, le client émet les **8 `CombatAction` sur 8** — la reddition
 (« Se rendre », deux touches, la seconde confirme) a rejoint la barre le
 25/08.
 
+**Correctif du soir (revue adversariale du 25/08, six défauts réels)** :
+la reddition de combat était livrée MORTE — bouton offert seulement pendant
+le tour adverse, où `declencher` avale tout clic ; et le moteur fait perdre
+le camp de la pile ACTIVE, donc l'ancien emplacement aurait fait capituler
+l'adversaire. Le bouton vit maintenant dans la barre du joueur
+(`battle/pouce.test.ts`, `engine/combat/reddition.test.ts`). S'y ajoutent :
+la **garde de tour** du magasin (`dispatch` refuse toute commande hors de
+son tour — abandon, marché et gabelle agissaient localement AU NOM du
+joueur actif, `state/garde-de-tour.test.ts`), le tirage vide de l'auberge
+qui laissait engager n'importe qui (`auberge-tirage.test.ts`), la promotion
+partielle en garnison pleine qui payait puis détruisait les promues
+(`promotion-place.test.ts`), le capitaine déjà engagé par un cousin dit sur
+sa ligne, et l'onglet de cité qui survivait au changement de cité.
+
 (La découpe de pile — `SwapArmy` sans `count`, mesurée le 21/08 — est
 livrée : champ « Emporter » sur la fiche, gardes dans
 `heros-actions.test.ts`.)

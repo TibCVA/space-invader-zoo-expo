@@ -355,6 +355,24 @@ describe('l’auberge des Bannières', () => {
     const t = taverneDe(game, cite);
     expect(t.refus).toContain('occupe déjà');
   });
+
+  it('un capitaine engagé entre-temps par un AUTRE se dit sur sa ligne', () => {
+    /* Les tirages de deux bannières peuvent se recouper : le capitaine
+       affiché chez moi peut être engagé par le cousin pendant mon attente.
+       Le moteur refuserait (« déjà engagé dans la partie ») — la ligne le
+       dit AVANT le geste au lieu de laisser un bouton actif échouer. */
+    const { game, cite } = citeAvecAuberge();
+    const tire = taverneDe(game, cite).offres[0];
+    expect(tire).toBeDefined();
+    game.players[game.activePlayer].tavernOffers = [tire.id];
+    const modele = Object.values(game.heroes)[0];
+    game.heroes.HX_cousin = { ...modele, uid: 'HX_cousin', def: tire.id, owner: 'P2' };
+
+    const t = taverneDe(game, cite);
+    expect(t.offres.length).toBe(1);
+    expect(t.offres[0].id).toBe(tire.id);
+    expect(t.offres[0].engage).toBe(true);
+  });
 });
 
 /**

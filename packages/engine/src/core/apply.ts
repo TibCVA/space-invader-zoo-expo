@@ -413,7 +413,16 @@ export function applyCommand(state: GameState, cmd: Command, world: WorldMap): C
         return refuse(state, verdict.reason as string);
       }
       const done = applyUpgrade(next, town, cmd.from, verdict.to, cmd.count);
-      if (done <= 0) return refuse(state, 'Aucune créature n’a pu être améliorée.');
+      /* Tout ou rien : `refuse(state, …)` rend l'état VIERGE, la mutation
+         partielle de `next` part avec lui. Payer `cmd.count` améliorations
+         pour n'en loger qu'une partie serait le défaut d'origine en plus
+         poli. */
+      if (done < cmd.count) {
+        return refuse(
+          state,
+          'La place manque pour accueillir les créatures améliorées : libérez un emplacement.',
+        );
+      }
       pay(next, player, verdict.cost);
       const upDef = content().CREATURES[verdict.to];
       events.push({ type: 'ResourcesChanged', player, delta: deltaOf(verdict.cost), reason: 'amélioration' });
@@ -457,7 +466,11 @@ export function applyCommand(state: GameState, cmd: Command, world: WorldMap): C
       if (p.tavernOffers.length === 0) {
         p.tavernOffers = worldModule().drawTavernOffers(next, player);
       }
-      if (p.tavernOffers.length > 0 && !p.tavernOffers.includes(cmd.hero)) {
+      /* Le test d'inclusion est INCONDITIONNEL : un tirage revenu vide (tous
+         les capitaines de la faction sont en lice) refusait autrefois... rien
+         du tout, et n'importe quel héros du camp d'en face devenait engageable
+         pour 2500 écus. Personne au tirage, personne à engager. */
+      if (!p.tavernOffers.includes(cmd.hero)) {
         return refuse(state, 'Ce héros ne se présente pas à l’auberge aujourd’hui.');
       }
       if (p.resources.ecus < HERO_HIRE_COST) {

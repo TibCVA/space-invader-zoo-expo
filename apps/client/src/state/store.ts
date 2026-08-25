@@ -256,6 +256,26 @@ export function dispatch(command: Command): DispatchResult {
     return { ok: false, error, events: [] };
   }
 
+  /*
+   * LA GARDE DE TOUR — à LA porte, pas dans chaque écran.
+   *
+   * Le moteur attribue toute commande à `game.activePlayer` : jouée hors de
+   * son tour, elle agirait AU NOM D'UN AUTRE. Mesuré avant le correctif :
+   * « Rendre les armes » pendant le tour du cousin abaissait SA bannière en
+   * local, et l'échange du marché puisait dans SON trésor — puis le serveur
+   * refusait (« pas ton tour ») sans joindre d'état correctif, laissant le
+   * client sur une partie fantôme. La même fenêtre existait en solo pendant
+   * que `deroulerIaLocale` tient les bannières de l'ordinateur.
+   *
+   * Les démonstrations n'ont qu'un banc : rien à garder.
+   */
+  if (!etat.demo && etat.localPlayer !== null && game.activePlayer !== etat.localPlayer) {
+    const qui = game.players[game.activePlayer]?.name ?? 'un autre joueur';
+    const error = `La main est à ${qui} : vos ordres attendront votre tour.`;
+    poser({ notice: error });
+    return { ok: false, error, events: [] };
+  }
+
   let resultat;
   try {
     resultat = applyCommand(game, command, world);

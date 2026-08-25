@@ -1178,6 +1178,13 @@
   color: #8c3b3b;
 }
 
+/* le refus d'une ligne d'auberge — même voix que celui de la fiche */
+.cite-cmd__refus {
+  margin: var(--hmm-space-1) 0 0;
+  font-size: var(--hmm-fs-petit);
+  color: #8c3b3b;
+}
+
 /* La flèche de promotion et l'intertitre des promotions, dans l'onglet
    Recruter : la section vit SOUS les recrues, c'est le même rendez-vous
    hebdomadaire dans HMM3. */

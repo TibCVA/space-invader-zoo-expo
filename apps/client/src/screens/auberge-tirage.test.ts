@@ -20,6 +20,7 @@ import { beforeAll, expect, it } from 'vitest';
 import { bootstrapEngine } from '@auvergne/game';
 import { buildWorld } from '@auvergne/map';
 import { applyCommand, createGame } from '@auvergne/engine';
+import { HEROES } from '@auvergne/content';
 import { setupDemo } from '../state/demo.js';
 import { taverneDe } from './cite-offres.js';
 
@@ -79,4 +80,55 @@ it('après une vraie journée de jeu, le moteur engage le capitaine annoncé', (
      une seule implémentation, par la couture. */
   const enJeu = new Set(Object.values(game.heroes).map((h) => h.def));
   expect(enJeu.has(elu.id)).toBe(true);
+});
+
+/*
+ * LE TIRAGE VIDE N'ENGAGE PERSONNE.
+ *
+ * Le test d'inclusion de `HireHero` ne s'appliquait que « si le tirage a
+ * offert quelqu'un » : tout le vivier en lice, le tirage revenait vide, et
+ * N'IMPORTE QUEL capitaine du camp d'en face devenait engageable pour 2500
+ * écus — en ligne, le serveur aurait validé pareil. Personne au tirage,
+ * personne à engager.
+ */
+it('un tirage revenu vide n’engage personne — pas même un capitaine d’en face', () => {
+  const setup = setupDemo();
+  const world = buildWorld(setup.seed);
+  const game = createGame(setup, world);
+  const moi = game.activePlayer;
+  const mienne = game.players[moi].faction;
+  const cite = Object.values(game.towns).find((t) => t.owner === moi);
+  expect(cite).toBeDefined();
+  if (!cite) return;
+
+  /* Tout le vivier en lice : chaque capitaine de ma faction — et les neutres —
+     reçoit un porteur fictif. Le tirage ne peut plus rien offrir. */
+  const modele = Object.values(game.heroes)[0];
+  expect(modele).toBeDefined();
+  let n = 0;
+  for (const id of Object.keys(HEROES)) {
+    const def = HEROES[id as keyof typeof HEROES];
+    if (def.faction !== mienne && def.faction !== 'neutre') continue;
+    if (Object.values(game.heroes).some((h) => h.def === id)) continue;
+    n += 1;
+    game.heroes[`HX${n}`] = { ...modele, uid: `HX${n}`, def: id as never };
+  }
+  game.players[moi].tavernOffers = [];
+  game.players[moi].resources.ecus = 9_999;
+  /* La cité se vide pour que SEULE l'inclusion puisse refuser : avant le
+     correctif, cet engagement passait. */
+  cite.visitingHero = null;
+
+  const adverse = Object.keys(HEROES).find(
+    (id) =>
+      HEROES[id as keyof typeof HEROES].faction !== mienne &&
+      HEROES[id as keyof typeof HEROES].faction !== 'neutre' &&
+      !Object.values(game.heroes).some((h) => h.def === id),
+  );
+  expect(adverse, 'il faut un capitaine du camp d’en face resté libre').toBeDefined();
+  if (!adverse) return;
+
+  const res = applyCommand(game, { type: 'HireHero', town: cite.uid, hero: adverse as never }, world);
+  expect(res.ok).toBe(false);
+  expect(res.error).toContain('ne se présente pas');
 });
