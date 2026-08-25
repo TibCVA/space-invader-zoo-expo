@@ -143,3 +143,41 @@ describe('réserve de la barre de pouce sur la scène accélérée', () => {
     expect(corps).toMatch(/--hmm-reserve-pouce:\s*0px/);
   });
 });
+
+/**
+ * LA REDDITION EN COMBAT — le dernier `CombatAction` orphelin.
+ *
+ * Deux touches, comme viser puis frapper : la première arme (« encore une
+ * fois pour confirmer »), la seconde émet `{ kind: 'surrender' }`, et toute
+ * autre commande désarme. Gardes de branchement sur la vue, code lu tel quel
+ * — la barre est du Pixi, aucun DOM à interroger.
+ */
+describe('la reddition, en deux touches', () => {
+  const VUE: string = String(readFileSync(new URL('./index.ts', import.meta.url), 'utf8'))
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+
+  it('la barre porte « Se rendre », et la note dit l’état', () => {
+    expect(VUE).toContain("cle: 'reddition'");
+    expect(VUE).toContain('Se rendre');
+    expect(VUE).toContain('encore une fois pour confirmer');
+  });
+
+  it('la première touche arme, la seconde émet surrender', () => {
+    const i = VUE.indexOf("case 'reddition':");
+    expect(i).toBeGreaterThan(0);
+    const bloc = VUE.slice(i, i + 400);
+    expect(bloc).toContain("this.emettre({ kind: 'surrender' })");
+    expect(bloc).toContain('this.redditionArmee = true');
+  });
+
+  it('toute autre commande désarme — on ne se rend pas par accident', () => {
+    const i = VUE.indexOf('private declencher(');
+    const bloc = VUE.slice(i, i + 600);
+    expect(bloc).toContain("cle !== 'reddition' && this.redditionArmee");
+  });
+
+  it('la clef de cache de la barre voit l’armement, sinon la note ne se peint pas', () => {
+    expect(VUE).toContain("this.redditionArmee ? 'reddition-armee' : ''");
+  });
+});

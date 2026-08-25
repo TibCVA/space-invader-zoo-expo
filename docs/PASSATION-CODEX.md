@@ -90,21 +90,21 @@ Mesure du 21/08 (grep `type: '<Nom>'` dans `apps/client/src`, tests exclus) :
 | `TradeResources` | **livrée le 25/08** | onglet Marché : aperçu exact du change via `tradeOutcome` |
 | SwapArmy `count` | **livrée le 25/08** | découpe de pile — champ « Emporter » sur la fiche |
 | `UseBorne` | **livrée le 25/08** | fiche de borne : les pierres du registre, voyage d'un bouton, refus motivés (`screens/bornes.ts`) |
-| `HeroInteract` | **orpheline** | pas de re-visite de l'objet sous ses pieds (les interactions au passage marchent, elles, automatiquement — `core/movement.ts`) |
+| `HeroInteract` | **livrée le 25/08** | « Agir sur place » sur la fiche du lieu (`screens/visite.ts`) |
 | `SetCharter`, `SetGabelle` | **orphelines** | les politiques de cité/royaume sont invisibles |
 | `Surrender` | **orpheline** | pas d'abandon de partie (ni la reddition EN combat, `kind: 'surrender'`) |
 
-En combat, le client émet 7 des 8 `CombatAction` : `move, attack, shoot,
-wait, defend, cast, ability` — il manque **`surrender`** (la reddition en
-combat, avec son coût en écus, mécanique importante de HMM3).
+En combat, le client émet les **8 `CombatAction` sur 8** — la reddition
+(« Se rendre », deux touches, la seconde confirme) a rejoint la barre le
+25/08.
 
 (La découpe de pile — `SwapArmy` sans `count`, mesurée le 21/08 — est
 livrée : champ « Emporter » sur la fiche, gardes dans
 `heros-actions.test.ts`.)
 
 **Priorité recommandée pour ce qui RESTE** :
-1. `HeroInteract` (revisite de l'objet sous ses pieds — Espace dans HMM3) ;
-2. `surrender` en combat puis `Surrender` de partie ; 3. politiques.
+1. `Surrender` (l'abandon de PARTIE — la reddition en combat est livrée) ;
+2. politiques (`SetCharter`, `SetGabelle`).
 Livré le 25/08, en plus des commandes : « Héros suivant » (touche E + bouton,
 cycle stable, centre la caméra), Échap (chemin → fiche → panneau), gains
 flottants « +5 bois » au pas du héros (`render/gains.ts`).

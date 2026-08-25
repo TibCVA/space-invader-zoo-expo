@@ -33,6 +33,7 @@ import {
 } from './estimation.js';
 import type { Fiche, Regard } from './estimation.js';
 import { reseauDepuisLaBorne } from './bornes.js';
+import { revisiteDe } from './visite.js';
 import { dispatch } from '../state/store.js';
 
 export interface FicheInspectionProps {
@@ -185,7 +186,26 @@ export function FicheInspection(props: FicheInspectionProps): ReactElement | nul
           const objet = game.objects?.[cible.uid] ?? world.objects.find((o) => o.uid === cible.uid);
           if (!objet) return null;
           const reseau = reseauDepuisLaBorne(game, heros, objet);
-          if (!reseau.surLaBorne) return null;
+          if (!reseau.surLaBorne) {
+            /* AGIR SUR PLACE — la revisite (HeroInteract). Le héros campé sur
+               l'auberge quand la semaine tourne n'avait aucun geste : les
+               interactions ne partent qu'AU PAS (`movement.ts`). Le moteur
+               reste juge du fond — « rien à faire ici » remonte en avis. */
+            if (!revisiteDe(game, heros, objet).possible) return null;
+            return (
+              <div className="carte-fiche__reseau">
+                <Button
+                  size="compact"
+                  variant="secondaire"
+                  onClick={(): void => {
+                    dispatch({ type: 'HeroInteract', hero: heros.uid, object: objet.uid });
+                  }}
+                >
+                  Agir sur place
+                </Button>
+              </div>
+            );
+          }
           return (
             <div className="carte-fiche__reseau">
               <p className="carte-fiche__reseau-titre">Le réseau des bornes</p>

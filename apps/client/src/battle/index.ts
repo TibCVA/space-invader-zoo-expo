@@ -1493,6 +1493,7 @@ class VueCombat implements BattleView {
       this.hauteur,
       this.combat.finished ? 'f' : 'e',
       this.adversaireDoitJouer ? 'ia' : 'moi',
+      this.redditionArmee ? 'reddition-armee' : '',
     ].join('|');
     if (cle === this.cleActions) return;
     this.cleActions = cle;
@@ -1630,7 +1631,16 @@ class VueCombat implements BattleView {
           note: `${this.camps[u.side].nom} — ${unitLabel(u)}`,
           actif: false,
         },
-        { cle: 'auto', libelle: 'Résoudre', note: 'automatiquement', actif: true },
+        {
+        cle: 'reddition',
+        libelle: 'Se rendre',
+        /* Deux touches, comme viser puis frapper : la première arme, la
+           seconde livre le combat — un camp ne se rend pas d'un doigt qui
+           glisse. Toute autre commande désarme. */
+        note: this.redditionArmee ? 'encore une fois pour confirmer' : 'l’adversaire l’emporte',
+        actif: true,
+      },
+      { cle: 'auto', libelle: 'Résoudre', note: 'automatiquement', actif: true },
       ];
     }
     const def = unitDef(u);
@@ -1678,6 +1688,9 @@ class VueCombat implements BattleView {
       { cle: 'auto', libelle: 'Résoudre', note: 'automatiquement', actif: true },
     ];
   }
+
+  /** Première touche de « Se rendre » reçue : la prochaine confirme. */
+  private redditionArmee = false;
 
   private herosDuCamp(side: 0 | 1): HeroInstance | null {
     const jeu = this.deps.store.get().game;
@@ -1999,6 +2012,12 @@ class VueCombat implements BattleView {
 
   private declencher(cle: string): void {
     const u = this.actif ? findUnit(this.combat, this.actif) : null;
+    /* Toute commande autre que la reddition la désarme : on ne se rend pas
+       par accident en enchaînant les gestes. */
+    if (cle !== 'reddition' && this.redditionArmee) {
+      this.redditionArmee = false;
+      this.majActions();
+    }
     /* Seul « Résoudre » reste offert pendant que le moteur joue l'adversaire. */
     if (this.adversaireDoitJouer && cle !== 'auto') return;
     switch (cle) {
@@ -2018,6 +2037,15 @@ class VueCombat implements BattleView {
         break;
       case 'sorts':
         this.basculerGrimoire();
+        break;
+      case 'reddition':
+        if (this.redditionArmee) {
+          this.redditionArmee = false;
+          this.emettre({ kind: 'surrender' });
+        } else {
+          this.redditionArmee = true;
+          this.majActions();
+        }
         break;
       case 'auto':
         this.deps.dispatch({ type: 'AutoResolveCombat' });
