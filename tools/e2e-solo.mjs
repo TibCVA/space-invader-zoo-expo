@@ -351,6 +351,28 @@ try {
         console.log('      ', String(e).split('\n')[0].slice(0, 160));
       }
       exige(sortie, 'la porte de la cité ramène à la carte');
+
+      /*
+       * LE HÉROS SUIVANT — il n'existe qu'à partir de deux héros, et
+       * l'auberge vient d'engager le second : le bouton doit être là, et le
+       * geste doit laisser la carte vivante. C'est la seule épreuve possible
+       * au premier jour ; le centrage caméra, lui, se voit à l'œil.
+       */
+      let suivant = true;
+      try {
+        const bouton = page.getByRole('button', { name: /Héros suivant/i });
+        await bouton.waitFor({ state: 'visible', timeout: 20_000 });
+        await bouton.click();
+        await page.waitForTimeout(900);
+        await bouton.click();
+        await page.waitForTimeout(900);
+        suivant = await page.locator('.jeu-scene__legende').isVisible();
+      } catch (e) {
+        suivant = false;
+        await page.screenshot({ path: `shots/echec-suivant-${appareil.nom}.png` }).catch(() => {});
+        console.log('      ', String(e).split('\n')[0].slice(0, 160));
+      }
+      exige(suivant, 'deux héros : « Héros suivant » existe et cycle sans casser la carte');
     }
 
     exige(erreurs.length === 0, `aucune erreur console (${erreurs.length})`);

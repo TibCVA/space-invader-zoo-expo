@@ -43,6 +43,8 @@ import {
   mainSurLeHeros,
   rangeesDArmee,
   bornerEmport,
+  herosDisponibles,
+  prochainHeros,
 } from './heros-actions.js';
 
 let world: WorldMap;
@@ -648,5 +650,53 @@ describe('découpe de pile', () => {
     expect(entiere.quoi).toBe('commande');
     if (entiere.quoi !== 'commande') return;
     expect(entiere.videLeHeros).toBe(true);
+  });
+});
+
+/**
+ * LE CYCLE DES HÉROS — la touche « E » de HMM3, pressée des centaines de fois
+ * par partie. Sans elle, un joueur à trois héros cherchait le suivant à l'œil
+ * sur la carte. Elle n'existait pas faute d'objet : tant que l'auberge était
+ * orpheline, personne n'avait deux héros.
+ */
+describe('le héros suivant', () => {
+  it('tourne en rond dans l’ordre stable des uid', () => {
+    const { jeu, heros } = partie();
+    const p = jeu.players[heros.owner];
+    /* Un second héros forgé à la main, comme l'auberge le ferait. */
+    const second = { ...heros, uid: 'H99', army: heros.army.slice() };
+    jeu.heroes.H99 = second;
+    p.heroes.push('H99');
+    p.heroes.sort();
+
+    const a = prochainHeros(jeu, heros.owner, null);
+    expect(a).not.toBeNull();
+    const b = prochainHeros(jeu, heros.owner, a);
+    const c = prochainHeros(jeu, heros.owner, b);
+    expect(b).not.toBe(a);
+    expect(c).toBe(a);
+  });
+
+  it('saute un héros à terre : « suivant » mène à quelqu’un qui peut agir', () => {
+    const { jeu, heros } = partie();
+    const p = jeu.players[heros.owner];
+    const second = { ...heros, uid: 'H99', army: heros.army.slice() };
+    jeu.heroes.H99 = second;
+    p.heroes.push('H99');
+    second.downUntilTurn = jeu.turn + 3;
+
+    expect(herosDisponibles(jeu, heros.owner)).toEqual([heros.uid]);
+    expect(prochainHeros(jeu, heros.owner, heros.uid)).toBe(heros.uid);
+  });
+
+  it('sans aucun héros disponible, rend null plutôt qu’un fantôme', () => {
+    const { jeu, heros } = partie();
+    jeu.heroes[heros.uid].downUntilTurn = jeu.turn + 1;
+    expect(prochainHeros(jeu, heros.owner, null)).toBeNull();
+  });
+
+  it('un courant inconnu repart du premier — jamais d’index perdu', () => {
+    const { jeu, heros } = partie();
+    expect(prochainHeros(jeu, heros.owner, 'H_disparu')).toBe(heros.uid);
   });
 });

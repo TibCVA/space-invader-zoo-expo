@@ -1215,3 +1215,17 @@
   color: var(--hmm-encre);
   font: inherit;
 }
+
+/* « Héros suivant » : posé au-dessus de la fin de tour, même ancrage gauche —
+   les deux commandes de tour se lisent comme une colonne. N'apparaît qu'à
+   partir de deux héros disponibles. */
+.jeu-heros-suivant {
+  position: fixed;
+  left: calc(var(--hmm-space-4) + var(--hmm-safe-gauche));
+  bottom: calc(var(--hmm-space-4) + var(--hmm-safe-bas) + 56px + 56px);
+  z-index: var(--hmm-z-colle);
+}
+
+.jeu-racine--avec-pouce .jeu-heros-suivant {
+  bottom: calc(var(--hmm-space-4) + var(--hmm-reserve-pouce) + 56px + 56px);
+}

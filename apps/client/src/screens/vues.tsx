@@ -26,6 +26,8 @@ import { BarreTresor } from './tresor.js';
 import { PanneauCite } from './cite-commandes.js';
 import { estUneDemeure } from './cite-offres.js';
 import type { Cible } from './cible.js';
+import { herosDisponibles, prochainHeros } from './heros-actions.js';
+import type { MapView } from '../view-contract.js';
 import { Button, ConfirmBar } from '@auvergne/ui';
 
 /* ─────────────────────── Rythme de confirmation ──────────────────────────── */
@@ -139,11 +141,15 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
    * secondes de reconstruction d'atlas — à chaque clic sur un héros.
    */
   const herosRef = useRef<HeroUid | null>(null);
+  /* La vue de carte, pour la caméra : « héros suivant » doit CENTRER, pas
+     seulement sélectionner — un suivant hors cadre qu'on ne voit pas partir
+     n'aide personne. */
+  const vueRef = useRef<MapView | null>(null);
 
   const fabrique = useCallback<FabriqueScene>(
     async ({ app, atlas, width, height }) => {
       if (!game || !world || !localPlayer) throw new Error("Aucune partie n'est chargée.");
-      return createMapView({
+      const vue = await createMapView({
         app,
         atlas,
         store: viewStore,
@@ -188,9 +194,44 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
           else setCible(null);
         },
       });
+      vueRef.current = vue;
+      return vue;
     },
     [game, world, localPlayer, demo, reducedMotion],
   );
+
+  /**
+   * LE HÉROS SUIVANT — la touche « E » de HMM3, et son bouton.
+   *
+   * Sélectionne, retient (pour la mesure de fin de chemin) et CENTRE la
+   * caméra. N'existe qu'à partir de deux héros disponibles : avant l'auberge,
+   * le geste n'avait pas d'objet.
+   */
+  const disponibles = game && localPlayer ? herosDisponibles(game, localPlayer) : [];
+  const passerAuSuivant = useCallback((): void => {
+    if (!game || !localPlayer || demo) return;
+    const uid = prochainHeros(game, localPlayer, herosRef.current);
+    if (!uid) return;
+    herosRef.current = uid;
+    selectionner({ kind: 'heros', uid });
+    const h = game.heroes[uid];
+    if (h) vueRef.current?.centerOn(h.at, { animate: true });
+  }, [game, localPlayer, demo]);
+
+  useEffect(() => {
+    if (demo) return undefined;
+    const surTouche = (e: KeyboardEvent): void => {
+      if (e.key !== 'e' && e.key !== 'E') return;
+      const cible = e.target as HTMLElement | null;
+      /* Les mêmes gardes que la fin de tour : jamais pendant une saisie. */
+      if (cible && (cible.isContentEditable ||
+        ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'A'].includes(cible.tagName))) return;
+      e.preventDefault();
+      passerAuSuivant();
+    };
+    window.addEventListener('keydown', surTouche);
+    return () => window.removeEventListener('keydown', surTouche);
+  }, [passerAuSuivant, demo]);
 
   /**
    * Le pavois de démonstration, construit par la même fonction que la carte.
@@ -260,6 +301,15 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
         />
       ) : null}
       {state.pathPreview ? <BarreDeChemin preview={state.pathPreview} /> : null}
+      {/* Le bouton n'existe qu'à partir de deux héros : avant, le geste n'a
+          pas d'objet et la place au-dessus de la fin de tour reste libre. */}
+      {!demo && disponibles.length >= 2 ? (
+        <div className="jeu-heros-suivant">
+          <Button variant="secondaire" onClick={passerAuSuivant}>
+            Héros suivant <span className="jeu-tabulaire">({disponibles.length})</span>
+          </Button>
+        </div>
+      ) : null}
     </ScenePixi>
   );
 }

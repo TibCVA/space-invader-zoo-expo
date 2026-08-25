@@ -465,20 +465,22 @@ export function echangeDePiles(
  * terre (`downUntilTurn > turn`) : le moteur refuse de toute façon chacun de
  * leurs gestes, et « suivant » doit mener à quelqu'un qui peut agir.
  */
+export function herosDisponibles(state: GameState, joueur: PlayerId): HeroUid[] {
+  const p = state.players[joueur];
+  if (!p) return [];
+  return [...p.heroes].sort().filter((uid) => {
+    const h = state.heroes[uid];
+    return h !== undefined && h.downUntilTurn <= state.turn;
+  }) as HeroUid[];
+}
+
 export function prochainHeros(
   state: GameState,
   joueur: PlayerId,
   courant: string | null,
 ): HeroUid | null {
-  const p = state.players[joueur];
-  if (!p) return null;
-  const disponibles = [...p.heroes]
-    .sort()
-    .filter((uid) => {
-      const h = state.heroes[uid];
-      return h !== undefined && h.downUntilTurn <= state.turn;
-    });
+  const disponibles = herosDisponibles(state, joueur);
   if (disponibles.length === 0) return null;
-  const i = courant === null ? -1 : disponibles.indexOf(courant);
-  return disponibles[(i + 1) % disponibles.length] as HeroUid;
+  const i = courant === null ? -1 : disponibles.indexOf(courant as HeroUid);
+  return disponibles[(i + 1) % disponibles.length];
 }
