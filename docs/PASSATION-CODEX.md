@@ -89,7 +89,7 @@ Mesure du 21/08 (grep `type: '<Nom>'` dans `apps/client/src`, tests exclus) :
 | `CastAdventureSpell` | **livrée le 25/08** | boutons « Lancer » au Grimoire ; prix = `spellCostFor` (extrait d'apply) ; cible requise ⇒ case sélectionnée sur la carte, JAMAIS de lancer aveugle (le mana partirait — `spells-adventure.ts:378`) |
 | `TradeResources` | **livrée le 25/08** | onglet Marché : aperçu exact du change via `tradeOutcome` |
 | SwapArmy `count` | **livrée le 25/08** | découpe de pile — champ « Emporter » sur la fiche |
-| `UseBorne` | **orpheline** | les bornes (portails) sont décoratives |
+| `UseBorne` | **livrée le 25/08** | fiche de borne : les pierres du registre, voyage d'un bouton, refus motivés (`screens/bornes.ts`) |
 | `HeroInteract` | **orpheline** | pas de re-visite de l'objet sous ses pieds (les interactions au passage marchent, elles, automatiquement — `core/movement.ts`) |
 | `SetCharter`, `SetGabelle` | **orphelines** | les politiques de cité/royaume sont invisibles |
 | `Surrender` | **orpheline** | pas d'abandon de partie (ni la reddition EN combat, `kind: 'surrender'`) |
@@ -103,9 +103,8 @@ livrée : champ « Emporter » sur la fiche, gardes dans
 `heros-actions.test.ts`.)
 
 **Priorité recommandée pour ce qui RESTE** :
-1. `UseBorne` (le réseau de bornes est le fast-travel du jeu) ;
-2. `HeroInteract` (revisite de l'objet sous ses pieds — Espace dans HMM3) ;
-3. `surrender` en combat puis `Surrender` de partie ; 4. politiques.
+1. `HeroInteract` (revisite de l'objet sous ses pieds — Espace dans HMM3) ;
+2. `surrender` en combat puis `Surrender` de partie ; 3. politiques.
 Livré le 25/08, en plus des commandes : « Héros suivant » (touche E + bouton,
 cycle stable, centre la caméra), Échap (chemin → fiche → panneau), gains
 flottants « +5 bois » au pas du héros (`render/gains.ts`).

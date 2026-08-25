@@ -20,7 +20,7 @@
 
 import { useEffect, type ReactElement } from 'react';
 import type { GameState, HeroInstance, MapObject, PlayerId, WorldMap } from '@auvergne/engine';
-import { Badge, Icon, IconButton, Panel, PlayerBanner, Stat } from '@auvergne/ui';
+import { Badge, Button, Icon, IconButton, Panel, PlayerBanner, Stat } from '@auvergne/ui';
 import type { Cible } from './cible.js';
 import {
   LIBELLES_DIFFICULTE,
@@ -32,6 +32,8 @@ import {
   sousTitreDe,
 } from './estimation.js';
 import type { Fiche, Regard } from './estimation.js';
+import { reseauDepuisLaBorne } from './bornes.js';
+import { dispatch } from '../state/store.js';
 
 export interface FicheInspectionProps {
   readonly game: GameState;
@@ -169,6 +171,62 @@ export function FicheInspection(props: FicheInspectionProps): ReactElement | nul
             ))}
           </ul>
         ) : null}
+
+        {(() => {
+          /*
+           * LE RÉSEAU DES BORNES — `UseBorne` n'était émise nulle part : les
+           * bornes étaient décoratives. La fiche d'une borne, quand NOTRE
+           * héros sélectionné se tient dessus, liste les pierres du registre
+           * et fait voyager d'un bouton. Chaque refus est la phrase du moteur
+           * (`canUseBorne`) : réseau endormi, quota épuisé, bourse vide — la
+           * ligne dit quoi attendre ou payer, au lieu de griser en silence.
+           */
+          if (cible.kind !== 'objet' || !heros || heros.owner !== localPlayer) return null;
+          const objet = game.objects?.[cible.uid] ?? world.objects.find((o) => o.uid === cible.uid);
+          if (!objet) return null;
+          const reseau = reseauDepuisLaBorne(game, heros, objet);
+          if (!reseau.surLaBorne) return null;
+          return (
+            <div className="carte-fiche__reseau">
+              <p className="carte-fiche__reseau-titre">Le réseau des bornes</p>
+              {reseau.offres.length === 0 ? (
+                <p className="carte-fiche__vide">
+                  Aucune autre borne n’est inscrite à votre registre : le réseau ne mène
+                  qu’aux pierres déjà vues.
+                </p>
+              ) : (
+                <ul className="carte-fiche__voyages">
+                  {reseau.offres.map((o) => (
+                    <li key={o.vers} className="carte-fiche__voyage">
+                      <span className="carte-fiche__voyage-corps">
+                        <span className="carte-fiche__voyage-nom">{o.nom}</span>
+                        <span className="carte-fiche__voyage-detail">
+                          {o.gratuit
+                            ? 'Gardien des Bornes : passage franc'
+                            : `${o.coutEcus} écus · ${o.coutMarche} pas`}
+                        </span>
+                        {o.refus ? (
+                          <span className="carte-fiche__voyage-refus">{o.refus}</span>
+                        ) : null}
+                      </span>
+                      <Button
+                        size="compact"
+                        variant={o.possible ? 'principal' : 'fantome'}
+                        disabled={!o.possible}
+                        onClick={(): void => {
+                          dispatch({ type: 'UseBorne', hero: heros.uid, to: o.vers });
+                          onFermer();
+                        }}
+                      >
+                        Voyager
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })()}
       </Panel>
     </div>
   );
