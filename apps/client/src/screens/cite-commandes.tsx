@@ -20,8 +20,10 @@ import { vignetteCreature } from '../art/vignette.js';
 import { nombre } from './format.js';
 import {
   destinataireRecrues,
+  offresAmelioration,
   offresBatiments,
   offresRecrues,
+  type OffreAmelioration,
   type OffreBatiment,
   type OffreRecrue,
 } from './cite-offres.js';
@@ -170,6 +172,71 @@ function LigneRecrue({ offre, town }: { offre: OffreRecrue; town: TownState }): 
   );
 }
 
+/**
+ * UNE PROMOTION — la ligne « Manants → Francs-Manants » de l'onglet Recruter.
+ *
+ * Mesuré avant le correctif : `UpgradeCreatures` n'était émis nulle part. Les
+ * bâtiments d'amélioration se levaient, et les créatures restaient au rang de
+ * base pour toujours — dans HMM3, promouvoir sa semaine de recrues est un
+ * rendez-vous hebdomadaire.
+ *
+ * La vignette montre la bête AMÉLIORÉE : c'est elle qu'on achète. Le nombre
+ * par défaut est le maximum abordable, comme au recrutement.
+ */
+function LignePromotion({ offre, town }: { offre: OffreAmelioration; town: TownState }): ReactElement {
+  const [nb, setNb] = useState(0);
+  const voulu = nb === 0 ? offre.abordables : Math.min(nb, offre.abordables);
+
+  return (
+    <li className="cite-cmd__ligne">
+      <VignetteRecrue id={offre.vers} />
+      <div className="cite-cmd__texte">
+        <p className="cite-cmd__nom">
+          {offre.nomDe} <span className="cite-cmd__vers-fleche">→</span> {offre.nomVers}
+        </p>
+        <p className="cite-cmd__detail">
+          {offre.presentes} présente{offre.presentes > 1 ? 's' : ''} à la cité ·{' '}
+          {ecrireCout(offre.coutUnitaire)} l’unité
+        </p>
+        {offre.gain ? <p className="cite-cmd__stats jeu-tabulaire">{offre.gain}</p> : null}
+        {offre.abordables === 0 ? (
+          <p className="cite-cmd__refus">Le trésor ne suffit pas pour une seule promotion.</p>
+        ) : null}
+      </div>
+      <div className="cite-cmd__prise">
+        <label className="hmm-invisible" htmlFor={`promotion-${offre.de}`}>
+          Nombre de {offre.nomDe} à élever
+        </label>
+        <input
+          id={`promotion-${offre.de}`}
+          className="cite-cmd__nombre jeu-tabulaire"
+          type="number"
+          min={0}
+          max={offre.abordables}
+          value={voulu}
+          disabled={offre.abordables === 0}
+          onChange={(e): void => setNb(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
+        />
+        <Button
+          variant="principal"
+          disabled={offre.abordables === 0 || voulu <= 0}
+          onClick={(): void => {
+            dispatch({
+              type: 'UpgradeCreatures',
+              town: town.uid,
+              from: offre.de,
+              count: voulu,
+            });
+            setNb(0);
+          }}
+        >
+          Élever
+        </Button>
+      </div>
+    </li>
+  );
+}
+
 export interface PanneauCiteProps {
   game: GameState;
   town: TownState;
@@ -208,6 +275,7 @@ export function PanneauCite({
   useEffect(() => setOnglet(ongletInitial), [ongletInitial]);
   const batiments = useMemo(() => offresBatiments(game, town), [game, town]);
   const recrues = useMemo(() => offresRecrues(game, town), [game, town]);
+  const promotions = useMemo(() => offresAmelioration(game, town), [game, town]);
   const vers = destinataireRecrues(town);
 
   return (
@@ -267,6 +335,18 @@ export function PanneauCite({
                 <LigneRecrue key={o.id} offre={o} town={town} />
               ))}
             </ul>
+            {promotions.length > 0 ? (
+              <>
+                <p className="cite-cmd__vers cite-cmd__section">
+                  Élever les créatures présentes à la cité :
+                </p>
+                <ul className="cite-cmd__liste">
+                  {promotions.map((o) => (
+                    <LignePromotion key={o.de} offre={o} town={town} />
+                  ))}
+                </ul>
+              </>
+            ) : null}
           </>
         )}
       </Panel>

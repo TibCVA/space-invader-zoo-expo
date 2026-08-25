@@ -11,12 +11,14 @@
  * qui recopie la table qu'il garde descend avec elle.
  */
 import { describe, expect, it } from 'vitest';
-import { canBuild, canRecruit, createGame } from '@auvergne/engine';
+import { applyCommand, canBuild, canRecruit, createGame, upgradesOf } from '@auvergne/engine';
 import type { CreatureId, GameState, TownState } from '@auvergne/engine';
 import { buildWorld } from '@auvergne/map';
 import { setupDemo } from '../state/demo.js';
 import {
+  ameliorationsAbordables,
   destinataireRecrues,
+  offresAmelioration,
   offresBatiments,
   offresRecrues,
   recruesAbordables,
@@ -151,5 +153,114 @@ describe('la destination des recrues', () => {
     expect(destinataireRecrues(cite)).toBe('H4');
     cite.garrisonHero = null;
     expect(destinataireRecrues(cite)).toBeNull();
+  });
+});
+
+/**
+ * LES PROMOTIONS — le rendez-vous hebdomadaire de HMM3 qui manquait.
+ *
+ * Mesuré avant le correctif : `UpgradeCreatures` n'était émis nulle part.
+ * Les bâtiments d'amélioration se levaient (ils sont dans l'onglet Bâtir
+ * depuis le début) et les créatures restaient au rang de base pour toujours.
+ *
+ * Comme partout : la logique décide de ce qu'on PROPOSE, le moteur reste seul
+ * juge de ce qui PASSE — chaque bloc se ferme par un `applyCommand` réel.
+ */
+describe('les promotions proposées', () => {
+  /** Lève le bâtiment d'amélioration et poste des créatures promouvables. */
+  function citePromouvante(): {
+    game: GameState;
+    cite: TownState;
+    de: CreatureId;
+    vers: CreatureId;
+  } {
+    /* La cité de la bannière QUI A LA MAIN : `applyCommand` joue toujours au
+       nom du joueur actif, et une cité d'un autre serait refusée d'office —
+       « ne porte pas votre bannière », le premier rouge de cette garde. */
+    const { game } = partie();
+    const cite = Object.values(game.towns).find((t) => t.owner === game.activePlayer);
+    if (!cite) throw new Error('le joueur actif doit posséder une cité au départ');
+    cite.built.push(`${cite.faction}_amelioration_1` as never);
+    const table = upgradesOf(cite);
+    expect(table.size, 'le bâtiment d’amélioration doit octroyer une promotion').toBeGreaterThan(0);
+    const [de, vers] = [...table.entries()][0];
+    cite.garrison[0] = { creature: de, count: 9 };
+    return { game, cite, de, vers };
+  }
+
+  it('sans créature présente, aucune ligne — même bâtiment levé', () => {
+    const { game, cite } = partie();
+    cite.built.push(`${cite.faction}_amelioration_1` as never);
+    for (let i = 0; i < cite.garrison.length; i += 1) cite.garrison[i] = null;
+    expect(offresAmelioration(game, cite)).toEqual([]);
+  });
+
+  it('sans bâtiment d’amélioration, aucune ligne — même créature présente', () => {
+    const { game, cite } = partie();
+    expect(upgradesOf(cite).size).toBe(0);
+    expect(offresAmelioration(game, cite)).toEqual([]);
+  });
+
+  it('la ligne dit qui devient quoi, combien sont là, et ce que ça change', () => {
+    const { game, cite, de, vers } = citePromouvante();
+    const offres = offresAmelioration(game, cite);
+    expect(offres.length).toBe(1);
+    const o = offres[0];
+    expect(o.de).toBe(de);
+    expect(o.vers).toBe(vers);
+    expect(o.presentes).toBe(9);
+    /* Le gain chiffré est la raison de payer : une promotion qui n'améliore
+       RIEN serait un défaut de contenu, et la ligne le montrerait. */
+    expect(o.gain.length).toBeGreaterThan(0);
+    expect(Object.keys(o.coutUnitaire).length).toBeGreaterThan(0);
+  });
+
+  it('les créatures du héros DE PASSAGE comptent — c’est lui qu’on vient promouvoir', () => {
+    const { game, cite, de } = citePromouvante();
+    for (let i = 0; i < cite.garrison.length; i += 1) cite.garrison[i] = null;
+    const heros = game.heroes[game.players[cite.owner!].heroes[0]];
+    heros.at = { ...cite.at };
+    heros.inTown = cite.uid;
+    cite.visitingHero = heros.uid;
+    heros.army[0] = { creature: de, count: 4 };
+    const offres = offresAmelioration(game, cite);
+    expect(offres.length).toBe(1);
+    expect(offres[0].presentes).toBe(4);
+  });
+
+  it('abordables suit la bourse, et le moteur promeut ce nombre exactement', () => {
+    const { game, cite, de, vers } = citePromouvante();
+    const abordables = ameliorationsAbordables(game, cite, de, 9);
+    expect(abordables).toBeGreaterThan(0);
+
+    const res = applyCommand(
+      game,
+      { type: 'UpgradeCreatures', town: cite.uid, from: de, count: abordables },
+      buildWorld(setupDemo().seed),
+    );
+    expect(res.ok, res.error).toBe(true);
+    const apres = res.state.towns[cite.uid];
+    const promues = apres.garrison
+      .filter((s): s is NonNullable<typeof s> => s !== null && s.creature === vers)
+      .reduce((somme, s) => somme + s.count, 0);
+    expect(promues).toBe(abordables);
+  });
+
+  it('un de plus que la bourse, et le moteur refuse — la bisection est au bord exact', () => {
+    const { game, cite, de } = citePromouvante();
+    /* Appauvrir la bannière pour que la bourse ne couvre pas les neuf. */
+    const bourse = game.players[cite.owner!].resources;
+    for (const clef of Object.keys(bourse) as (keyof typeof bourse)[]) {
+      bourse[clef] = Math.min(bourse[clef], 60);
+    }
+    const abordables = ameliorationsAbordables(game, cite, de, 9);
+    expect(abordables).toBeLessThan(9);
+    if (abordables === 0) return;
+    const res = applyCommand(
+      game,
+      { type: 'UpgradeCreatures', town: cite.uid, from: de, count: abordables + 1 },
+      buildWorld(setupDemo().seed),
+    );
+    expect(res.ok).toBe(false);
   });
 });

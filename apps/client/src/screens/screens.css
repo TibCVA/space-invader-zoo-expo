@@ -1177,3 +1177,14 @@
   font-size: var(--hmm-fs-petit);
   color: #8c3b3b;
 }
+
+/* La flèche de promotion et l'intertitre des promotions, dans l'onglet
+   Recruter : la section vit SOUS les recrues, c'est le même rendez-vous
+   hebdomadaire dans HMM3. */
+.cite-cmd__vers-fleche {
+  color: var(--hmm-or-attenue);
+}
+
+.cite-cmd__section {
+  margin-top: var(--hmm-space-3);
+}

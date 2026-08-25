@@ -22,7 +22,16 @@
  * mentir le jour où une règle change.
  */
 
-import { buildCost, canBuild, canRecruit, recruitCost } from '@auvergne/engine';
+import {
+  buildCost,
+  canBuild,
+  canRecruit,
+  canUpgrade,
+  countInTown,
+  recruitCost,
+  upgradeUnitCost,
+  upgradesOf,
+} from '@auvergne/engine';
 import type {
   BuildingId,
   CreatureId,
@@ -207,4 +216,96 @@ export function estUneDemeure(batiment: BuildingId): boolean {
   const def = BUILDINGS[batiment];
   if (!def) return false;
   return def.grants.some((o) => o.kind === 'dwelling');
+}
+
+/* ───────────────────────────── Amélioration ─────────────────────────────── */
+
+/**
+ * Une promotion possible : des créatures présentes à la cité, et le bâtiment
+ * amélioré qui sait les élever.
+ */
+export interface OffreAmelioration {
+  readonly de: CreatureId;
+  readonly vers: CreatureId;
+  readonly nomDe: string;
+  readonly nomVers: string;
+  /** créatures de ce type présentes à la cité (garnison + héros de passage) */
+  readonly presentes: number;
+  /** coût de la promotion d'UNE créature */
+  readonly coutUnitaire: Partial<Resources>;
+  /** combien la bourse permet d'en élever, plafonné par les présentes */
+  readonly abordables: number;
+  /** ce que la promotion change, chiffré — la raison de payer */
+  readonly gain: string;
+}
+
+/** Le plus grand nombre de promotions que la bourse permet (bisection). */
+export function ameliorationsAbordables(
+  game: GameState,
+  town: TownState,
+  de: CreatureId,
+  presentes: number,
+): number {
+  if (presentes <= 0) return 0;
+  if (canUpgrade(game, town, de, presentes).ok) return presentes;
+  let bas = 0;
+  let haut = presentes;
+  while (bas + 1 < haut) {
+    const milieu = Math.floor((bas + haut) / 2);
+    if (canUpgrade(game, town, de, milieu).ok) bas = milieu;
+    else haut = milieu;
+  }
+  return bas;
+}
+
+/** Ce que la promotion change, dans l'ordre où HMM3 le fait lire. */
+function gainDePromotion(de: CreatureId, vers: CreatureId): string {
+  const a = CREATURES[de];
+  const b = CREATURES[vers];
+  if (!a || !b) return '';
+  const morceaux: string[] = [];
+  if (b.attack !== a.attack) morceaux.push(`Att ${a.attack} → ${b.attack}`);
+  if (b.defense !== a.defense) morceaux.push(`Déf ${a.defense} → ${b.defense}`);
+  if (b.hp !== a.hp) morceaux.push(`PV ${a.hp} → ${b.hp}`);
+  if (b.dmgMin !== a.dmgMin || b.dmgMax !== a.dmgMax) {
+    morceaux.push(`Dég ${a.dmgMin}–${a.dmgMax} → ${b.dmgMin}–${b.dmgMax}`);
+  }
+  if (b.speed !== a.speed) morceaux.push(`Vit ${a.speed} → ${b.speed}`);
+  return morceaux.join(' · ');
+}
+
+/**
+ * Les promotions à montrer dans l'onglet « Recruter », sous les recrues.
+ *
+ * Mesuré avant le correctif : `UpgradeCreatures` n'était émis NULLE PART —
+ * les bâtiments d'amélioration se levaient, et les créatures restaient au
+ * rang de base pour toujours. Dans HMM3, promouvoir sa semaine de recrues est
+ * un rendez-vous hebdomadaire.
+ *
+ * On ne liste que les couples réellement promouvables ICI : le bâtiment
+ * amélioré est levé (`upgradesOf`), ET des créatures du rang de base sont
+ * présentes à la cité. Une ligne à zéro abordable reste affichée avec la
+ * phrase du moteur — elle dit vers quoi épargner.
+ */
+export function offresAmelioration(game: GameState, town: TownState): OffreAmelioration[] {
+  const offres: OffreAmelioration[] = [];
+  for (const [de, vers] of upgradesOf(town)) {
+    const presentes = countInTown(game, town, de);
+    if (presentes <= 0) continue;
+    const a = CREATURES[de];
+    const b = CREATURES[vers];
+    if (!a || !b) continue;
+    offres.push({
+      de,
+      vers,
+      nomDe: a.namePlural,
+      nomVers: b.namePlural,
+      presentes,
+      coutUnitaire: upgradeUnitCost(de, vers),
+      abordables: ameliorationsAbordables(game, town, de, presentes),
+      gain: gainDePromotion(de, vers),
+    });
+  }
+  offres.sort((x, y) => (CREATURES[x.de]?.tier ?? 0) - (CREATURES[y.de]?.tier ?? 0));
+  return offres;
 }
