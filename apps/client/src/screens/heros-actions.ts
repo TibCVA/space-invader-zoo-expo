@@ -287,17 +287,23 @@ export interface PileDesignee {
 /**
  * Ce qu'un second clic va produire.
  *
- * Trois gestes seulement, et **aucun fractionnement** : `count` reste omis, la
- * pile part entière. C'est ce qui permet de ne jamais rencontrer le seul refus
- * du moteur qu'un joueur ne comprendrait pas — « on ne peut pas fractionner
- * une pile sur un emplacement occupé ».
+ * Quatre gestes. Les trois premiers emportent la pile ENTIÈRE (`count` omis,
+ * comme avant) ; le quatrième la SCINDE — c'est la découpe de pile de HMM3,
+ * le geste quotidien des garnisons et des chaînes de héros, absent jusqu'ici.
+ *
+ * La découpe n'est proposée que là où le moteur l'accepte : sur un
+ * emplacement vide, ou sur une pile de la même créature. Poser une partie de
+ * pile sur une créature DIFFÉRENTE est refusé ICI, avec la phrase du joueur —
+ * « on ne peut pas fractionner une pile sur un emplacement occupé » est le
+ * seul refus du moteur qu'il ne pourrait pas anticiper, et il ne doit jamais
+ * le rencontrer.
  */
 export type Echange =
   | { readonly quoi: 'annule' }
   | { readonly quoi: 'refus'; readonly raison: string }
   | {
       readonly quoi: 'commande';
-      readonly geste: 'deplace' | 'fusionne' | 'echange';
+      readonly geste: 'deplace' | 'fusionne' | 'echange' | 'scinde';
       /** phrase à l'infinitif pour le survol et le lecteur d'écran */
       readonly libelle: string;
       /** vrai si le héros se retrouverait sans une seule troupe */
@@ -316,11 +322,30 @@ function nomCreature(stack: ArmyStack): string {
   return def ? (stack.count > 1 ? def.namePlural : def.name) : stack.creature;
 }
 
-/** Décide du geste, sans rien muter. */
+/**
+ * Ramène la saisie du joueur à un effectif jouable : de 1 à l'effectif de la
+ * pile. Une saisie vide, absurde ou hors bornes vaut « tout » — le geste
+ * d'avant la découpe, jamais un refus pour une faute de frappe.
+ */
+export function bornerEmport(effectif: number, saisie: number | undefined): number {
+  if (saisie === undefined || !Number.isFinite(saisie)) return effectif;
+  const n = Math.trunc(saisie);
+  if (n < 1 || n > effectif) return effectif;
+  return n;
+}
+
+/**
+ * Décide du geste, sans rien muter.
+ *
+ * `saisie` est l'effectif que le joueur veut emporter (le champ « Emporter »
+ * de la fiche). Absent ou égal à l'effectif complet, la pile part entière et
+ * la commande reste EXACTEMENT celle d'avant — `count` omis.
+ */
 export function echangeDePiles(
   rangees: readonly RangeeDArmee[],
   depart: PileDesignee,
   arrivee: PileDesignee,
+  saisie?: number,
 ): Echange {
   if (depart.ref.kind === arrivee.ref.kind && depart.ref.uid === arrivee.ref.uid) {
     if (depart.slot === arrivee.slot) return { quoi: 'annule' };
@@ -332,12 +357,26 @@ export function echangeDePiles(
   }
   if (!source) return { quoi: 'refus', raison: 'L’emplacement de départ est vide.' };
 
+  const emport = bornerEmport(source.count, saisie);
+  const partiel = emport < source.count;
+
+  /* Une partie de pile ne se pose que sur du vide ou sur la même créature :
+     le refus est dit ICI, dans les mots du joueur, jamais par le moteur. */
+  if (partiel && cible && cible.creature !== source.creature) {
+    return {
+      quoi: 'refus',
+      raison: `Une partie des ${nomCreature(source)} ne peut pas prendre la place ` +
+        `des ${nomCreature(cible)} : échangez les piles entières, ou visez un emplacement libre.`,
+    };
+  }
+
   const commande: Command = {
     type: 'SwapArmy',
     a: depart.ref,
     b: arrivee.ref,
     slotA: depart.slot,
     slotB: arrivee.slot,
+    ...(partiel ? { count: emport } : {}),
   };
 
   /*
@@ -353,29 +392,47 @@ export function echangeDePiles(
   const sortDuHeros =
     depart.ref.kind === 'hero' &&
     !(arrivee.ref.kind === 'hero' && arrivee.ref.uid === depart.ref.uid);
-  const perdSaPile = !cible || cible.creature === source.creature;
+  /* Une découpe laisse toujours le reste de la pile derrière elle : elle ne
+     vide jamais le héros, quel que soit le nombre de ses piles. */
+  const perdSaPile = (!cible || cible.creature === source.creature) && !partiel;
   const videLeHeros =
     sortDuHeros &&
     perdSaPile &&
     (rangeeDepart?.piles.filter((s) => s !== null).length ?? 0) <= 1;
 
   if (!cible) {
-    return {
-      quoi: 'commande',
-      geste: 'deplace',
-      libelle: `Déplacer ${source.count} ${nomCreature(source)}`,
-      videLeHeros,
-      commande,
-    };
+    return partiel
+      ? {
+          quoi: 'commande',
+          geste: 'scinde',
+          libelle: `Détacher ${emport} des ${source.count} ${nomCreature(source)}`,
+          videLeHeros,
+          commande,
+        }
+      : {
+          quoi: 'commande',
+          geste: 'deplace',
+          libelle: `Déplacer ${source.count} ${nomCreature(source)}`,
+          videLeHeros,
+          commande,
+        };
   }
   if (cible.creature === source.creature) {
-    return {
-      quoi: 'commande',
-      geste: 'fusionne',
-      libelle: `Réunir ${source.count} et ${cible.count} ${nomCreature(cible)}`,
-      videLeHeros,
-      commande,
-    };
+    return partiel
+      ? {
+          quoi: 'commande',
+          geste: 'scinde',
+          libelle: `Envoyer ${emport} ${nomCreature(source)} rejoindre les ${cible.count} autres`,
+          videLeHeros,
+          commande,
+        }
+      : {
+          quoi: 'commande',
+          geste: 'fusionne',
+          libelle: `Réunir ${source.count} et ${cible.count} ${nomCreature(cible)}`,
+          videLeHeros,
+          commande,
+        };
   }
   /* `videLeHeros` et non `false` : la valeur est calculée une seule fois pour
      les trois gestes. Un `false` écrit à la main ici serait juste — un échange

@@ -69,6 +69,7 @@ import {
   commandeDeRetrait,
   commandeDequipement,
   delogePar,
+  bornerEmport,
   echangeDePiles,
   mainSurLeHeros,
   rangeesDArmee,
@@ -542,11 +543,12 @@ function Grimoire({ hero }: { hero: HeroInstance }): ReactElement {
  * confond avec le défilement de la page, et la fiche est plus haute qu'un
  * écran.
  *
- * Une pile part **entière** : `count` n'est jamais envoyé. C'est une limite
- * assumée (on ne peut pas scinder une pile depuis cet écran), et c'est aussi
- * ce qui met le joueur à l'abri du seul refus du moteur qu'il ne pourrait pas
- * anticiper — « on ne peut pas fractionner une pile sur un emplacement
- * occupé ».
+ * Une pile part entière PAR DÉFAUT — et le champ « Emporter » la SCINDE :
+ * c'est la découpe de HMM3, le geste quotidien des garnisons et des chaînes
+ * de héros. Le champ n'apparaît que quand la pile retenue compte plus d'une
+ * créature ; la logique (`heros-actions.ts`) refuse d'elle-même, avec la
+ * phrase du joueur, la seule pose que le moteur n'accepterait pas — une
+ * partie de pile sur une créature différente.
  *
  * Le seul geste qu'on fait confirmer est celui qui laisse le héros sans une
  * seule troupe. Il se défait d'un clic, donc il n'est pas irréversible ; mais
@@ -563,22 +565,54 @@ function Armees({
   main: MainSurLeHeros;
 }): ReactElement {
   const [retenue, setRetenue] = useState<PileDesignee | null>(null);
+  /* Le champ « Emporter » — en texte : un champ nombre vidé au doigt rend
+     NaN, et `bornerEmport` traduit toute saisie douteuse en « tout ». */
+  const [emport, setEmport] = useState('');
+  /* Le dernier refus, affiché sous la grille : un geste qui s'évanouit sans un
+     mot se relit comme une panne. */
+  const [refus, setRefus] = useState<string | null>(null);
   const [aConfirmer, setAConfirmer] = useState<{ libelle: string; cible: PileDesignee } | null>(
     null,
   );
   const rangees = rangeesDArmee(state, hero);
 
+  /** La pile actuellement retenue, relue dans l'état courant. */
+  function pileRetenue(): { count: number } | null {
+    if (!retenue) return null;
+    const rangee = rangees.find(
+      (r) => r.ref.kind === retenue.ref.kind && r.ref.uid === retenue.ref.uid,
+    );
+    return rangee?.piles[retenue.slot] ?? null;
+  }
+
+  function saisieEmport(): number | undefined {
+    if (emport.trim() === '') return undefined;
+    return Number(emport);
+  }
+
   function oublier(): void {
     setRetenue(null);
+    setEmport('');
+    setRefus(null);
     setAConfirmer(null);
   }
 
   function designer(cible: PileDesignee): void {
     if (!retenue) {
       setRetenue(cible);
+      const rangee = rangees.find(
+        (r) => r.ref.kind === cible.ref.kind && r.ref.uid === cible.ref.uid,
+      );
+      const pile = rangee?.piles[cible.slot];
+      setEmport(pile ? String(pile.count) : '');
       return;
     }
-    const geste = echangeDePiles(rangees, retenue, cible);
+    const geste = echangeDePiles(rangees, retenue, cible, saisieEmport());
+    if (geste.quoi === 'refus') {
+      setRefus(geste.raison);
+      return;
+    }
+    setRefus(null);
     if (geste.quoi !== 'commande') {
       oublier();
       return;
@@ -596,7 +630,7 @@ function Armees({
      d'ordinateur a pu changer l'état sous nos pieds. */
   function confirmer(): void {
     if (!retenue || !aConfirmer) return;
-    const geste = echangeDePiles(rangeesDArmee(state, hero), retenue, aConfirmer.cible);
+    const geste = echangeDePiles(rangeesDArmee(state, hero), retenue, aConfirmer.cible, saisieEmport());
     oublier();
     if (geste.quoi === 'commande') dispatch(geste.commande);
   }
@@ -683,9 +717,47 @@ function Armees({
         <p className="fiche__aide">
           <span className="fiche__aide-texte">
             {retenue === null
-              ? 'Touchez une pile, puis sa destination : les piles s’échangent, se réunissent ou changent d’emplacement.'
+              ? 'Touchez une pile, puis sa destination : les piles s’échangent, se réunissent, se scindent ou changent d’emplacement.'
               : `Emplacement ${retenue.slot + 1} retenu — touchez maintenant sa destination.`}
           </span>
+          {(() => {
+            /* LA DÉCOUPE DE PILE — le geste quotidien de HMM3 qui manquait.
+               Le champ ne se montre que quand il y a quelque chose à couper :
+               une pile retenue de plus d'une créature. Réglé à l'effectif
+               complet par défaut, la pile part entière comme avant ; toute
+               autre valeur détache l'emport sur la destination touchée. */
+            const pile = pileRetenue();
+            if (!retenue || !pile || pile.count < 2) return null;
+            const borne = bornerEmport(pile.count, saisieEmport());
+            return (
+              <span className="fiche__emport">
+                <label className="fiche__emport-champ">
+                  Emporter
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    className="fiche__nombre jeu-tabulaire"
+                    value={emport}
+                    aria-label={`Nombre de créatures à emporter, sur ${pile.count}`}
+                    onChange={(e): void => setEmport(e.target.value)}
+                  />
+                  <span className="fiche__emport-sur jeu-tabulaire">/ {nombre(pile.count)}</span>
+                </label>
+                <Button
+                  size="compact"
+                  variant="fantome"
+                  onClick={(): void => setEmport(String(Math.max(1, Math.floor(pile.count / 2))))}
+                >
+                  Moitié
+                </Button>
+                {borne < pile.count ? (
+                  <span className="fiche__emport-note">
+                    en détache {nombre(borne)}, en laisse {nombre(pile.count - borne)}
+                  </span>
+                ) : null}
+              </span>
+            );
+          })()}
           {retenue !== null ? (
             <Button size="compact" variant="fantome" onClick={oublier}>
               Reposer
@@ -695,6 +767,7 @@ function Armees({
       ) : (
         <p className="ecran__note">{main.raison}</p>
       )}
+      {refus ? <p className="fiche__refus" role="alert">{refus}</p> : null}
 
       {aConfirmer ? (
         <ConfirmBar

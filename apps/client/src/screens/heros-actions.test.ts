@@ -42,6 +42,7 @@ import {
   echangeDePiles,
   mainSurLeHeros,
   rangeesDArmee,
+  bornerEmport,
 } from './heros-actions.js';
 
 let world: WorldMap;
@@ -507,5 +508,145 @@ describe('l’échange de piles', () => {
     expect(e.quoi).toBe('commande');
     if (e.quoi !== 'commande') return;
     expect(e.videLeHeros).toBe(false);
+  });
+});
+
+/**
+ * LA DÉCOUPE DE PILE — le geste quotidien de HMM3 qui manquait.
+ *
+ * Mesuré avant le correctif : `SwapArmy` était émis SANS `count`
+ * (heros-actions.ts:336), donc aucune découpe possible depuis l'interface,
+ * alors que le moteur la gère depuis toujours (apply.ts:531-548 : fusion
+ * partielle, pose partielle sur du vide, refus du fractionnement sur une
+ * créature différente). Sans découpe : pas de garnison qu'on garnit sans se
+ * vider, pas de chair à canon d'une créature, pas de chaîne de héros.
+ *
+ * Chaque bloc se termine par un `applyCommand` réel : la garde tient le
+ * CONTRAT entre ce que l'écran propose et ce que le moteur fait.
+ */
+describe('découpe de pile', () => {
+  it('bornerEmport ramène toute saisie douteuse à « tout »', () => {
+    expect(bornerEmport(12, undefined)).toBe(12);
+    expect(bornerEmport(12, Number.NaN)).toBe(12);
+    expect(bornerEmport(12, 0)).toBe(12);
+    expect(bornerEmport(12, -3)).toBe(12);
+    expect(bornerEmport(12, 99)).toBe(12);
+    expect(bornerEmport(12, 12)).toBe(12);
+    expect(bornerEmport(12, 5)).toBe(5);
+    expect(bornerEmport(12, 5.9)).toBe(5);
+  });
+
+  it('détache une partie sur un emplacement libre, et le moteur scinde', () => {
+    const { jeu, heros } = partie();
+    const creature = (heros.army[0] as ArmyStack).creature;
+    heros.army[0] = { creature, count: 10 };
+    const vide = heros.army.findIndex((s) => s === null);
+    const r = rangeesDArmee(jeu, heros);
+
+    const e = echangeDePiles(r, { ref: r[0].ref, slot: 0 }, { ref: r[0].ref, slot: vide }, 3);
+    expect(e.quoi).toBe('commande');
+    if (e.quoi !== 'commande') return;
+    expect(e.geste).toBe('scinde');
+    expect(e.libelle).toContain('Détacher 3');
+    expect('count' in e.commande && e.commande.count).toBe(3);
+
+    const res = applyCommand(jeu, e.commande, world);
+    expect(res.ok, res.error).toBe(true);
+    const apres = res.state.heroes[heros.uid];
+    expect(apres.army[0]).toEqual({ creature, count: 7 });
+    expect(apres.army[vide]).toEqual({ creature, count: 3 });
+  });
+
+  it('envoie une partie rejoindre la même créature, et le moteur additionne', () => {
+    const { jeu, heros } = partie();
+    const creature = (heros.army[0] as ArmyStack).creature;
+    heros.army[0] = { creature, count: 10 };
+    heros.army[2] = { creature, count: 4 };
+    const r = rangeesDArmee(jeu, heros);
+
+    const e = echangeDePiles(r, { ref: r[0].ref, slot: 0 }, { ref: r[0].ref, slot: 2 }, 6);
+    expect(e.quoi).toBe('commande');
+    if (e.quoi !== 'commande') return;
+    expect(e.geste).toBe('scinde');
+
+    const res = applyCommand(jeu, e.commande, world);
+    expect(res.ok, res.error).toBe(true);
+    const apres = res.state.heroes[heros.uid];
+    expect(apres.army[0]).toEqual({ creature, count: 4 });
+    expect(apres.army[2]).toEqual({ creature, count: 10 });
+  });
+
+  it('refuse AVANT le moteur de poser une partie sur une créature différente', () => {
+    const { jeu, heros } = partie();
+    const a = heros.army[0] as ArmyStack;
+    heros.army[0] = { creature: a.creature, count: 8 };
+    const b = heros.army[1] as ArmyStack;
+    expect(b.creature).not.toBe(a.creature);
+    const r = rangeesDArmee(jeu, heros);
+
+    const e = echangeDePiles(r, { ref: r[0].ref, slot: 0 }, { ref: r[0].ref, slot: 1 }, 3);
+    /* Le refus est dit ICI, dans les mots du joueur — jamais laissé au
+       moteur, dont la phrase supposerait qu'on sait ce qu'est « fractionner ». */
+    expect(e.quoi).toBe('refus');
+    if (e.quoi !== 'refus') return;
+    expect(e.raison).toContain('emplacement libre');
+  });
+
+  it('une saisie à l’effectif complet rend EXACTEMENT la commande d’avant', () => {
+    const { jeu, heros } = partie();
+    const vide = heros.army.findIndex((s) => s === null);
+    const r = rangeesDArmee(jeu, heros);
+    const pleine = echangeDePiles(r, { ref: r[0].ref, slot: 0 }, { ref: r[0].ref, slot: vide });
+    const saisie = echangeDePiles(
+      r,
+      { ref: r[0].ref, slot: 0 },
+      { ref: r[0].ref, slot: vide },
+      (heros.army[0] as ArmyStack).count,
+    );
+    expect(pleine.quoi).toBe('commande');
+    expect(saisie.quoi).toBe('commande');
+    if (pleine.quoi !== 'commande' || saisie.quoi !== 'commande') return;
+    /* `count` OMIS dans les deux cas : le chemin d'avant la découpe est
+       intouché, et les trente-huit gardes qui le tiennent gardent leur objet. */
+    expect('count' in saisie.commande).toBe(false);
+    expect(saisie.commande).toEqual(pleine.commande);
+    expect(saisie.geste).toBe('deplace');
+  });
+
+  it('une découpe ne vide JAMAIS le héros', () => {
+    const { jeu, heros } = partie();
+    /* Le pire cas : une seule pile, qu'on détache vers la garnison. */
+    const creature = (heros.army[0] as ArmyStack).creature;
+    for (let i = 0; i < heros.army.length; i += 1) heros.army[i] = null;
+    heros.army[0] = { creature, count: 6 };
+    const cite = Object.values(jeu.towns).find((t) => t.owner === heros.owner);
+    expect(cite).toBeDefined();
+    if (!cite) return;
+    heros.at = { ...cite.at };
+    heros.inTown = cite.uid;
+    const r = rangeesDArmee(jeu, heros);
+    expect(r.length).toBe(2);
+    const videGarnison = cite.garrison.findIndex((s) => s === null);
+
+    const partielle = echangeDePiles(
+      r,
+      { ref: r[0].ref, slot: 0 },
+      { ref: r[1].ref, slot: videGarnison },
+      2,
+    );
+    expect(partielle.quoi).toBe('commande');
+    if (partielle.quoi !== 'commande') return;
+    expect(partielle.videLeHeros).toBe(false);
+
+    /* La même pile, ENTIÈRE, vide bel et bien le héros : la confirmation
+       reste demandée là où elle protège quelque chose. */
+    const entiere = echangeDePiles(
+      r,
+      { ref: r[0].ref, slot: 0 },
+      { ref: r[1].ref, slot: videGarnison },
+    );
+    expect(entiere.quoi).toBe('commande');
+    if (entiere.quoi !== 'commande') return;
+    expect(entiere.videLeHeros).toBe(true);
   });
 });

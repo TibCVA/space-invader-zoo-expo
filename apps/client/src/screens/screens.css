@@ -1120,3 +1120,60 @@
     padding-block: var(--hmm-space-2);
   }
 }
+
+/* ─────────────────── La découpe de pile (fiche de héros) ─────────────────── */
+
+/* Le champ « Emporter » vit dans la ligne d'aide, entre le texte et
+   « Reposer ». Il n'apparaît qu'une pile retenue de plus d'une créature :
+   la ligne doit donc savoir replier sans pousser le bouton hors écran. */
+.fiche__aide {
+  flex-wrap: wrap;
+}
+
+.fiche__emport {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hmm-space-2);
+  flex-wrap: wrap;
+}
+
+.fiche__emport-champ {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hmm-space-2);
+  font-size: var(--hmm-fs-petit);
+}
+
+/* Même gabarit que le compteur de recrues : corrigeable au clavier ET au
+   doigt — la cible garde la hauteur tactile, la largeur tient quatre
+   chiffres, ce qu'aucune pile ne dépasse. */
+.fiche__nombre {
+  width: 5ch;
+  min-height: var(--hmm-touch-min);
+  padding: 0 var(--hmm-space-2);
+  text-align: right;
+  border: var(--hmm-filet-fin) solid var(--hmm-separateur);
+  border-radius: var(--hmm-radius-sm);
+  background: rgba(255, 253, 246, 0.7);
+  color: var(--hmm-encre);
+  font: inherit;
+}
+
+.fiche__emport-sur {
+  font-size: var(--hmm-fs-petit);
+  opacity: 0.8;
+}
+
+.fiche__emport-note {
+  font-size: var(--hmm-fs-micro);
+  font-style: italic;
+  opacity: 0.75;
+}
+
+/* Un refus qui s'évanouirait sans un mot se relirait comme une panne : il
+   s'écrit sous la grille, dans les mots du joueur, en ton d'avertissement. */
+.fiche__refus {
+  margin: var(--hmm-space-2) 0 0;
+  font-size: var(--hmm-fs-petit);
+  color: #8c3b3b;
+}
