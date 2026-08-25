@@ -120,6 +120,7 @@ export {
   armySlotsFree,
   countInTown,
   marketBp,
+  spellCostFor,
   tradeOutcome,
   weeklyGrowth,
   townGrowthBp,

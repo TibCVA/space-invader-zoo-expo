@@ -31,6 +31,7 @@ import { bootstrapEngine } from '@auvergne/game';
 import { buildWorld } from '@auvergne/map';
 import { applyCommand, createGame, grantXp, skillRank } from '@auvergne/engine';
 import type { ArmyStack, GameState, HeroInstance, WorldMap } from '@auvergne/engine';
+import { HEROES, SPELLS } from '@auvergne/content';
 import { setupDemo, GRAINE_DEMO } from '../state/demo.js';
 import {
   besaceDuHeros,
@@ -43,8 +44,10 @@ import {
   mainSurLeHeros,
   rangeesDArmee,
   bornerEmport,
+  commandeDeSort,
   herosDisponibles,
   prochainHeros,
+  sortsDAventure,
 } from './heros-actions.js';
 
 let world: WorldMap;
@@ -698,5 +701,97 @@ describe('le héros suivant', () => {
   it('un courant inconnu repart du premier — jamais d’index perdu', () => {
     const { jeu, heros } = partie();
     expect(prochainHeros(jeu, heros.owner, 'H_disparu')).toBe(heros.uid);
+  });
+});
+
+/**
+ * LE LIVRE DE SORTS D'AVENTURE — `CastAdventureSpell` n'était émise nulle
+ * part : le grimoire montrait sans lancer, et un héros au mana plein
+ * traversait la partie sans l'ouvrir.
+ *
+ * Le prix affiché doit être le prix DÉBITÉ (remise de spécialité comprise),
+ * et un sort à cible requise ne doit jamais partir sans destination : le
+ * moteur encaisse le mana AVANT de s'apercevoir qu'il n'en a pas
+ * (`spells-adventure.ts:378`) — vingt-trois points perdus pour un
+ * avertissement.
+ */
+describe('le livre de sorts d’aventure', () => {
+  function herosSachant(): { jeu: GameState; heros: HeroInstance } {
+    const { jeu, heros } = partie();
+    /* Les cinq sorts d'aventure du contenu, appris d'un bloc. */
+    for (const [id, def] of Object.entries(SPELLS)) {
+      if (def.scope !== 'combat' && !heros.spells.includes(id as never)) {
+        heros.spells.push(id as never);
+      }
+    }
+    heros.mana = 99;
+    heros.manaMax = 99;
+    return { jeu, heros };
+  }
+
+  it('liste les sorts d’aventure, jamais ceux de bataille', () => {
+    const { heros } = herosSachant();
+    const offres = sortsDAventure(heros);
+    expect(offres.length).toBeGreaterThan(2);
+    for (const o of offres) expect(SPELLS[o.id].scope).not.toBe('combat');
+  });
+
+  it('le prix affiché est le prix débité — remise de spécialiste comprise', () => {
+    const { jeu, heros } = herosSachant();
+    /* Un héros SPÉCIALISTE d'une école : sa remise (85 %) doit se lire dans
+       l'offre ET se débiter au lancer. Sans spécialiste, cette garde serait
+       incapable de voir une recopie du prix de base — c'est ce que sa
+       première épreuve a montré. */
+    const specialiste = Object.values(HEROES).find((h) => h.specialty.kind === 'school');
+    expect(specialiste).toBeDefined();
+    if (!specialiste) return;
+    heros.def = specialiste.id;
+    const ecole = (specialiste.specialty as { school: string }).school;
+
+    const offres = sortsDAventure(heros);
+    const remise = offres.find(
+      (o) => SPELLS[o.id].school === ecole && o.cible === 'jamais',
+    );
+    expect(remise, `aucun sort d'aventure de l'école ${ecole}`).toBeDefined();
+    if (!remise) return;
+    expect(remise.cout).toBeLessThan(SPELLS[remise.id].cost);
+
+    const manaAvant = heros.mana;
+    const res = applyCommand(jeu, commandeDeSort(heros, remise, null), world);
+    expect(res.ok, res.error).toBe(true);
+    expect(manaAvant - res.state.heroes[heros.uid].mana).toBe(remise.cout);
+  });
+
+  it('un télétransport est marqué « cible requise » — le bouton saura se taire', () => {
+    const { heros } = herosSachant();
+    const teleporte = sortsDAventure(heros).filter((o) => o.cible === 'requise');
+    expect(teleporte.length).toBeGreaterThan(0);
+    for (const o of teleporte) {
+      expect(SPELLS[o.id].effects.some((e) => e.kind === 'teleport')).toBe(true);
+    }
+  });
+
+  it('la commande ne joint la cible que quand elle sert', () => {
+    const { heros } = herosSachant();
+    const offres = sortsDAventure(heros);
+    const simple = offres.find((o) => o.cible === 'jamais');
+    const vise = offres.find((o) => o.cible !== 'jamais');
+    expect(simple && vise).toBeTruthy();
+    if (!simple || !vise) return;
+    const casse = { col: 4, row: 5 };
+    expect('target' in commandeDeSort(heros, simple, casse)).toBe(false);
+    expect('target' in commandeDeSort(heros, vise, casse)).toBe(true);
+    expect('target' in commandeDeSort(heros, vise, null)).toBe(false);
+  });
+
+  it('mana à sec : l’offre le dit, et le moteur refuse le même lancer', () => {
+    const { jeu, heros } = herosSachant();
+    heros.mana = 0;
+    const offre = sortsDAventure(heros).find((o) => o.cible === 'jamais');
+    expect(offre).toBeDefined();
+    if (!offre) return;
+    expect(offre.payable).toBe(false);
+    const res = applyCommand(jeu, commandeDeSort(heros, offre, null), world);
+    expect(res.ok).toBe(false);
   });
 });

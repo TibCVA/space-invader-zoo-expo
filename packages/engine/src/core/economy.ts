@@ -623,3 +623,31 @@ export function stablesBonus(town: TownState): number {
   }
   return bonus;
 }
+
+
+/* ── Coût d'un sort pour UN héros ───────────────────────────────────────── */
+
+/**
+ * Le coût en mana d'un sort, remise de spécialité comprise.
+ *
+ * Extrait d'`apply.ts` où la règle vivait en ligne : le livre de sorts de la
+ * fiche doit afficher LE prix qui sera payé, et une règle recopiée finirait
+ * par mentir — c'est le même principe que `tradeOutcome` pour le marché.
+ * Un héros spécialiste d'un sort ou d'une école paie sa part (`costBp`),
+ * jamais moins d'un point.
+ */
+export function spellCostFor(
+  hero: { def: string },
+  spell: { id: string; school: string; cost: number },
+): number {
+  let cost = spell.cost;
+  const hdef = content().HEROES[hero.def];
+  if (hdef) {
+    if (hdef.specialty.kind === 'spell' && hdef.specialty.spell === spell.id) {
+      cost = Math.max(1, Math.trunc((cost * hdef.specialty.costBp) / 10000));
+    } else if (hdef.specialty.kind === 'school' && hdef.specialty.school === spell.school) {
+      cost = Math.max(1, Math.trunc((cost * hdef.specialty.costBp) / 10000));
+    }
+  }
+  return cost;
+}

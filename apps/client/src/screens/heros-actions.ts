@@ -36,6 +36,7 @@
 
 import {
   ARTIFACT_RARITY_LABELS,
+  spellCostFor,
   ARTIFACT_SLOT_LABELS,
   PRIMARY_LABELS,
   artifactDefOf,
@@ -57,11 +58,13 @@ import type {
   GameState,
   HeroInstance,
   HeroUid,
+  MapCoord,
   PlayerId,
+  SpellId,
   SkillId,
   SkillRank,
 } from '@auvergne/engine';
-import { CREATURES } from '@auvergne/content';
+import { CREATURES, SPELLS } from '@auvergne/content';
 
 /* ─────────────────────── Qui a le droit d'agir, et pourquoi ─────────────── */
 
@@ -483,4 +486,93 @@ export function prochainHeros(
   if (disponibles.length === 0) return null;
   const i = courant === null ? -1 : disponibles.indexOf(courant as HeroUid);
   return disponibles[(i + 1) % disponibles.length];
+}
+
+/* ─────────────────────── Le livre de sorts d'aventure ────────────────────── */
+
+/** Un sort d'aventure tel que la fiche le propose. */
+export interface OffreSort {
+  readonly id: SpellId;
+  readonly nom: string;
+  readonly ecole: string;
+  readonly niveau: number;
+  /** le prix que CE héros paiera — remise de spécialité comprise */
+  readonly cout: number;
+  readonly description: string;
+  /**
+   * Ce que la cible exige :
+   *  - 'jamais'  : se lance tel quel ;
+   *  - 'bonus'   : se lance tel quel, une case visée l'améliore (gué) ;
+   *  - 'requise' : SANS cible le moteur encaisse le mana et n'accorde qu'un
+   *    avertissement (`applyTeleport`) — le bouton ne doit jamais l'offrir.
+   */
+  readonly cible: 'jamais' | 'bonus' | 'requise';
+  /** vrai si le mana du héros couvre le coût */
+  readonly payable: boolean;
+}
+
+const ECOLES_SORTS: Readonly<Record<string, string>> = {
+  braises: 'Braises',
+  sources: 'Sources',
+  brumes: 'Brumes',
+  racines: 'Racines',
+};
+
+/**
+ * Ce que la cible d'un sort d'aventure exige, lu dans ses EFFETS — la même
+ * source que `castAdventureSpell` : un télétransport (`teleport`) refuse sans
+ * destination, un gué (`movement` de l'école des sources) en profite, tout le
+ * reste vise le héros lui-même.
+ */
+function exigenceDeCible(def: {
+  effects: readonly { kind: string }[];
+  school: string;
+}): 'jamais' | 'bonus' | 'requise' {
+  if (def.effects.some((e) => e.kind === 'teleport')) return 'requise';
+  if (def.effects.some((e) => e.kind === 'movement') && def.school === 'sources') return 'bonus';
+  return 'jamais';
+}
+
+/**
+ * LES SORTS D'AVENTURE DU HÉROS — `CastAdventureSpell` n'était émise nulle
+ * part : le livre de sorts n'existait pas à l'écran, et un héros au mana
+ * plein traversait la partie sans jamais l'ouvrir. Dans HMM3, Gué, Vision et
+ * Portail de ville rythment toute la couche d'exploration.
+ *
+ * On ne recalcule AUCUN prix : `spellCostFor` est la fonction même
+ * qu'`applyCommand` débite — ce qui s'affiche est ce qui se paie.
+ */
+export function sortsDAventure(hero: HeroInstance): OffreSort[] {
+  const offres: OffreSort[] = [];
+  for (const id of hero.spells) {
+    const def = SPELLS[id];
+    if (!def || def.scope === 'combat') continue;
+    const cout = spellCostFor(hero, def);
+    offres.push({
+      id: def.id,
+      nom: def.name,
+      ecole: ECOLES_SORTS[def.school] ?? def.school,
+      niveau: def.level,
+      cout,
+      description: def.description,
+      cible: exigenceDeCible(def),
+      payable: hero.mana >= cout,
+    });
+  }
+  offres.sort((a, b) => a.niveau - b.niveau || a.cout - b.cout);
+  return offres;
+}
+
+/** La commande d'un lancer — la cible n'est jointe que si elle est utile. */
+export function commandeDeSort(
+  hero: HeroInstance,
+  sort: OffreSort,
+  cible: MapCoord | null,
+): Command {
+  return {
+    type: 'CastAdventureSpell',
+    hero: hero.uid,
+    spell: sort.id,
+    ...(cible && sort.cible !== 'jamais' ? { target: cible } : {}),
+  };
 }

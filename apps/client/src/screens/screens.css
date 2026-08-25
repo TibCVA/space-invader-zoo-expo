@@ -1229,3 +1229,19 @@
 .jeu-racine--avec-pouce .jeu-heros-suivant {
   bottom: calc(var(--hmm-space-4) + var(--hmm-reserve-pouce) + 56px + 56px);
 }
+
+/* Le lancer d'un sort d'aventure, dans la ligne du grimoire : le bouton et,
+   quand il est grisé, la raison — jamais un bouton muet. */
+.fiche__lancer {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hmm-space-2);
+  margin-top: var(--hmm-space-1);
+  flex-wrap: wrap;
+}
+
+.fiche__lancer-note {
+  font-size: var(--hmm-fs-micro);
+  font-style: italic;
+  opacity: 0.75;
+}

@@ -70,7 +70,9 @@ import {
   commandeDequipement,
   delogePar,
   bornerEmport,
+  commandeDeSort,
   echangeDePiles,
+  sortsDAventure,
   mainSurLeHeros,
   rangeesDArmee,
 } from './heros-actions.js';
@@ -480,7 +482,27 @@ function Competences({ hero }: { hero: HeroInstance }): ReactElement {
   );
 }
 
-function Grimoire({ hero }: { hero: HeroInstance }): ReactElement {
+/**
+ * LE GRIMOIRE LANCE, ENFIN. `CastAdventureSpell` n'était émise nulle part : le
+ * grimoire montrait les sorts sans jamais permettre d'en lancer un — un héros
+ * au mana plein traversait la partie sans l'ouvrir. Dans HMM3, Gué, Vision et
+ * le Portail rythment toute la couche d'exploration.
+ *
+ * Le prix affiché est celui que CE héros paiera (`spellCostFor`, la fonction
+ * même que le moteur débite — remise de spécialité comprise). Un sort à cible
+ * REQUISE n'offre jamais son bouton sans une case choisie sur la carte : le
+ * moteur encaisse le mana avant de s'apercevoir qu'il n'a pas de destination.
+ */
+function Grimoire({
+  hero,
+  main,
+  cibleCase,
+}: {
+  hero: HeroInstance;
+  main: MainSurLeHeros;
+  cibleCase: { col: number; row: number } | null;
+}): ReactElement {
+  const aventure = new Map(sortsDAventure(hero).map((o) => [o.id, o]));
   const parEcole = new Map<SpellSchool, string[]>();
   for (const id of hero.spells) {
     const def = SPELLS[id];
@@ -520,8 +542,41 @@ function Grimoire({ hero }: { hero: HeroInstance }): ReactElement {
                       <span className="fiche__ligne-corps">
                         <span className="fiche__ligne-titre">{def?.name ?? id}</span>
                         <span className="fiche__ligne-detail">
-                          Niveau {def?.level ?? '?'} · {def?.cost ?? '?'} de mana
+                          Niveau {def?.level ?? '?'} ·{' '}
+                          {aventure.get(id)?.cout ?? def?.cost ?? '?'} de mana
+                          {def?.scope === 'combat' ? ' · en bataille' : ''}
                         </span>
+                        {(() => {
+                          const offre = aventure.get(id);
+                          if (!offre || !main.ouverte) return null;
+                          const sansCible = offre.cible === 'requise' && !cibleCase;
+                          const bloque = !offre.payable || sansCible;
+                          return (
+                            <span className="fiche__lancer">
+                              <Button
+                                size="compact"
+                                variant={bloque ? 'fantome' : 'principal'}
+                                disabled={bloque}
+                                onClick={(): void => {
+                                  dispatch(commandeDeSort(hero, offre, cibleCase));
+                                }}
+                              >
+                                {offre.cible !== 'jamais' && cibleCase
+                                  ? `Lancer vers (${cibleCase.col}, ${cibleCase.row})`
+                                  : 'Lancer'}
+                              </Button>
+                              {sansCible ? (
+                                <span className="fiche__lancer-note">
+                                  choisissez d’abord la case visée sur la carte
+                                </span>
+                              ) : !offre.payable ? (
+                                <span className="fiche__lancer-note">
+                                  mana insuffisant ({hero.mana}/{offre.cout})
+                                </span>
+                              ) : null}
+                            </span>
+                          );
+                        })()}
                       </span>
                     </div>
                   );
@@ -837,7 +892,11 @@ export function FicheHeros({ state, uid }: FicheHerosProps): ReactElement {
           <Armees state={state} hero={hero} main={main} />
           <Equipement hero={hero} main={main} />
           <Competences hero={hero} />
-          <Grimoire hero={hero} />
+          <Grimoire
+            hero={hero}
+            main={main}
+            cibleCase={app.selection?.kind === 'case' ? app.selection.at : null}
+          />
         </div>
       </div>
     </Page>

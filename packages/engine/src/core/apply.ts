@@ -46,6 +46,7 @@ import {
   canUpgrade,
   applyUpgrade,
   recruitCost,
+  spellCostFor,
   tradeOutcome,
 } from './economy.js';
 import { computePath, bumpPathRevision, invalidateWorldCache } from './pathfinding.js';
@@ -632,15 +633,7 @@ export function applyCommand(state: GameState, cmd: Command, world: WorldMap): C
       if (def.scope === 'combat') {
         return refuse(state, `${def.name} ne se lance qu’en bataille.`);
       }
-      let cost = def.cost;
-      const hdef = content().HEROES[hero.def];
-      if (hdef) {
-        if (hdef.specialty.kind === 'spell' && hdef.specialty.spell === cmd.spell) {
-          cost = Math.max(1, Math.trunc((cost * hdef.specialty.costBp) / 10000));
-        } else if (hdef.specialty.kind === 'school' && hdef.specialty.school === def.school) {
-          cost = Math.max(1, Math.trunc((cost * hdef.specialty.costBp) / 10000));
-        }
-      }
+      const cost = spellCostFor(hero, def);
       if (hero.mana < cost) {
         return refuse(state, `Mana insuffisant : ${def.name} coûte ${cost} points.`);
       }
