@@ -10,12 +10,12 @@
  * Aucun de ces panneaux ne calcule une règle : ils lisent l'état et naviguent.
  */
 
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { stackPower } from '@auvergne/engine';
 import { CREATURES, HEROES } from '@auvergne/content';
-import { Badge, Button, Divider, HeroAvatar, Icon, Sheet } from '@auvergne/ui';
+import { Badge, Button, ConfirmBar, Divider, HeroAvatar, Icon, Sheet } from '@auvergne/ui';
 import type { AppState, PanelKind } from '../state/types.js';
-import { ouvrirPanneau, quitterPartie } from '../state/store.js';
+import { dispatch, ouvrirPanneau, quitterPartie } from '../state/store.js';
 import { navigate } from '../router.js';
 import { nombre, pluriel } from './format.js';
 
@@ -58,6 +58,9 @@ function Corps({
   demo: boolean;
   onFermer: () => void;
 }): ReactElement {
+  /* L'abandon de partie attend sa confirmation — l'état vit ici parce que les
+     crochets se déclarent avant tout embranchement. */
+  const [reddition, setReddition] = useState(false);
   const game = state.game;
   const moi = state.localPlayer;
 
@@ -212,6 +215,38 @@ function Corps({
           >
             Quitter la partie
           </Button>
+          {/*
+            RENDRE LES ARMES — `Surrender`, la dernière commande orpheline.
+            Distincte de « Quitter » : quitter garde la partie et on y
+            reviendra ; se rendre ABAISSE LA BANNIÈRE — cités rendues au pays,
+            héros dispersés, les autres continuent sans vous (`apply.ts:809`).
+            C'est la courtoisie du jeu par correspondance : on ne bloque plus
+            l'ordre du tour des cousins. La décision la plus lourde du jeu
+            porte donc la confirmation la plus grave.
+          */}
+          {!demo ? (
+            reddition ? (
+              <ConfirmBar
+                stage="confirmation"
+                grave
+                selection="Rendre les armes"
+                preview="Vos cités deviennent neutres, vos héros se dispersent. La partie continue sans vous."
+                question="Abaisser votre bannière ? Il n’y a pas de retour."
+                confirmLabel="Abaisser la bannière"
+                cancelLabel="Tenir encore"
+                onConfirm={(): void => {
+                  setReddition(false);
+                  dispatch({ type: 'Surrender' });
+                  onFermer();
+                }}
+                onCancel={(): void => setReddition(false)}
+              />
+            ) : (
+              <Button variant="fantome" block onClick={(): void => setReddition(true)}>
+                Rendre les armes…
+              </Button>
+            )
+          ) : null}
         </>
       );
   }

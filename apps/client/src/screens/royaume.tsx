@@ -27,6 +27,7 @@ import type { GameState, PlayerId, Resources, SealId, TownState } from '@auvergn
 import { CREATURES, HEROES } from '@auvergne/content';
 import {
   Badge,
+  Button,
   Divider,
   HeroAvatar,
   Icon,
@@ -47,6 +48,8 @@ import {
   signe,
 } from './format.js';
 import { navigate } from '../router.js';
+import { dispatch } from '../state/store.js';
+import { commandeDeGabelle, gabelleDe } from './politiques.js';
 
 const SCEAUX: readonly SealId[] = ['hautes_futaies', 'farges', 'pamole', 'hermitage', 'brumes'];
 
@@ -299,8 +302,9 @@ function Objectifs({ state, player }: { state: GameState; player: PlayerId }): R
 
 /* ──────────────────────── Le pays : temps, gabelle, journal ─────────────── */
 
-function Pays({ state }: { state: GameState }): ReactElement {
+function Pays({ state, player, demo }: { state: GameState; player: PlayerId; demo: boolean }): ReactElement {
   const gabelle = gabelleReport(state);
+  const politique = gabelleDe(state, player);
   return (
     <Panel title="Le pays" matter="parchemin" padding="normal">
       <div className="fiche__stats">
@@ -327,6 +331,45 @@ function Pays({ state }: { state: GameState }): ReactElement {
         rapporte {nombre(gabelle.ecus)} écus et {nombre(gabelle.sel)} de sel par jour, pour{' '}
         {signe(gabelle.unrest)} d’agitation dans les cités.
       </p>
+      {/*
+        LE RÉGIME DE LA GABELLE — `SetGabelle` n'était émise nulle part. Seul
+        le détenteur de la Maison du Trésor fixe la politique du sel du
+        royaume entier (`apply.ts:693`) ; les autres bannières la subissent et
+        le lisent ici. Chaque ligne annonce ce que le royaume toucherait
+        DEMAIN sous ce régime, par le calcul même du noyau (`gabelleIncome`,
+        pure et sans dé) : ce qui s'affiche est ce qui tombera.
+      */}
+      {politique.detenteur && !demo ? (
+        <>
+          <Divider label="Fixer le régime — la Maison du Trésor est à vous" />
+          <ul className="royaume__gabelle">
+            {politique.offres.map((o) => (
+              <li key={o.id} className="royaume__regime">
+                <span className="royaume__regime-corps">
+                  <span className="royaume__regime-nom">
+                    {o.nom}
+                    {o.enVigueur ? ' — en vigueur' : ''}
+                  </span>
+                  <span className="royaume__regime-apercu jeu-tabulaire">
+                    {nombre(o.apercu.ecus)} écus · {nombre(o.apercu.sel)} sel ·{' '}
+                    {signe(o.apercu.unrest)} agitation / jour
+                  </span>
+                </span>
+                <Button
+                  size="compact"
+                  variant={o.enVigueur ? 'fantome' : 'secondaire'}
+                  disabled={o.enVigueur}
+                  onClick={(): void => {
+                    dispatch(commandeDeGabelle(o.id));
+                  }}
+                >
+                  {o.enVigueur ? 'En vigueur' : 'Décréter'}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
       <Divider label="Journal des derniers jours" />
       {state.journal.length === 0 ? (
         <p className="ecran__note">Le chroniqueur n’a encore rien consigné.</p>
@@ -383,7 +426,7 @@ export function VueRoyaume({ state, player, demo = false }: VueRoyaumeProps): Re
         </div>
         <div className="royaume__duo">
           <Objectifs state={state} player={player} />
-          <Pays state={state} />
+          <Pays state={state} player={player} demo={demo} />
         </div>
       </div>
     </Page>

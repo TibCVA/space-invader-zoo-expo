@@ -13,8 +13,8 @@
  */
 
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import type { BuildingId, CreatureId, GameState, HeroId, ResourceKey, TownState } from '@auvergne/engine';
-import { Button, HeroAvatar, Panel } from '@auvergne/ui';
+import type { BuildingId, Charter, CreatureId, GameState, HeroId, ResourceKey, TownState } from '@auvergne/engine';
+import { Button, ConfirmBar, HeroAvatar, Panel } from '@auvergne/ui';
 import { dispatch } from '../state/store.js';
 import { vignetteCreature } from '../art/vignette.js';
 import { nombre } from './format.js';
@@ -32,6 +32,7 @@ import {
   type OffreRecrue,
   type OffreTaverne,
 } from './cite-offres.js';
+import { CHARTES, charteOffrable, commandeDeCharte } from './politiques.js';
 
 const NOMS_RESSOURCES: Readonly<Record<string, string>> = {
   ecus: 'écus',
@@ -403,6 +404,58 @@ function ComptoirMarche({ game, town }: { game: GameState; town: TownState }): R
   );
 }
 
+/**
+ * LA CHARTE DU VILLAGE — `SetCharter` n'était émise nulle part.
+ *
+ * Un choix PERMANENT (jamais la capitale, jamais deux fois — apply.ts:672),
+ * donc le seul du panneau qui exige une confirmation grave : on ne grave pas
+ * la gouvernance d'un village sur un doigt qui glisse. Les effets écrits sont
+ * les règles mesurées du moteur (`politiques.ts`), pas des promesses.
+ */
+function ChoixDeCharte({ town }: { town: TownState }): ReactElement {
+  const [aConfirmer, setAConfirmer] = useState<Charter | null>(null);
+  const choisie = CHARTES.find((c) => c.id === aConfirmer) ?? null;
+  return (
+    <>
+      <p className="cite-cmd__vers cite-cmd__section">
+        La charte du village — un choix permanent, qui oriente {town.name} pour toute la partie :
+      </p>
+      <ul className="cite-cmd__liste">
+        {CHARTES.map((c) => (
+          <li key={c.id} className="cite-cmd__ligne cite-cmd__ligne--bati">
+            <div className="cite-cmd__texte">
+              <p className="cite-cmd__nom">{c.nom}</p>
+              <p className="cite-cmd__detail">{c.effet}</p>
+            </div>
+            <Button
+              variant={aConfirmer === c.id ? 'principal' : 'secondaire'}
+              onClick={(): void => setAConfirmer(c.id)}
+            >
+              Choisir
+            </Button>
+          </li>
+        ))}
+      </ul>
+      {choisie ? (
+        <ConfirmBar
+          stage="confirmation"
+          grave
+          selection={choisie.nom}
+          preview={choisie.effet}
+          question={`Graver la ${choisie.nom.toLowerCase()} de ${town.name} ? Une charte ne se réécrit pas.`}
+          confirmLabel="Graver la charte"
+          cancelLabel="Réfléchir encore"
+          onConfirm={(): void => {
+            dispatch(commandeDeCharte(town.uid, choisie.id));
+            setAConfirmer(null);
+          }}
+          onCancel={(): void => setAConfirmer(null)}
+        />
+      ) : null}
+    </>
+  );
+}
+
 export interface PanneauCiteProps {
   game: GameState;
   town: TownState;
@@ -524,15 +577,18 @@ export function PanneauCite({
             )}
           </>
         ) : onglet === 'batir' ? (
-          batiments.length === 0 ? (
-            <p className="cite-cmd__vide">Tout est levé à {town.name}.</p>
-          ) : (
-            <ul className="cite-cmd__liste">
-              {batiments.map((o) => (
-                <LigneBatiment key={o.id} offre={o} town={town} />
-              ))}
-            </ul>
-          )
+          <>
+            {batiments.length === 0 ? (
+              <p className="cite-cmd__vide">Tout est levé à {town.name}.</p>
+            ) : (
+              <ul className="cite-cmd__liste">
+                {batiments.map((o) => (
+                  <LigneBatiment key={o.id} offre={o} town={town} />
+                ))}
+              </ul>
+            )}
+            {charteOffrable(town) ? <ChoixDeCharte town={town} /> : null}
+          </>
         ) : recrues.length === 0 ? (
           <p className="cite-cmd__vide">
             Aucune demeure n’est encore levée : bâtissez-en une pour recruter.
