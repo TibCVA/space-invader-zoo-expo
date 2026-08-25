@@ -1,9 +1,10 @@
 # PASSATION — « Heroes of Might and Magic : Auvergne Edition »
 
 > Rapport de passation à l'agent qui reprend la main (« codex »).
-> Rédigé le 21/08/2026, sur la révision `fec15b7`, après vérification de
-> chaque affirmation dans le code ou par une épreuve. **Rien ici n'est un
-> souvenir : tout est mesuré, et la méthode pour re-mesurer est donnée.**
+> Rédigé le 21/08/2026 sur `fec15b7` ; MIS À JOUR le 25/08/2026 sur la
+> révision courante, après vérification de chaque affirmation dans le code ou
+> par une épreuve. **Rien ici n'est un souvenir : tout est mesuré, et la
+> méthode pour re-mesurer est donnée.**
 
 ---
 
@@ -83,14 +84,15 @@ Mesure du 21/08 (grep `type: '<Nom>'` dans `apps/client/src`, tests exclus) :
 |---|---|---|
 | MoveHero, EndTurn, CombatAction, AutoResolveCombat, BuildInTown, RecruitCreatures, SwapArmy, EquipArtifact, UnequipArtifact, ChooseLevelUp | **émises** | le tour de base se joue |
 | `StartGame` | orpheline **par conception** | la création passe par la route serveur ; rien à faire |
-| `HireHero` | **orpheline** | pas de taverne : on ne peut JAMAIS engager un second héros — un pan entier de HMM3 |
-| `UpgradeCreatures` | **orpheline** | les améliorations de demeures se bâtissent mais les créatures ne se promeuvent pas |
-| `CastAdventureSpell` | **orpheline** | le livre de sorts d'aventure n'existe pas à l'écran |
-| `TradeResources` | **orpheline** | pas de marché : une pénurie de bois est une impasse |
+| `HireHero` | **livrée le 25/08** | onglet Auberge du panneau de cité — portrait, classe, troupe, 2500 écus ; le tirage passe par la couture `worldModule()` (bug moteur corrigé, voir `auberge-tirage.test.ts`) |
+| `UpgradeCreatures` | **livrée le 25/08** | section « Élever » sous les recrues, gain chiffré (`cite-offres.ts`) |
+| `CastAdventureSpell` | **livrée le 25/08** | boutons « Lancer » au Grimoire ; prix = `spellCostFor` (extrait d'apply) ; cible requise ⇒ case sélectionnée sur la carte, JAMAIS de lancer aveugle (le mana partirait — `spells-adventure.ts:378`) |
+| `TradeResources` | **livrée le 25/08** | onglet Marché : aperçu exact du change via `tradeOutcome` |
+| SwapArmy `count` | **livrée le 25/08** | découpe de pile — champ « Emporter » sur la fiche |
 | `UseBorne` | **orpheline** | les bornes (portails) sont décoratives |
 | `HeroInteract` | **orpheline** | pas de re-visite de l'objet sous ses pieds (les interactions au passage marchent, elles, automatiquement — `core/movement.ts`) |
 | `SetCharter`, `SetGabelle` | **orphelines** | les politiques de cité/royaume sont invisibles |
-| `Surrender` | **orpheline** | pas d'abandon de partie |
+| `Surrender` | **orpheline** | pas d'abandon de partie (ni la reddition EN combat, `kind: 'surrender'`) |
 
 En combat, le client émet 7 des 8 `CombatAction` : `move, attack, shoot,
 wait, defend, cast, ability` — il manque **`surrender`** (la reddition en
@@ -101,15 +103,13 @@ Autre manque mesuré : `SwapArmy` est émis **sans `count`**
 Dans HMM3 c'est un geste quotidien (garnisons, chair à canon, chaînes de
 héros).
 
-**Priorité recommandée** (impact jouabilité ÷ effort) :
-1. Découpe de pile (`count` + une poignée d'interface sur l'écran d'armée) ;
-2. `HireHero` (taverne en cité — sans second héros, pas de chaînes, pas
-   d'économie de mouvement, le jeu est plat) ;
-3. `UpgradeCreatures` (le bouton à côté du recrutement, dans le panneau qui
-   existe déjà — `cite-commandes.tsx`) ;
-4. `TradeResources` (marché ; l'offre moteur existe et est testée) ;
-5. `CastAdventureSpell` + livre de sorts ; 6. `UseBorne` ; 7. `HeroInteract`
-   (revisite) ; 8. `Surrender`/`surrender` ; 9. politiques.
+**Priorité recommandée pour ce qui RESTE** :
+1. `UseBorne` (le réseau de bornes est le fast-travel du jeu) ;
+2. `HeroInteract` (revisite de l'objet sous ses pieds — Espace dans HMM3) ;
+3. `surrender` en combat puis `Surrender` de partie ; 4. politiques.
+Livré le 25/08, en plus des commandes : « Héros suivant » (touche E + bouton,
+cycle stable, centre la caméra), Échap (chemin → fiche → panneau), gains
+flottants « +5 bois » au pas du héros (`render/gains.ts`).
 
 ---
 
@@ -251,9 +251,11 @@ curl -s https://auvergne-web-production.up.railway.app/health  # commit servi
 node tools/fumee-production.mjs         # partie réelle sur la prod
 ```
 
-Premier geste suggéré : déployer `fec15b7` (deux commits vérifiés non servis),
-puis attaquer §2 dans l'ordre des priorités, une plainte du propriétaire à la
-fois, une épreuve au clic par livraison.
+Premier geste suggéré : vérifier `/health` = HEAD, puis attaquer §2 dans
+l'ordre des priorités restantes, une plainte du propriétaire à la fois, une
+épreuve au clic par livraison. L'épreuve `e2e-solo` couvre désormais AUSSI :
+bâtir le Marché, échanger bois→écus, engager un capitaine (2500 écus exacts),
+cycler entre deux héros.
 
 Branche : `claude/hmm-auvergne-game-uesdlz` — n'en pousser aucune autre.
 Documents : `docs/90-DOCUMENT-MAITRE.md` (bible), `plan.md`, ce fichier.
