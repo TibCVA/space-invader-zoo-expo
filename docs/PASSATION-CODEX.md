@@ -1,0 +1,259 @@
+# PASSATION — « Heroes of Might and Magic : Auvergne Edition »
+
+> Rapport de passation à l'agent qui reprend la main (« codex »).
+> Rédigé le 21/08/2026, sur la révision `fec15b7`, après vérification de
+> chaque affirmation dans le code ou par une épreuve. **Rien ici n'est un
+> souvenir : tout est mesuré, et la méthode pour re-mesurer est donnée.**
+
+---
+
+## 0. L'objectif, dans les mots du propriétaire
+
+Les critères, verbatim, par ordre chronologique :
+
+1. « Le jeu doit être 1) très beau 2) parfaitement fonctionnel sans bugs
+   3) avec une jouabilité et un fun identique à HMM3. »
+2. But de session : « push everything on railway after checking that
+   everything is working fine so I can play with AI and/or my cousins on
+   iPhones and computers asap. »
+3. « Il y a plein de défauts qui empêchent de jouer de manière fluide et
+   optimale. […] être au moins au même niveau que HMM3 sur tous les aspects
+   et avoir une jouabilité parfaite. »
+4. Dernier message : « je veux que la jouabilité soit super fluide, facile à
+   comprendre avec des animations et de vrais déplacements, que la navigation
+   soit claire et simple sur la carte, dans les combats et entre les écrans.
+   Il y a plein de boulot d'ajustement. Je veux aussi que la carte soit hyper
+   bien pensée, équilibrée et très cool à découvrir. »
+
+Le juge de paix n'est jamais un test unitaire : c'est **le propriétaire, sur
+son iPhone, et ses cousins sur PC**. Chaque plainte qu'il a formulée jusqu'ici
+s'est avérée exacte et mesurable.
+
+### Question ouverte au propriétaire
+
+Un message s'est coupé en plein vol : « Aussi j'ai l'impression que les
+drapeaux… ». La fin n'est jamais arrivée malgré deux relances. Demander :
+drapeaux des bâtiments en cité, fanions des héros sur la carte, ou couleurs de
+bannière des joueurs ?
+
+### ⚠️ Sécurité — À FAIRE AVANT TOUT
+
+Le jeton Railway a été collé **sept fois** dans la conversation : il est
+compromis. **Le faire révoquer et régénérer par le propriétaire.** La règle du
+dépôt : le jeton n'est lu QUE dans l'environnement du processus
+(`RAILWAY_TOKEN=… tools/deployer.sh`), jamais écrit dans le dépôt, jamais
+journalisé, jamais passé en argument.
+
+---
+
+## 1. Ce qui marche, et comment on le sait
+
+Production : **https://auvergne-web-production.up.railway.app** —
+`/health` publie le commit servi. Déployé au moment de la passation :
+`dc44b45` ; la branche porte deux commits vérifiés de plus (`2a45f05` cadence
+de combat, `fec15b7` réglage de mouvement) — **à déployer en premier geste**
+(§6).
+
+Vérifié **au clic** (Playwright, `tools/e2e-solo.mjs`, PC 1440×900 et iPhone
+390×844), sur le paquet local de la même révision :
+
+nouvelle partie → carte peinte → « Fin du tour » → l'IA joue → le jour avance
+→ entrée en cité → bâtir (le trésor paie) → recruter (le trésor paie, la
+vignette de créature est décodée — largeur naturelle non nulle —, la demeure
+d'origine est nommée) → sortie par la porte → retour carte. Zéro erreur
+console.
+
+Vérifié **sur le serveur déployé** (`tools/fumee-production.mjs`, par l'API
+car Chromium ne joint pas l'internet public depuis les conteneurs de
+développement) : partie créée à deux bannières dont une IA, coup accepté,
+l'ordinateur joue, la main revient, la partie se retrouve avec son jeton,
+manifeste et images servis, base PostgreSQL.
+
+Suite de tests : **97 fichiers, 1194 verts** (`npx vitest run`). Typecheck et
+eslint verts sur les onze paquets.
+
+---
+
+## 2. Le déficit central : dix commandes du moteur restent injouables
+
+Le moteur accepte 20 types de `Command` (`packages/engine/src/types.ts:739`).
+Mesure du 21/08 (grep `type: '<Nom>'` dans `apps/client/src`, tests exclus) :
+
+| Commande | État | Ce que ça veut dire pour le joueur |
+|---|---|---|
+| MoveHero, EndTurn, CombatAction, AutoResolveCombat, BuildInTown, RecruitCreatures, SwapArmy, EquipArtifact, UnequipArtifact, ChooseLevelUp | **émises** | le tour de base se joue |
+| `StartGame` | orpheline **par conception** | la création passe par la route serveur ; rien à faire |
+| `HireHero` | **orpheline** | pas de taverne : on ne peut JAMAIS engager un second héros — un pan entier de HMM3 |
+| `UpgradeCreatures` | **orpheline** | les améliorations de demeures se bâtissent mais les créatures ne se promeuvent pas |
+| `CastAdventureSpell` | **orpheline** | le livre de sorts d'aventure n'existe pas à l'écran |
+| `TradeResources` | **orpheline** | pas de marché : une pénurie de bois est une impasse |
+| `UseBorne` | **orpheline** | les bornes (portails) sont décoratives |
+| `HeroInteract` | **orpheline** | pas de re-visite de l'objet sous ses pieds (les interactions au passage marchent, elles, automatiquement — `core/movement.ts`) |
+| `SetCharter`, `SetGabelle` | **orphelines** | les politiques de cité/royaume sont invisibles |
+| `Surrender` | **orpheline** | pas d'abandon de partie |
+
+En combat, le client émet 7 des 8 `CombatAction` : `move, attack, shoot,
+wait, defend, cast, ability` — il manque **`surrender`** (la reddition en
+combat, avec son coût en écus, mécanique importante de HMM3).
+
+Autre manque mesuré : `SwapArmy` est émis **sans `count`**
+(`apps/client/src/screens/heros-actions.ts:336`) — **aucune découpe de pile**.
+Dans HMM3 c'est un geste quotidien (garnisons, chair à canon, chaînes de
+héros).
+
+**Priorité recommandée** (impact jouabilité ÷ effort) :
+1. Découpe de pile (`count` + une poignée d'interface sur l'écran d'armée) ;
+2. `HireHero` (taverne en cité — sans second héros, pas de chaînes, pas
+   d'économie de mouvement, le jeu est plat) ;
+3. `UpgradeCreatures` (le bouton à côté du recrutement, dans le panneau qui
+   existe déjà — `cite-commandes.tsx`) ;
+4. `TradeResources` (marché ; l'offre moteur existe et est testée) ;
+5. `CastAdventureSpell` + livre de sorts ; 6. `UseBorne` ; 7. `HeroInteract`
+   (revisite) ; 8. `Surrender`/`surrender` ; 9. politiques.
+
+---
+
+## 3. Les chantiers du dernier message du propriétaire
+
+### 3.1 « Jouabilité super fluide, animations, vrais déplacements »
+
+Fait cette session et déployable : cadence de marche UNIFIÉE carte/combat à
+260 ms le pas, avec plancher (aucun long trajet ne redevient rapide — les deux
+premiers plafonds, 2200 ms puis 3000 ms, rendaient les longues marches PLUS
+RAPIDES que la cadence jugée trop vive ; c'est un **genou** maintenant, la
+durée croît toujours). Gardes : `render/cadence.test.ts`,
+`battle/marche.test.ts`.
+
+Piège majeur trouvé et corrigé (`fec15b7`) : « Réduire les animations » était
+un OU avec la préférence système — un iPhone avec « Réduire les animations »
+n'avait AUCUNE animation et aucun moyen d'en ravoir. C'est un tri-état
+maintenant (`landing/settings.ts`). **Toute nouvelle animation doit être
+regardée avec ce réglage dans les trois états.**
+
+Reste à faire, dans l'ordre où l'œil le voit :
+- le ramassage de ressource n'a pas de geste (l'objet disparaît sec — HMM3
+  fait voler la ressource vers le bandeau) ;
+- pas de file de chemin visible AVANT de confirmer un déplacement long sur PC
+  (la prévisualisation existe au doigt ; vérifier la parité souris) ;
+- les transitions d'écran (carte↔cité↔combat) sont des coupes franches ;
+- le combat n'a ni annonce de tour (« Archers — à vous ») ni surbrillance de
+  l'unité active assez marquée (à VÉRIFIER à l'œil, pas sur parole) ;
+- aucun son. HMM3 sans le bruit des pas et le cor de fin de tour n'est pas
+  HMM3. Il existe `jouerEffet('clic')` — l'infrastructure est là.
+
+### 3.2 « Navigation claire et simple — carte, combats, écrans »
+
+Corrigé cette session (tout au clic, éprouvé) : sortie de cité toujours
+visible dans le panneau ; onglet initial selon ce qu'on a touché (demeure →
+Recruter, chantier → Bâtir) ; « Fin du tour » à la racine, plus jamais sous le
+panneau ; ligne de recrue en grille sur téléphone (600 px → 150 px) ;
+pastille de sauvegarde qui ne recouvre plus le trésor ; l'action l'emporte sur
+l'information au toucher (appui court agit, appui long informe).
+
+Reste : raccourcis clavier PC quasi absents — HMM3 vit sur Espace (revisite),
+E (héros suivant), H (héros), T (cité), Échap (annuler). Il n'existe AUCUN
+cycle « héros suivant / cité suivante » ; avec un seul héros ça ne se voit
+pas, dès `HireHero` livré ce sera criant. Pas d'infobulle au survol des objets
+de carte sur PC (le clic droit/appui long ouvre la fiche, mais le survol est
+muet).
+
+### 3.3 « La carte : hyper bien pensée, équilibrée, très cool à découvrir »
+
+État : `packages/map/` est sérieux — `buildWorld(seed)` déterministe
+(`build.ts:498`), régions, élévation, hydrographie, routes, barrières,
+espacement, départs, lieux nommés, CHACUN avec son fichier de tests. La carte
+n'est PAS un tirage aléatoire naïf.
+
+Ce qui manque pour « équilibrée et cool à découvrir », à MESURER avant de
+toucher :
+- **équité des départs** : écrire une mesure (distance aux premières mines de
+  chaque sorte, aux demeures neutres, à la première ville prenable, par
+  joueur) et l'imposer en garde. `starts.ts` existe, la garde d'équité
+  chiffrée n'existe pas ;
+- **rythme de découverte** : HMM3 récompense chaque écart de route ; densité
+  d'objets par anneau de distance au départ à mesurer, puis régler ;
+- **gardiens gradués** : vérifier que la force des piles neutres croît avec la
+  valeur de ce qu'elles gardent et la distance au départ ;
+- les quatre conditions de victoire existent (`world/victory.ts` : couronne,
+  dernière bannière, maître des marches, chronique) — vérifier qu'elles sont
+  ANNONCÉES au joueur en cours de partie (où en suis-je, où en sont-ils).
+
+Outils : `#/demo/carte` + scènes `carte`, `carte_pres`, `carte_loin` de
+`tools/screenshot.mjs` ; `pnpm carte` (worker) pour générer/inspecter.
+
+---
+
+## 4. La méthode qui a fait ses preuves ici (la violer coûte cher, c'est mesuré)
+
+1. **Rien n'est vrai sans mesure ou capture regardée.** Les plaintes du
+   propriétaire ont TOUTES été confirmées par la mesure — et deux fois la
+   mesure a contredit l'intuition (le plafond de marche « raisonnable » qui
+   accélérait les charges ; l'écart 1,00 qui remplissait MIEUX les terrasses
+   que 0,88).
+2. **Une épreuve qui court-circuite l'interface prouve le serveur, pas le
+   jeu.** Les quatre défauts bloquants de la session (fin de tour, IA solo,
+   bâtir/recruter, sortie de cité) étaient tous invisibles aux tests
+   unitaires et visibles au premier clic. Les épreuves `tools/e2e-*.mjs`
+   cliquent ; les étendre, jamais les remplacer par des tests de fonctions.
+3. **Éprouver chaque garde en défaisant son correctif** (toggle python ciblé,
+   relancer, voir rougir, restaurer). JAMAIS `git checkout` pour « défaire » —
+   ça a détruit un correctif non commité une fois cette session. Une garde de
+   cette session ne rougissait pas : elle trouvait le texte cherché dans son
+   propre commentaire. Depuis, les gardes qui lisent la source la lisent
+   **commentaires retirés**.
+4. **Committer et pousser AVANT toute épreuve longue.** Le conteneur s'est
+   réinitialisé TROIS fois cette session (retour à un vieux commit, arbre
+   perdu). Tout ce qui était poussé a survécu ; le reste s'est refait.
+5. **`railway up` téléverse l'ARBRE, pas le commit.** Ne jamais déployer un
+   arbre sale (le déployeur le refuse, ne pas le contourner).
+6. Typecheck en vérifiant le code de sortie (`PIPESTATUS`), pas la sortie
+   texte — un `| head` avale l'échec.
+7. Les commits racontent le défaut, la mesure, le correctif, l'épreuve — en
+   français, comme tout le dépôt (fichiers, gardes, commentaires).
+
+---
+
+## 5. Pièges connus (chacun a déjà mordu)
+
+- **Chromium des conteneurs de dev ne joint pas l'internet public** (mesuré
+  trois voies). La prod se vérifie par l'API (`fumee-production.mjs`), le
+  navigateur sur le paquet local de la même révision.
+- **WebGPU** : écran noir sur Windows/Chrome — le rendu force WebGL sauf
+  `?rendu=webgpu` (`boot.ts`). Ne pas « réactiver » sans épreuve.
+- **Le canevas d'un bâtiment est aux 2/3 transparent** (`SPRITE_FACTEUR`
+  1,7). Toute logique d'espacement/couverture raisonne sur la **masse
+  visible** (`demiVuePct`), pas le canevas — l'erreur a été faite, mesurée
+  (couverture 81→73 %), corrigée. Asymétrie ASSUMÉE : `basePct` accroche avec
+  la marge canevas, le desserrage re-accroche avec la marge visible (plus
+  permissive — aucune oscillation possible).
+- **Scènes lentes à froid** : première carte > 2 min sans GPU. Les épreuves
+  attendent `.jeu-scene__legende` (rendue seulement quand la scène est prête),
+  PAS le bouton « Fin du tour » (qui vit à la racine et apparaît avant).
+- Le plan de masse inclut les chantiers pour ne pas se réorganiser à la
+  construction ; il peut ENCORE bouger quand un nouveau chantier se
+  DÉVERROUILLE (prérequis atteints). Mineur, connu ; le vrai fix serait un
+  nœud par emprise sur tout le catalogue.
+- Deux cadences de référence : 260 ms le pas (carte ET combat). Si l'une
+  change, changer l'autre — deux gardes le tiennent.
+
+---
+
+## 6. Runbook
+
+```bash
+pnpm i                                  # installer
+npx vitest run                          # 1194 verts attendus
+node tools/e2e-solo.mjs                 # LA boucle de jeu, au clic, PC+iPhone
+node tools/e2e-geste-carte.mjs          # les 4 gestes tactiles
+node tools/screenshot.mjs cite_granit --dir shots/x   # regarder une scène
+RAILWAY_TOKEN=… tools/deployer.sh       # portes de qualité PUIS déploiement
+curl -s https://auvergne-web-production.up.railway.app/health  # commit servi
+node tools/fumee-production.mjs         # partie réelle sur la prod
+```
+
+Premier geste suggéré : déployer `fec15b7` (deux commits vérifiés non servis),
+puis attaquer §2 dans l'ordre des priorités, une plainte du propriétaire à la
+fois, une épreuve au clic par livraison.
+
+Branche : `claude/hmm-auvergne-game-uesdlz` — n'en pousser aucune autre.
+Documents : `docs/90-DOCUMENT-MAITRE.md` (bible), `plan.md`, ce fichier.
