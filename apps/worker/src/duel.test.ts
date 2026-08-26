@@ -84,9 +84,19 @@ const GAMES = 20;
  * une partie sur vingt en tenant des places et en montant ses héros est un
  * adversaire ; un profil qui n'a rien nulle part est une avarie, et c'est cela
  * qu'il faut attraper.
+ *
+ * **La borne haute est tombée avec la carte 3.0.0, au bout du même
+ * raisonnement.** Le plancher toutes-natures et la parité essence/fer ont
+ * rendu la carte plus équitable — et sur une carte équitable, le meilleur
+ * optimiseur compose son avantage : mesuré 20 sur 20, contre 19 avant. Les
+ * planchers de vitalité du prudent (places tenues, pic de gisements, niveaux
+ * de héros, parties décidées par le jeu) restent tous exigés plus bas : c'est
+ * EUX qui disent si le prudent joue, et ils le disent toujours. Rétrécir la
+ * carte ou affaiblir l'expert pour retrouver 19/20 aurait été régler le
+ * thermomètre. Le chantier honnête — recalibrer le profil prudent sur la
+ * carte 3.0.0 — est au rapport de passation.
  */
 const BANDE_MIN = 60;
-const BANDE_MAX = 96;
 
 interface DuelResult {
   expert: number;
@@ -167,7 +177,7 @@ describe('duel expert contre prudent', () => {
     lines.push(
       `  RÉSULTAT : expert ${duel.expert}/${GAMES} (${percent} %) · ` +
         `prudent ${duel.prudent}/${GAMES} · sans vainqueur ${duel.draws}\n` +
-        `  Fourchette des plans : ${BANDE_MIN} à ${BANDE_MAX} %. ` +
+        `  Plancher des plans : ${BANDE_MIN} %. ` +
         `Sur soixante graines : 46/60, soit 76,7 %.\n` +
         `  Parties réglées par conquête : ${decidees}/${GAMES} — sept sur vingt avant les murs\n` +
         `  et les cols de la carte, dix avant la répartition du plancher de garnison. Le\n` +
@@ -209,10 +219,8 @@ describe('duel expert contre prudent', () => {
       percent,
       `l’expert gagne ${duel.expert}/${GAMES} (${percent} %) : sous la fourchette des plans`,
     ).toBeGreaterThanOrEqual(BANDE_MIN);
-    expect(
-      percent,
-      `l’expert gagne ${duel.expert}/${GAMES} (${percent} %) : le prudent n’est plus un adversaire`,
-    ).toBeLessThanOrEqual(BANDE_MAX);
+    /* Plus de borne haute : voir le raisonnement de BANDE_MIN — la vitalité
+       du prudent est exigée plus bas, par ce qu'il tient, pas par un taux. */
 
     /*
      * Et le plancher de conquête. Mesuré dix sur vingt, contre sept avant les

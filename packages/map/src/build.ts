@@ -75,7 +75,7 @@ import { classifyTerrain, couvre, franchissable, markEdges } from './terrain.js'
  * jouer l'une ou l'autre maison, essence et fil d'or portés à deux comme toutes
  * les autres mines, et table de tirage propre aux filons.
  */
-export const MAP_VERSION = '2.0.0-forez';
+export const MAP_VERSION = '3.0.0-forez';
 
 export interface TerrainBuild {
   cols: number;

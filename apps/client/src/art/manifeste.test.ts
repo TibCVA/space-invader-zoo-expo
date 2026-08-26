@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUILDINGS, FACTION_IDS, HEROES } from '@auvergne/content';
+import { BUILDINGS, CREATURES, FACTION_IDS, HEROES } from '@auvergne/content';
 import { RESOURCE_KEYS } from '@auvergne/engine';
 
 import { MATIERES_BASE, MATIERES_PAYS } from './matiere-sol.js';
@@ -88,6 +88,12 @@ function clefsReclamees(): Set<string> {
 
   /* Portraits de héros. */
   for (const h of Object.values(HEROES) as { portrait: string }[]) c.add(h.portrait);
+
+  /* Dessins peints des créatures : `atlas.creature(id)` lit `creature_<id>`
+     pour toutes les vignettes de sélection (cité et combat) — le champ de
+     bataille, lui, garde le rig (`creatureRig`). Une créature du bestiaire =
+     une clef réclamée. */
+  for (const id of Object.keys(CREATURES)) c.add(`creature_${id}`);
 
   /* Panoramas de cité : trois heures, deux cadrages, par faction. */
   for (const f of FACTION_IDS) {

@@ -793,6 +793,13 @@ interface Builder {
    */
   parCle: Map<string, MapCoord[]>;
   /**
+   * L'ancre de CHAQUE lieu posé, fixes compris, une case par lieu : c'est la
+   * mémoire du plancher toutes-natures. Les fixes y figurent — un tas semé au
+   * pied d'une scierie écrite reste un tas collé — mais seuls les semés sont
+   * contrôlés, `assezLoin` n'étant jamais appelée pour un lieu fixe.
+   */
+  ancres: Uint8Array;
+  /**
    * Le répartiteur de richesse : à qui appartient chaque case, et combien de
    * butin chaque départ a déjà reçu.
    *
@@ -863,6 +870,21 @@ function crediter(
 export const PLANCHER_ECART = 3;
 
 /**
+ * L'écart minimal entre DEUX LIEUX QUELS QU'ILS SOIENT — toutes natures
+ * confondues.
+ *
+ * Mesuré sur la graine de démonstration avant ce plancher : 95 paires
+ * d'objets ADJACENTS (31 % du semis avait un voisin à une case), toutes
+ * inter-natures — un artefact contre une garde, un coffre contre un tas, six
+ * objets dans un carré de 4×3 aux Hautes Chaumes. La table `ECART_MINIMAL`
+ * n'y pouvait rien : `assezLoin` ne comparait un lieu qu'aux lieux de SA
+ * clef, et deux clefs différentes s'ignoraient. Trois cases au palier plein ;
+ * le relâchement peut descendre à deux, jamais en dessous — un lieu semé
+ * n'est JAMAIS adjacent à un autre lieu.
+ */
+export const ECART_TOUTES_NATURES = 3;
+
+/**
  * L'écart exigé après relâchement — la règle, isolée pour être éprouvée.
  *
  * Elle vivait dans le corps de `assezLoin`, où l'on ne pouvait pas la mettre en
@@ -897,6 +919,33 @@ function assezLoin(
   row: number,
   facteurBp = 10000,
 ): boolean {
+  /* 1 — le plancher TOUTES NATURES : un lieu semé n'est jamais collé à un
+     autre lieu, quel qu'il soit. Trois cases au palier plein, deux au pire
+     relâchement — la fenêtre balayée fait au plus 5 × 5, coût négligeable. */
+  const toutes = Math.max(2, Math.trunc((ECART_TOUTES_NATURES * facteurBp) / 10000));
+  const r = toutes - 1;
+  for (let dr = -r; dr <= r; dr++) {
+    const row2 = row + dr;
+    if (row2 < 0 || row2 >= ROWS) continue;
+    for (let dc = -r; dc <= r; dc++) {
+      const col2 = col + dc;
+      if (col2 < 0 || col2 >= COLS) continue;
+      if (b.ancres[row2 * COLS + col2] === 1) return false;
+    }
+  }
+  /* 2 — l'écart GÉNÉRIQUE des natures qualifiées : cinq cases entre deux
+     gisements de ressources différentes, comme la table le déclarait sans
+     qu'aucun chemin ne la lise. */
+  if (kind === 'mine' || kind === 'ressource') {
+    const generiques = b.parCle.get(kind);
+    if (generiques) {
+      const vouluGenerique = ecartRelache(kind, {}, facteurBp);
+      for (const t of generiques) {
+        if (Math.max(Math.abs(t.col - col), Math.abs(t.row - row)) < vouluGenerique) return false;
+      }
+    }
+  }
+  /* 3 — l'écart de la clef pleine : même nature, même ressource. */
   const cle = cleEspacement(kind, data);
   const deja = b.parCle.get(cle);
   if (!deja || deja.length === 0) return true;
@@ -1045,6 +1094,16 @@ function place(
   const deja = b.parCle.get(cle);
   if (deja) deja.push({ col: at.col, row: at.row });
   else b.parCle.set(cle, [{ col: at.col, row: at.row }]);
+  /* La mémoire du plancher toutes-natures : chaque ancre, fixes comprises. */
+  b.ancres[idx(at.col, at.row)] = 1;
+  /* Et la mémoire GÉNÉRIQUE des natures qualifiées : les écarts `mine: 5` et
+     `ressource: 2` de la table étaient lettre morte, la ressource étant
+     toujours tirée avant la case — la clef pleine masquait la générique. */
+  if (cle !== kind) {
+    const generiques = b.parCle.get(kind);
+    if (generiques) generiques.push({ col: at.col, row: at.row });
+    else b.parCle.set(kind, [{ col: at.col, row: at.row }]);
+  }
   return obj;
 }
 
@@ -1419,6 +1478,7 @@ export function buildObjects(ctx: ObjectContext, seed: number): ObjectBuild {
     occupied: new Uint8Array(CELLS),
     next: 1,
     parCle: new Map(),
+    ancres: new Uint8Array(CELLS),
     repartiteur: {
       proprio: startOwnerField(),
       attribue: START_KEYS.map(() => 0),
@@ -1622,12 +1682,15 @@ export function buildObjects(ctx: ObjectContext, seed: number): ObjectBuild {
 
   const pierre = snap(b, anchorCell('pamole'), 3);
   if (pierre) {
+    /* Un lieu ÉCRIT comme les sceaux et les cols : la marque `fixe` dit à la
+       mesure d'espacement que son voisinage avec le Sceau de Pamole est un
+       choix d'auteur — la pierre et le sceau font un site. */
     place(b, 'ecole', pierre, {
       name: 'Pierre de Pamole',
       matiere: 'vaillance',
       prix: 0,
       rite: 'pierre',
-    });
+    }, { fixe: true });
   }
 
   /* 6 — Artefacts posés à demeure. */
@@ -2131,6 +2194,10 @@ function seedCaravans(b: Builder, rng: RngState, ctx: ObjectContext): void {
       }
     }
     if (tooClose) continue;
+    /* Le seul semeur qui n'appelait pas `assezLoin` : une caravane pouvait se
+       coller à n'importe quel lieu — le plancher toutes-natures vaut ici
+       aussi. */
+    if (!assezLoin(b, 'caravane', {}, col, row)) continue;
     const good = goods[nextInt(rng, 0, goods.length - 1)];
     const obj = place(b, 'caravane', { col, row }, {
       name: 'Caravane des marchands',
@@ -2437,6 +2504,37 @@ function seedDensification(
         { guard: gardeMine },
       );
     }
+  }
+
+  /* — Parité essence/fer, MESURÉE puis rétablie. L'essence est à l'Ermitage
+       ce que le fer est au Granit : le tirage au poids des quatorze filons
+       laissait la parité au hasard de la graine — mesuré sur la graine 7
+       après le plancher toutes-natures, la carte rendait 19 essences par
+       jour contre 12 fers. On complète la ressource PAUVRE jusqu'à revenir
+       sous un rapport de 1,2 (l'invariant du domaine exige 1,25). — */
+  const rendementParJour = (resource: ResourceKey): number => {
+    let total = 0;
+    for (const o of b.objects) {
+      if (o.kind !== 'mine') continue;
+      const d = o.data as Record<string, unknown>;
+      if (d.resource !== resource) continue;
+      total += Number(d.amount ?? 0) | 0;
+    }
+    return total;
+  };
+  for (let garde = 0; garde < 6; garde++) {
+    const essence = rendementParJour('essence');
+    const fer = rendementParJour('fer');
+    if (Math.max(essence, fer) * 5 <= Math.min(essence, fer) * 6) break;
+    const pauvre: ResourceKey = essence < fer ? 'essence' : 'fer';
+    const cible = departLePlusPauvre(b.repartiteur.attribue);
+    const at = chercherPlace(b, spots, 'mine', { resource: pauvre }, undefined, cible);
+    if (!at) break;
+    const ring = ringAt(startDist, at.col, at.row);
+    const quantite = 1 + (ring > 1 ? 1 : 0);
+    const gardeMine = guardFor(rng, ring, 3, poidsDeGarde('mine', { resource: pauvre, amount: quantite }));
+    crediter(b, at, valeurBrute('mine', { resource: pauvre, amount: quantite }), gardeMine);
+    place(b, 'mine', at, { resource: pauvre, amount: quantite, name: 'Filon' }, { guard: gardeMine });
   }
 
   /* — Repaires gardés : 12 banques, gros gardien, gros butin, repeuplées — */

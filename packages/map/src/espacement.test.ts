@@ -81,6 +81,73 @@ describe('espacement des lieux', () => {
     }
   });
 
+  it('ne colle jamais un lieu semé à un AUTRE lieu, toutes natures confondues', () => {
+    /*
+     * Le défaut que la table ne voyait pas : `assezLoin` ne comparait un lieu
+     * qu'aux lieux de SA clef — un artefact contre une garde, un coffre contre
+     * un tas, deux clefs différentes s'ignoraient. Mesuré avant le plancher :
+     * 95 paires ADJACENTES sur la graine de démonstration, 31 % du semis avec
+     * un voisin à une case. Le plancher toutes-natures garantit deux cases au
+     * pire relâchement ; seules les paires écrites-écrites — la géographie
+     * d'auteur — y échappent.
+     */
+    for (const graine of GRAINES) {
+      const w = buildWorld(graine);
+      const lieux = w.objects.map((o) => ({
+        col: o.at.col,
+        row: o.at.row,
+        /* Les villes ne portent pas la marque `fixe` mais SONT la géographie :
+           l'Auberge d'Arconsat au pied d'Arconsat est un choix d'auteur, pas
+           un défaut de semis. */
+        ecrit: o.data.fixe === true || o.kind === 'ville' || o.kind === 'village',
+        nom: `${o.kind}${typeof o.data.name === 'string' ? `:${o.data.name}` : ''}`,
+      }));
+      for (let i = 0; i < lieux.length; i++) {
+        for (let j = i + 1; j < lieux.length; j++) {
+          if (lieux[i].ecrit && lieux[j].ecrit) continue;
+          const d = distance(lieux[i], lieux[j]);
+          expect(
+            d,
+            `graine ${String(graine)} : ${lieux[i].nom} (${String(lieux[i].col)},${String(lieux[i].row)}) ` +
+              `et ${lieux[j].nom} (${String(lieux[j].col)},${String(lieux[j].row)}) à ${String(d)} case(s)`,
+          ).toBeGreaterThanOrEqual(2);
+        }
+      }
+    }
+  });
+
+  it('deux gisements, MÊME de ressources différentes, gardent leurs distances', () => {
+    /*
+     * L'entrée `mine: 5` de la table le déclarait depuis toujours — « cinq
+     * entre deux gisements différents » — mais la ressource étant tirée avant
+     * la case, la clef pleine masquait la générique et l'écart n'était jamais
+     * lu : quatre paires scierie/carrière à deux cases sur la graine de
+     * démonstration. Le relâchement s'arrête au plancher : trois cases.
+     */
+    for (const graine of GRAINES) {
+      const w = buildWorld(graine);
+      const mines = w.objects
+        .filter((o) => o.kind === 'mine')
+        .map((o) => ({
+          col: o.at.col,
+          row: o.at.row,
+          ecrit: o.data.fixe === true,
+          nom: (o.data.name as string | undefined) ?? 'gisement',
+        }));
+      for (let i = 0; i < mines.length; i++) {
+        for (let j = i + 1; j < mines.length; j++) {
+          if (mines[i].ecrit && mines[j].ecrit) continue;
+          const d = distance(mines[i], mines[j]);
+          expect(
+            d,
+            `graine ${String(graine)} : ${mines[i].nom} (${String(mines[i].col)},${String(mines[i].row)}) ` +
+              `et ${mines[j].nom} (${String(mines[j].col)},${String(mines[j].row)}) à ${String(d)} case(s)`,
+          ).toBeGreaterThanOrEqual(3);
+        }
+      }
+    }
+  });
+
   /*
    * Le garde-fou du garde-fou : on ne doit pas pouvoir vider le test ci-dessus
    * en déclarant tout le monde « écrit à la main ». La géographie fixe compte

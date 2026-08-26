@@ -22,6 +22,7 @@ import {
   createGame,
   type GameSetup,
   type GameState,
+  type MapCoord,
   type PlayerId,
   type WorldMap,
 } from '@auvergne/engine';
@@ -246,7 +247,30 @@ describe('déterminisme', () => {
  * Altère tout ce que le brouillard du joueur cache : armées adverses hors de
  * vue, trésoreries, gardes des lieux non explorés, offres d'auberge. Rien de
  * ce qui est modifié ici n'est légitimement lisible par `player`.
+ *
+ * ET RIEN QUE LE TOUR NE PEUT DÉCOUVRIR : le planificateur SIMULE ses pas, et
+ * le moteur révèle le brouillard en marchant — un tas caché que le premier
+ * déplacement met sous les yeux du héros est une information LÉGITIME de la
+ * suite du plan, exactement comme pour un joueur humain qui marche puis
+ * réagit. Mesuré sur la carte 3.0.0 : le pas 1 du plan honnête révélait un
+ * tas altéré à vingt-quatre cases, et le pas 2 divergeait — honnêtement. On
+ * n'altère donc que ce qui reste hors de portée de découverte du tour : plus
+ * loin que la plus longue journée de marche (vingt-huit cases) plus la vue,
+ * de CHAQUE héros de la bannière.
  */
+const PORTEE_DECOUVERTE = 45;
+
+function horsDePortee(state: GameState, player: PlayerId, at: MapCoord): boolean {
+  for (const uid of state.players[player].heroes) {
+    const h = state.heroes[uid];
+    if (!h) continue;
+    if (Math.max(Math.abs(h.at.col - at.col), Math.abs(h.at.row - at.row)) <= PORTEE_DECOUVERTE) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function corruptHidden(state: GameState, world: WorldMap, player: PlayerId): GameState {
   const shadow = cloneState(state);
   const fog = shadow.players[player].fog;
@@ -257,6 +281,7 @@ function corruptHidden(state: GameState, world: WorldMap, player: PlayerId): Gam
     if (hero.owner === player) continue;
     // Un héros sous nos yeux est une information légitime : on n'y touche pas.
     if (visible(hero.at.col, hero.at.row) === 2) continue;
+    if (!horsDePortee(shadow, player, hero.at)) continue;
     for (const stack of hero.army) {
       if (stack) stack.count = stack.count * 7 + 13;
     }
@@ -285,6 +310,7 @@ function corruptHidden(state: GameState, world: WorldMap, player: PlayerId): Gam
   for (const uid of Object.keys(shadow.objects)) {
     const obj = shadow.objects[uid];
     if (visible(obj.entrance.col, obj.entrance.row) >= 1) continue;
+    if (!horsDePortee(shadow, player, obj.entrance)) continue;
     if (obj.guard) for (const stack of obj.guard) stack.count = stack.count * 5 + 3;
     obj.data = { ...obj.data, amount: 9999 };
   }
@@ -293,6 +319,7 @@ function corruptHidden(state: GameState, world: WorldMap, player: PlayerId): Gam
     const town = shadow.towns[uid];
     if (town.owner === player) continue;
     if (visible(town.at.col, town.at.row) === 2) continue;
+    if (!horsDePortee(shadow, player, town.at)) continue;
     town.garrison = [{ creature: town.garrison[0]?.creature ?? 'granit_t1', count: 4242 }, null, null, null, null, null, null];
     town.unrest = 99;
   }

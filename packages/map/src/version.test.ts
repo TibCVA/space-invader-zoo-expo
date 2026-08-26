@@ -61,14 +61,16 @@ function signature(graine: number): string {
 describe('la version de la carte verrouille le monde semé', () => {
   it("porte un MAJEUR qui change dès que le semeur change", () => {
     /*
-     * Empreintes relevées le jour où neuf gisements ont été posés ou déplacés
-     * pour que chaque capitale puisse jouer l'une ou l'autre maison. Trois
-     * graines, parce qu'un semeur peut très bien ne bouger que sur certaines.
+     * Empreintes relevées le jour du plancher toutes-natures : 95 paires
+     * d'objets adjacents sur la graine de démonstration, toutes inter-clefs,
+     * que `assezLoin` ne voyait pas. Le semis entier bouge — majeur monté de
+     * 2 à 3, protocole respecté. Trois graines, parce qu'un semeur peut très
+     * bien ne bouger que sur certaines.
      */
-    expect(MAP_VERSION).toBe('2.0.0-forez');
-    expect(empreinte(signature(20250816)), 'graine 20250816').toBe('77783bbb');
-    expect(empreinte(signature(7)), 'graine 7').toBe('b6356f50');
-    expect(empreinte(signature(42)), 'graine 42').toBe('a4be5570');
+    expect(MAP_VERSION).toBe('3.0.0-forez');
+    expect(empreinte(signature(20250816)), 'graine 20250816').toBe('78c389cd');
+    expect(empreinte(signature(7)), 'graine 7').toBe('4b0bd824');
+    expect(empreinte(signature(42)), 'graine 42').toBe('0665316a');
   });
 
   it('rend deux fois le même monde pour la même graine', () => {

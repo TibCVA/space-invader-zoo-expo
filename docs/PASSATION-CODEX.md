@@ -129,6 +129,28 @@ flottants « +5 bois » au pas du héros (`render/gains.ts`).
 
 ---
 
+**Le 26/08 — cinq plaintes, cinq correctifs mesurés.** (1) La marche du héros
+paraissait instantanée parce que la scène Pixi était DÉTRUITE ET REMONTÉE à
+chaque commande (`fabrique` mémorisée sur `game`, cloné à chaque coup) : les
+trois écrans à scène sont stabilisés (`scene-stable.test.ts`), le jeton n'est
+plus claqué avant la marche, la cadence prend le genou du combat. (2) La carte
+3.0.0 : plancher toutes-natures dans `assezLoin` (95 paires adjacentes → 0),
+écarts génériques des gisements rendus exécutoires, caravanes sous contrôle,
+parité essence/fer RÉTABLIE par mesure (`espacement.test.ts`,
+`ressources.test.ts`) — MAJEUR monté, empreintes relevées, les parties
+antérieures deviennent incompatibles (protocole `version.test.ts`). (3) La
+cité : ancres au sol PAR IMAGE au manifeste, parallaxe ramenée au plan du sol,
+zone morte gyroscope, fuite de `Text` corrigée (`ancrage.test.ts`). (4)
+Navigation : sa cité s'ouvre d'un clic (carte et fiche), onglets aiguillés par
+les grants, garnison en légende, flèches de cité (`cite-navigation.test.ts`).
+(5) Les 28 dessins peints de créatures branchés sur `atlas.creature`
+(`creatures-peintes.test.ts`).
+
+**Chantier ouvert par la carte 3.0.0** : recalibrer le profil `prudent` — sur
+la carte équitable, l'expert gagne 20/20 (contre 19 avant) ; la borne haute du
+duel est tombée au profit des planchers de vitalité (voir `duel.test.ts`), et
+le rééquilibrage du profil reste à faire.
+
 ## 3. Les chantiers du dernier message du propriétaire
 
 ### 3.1 « Jouabilité super fluide, animations, vrais déplacements »
