@@ -910,7 +910,10 @@ export class ChampDeBataille {
       width: cadre.w,
       height: cadre.h,
       antialias: true,
-      resolution: 1,
+      /* À LA densité du renderer, pas à 1 : le décor du combat entier était
+         peint en basse définition puis étiré sur les écrans denses — la
+         moitié du « les combats ne sont pas assez fins » sur PC. */
+      resolution: renderer.resolution,
     });
     rt.source.label = 'champ-de-bataille';
     renderer.render({ container: racine, target: rt, clear: true });

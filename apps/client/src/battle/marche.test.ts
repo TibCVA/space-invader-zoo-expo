@@ -25,6 +25,9 @@
  * ont chacun leur cadence à tenir.
  */
 import { describe, expect, it } from 'vitest';
+/* `node:fs` n'est pas dans les types du client — cf. battle/pouce.test.ts. */
+// @ts-expect-error — types Node absents du tsconfig du client, cf. ci-dessus
+import { readFileSync } from 'node:fs';
 import { dureeDeMarche } from './anim.js';
 
 /** La cadence d'origine, celle que le propriétaire a jugée instantanée. */
@@ -109,5 +112,41 @@ describe('cadence de marche en combat', () => {
          pile se téléporterait — le défaut d'origine, par une autre porte. */
       expect(d).toBeGreaterThan(0.05);
     }
+  });
+});
+
+/**
+ * LA FILE NE JOUE CHAQUE GESTE QU'UNE FOIS — vérification du 26/08.
+ *
+ * Deux mains nourrissaient la même file sans déduplication : `relire()`
+ * (l'abonné du magasin, qui gèle les positions AVANT de jouer) et
+ * `playEvents()` (la coquille), qui ré-enfilait les mêmes événements — chaque
+ * marche de pile se rejouait depuis son hexagone de départ. Le remontage de
+ * la scène à chaque action masquait ce doublon ; sa stabilisation l'a mis à
+ * nu. `relire` reste LA main qui enfile ; `playEvents` ne fait plus
+ * qu'attendre la fin, pour le verrou de lecture de la coquille.
+ */
+describe('une seule main nourrit la file', () => {
+  const VUE: string = String(readFileSync(new URL('./index.ts', import.meta.url), 'utf8'))
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+
+  it('relire enfile les événements ; playEvents n’enfile RIEN', () => {
+    const appels = VUE.match(/this\.file\.enfiler\(([^)]*)\)/g) ?? [];
+    expect(appels.sort()).toEqual(['this.file.enfiler(nouveaux)', 'this.file.enfiler([])'].sort());
+  });
+
+  it('la marche dure le CHEMIN parcouru, pas le vol d’oiseau', () => {
+    const ANIM: string = String(readFileSync(new URL('./anim.ts', import.meta.url), 'utf8'))
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+    expect(ANIM).toContain('dureeDeMarche(Math.max(1, chemin.length - 1))');
+  });
+
+  it('les positions restent gelées tant que la file joue', () => {
+    expect(VUE).toContain('const figer = this.file.occupee || this.enAttenteDeSync;');
+    /* Et relire lève le drapeau AVANT d'enfiler. */
+    const i = VUE.indexOf('this.enAttenteDeSync = true;\n      void this.file.enfiler(nouveaux);');
+    expect(i).toBeGreaterThan(0);
   });
 });

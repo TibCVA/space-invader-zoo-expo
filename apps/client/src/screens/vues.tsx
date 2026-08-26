@@ -186,6 +186,11 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
          */
         onPickCell: (at): void => {
           selectionner({ kind: 'case', at });
+          setCible(null);
+          /* Un appui dans le VIDE — aucune route à tracer, rien sous le doigt
+             — congédie AUSSI la fiche du lieu regardé : demande du
+             propriétaire, et le réflexe de HMM3 où cliquer ailleurs referme
+             ce qu'on consultait. */
         },
         onPickHero: (uid): void => {
           herosRef.current = uid;

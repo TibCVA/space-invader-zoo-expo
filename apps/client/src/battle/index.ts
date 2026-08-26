@@ -597,8 +597,18 @@ class VueCombat implements BattleView {
   }
 
   async playEvents(events: readonly GameEvent[]): Promise<void> {
+    /*
+     * LES ÉVÉNEMENTS SONT DÉJÀ ENFILÉS PAR `relire()` — abonné AVANT la
+     * coquille, c'est lui qui lève `enAttenteDeSync` et gèle les positions
+     * avant que la file ne joue. Ré-enfiler ici jouait chaque geste DEUX
+     * fois : la marche d'une pile se rejouait depuis son hexagone de départ
+     * sitôt terminée. Le remontage de la scène à chaque action masquait ce
+     * doublon ; sa stabilisation l'a mis à nu. On se contente d'attendre que
+     * la file se vide, pour que la coquille garde son verrou de lecture.
+     */
+    void events;
     this.enAttenteDeSync = true;
-    await this.file.enfiler(events);
+    await this.file.enfiler([]);
   }
 
   hexAt(x: number, y: number): HexCoord | null {

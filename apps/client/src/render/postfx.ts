@@ -334,6 +334,17 @@ export class PostTraitement {
       },
       padding: 0,
       antialias: 'off',
+      resolution: 'inherit',
+      /*
+       * LA RÉSOLUTION DU FILTRE SUIT LA CIBLE — pas le défaut de Pixi (1).
+       *
+       * Tout ce que la carte dessine passe par ce filtre : au défaut, la
+       * scène entière était rendue dans un tampon à densité 1 puis ÉTIRÉE
+       * sur le canevas ×2 des écrans denses — le renderer avait beau être en
+       * haute définition (`boot.ts`, resolution ×2, autoDensity), l'image
+       * finale restait floue. C'était la plainte « la définition de la carte
+       * sur PC est trop faible ».
+       */
     });
   }
 

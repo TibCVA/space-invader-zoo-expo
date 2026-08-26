@@ -67,6 +67,8 @@ interface Jeton {
   portrait: Sprite;
   masque: Graphics;
   jauge: Graphics;
+  /** halo de sélection au pied, repeint chaque image tant qu'il est actif */
+  halo: Graphics;
   /** position affichée, en cases continues */
   col: number;
   row: number;
@@ -187,6 +189,11 @@ export class JetonsHeros {
     const racine = new Container();
     racine.label = `heros-${uid}`;
 
+    /* Le halo de sélection vit SOUS tout le reste : un anneau au sol, pas un
+       cadre sur le portrait. */
+    const halo = new Graphics();
+    racine.addChild(halo);
+
     const ombre = new Sprite(ombreDouce());
     ombre.anchor.set(0.5, 0.5);
     ombre.tint = LIGHT.ombrePortee;
@@ -222,6 +229,7 @@ export class JetonsHeros {
       portrait,
       masque,
       jauge,
+      halo,
       col: hero.at.col,
       row: hero.at.row,
       facing: hero.facing,
@@ -388,6 +396,30 @@ export class JetonsHeros {
         this.peindreJauge(j, taille, selection === j.uid);
       }
       j.dernierSelect = selection === j.uid;
+
+      /*
+       * LE HALO DE SÉLECTION — « je voudrais que l'on voie mieux quand on
+       * sélectionne un héros ». L'ancien marquage (chevron réchauffé + fin
+       * trait d'or) se perdait dans le décor. L'anneau au sol PULSE, comme
+       * l'anneau d'activation du combat : deux ellipses d'or, l'une pleine
+       * lumière, l'autre en respiration. Repeint chaque image, mais pour le
+       * SEUL héros choisi — un tracé vectoriel par image, rien de plus.
+       */
+      if (j.dernierSelect) {
+        const pulse = immobile ? 0.85 : 0.62 + 0.3 * Math.sin(temps * 4.2);
+        const rx = taille * (0.56 + (immobile ? 0 : 0.035 * Math.sin(temps * 4.2)));
+        j.halo.clear();
+        j.halo
+          .ellipse(0, taille * 0.02, rx, rx * 0.42)
+          .stroke({ color: LIGHT.chaude, width: Math.max(2, taille * 0.07), alpha: pulse });
+        j.halo
+          .ellipse(0, taille * 0.02, rx * 0.78, rx * 0.33)
+          .fill({ color: PALETTE.vieilOr, alpha: 0.16 })
+          .stroke({ color: PALETTE.vieilOr, width: Math.max(1, taille * 0.03), alpha: 0.9 });
+      } else if (j.halo.visible) {
+        j.halo.clear();
+      }
+      j.halo.visible = j.dernierSelect;
 
       const x = xEcran(v, j.col + 0.5);
       const y = yEcran(v, j.row + 0.9);

@@ -25,6 +25,7 @@ import { Container, Sprite, Texture } from 'pixi.js';
 import { CELL_ROAD } from '@auvergne/engine';
 import type { WorldMap } from '@auvergne/engine';
 import type { ViewQuality } from '../view-contract.js';
+import { resolutionEcran } from '../boot.js';
 import { LIGHT, PALETTE, assombrir, cssAlpha, melanger, saturer } from '../art/palette.js';
 import {
   BRUME,
@@ -298,6 +299,25 @@ function couleurBiome(terrain: number, alt: number, pente: number): number {
 
 /* ─────────────────────────────── Le peintre ─────────────────────────────── */
 
+/**
+ * Le niveau de détail d'un bloc : des pixels PEINTS par case, choisis pour
+ * suivre les pixels AFFICHÉS (`zoom` en px CSS × densité de l'écran).
+ *
+ * Mesuré avant le correctif : l'échelle plafonnait à 16 px/case quel que soit
+ * l'écran — au zoom par défaut (22) sur un écran ×2, chaque case affichait
+ * 44 pixels physiques tirés d'une peinture de 12 : le sol entier était flou,
+ * et c'est le sol qu'on regarde. L'échelle vise maintenant AU MOINS la
+ * densité d'affichage, palier par palier, sous le plafond de qualité.
+ * Fonction pure, exportée pour être tenue par des tests.
+ */
+export function resolutionDeBloc(zoom: number, resMax: number, densite: number): number {
+  const cible = zoom * Math.max(1, densite);
+  for (const palier of [5, 8, 12, 16, 24]) {
+    if (cible <= palier) return Math.min(palier, resMax);
+  }
+  return Math.min(32, resMax);
+}
+
 export class PeintreTerrain {
   readonly couche = new Container();
 
@@ -321,7 +341,11 @@ export class PeintreTerrain {
     this.couche.label = 'terrain';
     this.blocsCols = Math.ceil(world.cols / BLOC);
     this.blocsRows = Math.ceil(world.rows / BLOC);
-    this.resMax = quality === 'basse' ? 8 : quality === 'moyenne' ? 12 : 16;
+    /* 32 en haute qualité : l'ancien plafond de 16 px/case s'affichait étiré
+       jusqu'à ×3,5 au zoom 56 — le sol, qui est TOUT l'écran, était la
+       première cause du « pas assez fin » sur PC. La peinture reste budgétée
+       par image et mise en cache, seul le premier passage coûte plus. */
+    this.resMax = quality === 'basse' ? 8 : quality === 'moyenne' ? 16 : 32;
     this.maxCache = quality === 'basse' ? 28 : 56;
   }
 
@@ -337,10 +361,7 @@ export class PeintreTerrain {
 
   /** Nombre de pixels peints par case au zoom donné : c'est le niveau de détail. */
   private resolutionPour(zoom: number): number {
-    if (zoom <= 9) return Math.min(5, this.resMax);
-    if (zoom <= 14) return Math.min(8, this.resMax);
-    if (zoom <= 24) return Math.min(12, this.resMax);
-    return Math.min(16, this.resMax);
+    return resolutionDeBloc(zoom, this.resMax, resolutionEcran());
   }
 
   /**
