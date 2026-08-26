@@ -226,6 +226,58 @@ export function estUneDemeure(batiment: BuildingId): boolean {
   return def.grants.some((o) => o.kind === 'dwelling');
 }
 
+/** L'onglet du panneau de cité que doit ouvrir un geste sur la maquette. */
+export type OngletCite = 'batir' | 'recruter' | 'taverne' | 'marche';
+
+/**
+ * L'onglet qui RÉPOND au bâtiment touché — par ses grants, pas par un test
+ * binaire. Mesuré avant le correctif : dès qu'une demeure était AMÉLIORÉE, la
+ * maquette la remplace par son amélioration (grant `upgrade`), et
+ * `estUneDemeure` renvoyait faux — toucher la maison où l'on recrute ouvrait
+ * « Bâtir ». Même défaut pour l'auberge (`tavern`) et le marché (`market`),
+ * dont les onglets existaient sans être atteignables par la maquette. La
+ * promesse « le panneau répond à ce qu'on a touché » était fausse pour la
+ * majorité des bâtiments levés.
+ */
+export function ongletDe(batiment: BuildingId): OngletCite {
+  const def = BUILDINGS[batiment];
+  if (!def) return 'batir';
+  for (const g of def.grants) {
+    if (g.kind === 'dwelling' || g.kind === 'upgrade') return 'recruter';
+    if (g.kind === 'tavern') return 'taverne';
+    if (g.kind === 'market') return 'marche';
+  }
+  return 'batir';
+}
+
+/* ────────────────────────────── La garnison ──────────────────────────────── */
+
+/**
+ * La garnison, en une phrase pour la légende de l'écran de cité.
+ *
+ * Dans HMM3 la garnison est FIXÉE en bas de l'écran de ville ; ici elle
+ * n'existait nulle part — pour la voir il fallait ressortir sur la carte et
+ * faire un appui long sur sa propre cité. Une ligne de légende ne remplace
+ * pas l'écran de HMM3, mais elle rend l'information permanente ; la gestion
+ * (échanger des piles) reste sur la fiche du héros en visite.
+ */
+export function garnisonEnMots(game: GameState, town: TownState): string {
+  const enMots = (piles: readonly ({ creature: CreatureId; count: number } | null)[]): string =>
+    piles
+      .filter((s): s is { creature: CreatureId; count: number } => s !== null && s.count > 0)
+      .map((s) => `${s.count} ${CREATURES[s.creature]?.namePlural ?? s.creature}`)
+      .join(' · ');
+  const garde = enMots(town.garrison);
+  const morceaux = [garde ? `garnison : ${garde}` : 'garnison vide'];
+  const visiteur = town.visitingHero ? game.heroes[town.visitingHero] : null;
+  if (visiteur) {
+    const armee = enMots(visiteur.army);
+    const nom = HEROES[visiteur.def]?.name ?? visiteur.def;
+    morceaux.push(armee ? `${nom} en visite : ${armee}` : `${nom} en visite`);
+  }
+  return morceaux.join(' — ');
+}
+
 /* ───────────────────────────── Amélioration ─────────────────────────────── */
 
 /**

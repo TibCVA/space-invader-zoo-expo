@@ -1185,6 +1185,13 @@
   color: #8c3b3b;
 }
 
+/* les flèches « d'une cité à l'autre », posées à côté du trésor du bandeau */
+.cite-nav {
+  display: inline-flex;
+  gap: var(--hmm-space-1);
+  margin-right: var(--hmm-space-2);
+}
+
 /* La flèche de promotion et l'intertitre des promotions, dans l'onglet
    Recruter : la section vit SOUS les recrues, c'est le même rendez-vous
    hebdomadaire dans HMM3. */

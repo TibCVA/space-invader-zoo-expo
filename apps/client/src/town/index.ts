@@ -34,6 +34,7 @@ import { dayOf } from '@auvergne/engine';
 import { BUILDINGS, buildingsOf } from '@auvergne/content';
 import type { TownHour, TownView, TownViewDeps } from '../view-contract.js';
 import type { Effet } from '../art/effects.js';
+import { ancreYDe } from '../art/assets.js';
 import type { MaterialKey, MaterialSet } from '../art/shading.js';
 import { LIGHT, PALETTE, melanger } from '../art/palette.js';
 import { densifier, flat, perturber, pt } from '../art/shading.js';
@@ -246,6 +247,10 @@ class TableauCite implements TownView {
   private phaseCible: number;
   private phase: number;
   private parallaxeCible = { x: 0, y: 0 };
+  /** Dernière inclinaison retenue, pour la zone morte du gyroscope. */
+  private derniereInclinaison: { gamma: number; beta: number } | null = null;
+  /** L'étiquette de nom courante — détruite avant chaque nouveau survol. */
+  private etiquette: Text | null = null;
   private parallaxe = { x: 0, y: 0 };
   /** Vrai tant que deux doigts pincent : la dérive de caméra ne suit plus. */
   private pinceEnCours = false;
@@ -305,6 +310,12 @@ class TableauCite implements TownView {
       if (this.detruit || this.deps.reducedMotion) return;
       const gamma = typeof e.gamma === 'number' ? e.gamma : 0;
       const beta = typeof e.beta === 'number' ? e.beta : 0;
+      /* ZONE MORTE : le capteur bruite en continu à ±0,2° même téléphone posé
+         sur une table — sans ce seuil, tout le tableau micro-tremblait en
+         permanence sur mobile (« les bâtiments bougent un peu »). */
+      const d = this.derniereInclinaison;
+      if (d && Math.abs(gamma - d.gamma) < 0.5 && Math.abs(beta - d.beta) < 0.5) return;
+      this.derniereInclinaison = { gamma, beta };
       this.parallaxeCible = {
         x: Math.max(-1, Math.min(1, gamma / 30)),
         y: Math.max(-1, Math.min(1, (beta - 45) / 40)),
@@ -608,7 +619,11 @@ class TableauCite implements TownView {
       : null;
     if (sprite) {
       sprite.label = clefAsset!;
-      sprite.anchor.set(0.5, 0.97);
+      /* L'ancre suit le PIED PEINT de chaque image (bas de la masse opaque,
+         mesuré sur la couche alpha et porté au manifeste) : l'ancre unique
+         de 0,97 laissait de 2 à 10 px de vide sous les façades — jusqu'à
+         ~32 px au zoom 3 sous le caravansérail (pied peint à 0,932). */
+      sprite.anchor.set(0.5, ancreYDe(clefAsset!) ?? 0.965);
       /* Le WebP est un canevas carré dont l'occupation encode déjà l'échelle
          relative des rangs. Le module fixe sa taille dans le panorama. */
       sprite.width = taille * SPRITE_FACTEUR;
@@ -646,7 +661,12 @@ class TableauCite implements TownView {
       lumieres,
       bannieres,
       base,
-      parallaxe: 0.34 + Math.max(0, Math.min(5, def.scene.z)) * 0.132,
+      /* PRESQUE le plan du sol peint (0,16), à peine étagé par la profondeur.
+         L'ancien barème (0,34 + z×0,132, jusqu'à 1,0) faisait glisser les
+         pieds jusqu'à ~12 px sur les terrasses peintes à chaque mouvement de
+         souris — mesuré, c'est ce qui se lisait « les bâtiments bougent ».
+         Le différentiel est maintenant borné à (0,26−0,16)×14 = 1,4 px. */
+      parallaxe: 0.16 + Math.max(0, Math.min(5, def.scene.z)) * 0.02,
       taille,
       emprise: dessin.emprise,
       hauteur: dessin.hauteur,
@@ -670,7 +690,8 @@ class TableauCite implements TownView {
       candidat: def.id,
       node: g,
       base,
-      parallaxe: 0.34 + Math.max(0, Math.min(5, def.scene.z)) * 0.132,
+      /* Même plan que les bâtiments : un emplacement est un morceau de sol. */
+      parallaxe: 0.16 + Math.max(0, Math.min(5, def.scene.z)) * 0.02,
       rayon: taille * 0.45,
     });
   }
@@ -1030,15 +1051,33 @@ class TableauCite implements TownView {
     for (const b of this.batis) b.lisere.visible = b.id === actif;
     const g = this.gLisereeSurvol;
     g.clear();
+    this.etiquette?.destroy();
+    this.etiquette = null;
+    /* `clear()` n'efface QUE la géométrie du Graphics — jamais ses enfants
+       (Pixi v8). Le `Text` du nom survivait donc à chaque changement de
+       survol et les anciens noms restaient affichés à leur place : c'étaient
+       eux, les « noms qui se chevauchent ». On détruit l'étiquette courante
+       avant d'en poser une autre — même motif que le cartouche de la porte. */
     if (!actif) return;
     const b = this.batis.find((n) => n.id === actif);
     if (!b) return;
-    /* Un discret cartouche de nom au-dessus du bâtiment mis en avant. */
+    /* Un discret cartouche de nom au-dessus du bâtiment mis en avant. Le
+       texte se mesure AVANT le cartouche : un nom long débordait du cadre
+       calculé à la longueur de chaîne. */
     const def = BUILDINGS[actif] ?? b.def;
     const x = b.node.x;
     const y = b.node.y - b.hauteur - b.emprise.hd * 2.6;
-    const w = Math.max(120, def.name.length * Math.max(6, this.largeur * 0.0052));
     const h = Math.max(20, this.largeur * 0.017);
+    const t = new Text({
+      text: def.name,
+      style: new TextStyle({
+        fontFamily: '"EB Garamond", Georgia, serif',
+        fontSize: Math.max(11, Math.round(h * 0.58)),
+        fill: PALETTE.encre,
+        align: 'center',
+      }),
+    });
+    const w = Math.max(120, t.width + h * 0.9);
     g.poly(
       flat(
         perturber(
@@ -1053,18 +1092,10 @@ class TableauCite implements TownView {
       width: 1.2,
       alpha: 0.85,
     });
-    const t = new Text({
-      text: def.name,
-      style: new TextStyle({
-        fontFamily: '"EB Garamond", Georgia, serif',
-        fontSize: Math.max(11, Math.round(h * 0.58)),
-        fill: PALETTE.encre,
-        align: 'center',
-      }),
-    });
     t.anchor.set(0.5);
     t.position.set(x, y - h / 2);
     g.addChild(t);
+    this.etiquette = t;
   }
 }
 

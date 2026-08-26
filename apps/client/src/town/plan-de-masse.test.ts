@@ -86,8 +86,10 @@ function emprise(
   const x = cas.cadre.x + (cas.cadre.w * p.x) / 100;
   const y = cas.cadre.y + (cas.cadre.h * p.y) / 100;
   const cote = tailleDe(def, moduleDe(cas.cadre.w, cas.portrait)) * SPRITE_FACTEUR;
-  /* Ancre du sprite : (0,5 ; 0,97) — le canevas monte depuis son pied. */
-  return { gauche: x - cote / 2, droite: x + cote / 2, haut: y - cote * 0.97, bas: y + cote * 0.03 };
+  /* Ancre du sprite : (0,5 ; ~0,965) — le pied peint mesuré au manifeste
+     (`ancreY`, repli 0,965). La mesure de couverture emploie le repli : les
+     ancres réelles s'en écartent de moins de 4 % de la hauteur. */
+  return { gauche: x - cote / 2, droite: x + cote / 2, haut: y - cote * 0.965, bas: y + cote * 0.035 };
 }
 
 describe('plan de masse — tout construit couvre les terrasses', () => {

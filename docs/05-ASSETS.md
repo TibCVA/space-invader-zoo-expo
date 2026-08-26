@@ -56,9 +56,14 @@ apps/client/public/img/
 Tout ce qui est sous `public/` est servi tel quel à la racine du site : le fichier
 `public/img/portraits/clotilde.webp` est lu par le jeu à `/img/portraits/clotilde.webp`.
 
-Les **références non embarquées** (maquettes de créatures, planches d'étude) vont
-dans `docs/reference/` — jamais dans `public/`, pour ne pas peser sur le
-téléchargement.
+Les **références non embarquées** (planches d'étude) vont dans
+`docs/reference/` — jamais dans `public/`, pour ne pas peser sur le
+téléchargement. Exception décidée le 26/08 : les vingt-huit dessins peints de
+créatures (`docs/reference/creatures/renders/`, 1024 px) sont AUSSI livrés en
+512 px sous `public/img/creatures/` et déclarés au manifeste (catégorie
+`creature`, ~2,9 Mo, budget porté à 16 Mio) — le propriétaire veut les dessins,
+pas la capture du rig, dans les vignettes de sélection (cité et combat). Le
+champ de bataille garde le rig animé.
 
 **Format** : WebP, qualité 82. Alpha uniquement là où c'est indiqué. Pas de PNG
 sauf si l'alpha exige un dégradé très fin.

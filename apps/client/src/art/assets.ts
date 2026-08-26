@@ -110,6 +110,13 @@ export interface EntreeAsset {
   hauteur: number;
   /** Vrai si la texture doit se répéter sans couture (pinceaux de terrain). */
   repetable?: boolean;
+  /**
+   * Fraction de la hauteur où le PIED PEINT touche le sol, mesurée sur la
+   * couche alpha du fichier (bas de la masse opaque). Les bâtiments de la
+   * cité s'ancrent dessus : une ancre unique (0,97 pour tous) laissait
+   * jusqu'à 10 px de vide sous le caravansérail — « les bâtiments flottent ».
+   */
+  ancreY?: number;
   /** Invite et graine, pour pouvoir régénérer à l'identique. */
   invite?: string;
   graine?: string | number;
@@ -141,6 +148,17 @@ let dernierRapport: RapportAssets | null = null;
 
 export function rapportAssets(): RapportAssets | null {
   return dernierRapport;
+}
+
+/** Ancres au sol des images chargées (clef → fraction de la hauteur). */
+const ancresY = new Map<string, number>();
+
+/**
+ * L'ancre au sol mesurée d'une image CHARGÉE, ou `null` si l'image manque
+ * (repli procédural) ou n'a pas d'ancre déclarée au manifeste.
+ */
+export function ancreYDe(clef: string): number | null {
+  return ancresY.get(clef) ?? null;
 }
 
 /**
@@ -176,6 +194,12 @@ export function validerManifeste(brut: unknown): Manifeste | null {
     if (typeof largeur !== 'number' || typeof hauteur !== 'number') continue;
     if (largeur <= 0 || hauteur <= 0 || largeur > COTE_MAX || hauteur > COTE_MAX) continue;
     if (typeof categorie !== 'string') continue;
+    /* Une ancre hors du canevas décollerait le sprite au lieu de le poser :
+       une valeur absurde est simplement oubliée, le repli d'ancrage prend. */
+    const ay = (e as EntreeAsset).ancreY;
+    if (ay !== undefined && (typeof ay !== 'number' || !Number.isFinite(ay) || ay <= 0 || ay > 1)) {
+      delete (e as { ancreY?: number }).ancreY;
+    }
     entrees.push(e as EntreeAsset);
   }
   if (!entrees.length) return null;
@@ -246,6 +270,9 @@ export async function appliquerAssetsGeneres(
         if (entree.repetable) {
           texture.source.addressMode = 'repeat';
         }
+        /* L'ancre mesurée ne vaut que pour une image réellement chargée : un
+           repli procédural garde son ancrage à lui. */
+        if (typeof entree.ancreY === 'number') ancresY.set(entree.clef, entree.ancreY);
         if (entree.categorie === 'terrain' && entree.clef in pinceaux) {
           pinceaux[entree.clef] = texture;
         } else {

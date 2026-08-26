@@ -146,6 +146,15 @@ export interface MapViewCallbacks {
   onPickHero?(uid: string, at: MapCoord): void;
   /** cité cliquée */
   onPickTown?(uid: TownUid, at: MapCoord): void;
+  /**
+   * On demande à ENTRER dans cette cité — l'écran de ville de HMM3.
+   *
+   * Émis quand la cité touchée porte la bannière du joueur local et qu'aucune
+   * route n'était à tracer : y entrer est alors l'action. Sans ce rappel, la
+   * cité n'était atteignable que par la barre de pouce (deux gestes et une
+   * feuille) — HMM3 y va d'un clic.
+   */
+  onEnterTown?(uid: TownUid): void;
   /** objet de carte cliqué */
   onPickObject?(object: MapObject): void;
   /**

@@ -27,47 +27,35 @@ import type { Cadrage } from './commun.js';
  * trajet de trois cases se jouait en 435 ms, à peine le temps de voir partir
  * le héros. On la porte à 260 ms : un pas devient lisible, on suit la troupe
  * du regard, et l'on comprend où passe la route.
- *
- * Le plafond compte autant que la cadence. Sans lui, la durée croît avec le
- * chemin : à 260 ms la case, une marche de vingt cases immobiliserait le
- * joueur cinq secondes, chaque tour. Au-delà de `MARCHE_MAX_MS`, les pas se
- * resserrent d'eux-mêmes — le trajet reste lisible, il ne devient jamais une
- * attente.
  */
 const MS_PAR_CASE = 260;
 
 /**
- * Durée totale au-delà de laquelle la marche se resserre.
- *
- * Elle valait 2200 ms, et c'était une faute de calcul : un héros dispose de
- * 1300 à 2000 points de marche et la case de chemin en coûte 70, donc une
- * journée de route fait jusqu'à VINGT-HUIT cases. À 2200 ms de plafond, ce
- * trajet-là se serait joué à 79 ms la case — deux fois plus vite que les
- * 145 ms que le propriétaire venait de juger trop rapides. Le plafond
- * corrigeait les longs trajets dans le mauvais sens.
+ * Le GENOU : nombre de cases jouées à pleine cadence avant que le pas ne se
+ * resserre. Mêmes valeurs que la marche de combat (`battle/anim.ts`), pour
+ * que les deux écrans aient la même respiration.
  */
-const MARCHE_MAX_MS = 3400;
+const GENOU_CASES = 11;
 
-/**
- * Cadence PLANCHER, en millisecondes par case.
- *
- * Aucun trajet, si long soit-il, ne va plus vite que cela. C'est la garantie
- * qui manquait : quelle que soit la longueur du chemin, la marche reste plus
- * lente que celle dont le propriétaire s'est plaint.
- */
-const MS_PAR_CASE_MIN = 170;
+/** Cadence des cases AU-DELÀ du genou — le trot du courrier pressé. */
+const MS_PAR_CASE_AU_DELA = 140;
 
 /**
  * Cadence retenue pour un trajet de `cases` cases, en millisecondes par case.
  *
- * Un chemin court garde la pleine cadence — c'est lui qu'on regarde. Un long
- * trajet se resserre, comme un courrier qui prend le trot, sans jamais
- * descendre sous le plancher : la plus longue marche possible tient alors en
- * moins de cinq secondes tout en restant lisible.
+ * Un chemin court garde la pleine cadence — c'est lui qu'on regarde. Au-delà
+ * du genou, chaque case supplémentaire coûte moins, mais la durée TOTALE
+ * croît STRICTEMENT avec le chemin : l'ancien plafond de durée totale rendait
+ * identiques tous les trajets de quatorze à vingt cases (3400 ms exactement),
+ * puis écrasait la cadence des plus longs — le défaut même que la marche de
+ * combat a éliminé. La plus longue journée possible (vingt-huit cases) tient
+ * en 5,2 s, jamais instantanée, jamais une attente.
  */
 export function cadenceDeMarche(cases: number): number {
   if (!Number.isFinite(cases) || cases <= 0) return MS_PAR_CASE;
-  return Math.max(MS_PAR_CASE_MIN, Math.min(MS_PAR_CASE, MARCHE_MAX_MS / cases));
+  const pleines = Math.min(cases, GENOU_CASES);
+  const audela = Math.max(0, cases - GENOU_CASES);
+  return (pleines * MS_PAR_CASE + audela * MS_PAR_CASE_AU_DELA) / cases;
 }
 
 interface Jeton {
@@ -94,7 +82,7 @@ interface Deplacement {
   points: MapCoord[];
   index: number;
   t: number;
-  /** Cadence retenue pour CE trajet, plafond de durée totale compris. */
+  /** Cadence retenue pour CE trajet, genou compris. */
   msParCase: number;
   resoudre: () => void;
 }
@@ -164,7 +152,7 @@ export class JetonsHeros {
     return borne(v.zoom * 2.45, 30, 112);
   }
 
-  sync(state: GameState): void {
+  sync(state: GameState, enAttente: ReadonlySet<string> = new Set()): void {
     this.etat = state;
     const vus = new Set<string>();
     for (const uid of Object.keys(state.heroes)) {
@@ -176,8 +164,11 @@ export class JetonsHeros {
         jeton = this.creer(uid, hero, state);
         this.jetons.set(uid, jeton);
       }
-      /* Pendant une marche animée, la position vient de l'animation. */
-      if (this.deplacement?.uid !== uid) {
+      /* Pendant une marche animée — ou quand une marche ATTEND encore dans la
+         file (`enAttente`) — la position vient de l'animation, pas de l'état :
+         claquer le jeton à destination ici ferait partir la marche de
+         l'arrivée, c'est-à-dire nulle part. */
+      if (this.deplacement?.uid !== uid && !enAttente.has(uid)) {
         jeton.col = hero.at.col;
         jeton.row = hero.at.row;
         jeton.facing = hero.facing;

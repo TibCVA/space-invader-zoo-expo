@@ -31,6 +31,7 @@ import {
   type OffreBatiment,
   type OffreRecrue,
   type OffreTaverne,
+  type OngletCite,
 } from './cite-offres.js';
 import { CHARTES, charteOffrable, commandeDeCharte } from './politiques.js';
 
@@ -468,7 +469,7 @@ export interface PanneauCiteProps {
    * plutôt que de commencer toujours au même endroit, ce qui obligeait à
    * changer d'onglet à la main une fois sur deux.
    */
-  ongletInitial?: 'batir' | 'recruter';
+  ongletInitial?: OngletCite;
   onFermer(): void;
   /**
    * Ressortir sur la carte, SANS refermer d'abord.
@@ -491,7 +492,7 @@ export function PanneauCite({
   onFermer,
   onQuitter,
 }: PanneauCiteProps): ReactElement {
-  const [onglet, setOnglet] = useState<'batir' | 'recruter' | 'taverne' | 'marche'>(ongletInitial);
+  const [onglet, setOnglet] = useState<OngletCite>(ongletInitial);
 
   /* Échap referme — le réflexe de HMM3, où la touche annule toujours ce qui
      est au premier plan. Même depuis un champ : fermer est bien ce qu'on

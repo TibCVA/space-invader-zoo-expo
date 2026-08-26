@@ -192,7 +192,17 @@ class CarteAventure implements MapView {
 
   sync(state: GameState): void {
     this.etat = state;
-    this.jetons.sync(state);
+    /* Les héros dont la marche ATTEND dans la file ne sont pas claqués à
+       destination : `relire` passe AVANT `jouerLaFile` (abonné plus tard), et
+       sans cette réserve le jeton était déjà à l'arrivée quand l'animation
+       démarrait — la marche partait de la destination, donc ne montrait
+       rien. `playEvents` refait un sync complet en fin de lecture, file vide,
+       qui rattrape tout. */
+    const enMarche = new Set<string>();
+    for (const q of this.deps.store.get().queue) {
+      if (q.event.type === 'HeroMoved') enMarche.add(q.event.hero);
+    }
+    this.jetons.sync(state, enMarche);
     this.objets.sync(state);
     this.minicarte.sync(state);
     this.meteo.poser(state.weather.current);
@@ -890,6 +900,14 @@ class CarteAventure implements MapView {
     if (objet) {
       const townUid = objet.data?.townUid as string | undefined;
       if (townUid && this.etat?.towns?.[townUid]) {
+        /* SA cité, et aucune route n'était à tracer (l'étape 2 a eu sa
+           chance) : y ENTRER est l'action — l'écran de ville de HMM3 s'ouvre
+           d'un clic. Les cités des autres bannières restent à l'inspection. */
+        const town = this.etat.towns[townUid];
+        if (town.owner === this.deps.localPlayer && this.deps.onEnterTown) {
+          this.deps.onEnterTown(townUid as TownUid);
+          return;
+        }
         this.deps.onPickTown?.(townUid, objet.at);
         this.deps.onInspect?.({ kind: 'cite', uid: townUid as TownUid, at: objet.at });
       } else {

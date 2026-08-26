@@ -24,10 +24,11 @@ import { calendrierLong, nombre, pluriel } from './format.js';
 import { FicheInspection } from './inspection.js';
 import { BarreTresor } from './tresor.js';
 import { PanneauCite } from './cite-commandes.js';
-import { estUneDemeure } from './cite-offres.js';
+import { garnisonEnMots, ongletDe } from './cite-offres.js';
+import type { OngletCite } from './cite-offres.js';
 import type { Cible } from './cible.js';
 import { herosDisponibles, prochainHeros } from './heros-actions.js';
-import type { MapView } from '../view-contract.js';
+import type { MapView, TownView } from '../view-contract.js';
 import { Button, ConfirmBar } from '@auvergne/ui';
 
 /* ─────────────────────── Rythme de confirmation ──────────────────────────── */
@@ -148,7 +149,19 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
 
   const fabrique = useCallback<FabriqueScene>(
     async ({ app, atlas, width, height }) => {
-      if (!game || !world || !localPlayer) throw new Error("Aucune partie n'est chargée.");
+      /*
+       * L'ÉTAT SE LIT AU MONTAGE — JAMAIS PAR LA FERMETURE.
+       *
+       * `game` change de RÉFÉRENCE à chaque commande (le moteur clone,
+       * `apply.ts`), et l'avoir dans les dépendances de cette fabrique
+       * remontait TOUTE la scène à chaque coup : l'effet de `ScenePixi`
+       * dépend de `fabrique`, le démontage détruisait la file d'animation à
+       * la naissance — le héros paraissait se téléporter, quelles que soient
+       * les cadences réglées dans `render/heroes.ts`. La vue montée se tient
+       * à jour toute seule (elle s'abonne au magasin : `relire`/`sync`).
+       */
+      const jeu = viewStore.get().game;
+      if (!jeu || !world || !localPlayer) throw new Error("Aucune partie n'est chargée.");
       const vue = await createMapView({
         app,
         atlas,
@@ -161,7 +174,7 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
         reducedMotion,
         quality: 'haute',
         demo,
-        focus: cadrageInitial(game, localPlayer, demo === true),
+        focus: cadrageInitial(jeu, localPlayer, demo === true),
         /*
          * LES `onPick*` CHOISISSENT ; SEUL `onInspect` OUVRE LA FICHE.
          *
@@ -181,6 +194,13 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
         onPickTown: (uid): void => {
           selectionner({ kind: 'cite', uid });
         },
+        /* SA cité s'ouvre d'un clic — l'écran de ville de HMM3. Jamais en
+           démonstration : les routes de démo ont leurs propres cités. */
+        onEnterTown: demo
+          ? undefined
+          : (uid): void => {
+              navigate({ name: 'partie-cite', uid });
+            },
         onPickObject: (): void => {
           /* Rien : c'est `onInspect` qui montre. Le rappel reste branché parce
              que le contrat le prévoit et qu'une vue peut vouloir le sonoriser. */
@@ -197,7 +217,7 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
       vueRef.current = vue;
       return vue;
     },
-    [game, world, localPlayer, demo, reducedMotion],
+    [world, localPlayer, demo, reducedMotion],
   );
 
   /**
@@ -310,6 +330,13 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
           heros={herosMesure}
           pavoisDemo={pavoisDemo}
           onFermer={(): void => setCible(null)}
+          onEntrer={
+            demo
+              ? undefined
+              : (uid): void => {
+                  navigate({ name: 'partie-cite', uid });
+                }
+          }
         />
       ) : null}
       {state.pathPreview ? <BarreDeChemin preview={state.pathPreview} /> : null}
@@ -396,13 +423,34 @@ export function EcranCite({ state, reducedMotion, uid, demoTown }: EcranCiteProp
    * souris et pas au doigt, mais c'est le geste que cherche un joueur de HMM3.
    */
   const [commandes, setCommandes] = useState(false);
-  /* Ce que le joueur vient de désigner sur la maquette décide de l'onglet. */
-  const [ongletCite, setOngletCite] = useState<'batir' | 'recruter'>('batir');
+  /* Ce que le joueur vient de désigner sur la maquette décide de l'onglet —
+     par ses grants (`ongletDe`) : demeure ou amélioration → Recruter,
+     auberge → Auberge, marché → Marché, le reste → Bâtir. */
+  const [ongletCite, setOngletCite] = useState<OngletCite>('batir');
+
+  /*
+   * MÊME RÈGLE QUE LA CARTE : la fabrique ne dépend d'AUCUN objet qui change
+   * de référence à chaque commande. `game` (et donc `cible`) est cloné par
+   * le moteur à chaque coup : les garder en dépendance remontait TOUTE la
+   * maquette à chaque geste — bâtir, recruter, engager, échanger — ce qui se
+   * lisait « la navigation dans la cité n'est pas fluide ». Seuls l'uid et
+   * la faction (des chaînes, stables pour une même cité) pilotent le
+   * montage ; la mise à jour passe par `setTown`, plus bas.
+   */
+  const uidCible = cible?.uid ?? null;
+  const factionCible = cible?.faction ?? null;
+  const vueCiteRef = useRef<TownView | null>(null);
+  useEffect(() => {
+    if (cible) vueCiteRef.current?.setTown(cible);
+  }, [cible]);
 
   const fabrique = useCallback<FabriqueScene>(
     async ({ app, atlas, width, height }) => {
-      if (!game || !world || !localPlayer || !cible) throw new Error("Aucune cité à montrer.");
-      return createTownView({
+      const jeu = viewStore.get().game;
+      if (!jeu || !world || !localPlayer || !uidCible || !factionCible) {
+        throw new Error("Aucune cité à montrer.");
+      }
+      const vue = await createTownView({
         /*
          * LE PANNEAU RÉPOND À CE QU'ON A TOUCHÉ.
          *
@@ -416,7 +464,7 @@ export function EcranCite({ state, reducedMotion, uid, demoTown }: EcranCiteProp
           setCommandes(true);
         },
         onPickBuilding: (b): void => {
-          setOngletCite(estUneDemeure(b) ? 'recruter' : 'batir');
+          setOngletCite(ongletDe(b));
           setCommandes(true);
         },
         /* La porte de la cité ramène à la carte. Le rappel existait au contrat
@@ -434,13 +482,25 @@ export function EcranCite({ state, reducedMotion, uid, demoTown }: EcranCiteProp
         reducedMotion,
         quality: 'haute',
         demo,
-        town: cible.uid,
-        faction: cible.faction,
-        hour: cible.faction === 'ermitage' ? 'crepuscule' : 'midi',
+        town: uidCible,
+        faction: factionCible,
+        hour: factionCible === 'ermitage' ? 'crepuscule' : 'midi',
       });
+      vueCiteRef.current = vue;
+      return vue;
     },
-    [game, world, localPlayer, cible, demo, reducedMotion],
+    [world, localPlayer, demo, reducedMotion, uidCible, factionCible],
   );
+
+  /* D'UNE CITÉ À L'AUTRE sans repasser par la feuille de la barre de pouce :
+     les flèches suivent l'ordre des cités de la bannière, en boucle. */
+  const mesCites = game && localPlayer ? game.players[localPlayer].towns : [];
+  const indexCite = uidCible ? mesCites.indexOf(uidCible) : -1;
+  const versCite = (pas: number): void => {
+    if (mesCites.length < 2 || indexCite < 0) return;
+    const uid = mesCites[(indexCite + pas + mesCites.length) % mesCites.length];
+    if (uid) navigate({ name: 'partie-cite', uid });
+  };
 
   return (
     <ScenePixi
@@ -449,17 +509,32 @@ export function EcranCite({ state, reducedMotion, uid, demoTown }: EcranCiteProp
       /* La cité est l'autre écran où l'on dépense — bâtiments et recrues. Dans
          HMM3 la barre y est aussi permanente, et pour la même raison. */
       outils={
-        game && localPlayer ? <BarreTresor game={game} player={localPlayer} demo={demo} /> : null
+        game && localPlayer ? (
+          <>
+            {!demo && indexCite >= 0 && mesCites.length > 1 ? (
+              <span className="cite-nav">
+                <Button size="compact" variant="fantome" onClick={(): void => versCite(-1)}>
+                  ‹ Cité
+                </Button>
+                <Button size="compact" variant="fantome" onClick={(): void => versCite(1)}>
+                  Cité ›
+                </Button>
+              </span>
+            ) : null}
+            <BarreTresor game={game} player={localPlayer} demo={demo} />
+          </>
+        ) : null
       }
       cle={`cite-${cible?.uid ?? 'vide'}`}
       fabrique={fabrique}
       reducedMotion={reducedMotion}
       legende={
-        cible ? (
+        cible && game ? (
           <>
             <strong>{cible.name}</strong> — {pluriel(cible.built.length, 'bâtiment')} levé
             {cible.built.length > 1 ? 's' : ''} · agitation {cible.unrest}&#8239;% ·{' '}
-            {cible.faction === 'ermitage' ? 'crépuscule' : 'midi'}.
+            {/* La garnison, FIXE comme en bas de l'écran de ville de HMM3. */}
+            {garnisonEnMots(game, cible)}.
           </>
         ) : null
       }
@@ -505,7 +580,17 @@ export function EcranCombat({ state, reducedMotion }: EcranPartieProps): ReactEl
 
   const fabrique = useCallback<FabriqueScene>(
     async ({ app, atlas, width, height }) => {
-      if (!game || !world || !localPlayer || !combat) throw new Error("Aucun combat n'est engagé.");
+      /* Même règle que la carte : `game` et `combat` changent de référence à
+         CHAQUE action — les garder en dépendance remontait le champ de
+         bataille à chaque coup, détruisant la file d'animation (les piles
+         paraissaient se téléporter, quelle que soit la cadence réglée dans
+         `battle/anim.ts`). La vue montée s'abonne au magasin et se tient à
+         jour toute seule. */
+      const jeu = viewStore.get().game;
+      const combatFrais = jeu?.combat ?? null;
+      if (!jeu || !world || !localPlayer || !combatFrais) {
+        throw new Error("Aucun combat n'est engagé.");
+      }
       return createBattleView({
         app,
         atlas,
@@ -518,10 +603,10 @@ export function EcranCombat({ state, reducedMotion }: EcranPartieProps): ReactEl
         reducedMotion,
         quality: 'haute',
         demo,
-        combat,
+        combat: combatFrais,
       });
     },
-    [game, world, localPlayer, combat, demo, reducedMotion],
+    [world, localPlayer, demo, reducedMotion],
   );
 
   const vivants = combat ? combat.units.filter((u) => u.alive).length : 0;

@@ -18,6 +18,8 @@ import { BUILDINGS } from '@auvergne/content';
 import { setupDemo } from '../state/demo.js';
 import {
   ameliorationsAbordables,
+  garnisonEnMots,
+  ongletDe,
   apercuEchange,
   marcheOuvert,
   minimumUtile,
@@ -456,5 +458,55 @@ describe('le comptoir du marché', () => {
     const joueur = game.activePlayer;
     game.players[joueur].resources.essence = 0;
     expect(minimumUtile(game, joueur, 'essence', 'ecus')).toBeNull();
+  });
+});
+
+/**
+ * L'AIGUILLAGE D'ONGLET ET LA GARNISON EN MOTS — la deuxième passe de
+ * navigation. `ongletDe` répond par les grants du bâtiment ; `estUneDemeure`
+ * seul envoyait les demeures améliorées, l'auberge et le marché sur « Bâtir ».
+ */
+describe('l’onglet qui répond au bâtiment touché', () => {
+  it('demeure et amélioration → Recruter ; auberge → Auberge ; marché → Marché ; le reste → Bâtir', () => {
+    const parGrant = (kind: string): string | undefined =>
+      Object.keys(BUILDINGS).find((id) =>
+        BUILDINGS[id as keyof typeof BUILDINGS]?.grants.some((g) => g.kind === kind),
+      );
+    const demeure = parGrant('dwelling');
+    const amelioration = parGrant('upgrade');
+    const auberge = parGrant('tavern');
+    const marche = parGrant('market');
+    expect(demeure && amelioration && auberge && marche).toBeTruthy();
+    expect(ongletDe(demeure as never)).toBe('recruter');
+    expect(ongletDe(amelioration as never)).toBe('recruter');
+    expect(ongletDe(auberge as never)).toBe('taverne');
+    expect(ongletDe(marche as never)).toBe('marche');
+    const autre = Object.keys(BUILDINGS).find(
+      (id) =>
+        !BUILDINGS[id as keyof typeof BUILDINGS]?.grants.some((g) =>
+          ['dwelling', 'upgrade', 'tavern', 'market'].includes(g.kind),
+        ),
+    );
+    expect(autre).toBeDefined();
+    expect(ongletDe(autre as never)).toBe('batir');
+  });
+});
+
+describe('la garnison en mots', () => {
+  it('dit les piles de la garde, le visiteur et son armée — ou l’absence de tout', () => {
+    const { game, cite } = partie();
+    cite.visitingHero = null;
+    cite.garrison = [{ creature: cite.garrison.find(Boolean)?.creature ?? ('granit_t1' as never), count: 12 }, null, null, null, null, null, null];
+    const seul = garnisonEnMots(game, cite);
+    expect(seul).toContain('garnison : 12 ');
+
+    const heros = game.heroes[game.players[game.activePlayer].heroes[0]];
+    cite.visitingHero = heros.uid;
+    const avec = garnisonEnMots(game, cite);
+    expect(avec).toContain('en visite');
+
+    cite.garrison = [null, null, null, null, null, null, null];
+    cite.visitingHero = null;
+    expect(garnisonEnMots(game, cite)).toBe('garnison vide');
   });
 });

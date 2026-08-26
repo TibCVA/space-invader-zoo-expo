@@ -184,3 +184,50 @@ describe('échap referme le premier plan', () => {
     expect(bloc.indexOf('setCible(null)')).toBeGreaterThan(bloc.indexOf('annulerChemin()'));
   });
 });
+
+/**
+ * LA DEUXIÈME PASSE — « la navigation dans la cité est toujours pas
+ * optimale ». Quatre défauts mesurés cette fois :
+ *
+ *  1. le tap sur SA cité, sur la carte, n'ENTRAIT jamais (deux gestes par la
+ *     barre de pouce, là où HMM3 ouvre l'écran de ville d'un clic) ;
+ *  2. l'aiguillage d'onglet testait `dwelling` seul : toute demeure AMÉLIORÉE
+ *     (grant `upgrade`), l'auberge et le marché ouvraient… « Bâtir » ;
+ *  3. la garnison n'existait nulle part dans l'écran de cité ;
+ *  4. changer de cité repassait par la feuille de la barre de pouce.
+ */
+describe('la cité s’ouvre d’un geste, et répond à ce qu’on touche', () => {
+  const RENDU: string = code('../render/index.ts');
+  const INSPECTION: string = code('./inspection.tsx');
+  const OFFRES: string = code('./cite-offres.ts');
+
+  it('sur la carte, SA cité s’ouvre d’un clic — les autres s’inspectent', () => {
+    expect(RENDU).toContain('this.deps.onEnterTown(townUid as TownUid)');
+    /* L'entrée ne double jamais la marche : elle vit à l'étape 3, APRÈS
+       `essayerChemin` — l'action de route garde la priorité. */
+    const clic = RENDU.slice(RENDU.indexOf('private cliquer('));
+    expect(clic.indexOf('essayerChemin')).toBeLessThan(clic.indexOf('onEnterTown'));
+    expect(VUES).toContain("navigate({ name: 'partie-cite', uid })");
+  });
+
+  it('la fiche d’inspection d’une cité à soi porte « Entrer dans la cité »', () => {
+    expect(INSPECTION).toMatch(/Entrer dans la cité/);
+    expect(INSPECTION).toContain('onEntrer(cible.uid)');
+  });
+
+  it('l’aiguillage d’onglet lit les GRANTS — plus jamais « Bâtir » par défaut sur une auberge', () => {
+    expect(OFFRES).toContain("if (g.kind === 'dwelling' || g.kind === 'upgrade') return 'recruter'");
+    expect(OFFRES).toContain("if (g.kind === 'tavern') return 'taverne'");
+    expect(OFFRES).toContain("if (g.kind === 'market') return 'marche'");
+    expect(VUES).toContain('setOngletCite(ongletDe(b))');
+  });
+
+  it('la garnison se lit dans la légende de la cité, comme en bas de l’écran de HMM3', () => {
+    expect(VUES).toContain('garnisonEnMots(game, cible)');
+  });
+
+  it('les flèches passent d’une cité à l’autre, en boucle, sans la feuille', () => {
+    expect(VUES).toContain('const versCite = (pas: number): void =>');
+    expect(VUES).toMatch(/\(indexCite \+ pas \+ mesCites\.length\) % mesCites\.length/);
+  });
+});

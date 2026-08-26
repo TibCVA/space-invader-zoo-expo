@@ -6,16 +6,13 @@
  * 145 ms — un trajet de trois cases se jouait en moins d'une demi-seconde, à
  * peine le temps de voir partir la troupe.
  *
- * On l'a portée à 260 ms. Mais la première correction posait AUSSI un plafond
- * de durée totale, et ce plafond corrigeait dans le mauvais sens : un héros
- * dispose de 1300 à 2000 points de marche et la case de chemin en coûte 70,
- * donc une journée de route fait jusqu'à vingt-huit cases. À 2200 ms de
- * plafond, ce trajet-là serait reparti à 79 ms la case — deux fois plus vite
- * que ce dont le propriétaire venait de se plaindre. Le défaut serait revenu
- * précisément sur les longues marches, celles qu'on regarde le plus.
- *
- * D'où le plancher, et d'où ce fichier : la garde qui dit qu'AUCUNE longueur
- * de chemin, si grande soit-elle, ne rend la marche plus rapide qu'avant.
+ * On l'a portée à 260 ms, puis on a corrigé le CORRECTIF : la première
+ * version posait un plafond de durée totale (3400 ms) qui rendait identiques
+ * tous les trajets de quatorze à vingt cases, puis écrasait la cadence des
+ * plus longs — le défaut même que la marche de combat (`battle/anim.ts`) a
+ * éliminé au profit d'un GENOU : pleine cadence jusqu'à onze cases, pas
+ * resserré au-delà, durée totale STRICTEMENT croissante avec le chemin.
+ * Mêmes valeurs ici, pour que carte et champ de bataille respirent pareil.
  */
 import { describe, expect, it } from 'vitest';
 import { cadenceDeMarche } from './heroes.js';
@@ -27,7 +24,7 @@ const PLUS_LONG_TRAJET = 28;
 
 describe('cadence de marche', () => {
   it('un trajet court se joue à la pleine cadence', () => {
-    for (const cases of [1, 2, 3, 5, 8]) {
+    for (const cases of [1, 2, 3, 5, 8, 11]) {
       expect(cadenceDeMarche(cases)).toBe(260);
     }
   });
@@ -39,6 +36,10 @@ describe('cadence de marche', () => {
   });
 
   it('AUCUN trajet ne repasse sous la cadence dont il s’est plaint', () => {
+    /* Le genou tend vers 140 ms la case à l'infini, mais il faudrait un
+       chemin de 265 cases pour passer sous 145 — la plus longue journée en
+       fait vingt-huit. Sur tout chemin réellement possible (et jusqu'au
+       double), la moyenne reste au-dessus. */
     for (let cases = 1; cases <= 60; cases += 1) {
       expect(
         cadenceDeMarche(cases),
@@ -47,12 +48,23 @@ describe('cadence de marche', () => {
     }
   });
 
+  it('la marche s’allonge TOUJOURS avec le chemin — jamais de plafond total', () => {
+    /* La garde du genou, celle qui a attrapé le plafond du combat : deux
+       trajets différents ne durent jamais pareil. */
+    let precedent = 0;
+    for (let cases = 1; cases <= 60; cases += 1) {
+      const total = cases * cadenceDeMarche(cases);
+      expect(total, `${cases} cases : ${total} ms au total`).toBeGreaterThan(precedent);
+      precedent = total;
+    }
+  });
+
   it('la plus longue marche possible reste courte à regarder', () => {
     const total = PLUS_LONG_TRAJET * cadenceDeMarche(PLUS_LONG_TRAJET);
-    /* Lisible, mais jamais une attente : moins de cinq secondes pour une
-       journée entière de route. */
-    expect(total).toBeLessThan(5000);
-    expect(total).toBeGreaterThan(3000);
+    /* Lisible, mais jamais une attente : 11 × 260 + 17 × 140 = 5240 ms pour
+       une journée entière de route. */
+    expect(total).toBeGreaterThan(4500);
+    expect(total).toBeLessThan(6000);
   });
 
   it('la cadence ne remonte jamais quand le chemin s’allonge', () => {

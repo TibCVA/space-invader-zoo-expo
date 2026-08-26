@@ -19,7 +19,7 @@
  */
 
 import { useEffect, type ReactElement } from 'react';
-import type { GameState, HeroInstance, MapObject, PlayerId, WorldMap } from '@auvergne/engine';
+import type { GameState, HeroInstance, MapObject, PlayerId, TownUid, WorldMap } from '@auvergne/engine';
 import { Badge, Button, Icon, IconButton, Panel, PlayerBanner, Stat } from '@auvergne/ui';
 import type { Cible } from './cible.js';
 import {
@@ -47,6 +47,8 @@ export interface FicheInspectionProps {
   /** pavois d'affichage des routes de démonstration (voir `render/pavois.ts`) */
   readonly pavoisDemo?: ReadonlyMap<string, PlayerId>;
   readonly onFermer: () => void;
+  /** entrer dans SA cité depuis la fiche — absent en démonstration */
+  readonly onEntrer?: (uid: TownUid) => void;
 }
 
 /** Construit la fiche demandée, ou `null` si la cible n'existe plus. */
@@ -77,7 +79,7 @@ export function ficheDe(
 
 /** Le carton d'inspection posé sur la carte. */
 export function FicheInspection(props: FicheInspectionProps): ReactElement | null {
-  const { game, world, localPlayer, cible, heros, pavoisDemo, onFermer } = props;
+  const { game, world, localPlayer, cible, heros, pavoisDemo, onFermer, onEntrer } = props;
 
   /* Échappement : une fiche qu'on ne peut pas fermer au clavier n'est pas une
      fiche, c'est un obstacle. Le voile d'un `Sheet` ferait la même chose, mais
@@ -162,6 +164,23 @@ export function FicheInspection(props: FicheInspectionProps): ReactElement | nul
         ) : (
           <p className="carte-fiche__vide">Personne en armes sur les lieux.</p>
         )}
+
+        {/* SA cité s'ouvre depuis la fiche — le pendant du clic direct sur la
+            carte : l'appui long informe, et le bouton fait entrer. */}
+        {cible.kind === 'cite' && game.towns[cible.uid]?.owner === localPlayer && onEntrer ? (
+          <div className="carte-fiche__reseau">
+            <Button
+              size="compact"
+              variant="principal"
+              onClick={(): void => {
+                onEntrer(cible.uid);
+                onFermer();
+              }}
+            >
+              Entrer dans la cité
+            </Button>
+          </div>
+        ) : null}
 
         {fiche.juge ? <p className="carte-fiche__juge">{fiche.juge}</p> : null}
 
