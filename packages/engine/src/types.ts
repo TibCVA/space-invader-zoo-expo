@@ -813,7 +813,20 @@ export type GameEvent =
   | { type: 'WeatherChanged'; current: WeatherKind; forecast: [WeatherKind, WeatherKind] }
   | { type: 'PlayerDefeated'; player: PlayerId }
   | { type: 'GameEnded'; winner: PlayerId | null; reason: string }
-  | { type: 'Notice'; player: PlayerId | null; text: string; severity: 'info' | 'warn' | 'danger' };
+  | {
+      type: 'Notice';
+      player: PlayerId | null;
+      text: string;
+      severity: 'info' | 'warn' | 'danger';
+      /**
+       * `publique` : la ligne appartient à l'histoire COMMUNE de la partie —
+       * une cité qui change de bannière, une reddition, la gabelle — et le
+       * serveur la sert à toutes les bannières. Sans la marque, une notice
+       * est PRIVÉE : elle ne quitte jamais le journal de son auteur (les
+       * constructions et recrutements sous brouillard ne se racontent pas).
+       */
+      portee?: 'publique';
+    };
 
 /* ────────────────────────────── État global ─────────────────────────────── */
 
@@ -863,7 +876,7 @@ export interface GameState {
   endReason: string | null;
   nextUid: number;
   /** journal court affiché au joueur */
-  journal: { turn: number; player: PlayerId | null; text: string; kind: string }[];
+  journal: { turn: number; player: PlayerId | null; text: string; kind: string; portee?: 'publique' }[];
   hash: string;
 }
 

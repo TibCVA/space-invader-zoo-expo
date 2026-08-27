@@ -40,8 +40,13 @@ export function journal(
   player: PlayerId | null,
   text: string,
   kind = 'info',
+  portee?: 'publique',
 ): void {
-  state.journal.push({ turn: state.turn, player, text, kind });
+  state.journal.push(
+    portee === 'publique'
+      ? { turn: state.turn, player, text, kind, portee }
+      : { turn: state.turn, player, text, kind },
+  );
   if (state.journal.length > JOURNAL_MAX) {
     state.journal.splice(0, state.journal.length - JOURNAL_MAX);
   }
@@ -50,7 +55,7 @@ export function journal(
 /** Recopie les `Notice` d'une liste d'événements dans le journal. */
 export function journalFromEvents(state: GameState, events: GameEvent[]): void {
   for (const e of events) {
-    if (e.type === 'Notice') journal(state, e.player, e.text, e.severity);
+    if (e.type === 'Notice') journal(state, e.player, e.text, e.severity, e.portee);
   }
 }
 

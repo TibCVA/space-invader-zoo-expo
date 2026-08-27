@@ -155,6 +155,16 @@ export interface MapViewCallbacks {
    * feuille) — HMM3 y va d'un clic.
    */
   onEnterTown?(uid: TownUid): void;
+  /**
+   * Un fait NOTABLE vient de se jouer pour le joueur local — prise d'un
+   * gisement, trouvaille d'une cache, capture d'une cité, rite accompli. La
+   * coquille le montre en VIGNETTE éphémère par-dessus la carte (demande du
+   * propriétaire : « une jolie vignette qui apparaît, reste 2 secondes et
+   * disparaît »). La vue ne fait que relayer la Notice du moteur, dans
+   * l'ordre où la file d'animation la joue — jamais avant le pas qui la
+   * produit.
+   */
+  onNotice?(avis: { text: string; severity: 'info' | 'warn' | 'danger' }): void;
   /** objet de carte cliqué */
   onPickObject?(object: MapObject): void;
   /**

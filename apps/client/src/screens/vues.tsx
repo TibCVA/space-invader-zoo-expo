@@ -136,6 +136,29 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
   const [cible, setCible] = useState<Cible | null>(null);
 
   /*
+   * LES VIGNETTES DE FAITS — « quand le héros prend possession d'un actif ou
+   * déclenche une action, cela doit se voir par une jolie vignette qui
+   * apparaît, reste 2 secondes et disparaît » (demande du propriétaire).
+   * La vue relaie les Notices du moteur au fil de la file d'animation
+   * (`onNotice`) ; l'écran les affiche en cartouches de parchemin, trois au
+   * plus à la fois, chacun congédié au bout de deux secondes.
+   */
+  const [vignettes, setVignettes] = useState<
+    { id: number; texte: string; ton: 'info' | 'warn' | 'danger' }[]
+  >([]);
+  const prochaineVignette = useRef(1);
+  const montrerVignette = useCallback(
+    (avis: { text: string; severity: 'info' | 'warn' | 'danger' }): void => {
+      const id = prochaineVignette.current++;
+      setVignettes((v) => [...v.slice(-2), { id, texte: avis.text, ton: avis.severity }]);
+      setTimeout(() => {
+        setVignettes((v) => v.filter((x) => x.id !== id));
+      }, 2000);
+    },
+    [],
+  );
+
+  /*
    * Le héros de référence est tenu dans une **référence** et non dans un état :
    * la fabrique de la scène PixiJS est mémorisée sur ses dépendances, et un
    * état supplémentaire dans cette liste ferait remonter toute la carte — vingt
@@ -218,11 +241,14 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
           else if (c.kind === 'objet') setCible({ kind: 'objet', uid: c.object.uid });
           else setCible(null);
         },
+        onNotice: montrerVignette,
       });
       vueRef.current = vue;
       return vue;
     },
-    [world, localPlayer, demo, reducedMotion],
+    /* `montrerVignette` est un useCallback sans dépendance : identité STABLE,
+       il ne remonte jamais la scène. */
+    [world, localPlayer, demo, reducedMotion, montrerVignette],
   );
 
   /**
@@ -343,6 +369,15 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
                 }
           }
         />
+      ) : null}
+      {vignettes.length > 0 ? (
+        <div className="jeu-vignettes" aria-live="polite">
+          {vignettes.map((v) => (
+            <div key={v.id} className={`jeu-vignette jeu-vignette--${v.ton}`}>
+              {v.texte}
+            </div>
+          ))}
+        </div>
       ) : null}
       {state.pathPreview ? <BarreDeChemin preview={state.pathPreview} /> : null}
       {/* Le bouton n'existe qu'à partir de deux héros : avant, le geste n'a

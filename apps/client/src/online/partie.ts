@@ -37,6 +37,67 @@ export function lireSetup(charge: PartyStatePayload): GameSetup {
   return analyse.data as GameSetup;
 }
 
+/* ───────────────────── La chronique de l'absence ─────────────────────────── */
+
+/** Une ligne de journal, identifiée sans ambiguïté. */
+function clefDeLigne(e: { turn: number; player: PlayerId | null; text: string }): string {
+  return `${String(e.turn)}|${e.player ?? ''}|${e.text}`;
+}
+
+interface JournalLu {
+  readonly journal: readonly { turn: number; player: PlayerId | null; text: string }[];
+}
+
+/**
+ * Les lignes du journal que le joueur N'A PAS ENCORE VUES — la chronique de
+ * son absence, au jeu par correspondance.
+ *
+ * Le repère est la DERNIÈRE ligne vue (retenue par partie, dans le
+ * navigateur) : tout ce qui la suit est nouveau. Si elle a été poussée hors
+ * du journal (il est borné), on retombe sur le tour : nouveau = plus récent
+ * que le dernier tour vu. Seules comptent les lignes des AUTRES — le serveur
+ * ne sert d'ailleurs que les nôtres, celles du monde et les faits publics.
+ */
+export function lignesNouvelles(
+  apres: JournalLu,
+  moi: PlayerId,
+  repere: { clef: string; tour: number } | null,
+): { turn: number; player: PlayerId | null; text: string }[] {
+  const autres = apres.journal.filter((e) => e.player !== moi);
+  if (!repere) return [];
+  const i = apres.journal.map(clefDeLigne).lastIndexOf(repere.clef);
+  if (i >= 0) {
+    return apres.journal.slice(i + 1).filter((e) => e.player !== moi);
+  }
+  return autres.filter((e) => e.turn > repere.tour);
+}
+
+/** Le repère « dernière ligne vue » d'une partie, dans le navigateur. */
+function lireRepere(code: string): { clef: string; tour: number } | null {
+  try {
+    const brut = localStorage.getItem(`auvergne.chronique.${code}`);
+    if (!brut) return null;
+    const forme = JSON.parse(brut) as { clef?: unknown; tour?: unknown };
+    if (typeof forme.clef !== 'string' || typeof forme.tour !== 'number') return null;
+    return { clef: forme.clef, tour: forme.tour };
+  } catch {
+    return null;
+  }
+}
+
+function poserRepere(code: string, journal: JournalLu['journal'], tour: number): void {
+  try {
+    const derniere = journal[journal.length - 1];
+    if (!derniere) return;
+    localStorage.setItem(
+      `auvergne.chronique.${code}`,
+      JSON.stringify({ clef: clefDeLigne(derniere), tour }),
+    );
+  } catch {
+    /* Navigation privée ou stockage plein : la chronique se tait, le jeu vit. */
+  }
+}
+
 /**
  * Installe une partie en ligne dans le magasin du client. Ne navigue pas :
  * l'écran appelant décide où aller, et quand.
@@ -76,6 +137,27 @@ export async function installerPartieEnLigne(charge: PartyStatePayload): Promise
   if (charge.monSlot) {
     brancherRelais({ code: charge.code, seq: charge.seq, monSlot: charge.monSlot }, surEcho);
     brancherRelaisDeCommandes(transmettre);
+
+    /*
+     * LA CHRONIQUE DE L'ABSENCE — le chaînon du jeu par correspondance : la
+     * main revient, le monde a changé, et RIEN ne le disait. On compte les
+     * lignes de journal que ce navigateur n'a pas encore vues (capture d'une
+     * cité, reddition, gabelle, tours joués par le serveur) et on les
+     * annonce, la plus récente en toutes lettres. Le repère avance à CHAQUE
+     * installation : on ne raconte jamais deux fois la même absence.
+     */
+    const moi = charge.monSlot as PlayerId;
+    const repere = lireRepere(charge.code);
+    const nouvelles = lignesNouvelles(state, moi, repere);
+    poserRepere(charge.code, state.journal, state.turn);
+    if (charge.monTour && nouvelles.length > 0) {
+      const derniere = nouvelles[nouvelles.length - 1];
+      poserNotice(
+        nouvelles.length === 1
+          ? `Pendant votre absence : ${derniere.text}`
+          : `Pendant votre absence (${String(nouvelles.length)} faits) : ${derniere.text} — le Journal a le reste.`,
+      );
+    }
   } else {
     /* Sans bannière, on observe : rien ne part au serveur. */
     couperRelais();

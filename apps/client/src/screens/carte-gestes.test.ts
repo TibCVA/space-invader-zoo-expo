@@ -55,3 +55,29 @@ describe('le clic dans le vide congédie la fiche', () => {
     expect(bloc).toContain('setCible(null)');
   });
 });
+
+describe('la vignette de fait — deux secondes, puis s’efface', () => {
+  const VUES = code('./vues.tsx');
+  const RENDU = code('../render/index.ts');
+  const CSS: string = String(readFileSync(new URL('./screens.css', import.meta.url), 'utf8'));
+
+  it('la carte relaie les Notices du joueur local, au fil de la file', () => {
+    expect(RENDU).toMatch(/case 'Notice':/);
+    expect(RENDU).toContain('if (e.player === this.deps.localPlayer)');
+    expect(RENDU).toContain('this.deps.onNotice?.({ text: e.text, severity: e.severity })');
+  });
+
+  it('l’écran affiche la vignette et la congédie à 2000 ms exactement', () => {
+    expect(VUES).toContain('onNotice: montrerVignette');
+    expect(VUES).toMatch(/setTimeout\(\(\) => \{\s*setVignettes\(\(v\) => v\.filter\(\(x\) => x\.id !== id\)\);\s*\}, 2000\)/);
+    /* Trois vignettes au plus : une pluie de trouvailles ne mure pas l'écran. */
+    expect(VUES).toContain('v.slice(-2)');
+  });
+
+  it('le parchemin vit 2000 ms à l’œil aussi, et respecte le mouvement réduit', () => {
+    expect(CSS).toMatch(/animation: jeu-vignette-vie 2000ms/);
+    expect(CSS).toMatch(/@keyframes jeu-vignette-vie/);
+    const i = CSS.indexOf('prefers-reduced-motion: reduce) {\n  .jeu-vignette');
+    expect(i).toBeGreaterThan(0);
+  });
+});

@@ -411,6 +411,15 @@ class CarteAventure implements MapView {
         case 'WeatherChanged':
           this.meteo.poser(e.current);
           break;
+        case 'Notice':
+          /* La vignette éphémère : SEULEMENT nos propres faits (prise d'un
+             gisement, cache trouvée, rite accompli) — et au moment où la
+             file les joue, jamais avant le pas qui les produit. Les refus
+             passent par `notice` du magasin, pas par ici. */
+          if (e.player === this.deps.localPlayer) {
+            this.deps.onNotice?.({ text: e.text, severity: e.severity });
+          }
+          break;
         default:
           break;
       }

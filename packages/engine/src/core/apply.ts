@@ -714,6 +714,7 @@ export function applyCommand(state: GameState, cmd: Command, world: WorldMap): C
         type: 'Notice',
         player: null,
         text: `La gabelle passe au régime « ${cmd.policy} ».`,
+        portee: 'publique',
         severity: 'warn',
       });
       break;
@@ -840,6 +841,7 @@ export function applyCommand(state: GameState, cmd: Command, world: WorldMap): C
         type: 'Notice',
         player: null,
         text: `${p.name} abaisse sa bannière.`,
+        portee: 'publique',
         severity: 'danger',
       });
       invalidateWorldCache(world);

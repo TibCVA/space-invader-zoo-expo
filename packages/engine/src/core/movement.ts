@@ -410,6 +410,16 @@ export function captureTown(state: GameState, town: TownState, by: PlayerId): Ga
     p.towns.sort();
   }
   events.push({ type: 'TownCaptured', town: town.uid, by });
+  /* La manchette de la chronique : une place qui change de bannière est un
+     fait PUBLIC — le drapeau se voit sur la carte de quiconque a exploré la
+     région, et le joueur par correspondance doit l'apprendre en revenant. */
+  events.push({
+    type: 'Notice',
+    player: by,
+    text: `${town.name} passe sous la bannière de ${state.players[by]?.name ?? by}.`,
+    severity: 'warn',
+    portee: 'publique',
+  });
   return events;
 }
 

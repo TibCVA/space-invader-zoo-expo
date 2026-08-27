@@ -1192,6 +1192,74 @@
   margin-right: var(--hmm-space-2);
 }
 
+/* ════════════════ Les vignettes de faits de la carte ═══════════════════════
+
+   « Quand le héros prend possession d'un actif ou déclenche une action, cela
+   doit se voir par une jolie vignette qui apparaît, reste 2 secondes et
+   disparaît. » Cartouche de parchemin cerné d'or, posé en haut au centre —
+   le seul bord que ni la fiche (haut-gauche), ni la rose des vents
+   (haut-droit), ni la légende (bas) ne tiennent. `pointer-events: none` :
+   une vignette ne vole jamais un clic de carte. Le retrait est fait par
+   l'écran à 2000 ms ; l'animation ne fait que l'accompagner à l'œil. */
+.jeu-vignettes {
+  position: absolute;
+  top: calc(var(--hmm-space-4) + var(--hmm-safe-haut, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--hmm-space-2);
+  z-index: var(--hmm-z-colle);
+  pointer-events: none;
+  max-width: min(520px, calc(100% - 2 * var(--hmm-space-4)));
+}
+
+.jeu-vignette {
+  padding: var(--hmm-space-2) var(--hmm-space-4);
+  background-image: linear-gradient(172deg, rgba(236, 224, 198, 0.97) 0%, rgba(219, 203, 172, 0.97) 100%);
+  border: var(--hmm-filet-fin) solid var(--hmm-or-attenue);
+  border-radius: 4px;
+  box-shadow: 0 3px 14px rgba(16, 20, 26, 0.35);
+  color: #2b2418;
+  font-size: var(--hmm-fs-petit);
+  line-height: 1.35;
+  text-align: center;
+  animation: jeu-vignette-vie 2000ms ease-in-out both;
+}
+
+.jeu-vignette--warn {
+  border-color: #8c6d1f;
+}
+
+.jeu-vignette--danger {
+  border-color: #8c3b3b;
+  color: #5a1f1f;
+}
+
+@keyframes jeu-vignette-vie {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  9% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  84% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jeu-vignette {
+    animation: none;
+  }
+}
+
 /* La flèche de promotion et l'intertitre des promotions, dans l'onglet
    Recruter : la section vit SOUS les recrues, c'est le même rendez-vous
    hebdomadaire dans HMM3. */

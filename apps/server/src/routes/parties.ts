@@ -81,6 +81,7 @@ import { HEROES, heroesOf } from '@auvergne/content';
 import { START_KEYS, buildWorld } from '@auvergne/map';
 import { runBotTurn } from '@auvergne/bots';
 import type { ServerContext } from '../context.js';
+import { journalServi } from '../chronique.js';
 import { HttpError, fail } from '../errors.js';
 import {
   MAX_SNAPSHOTS,
@@ -1075,6 +1076,11 @@ function etatPublic(party: StoredParty, moi: PlayerId): PartyStatePayload {
     joueur.tavernOffers = [];
     masque = true;
   }
+  /* LE JOURNAL AUSSI se lit par bannière : sans ce filtre, chaque joueur
+     recevait la chronique COMPLÈTE de l'adversaire — ses constructions, ses
+     recrutements, ses sorts, dans des cités sous brouillard. La règle vit
+     dans `chronique.ts`, où les tests la tiennent. */
+  state.journal = journalServi(state.journal, moi);
 
   const mien = party.joueurs.find((s) => s.slot === moi) ?? null;
   return {
