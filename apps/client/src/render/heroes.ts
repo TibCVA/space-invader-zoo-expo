@@ -12,7 +12,7 @@
  * n'est décidée ici — la vue reçoit un chemin déjà validé.
  */
 
-import { Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
 import type { GameState, HeroInstance, MapCoord, PlayerId } from '@auvergne/engine';
 import type { ArtAtlas } from '../art/index.js';
 import { LIGHT, PALETTE, assombrir, melanger } from '../art/palette.js';
@@ -69,6 +69,12 @@ interface Jeton {
   jauge: Graphics;
   /** halo de sélection au pied, repeint chaque image tant qu'il est actif */
   halo: Graphics;
+  /** les troupes embarquées, en chiffres sous le jeton — les nôtres seules */
+  troupes: Text;
+  troupesFond: Graphics;
+  troupesTexte: string;
+  /** clef de mise en page « texte|taille » : on ne repeint que si elle bouge */
+  troupesCle: string;
   /** position affichée, en cases continues */
   col: number;
   row: number;
@@ -176,6 +182,13 @@ export class JetonsHeros {
         jeton.facing = hero.facing;
       }
       jeton.marche = hero.movementMax > 0 ? borne(hero.movement / hero.movementMax, 0, 1) : 0;
+      jeton.troupesTexte =
+        hero.owner === this.localPlayer
+          ? hero.army
+              .filter((pile): pile is NonNullable<typeof pile> => pile !== null && pile.count > 0)
+              .map((pile) => String(pile.count))
+              .join(' · ')
+          : '';
       jeton.tailleDessinee = 0;
     }
     for (const [uid, jeton] of this.jetons) {
@@ -219,6 +232,26 @@ export class JetonsHeros {
     const jauge = new Graphics();
     racine.addChild(jauge);
 
+    /* Les troupes embarquées, « de manière concise » (demande du
+       propriétaire) : les effectifs des piles, séparés d'un point médian —
+       « 24 · 6 · 2 » se lit d'un regard, comme la barre de garnison de HMM3.
+       SEULEMENT pour nos bannières : l'armée d'en face ne se lit pas sur la
+       carte, c'est l'équité du brouillard (la fiche d'estimation existe pour
+       jauger). */
+    const troupesFond = new Graphics();
+    racine.addChild(troupesFond);
+    const troupes = new Text({
+      text: '',
+      style: new TextStyle({
+        fontFamily: 'Georgia, serif',
+        fontSize: 11,
+        fill: 0x2b2418,
+        align: 'center',
+      }),
+    });
+    troupes.anchor.set(0.5, 0);
+    racine.addChild(troupes);
+
     this.couche.addChild(racine);
     return {
       uid,
@@ -230,6 +263,10 @@ export class JetonsHeros {
       masque,
       jauge,
       halo,
+      troupes,
+      troupesFond,
+      troupesTexte: '',
+      troupesCle: '',
       col: hero.at.col,
       row: hero.at.row,
       facing: hero.facing,
@@ -396,6 +433,28 @@ export class JetonsHeros {
         this.peindreJauge(j, taille, selection === j.uid);
       }
       j.dernierSelect = selection === j.uid;
+
+      /* La bande de troupes : sous le jeton, lisible dès que le jeton l'est.
+         En dessous de 40 px le chiffre deviendrait du bruit — on le tait. */
+      const texteTroupes = taille >= 40 ? j.troupesTexte : '';
+      const cleTroupes = `${texteTroupes}|${String(Math.round(taille))}`;
+      if (j.troupesCle !== cleTroupes) {
+        j.troupesCle = cleTroupes;
+        j.troupes.text = texteTroupes;
+        j.troupes.style.fontSize = Math.max(10, Math.round(taille * 0.17));
+        j.troupes.position.set(0, taille * 0.26);
+        j.troupesFond.clear();
+        if (texteTroupes !== '') {
+          const l = j.troupes.width + taille * 0.18;
+          const h = j.troupes.height + taille * 0.08;
+          j.troupesFond
+            .roundRect(-l / 2, taille * 0.24, l, h, h * 0.3)
+            .fill({ color: melanger(PALETTE.parchemin, 0xffffff, 0.18), alpha: 0.92 })
+            .stroke({ color: PALETTE.vieilOr, width: 1, alpha: 0.8 });
+        }
+      }
+      j.troupes.visible = texteTroupes !== '';
+      j.troupesFond.visible = texteTroupes !== '';
 
       /*
        * LE HALO DE SÉLECTION — « je voudrais que l'on voie mieux quand on

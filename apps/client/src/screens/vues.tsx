@@ -24,7 +24,8 @@ import { calendrierLong, nombre, pluriel } from './format.js';
 import { FicheInspection } from './inspection.js';
 import { BarreTresor } from './tresor.js';
 import { PanneauCite } from './cite-commandes.js';
-import { garnisonEnMots, ongletDe } from './cite-offres.js';
+import { VignetteGarnison } from './garnison.js';
+import { ongletDe } from './cite-offres.js';
 import type { OngletCite } from './cite-offres.js';
 import type { Cible } from './cible.js';
 import { herosDisponibles, prochainHeros } from './heros-actions.js';
@@ -572,13 +573,14 @@ export function EcranCite({ state, reducedMotion, uid, demoTown }: EcranCiteProp
         cible && game ? (
           <>
             <strong>{cible.name}</strong> — {pluriel(cible.built.length, 'bâtiment')} levé
-            {cible.built.length > 1 ? 's' : ''} · agitation {cible.unrest}&#8239;% ·{' '}
-            {/* La garnison, FIXE comme en bas de l'écran de ville de HMM3. */}
-            {garnisonEnMots(game, cible)}.
+            {cible.built.length > 1 ? 's' : ''} · agitation {cible.unrest}&#8239;%.
           </>
         ) : null
       }
     >
+      {/* LA GARNISON EN VIGNETTE, permanente — la barre de HMM3, en dessins
+          peints. Posée avant le panneau : ouvert, il passe par-dessus. */}
+      {game && cible ? <VignetteGarnison game={game} town={cible} /> : null}
       {game && cible && cible.owner === localPlayer ? (
         commandes ? (
           <PanneauCite

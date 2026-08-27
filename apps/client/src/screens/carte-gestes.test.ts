@@ -81,3 +81,19 @@ describe('la vignette de fait — deux secondes, puis s’efface', () => {
     expect(i).toBeGreaterThan(0);
   });
 });
+
+describe('les troupes embarquées, sous le jeton', () => {
+  const JETONS = code('../render/heroes.ts');
+
+  it('les effectifs des piles, concis, sous NOS héros seulement', () => {
+    /* L'armée d'en face ne se lit pas sur la carte : c'est l'équité du
+       brouillard — la fiche d'estimation existe pour jauger. */
+    expect(JETONS).toContain("hero.owner === this.localPlayer");
+    expect(JETONS).toMatch(/\.map\(\(pile\) => String\(pile\.count\)\)/);
+    expect(JETONS).toContain(".join(' · ')");
+  });
+
+  it('la bande se tait sous 40 px — un chiffre illisible est du bruit', () => {
+    expect(JETONS).toContain("taille >= 40 ? j.troupesTexte : ''");
+  });
+});

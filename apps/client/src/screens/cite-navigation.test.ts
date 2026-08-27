@@ -222,8 +222,15 @@ describe('la cité s’ouvre d’un geste, et répond à ce qu’on touche', () 
     expect(VUES).toContain('setOngletCite(ongletDe(b))');
   });
 
-  it('la garnison se lit dans la légende de la cité, comme en bas de l’écran de HMM3', () => {
-    expect(VUES).toContain('garnisonEnMots(game, cible)');
+  it('la garnison se VOIT — vignette permanente en dessins peints, comme HMM3', () => {
+    /* La première passe la disait en légende (garnisonEnMots) ; le
+       propriétaire veut la VOIR : la vignette est permanente et le panneau
+       de commandes ne fait que passer par-dessus. */
+    expect(VUES).toContain('<VignetteGarnison game={game} town={cible} />');
+    const GARNISON = code('./garnison.tsx');
+    expect(GARNISON).toContain('vignetteCreature(id)');
+    expect(GARNISON).toContain('town.garrison');
+    expect(GARNISON).toContain('en visite');
   });
 
   it('les flèches passent d’une cité à l’autre, en boucle, sans la feuille', () => {
