@@ -175,11 +175,33 @@ Reste à faire, dans l'ordre où l'œil le voit :
   pas du héros (`render/gains.ts`), pertes exclues, mouvement réduit respecté ;
 - pas de file de chemin visible AVANT de confirmer un déplacement long sur PC
   (la prévisualisation existe au doigt ; vérifier la parité souris) ;
-- les transitions d'écran (carte↔cité↔combat) sont des coupes franches ;
-- le combat n'a ni annonce de tour (« Archers — à vous ») ni surbrillance de
-  l'unité active assez marquée (à VÉRIFIER à l'œil, pas sur parole) ;
-- aucun son. HMM3 sans le bruit des pas et le cor de fin de tour n'est pas
-  HMM3. Il existe `jouerEffet('clic')` — l'infrastructure est là.
+- ~~les transitions d'écran sont des coupes franches~~ — livré le 27/08 : les
+  écrans entrent en fondu depuis le granit (`.jeu-ecran` + `hmm-entree-voile`)
+  et le voile de chargement SE LÈVE sur une scène déjà peinte. **Opacité
+  seulement** sur l'hôte du canevas WebGL ; démontage du voile par délai fixe
+  et JAMAIS par `transitionend` (qui ne vient ni sous mouvement réduit ni en
+  onglet caché). Garde : `screens/transitions.test.ts` ;
+- ~~le combat n'a pas d'annonce de tour~~ — livré le 27/08 : cartouche de
+  granit grenaté au HAUT du champ (150 ms de montée, 900 de tenue, 350 de
+  descente), chiffre romain et note de main. Deux pièges payés comptant, tous
+  deux trouvés à l'ÉPREUVE AU CLIC et invisibles aux gardes de source :
+  (1) `resize()` l'effaçait, et l'hôte redimensionne toujours juste après
+  avoir construit la vue — l'annonce mourait dans la milliseconde à chaque
+  bataille ; le redimensionnement la REPLACE maintenant ; (2) posé au quart de
+  la hauteur, il tombait derrière la fiche d'aperçu d'assaut, ouverte par
+  défaut. Garde : `battle/annonce.test.ts`. La surbrillance de l'unité active
+  reste à juger à l'œil ;
+- ~~aucun son~~ — livré le 27/08. Le moteur audio était COMPLET (dix-huit
+  effets synthétiques, sept thèmes, trois bus, réverbe, limiteur) et seuls le
+  menu et le codex s'en servaient. Branché sur le pont `landing/audio-bridge`
+  (JAMAIS d'import direct de `audio/index.js` : le chargement paresseux et la
+  garantie « ne lève jamais » y tiennent) : un pas par case franchie, au plus
+  un par image ; gains, conquêtes, vignettes ; épée, trait, impact, mort, sort
+  dans les `debut()` des tâches d'anim (seul instant où le son tombe avec le
+  geste) ; cloches ou glas selon le camp ; un thème par écran. **Rien ne sonne
+  en mouvement réduit** (tout s'y joue d'un bloc). Le premier appui sur une
+  scène ouvre le contexte audio, qu'aucun navigateur n'accorde sans geste.
+  Garde : `audio-en-jeu.test.ts`.
 
 ### 3.2 « Navigation claire et simple — carte, combats, écrans »
 
@@ -189,6 +211,18 @@ Recruter, chantier → Bâtir) ; « Fin du tour » à la racine, plus jamais sou
 panneau ; ligne de recrue en grille sur téléphone (600 px → 150 px) ;
 pastille de sauvegarde qui ne recouvre plus le trésor ; l'action l'emporte sur
 l'information au toucher (appui court agit, appui long informe).
+
+Livré le 27/08 : **le clic droit sur l'herbe répond**. Le geste existait de
+bout en bout — appui long et clic droit appelaient déjà `onInspect` avec
+`{ kind: 'case', at }` — mais l'écran jetait ce cas et `ficheDe` rendait
+`null` : sur les neuf dixièmes de la carte, le geste d'information de HMM3 ne
+disait RIEN, et `tools/e2e-geste-carte.mjs` échouait là-dessus depuis
+longtemps (vérifié en worktree : l'échec précède ce lot). La fiche donne le
+nom du terrain, la région, et surtout le COÛT DE MARCHE — le renseignement
+qui décide d'un trajet, affiché nulle part ailleurs. Elle se tait sous le
+voile : même équité que pour les armées adverses. Gardes :
+`screens/terrain-fiche.test.ts`, et l'e2e des gestes est vert pour la
+première fois.
 
 Reste : raccourcis clavier PC quasi absents — HMM3 vit sur Espace (revisite),
 E (héros suivant), H (héros), T (cité), Échap (annuler). Il n'existe AUCUN
@@ -282,7 +316,7 @@ Outils : `#/demo/carte` + scènes `carte`, `carte_pres`, `carte_loin` de
 
 ```bash
 pnpm i                                  # installer
-npx vitest run                          # 1194 verts attendus
+npx vitest run                          # 1359 verts attendus
 node tools/e2e-solo.mjs                 # LA boucle de jeu, au clic, PC+iPhone
 node tools/e2e-geste-carte.mjs          # les 4 gestes tactiles
 node tools/screenshot.mjs cite_granit --dir shots/x   # regarder une scène
