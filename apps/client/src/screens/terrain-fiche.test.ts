@@ -17,11 +17,14 @@
  */
 import { describe, expect, it } from 'vitest';
 import { createGame, type MapCoord, type WorldMap } from '@auvergne/engine';
-import { buildWorld } from '@auvergne/map';
+import { CONTENT_VERSION } from '@auvergne/content';
+import { MAP_VERSION, buildWorld } from '@auvergne/map';
 import { ficheDuTerrain, type Regard } from './estimation.js';
 
+const GRAINE = 7;
+
 function monde(): WorldMap {
-  return buildWorld({ seed: 7, players: 2 }) as unknown as WorldMap;
+  return buildWorld(GRAINE) as unknown as WorldMap;
 }
 
 function regardDe(world: WorldMap, fog: Uint8Array | null): Regard {
@@ -97,7 +100,11 @@ describe('le geste reste distinct de l’action', () => {
        la fiche de terrain deviendrait bavarde sans que rien ne le dise. */
     const jeu = createGame(
       {
-        seed: 7,
+        seed: GRAINE,
+        mapVersion: MAP_VERSION,
+        contentVersion: CONTENT_VERSION,
+        duration: 'standard',
+        victory: 'couronne',
         players: [
           { id: 'P1', name: 'Maison de Granit', faction: 'granit', kind: 'humain', start: 'arconsat', hero: 'thibaut' },
           {
