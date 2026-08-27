@@ -52,6 +52,7 @@ import { Meteo } from './weather.js';
 import { creerPostFx } from './postfx.js';
 import type { PostTraitement } from './postfx.js';
 import { borne, champs, colEcran, rowEcran, xEcran, yEcran } from './commun.js';
+import { jouerEffet } from '../landing/audio-bridge.js';
 import type { Cadrage } from './commun.js';
 
 /** Budget de peinture de terrain par image, en millisecondes. */
@@ -403,7 +404,16 @@ class CarteAventure implements MapView {
              n'a pas de case, il ne flotte pas. */
           if (!immediat && derniereCase && e.player === this.deps.localPlayer) {
             this.gains.montrer(derniereCase, e.delta);
+            jouerEffet('piece');
           }
+          break;
+        case 'TownCaptured':
+          /* Nos conquêtes sonnent les cloches ; la manchette publique qui
+             suit porte déjà la vignette — elle reste muette (voir Notice). */
+          if (!immediat && e.by === this.deps.localPlayer) jouerEffet('victoire');
+          break;
+        case 'SealTaken':
+          if (!immediat && e.by === this.deps.localPlayer) jouerEffet('victoire');
           break;
         case 'FogRevealed':
           this.majFog();
@@ -418,6 +428,11 @@ class CarteAventure implements MapView {
              passent par `notice` du magasin, pas par ici. */
           if (e.player === this.deps.localPlayer) {
             this.deps.onNotice?.({ text: e.text, severity: e.severity });
+            /* Un son par vignette — sauf les manchettes publiques (capture,
+               gabelle), dont l'événement porteur a déjà sonné le sien. */
+            if (!immediat && e.portee !== 'publique') {
+              jouerEffet(e.severity === 'info' ? 'borne' : 'alerte');
+            }
           }
           break;
         default:

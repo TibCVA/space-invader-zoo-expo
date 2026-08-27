@@ -16,6 +16,7 @@
 
 import { hexDistance, hexLine, hexPath } from '@auvergne/engine';
 import type { CombatLogEntry, CombatState, GameEvent, HexCoord } from '@auvergne/engine';
+import { jouerEffet, type CleEffet } from '../landing/audio-bridge.js';
 import { LIGHT, PALETTE, melanger } from '../art/palette.js';
 import { CONTACT_CORPS_A_CORPS, LACHER_DU_TRAIT } from '../art/creatures/archetypes.js';
 import type { NatureTrait } from './vfx.js';
@@ -120,6 +121,8 @@ export interface ContexteAnim {
   readonly onJournal?: (entry: CombatLogEntry) => void;
   /** appelé quand la file se vide */
   readonly onRepos?: () => void;
+  /** camp du joueur local — `null` pour un combat observé ou une démo */
+  readonly campLocal?: () => 0 | 1 | null;
 }
 
 /* ═══════════════════════════ La file d'attente ═══════════════════════════ */
@@ -147,6 +150,16 @@ export class FileAnimations {
 
   get occupee(): boolean {
     return this.courante !== null || this.taches.length > 0;
+  }
+
+  /**
+   * Un effet sonore au fil des gestes. Muet en mouvement réduit : la file y
+   * est vidée d'un bloc (`viderImmediatement`) et chaque `debut()` partirait
+   * en même temps — une salve de sons simultanés n'informe de rien.
+   */
+  private son(cle: CleEffet): void {
+    if (this.ctx.reducedMotion) return;
+    jouerEffet(cle);
   }
 
   /**
@@ -412,6 +425,7 @@ export class FileAnimations {
           c.orienter(depart.x >= cible.x ? 1 : -1);
         }
         a.jouer(riposte ? 'riposte' : 'attaque');
+        if (!distant) this.son('epee');
       },
       pas: (t) => {
         if (!a || distant) return;
@@ -441,6 +455,7 @@ export class FileAnimations {
           PALETTE.brunFougere,
           natureDuTrait(a.creature),
         );
+        this.son('arc');
       },
     });
     /*
@@ -464,6 +479,7 @@ export class FileAnimations {
         const x = cible.x;
         const y = cible.y * et - ctx.geo.taille * 0.7;
         c.jouer('impact');
+        this.son('impact');
         c.frapper(Math.min(4, 1.6 + degats / 90));
         ctx.vfx.impact(x, y, Math.min(1.7, 0.7 + degats / 140), tir ? PALETTE.brunFougere : PALETTE.ocre);
         if (pertes > 0) ctx.vfx.sang(x, cible.y * et + ctx.geo.taille * 0.1, Math.min(2, pertes / 4));
@@ -532,6 +548,7 @@ export class FileAnimations {
         const x = c.pos.x;
         const y = c.pos.y * et - ctx.geo.taille * 0.7;
         c.jouer('impact');
+        this.son('impact');
         c.frapper(Math.min(4, 1.6 + degats / 90));
         ctx.vfx.impact(x, y, Math.min(1.7, 0.7 + degats / 140), PALETTE.granitClair);
         if (pertes > 0) ctx.vfx.sang(x, c.pos.y * et + ctx.geo.taille * 0.1, Math.min(2, pertes / 4));
@@ -557,6 +574,7 @@ export class FileAnimations {
         const p = ctx.piles.pile(uid);
         if (!p) return;
         p.jouer('mort');
+        this.son('mort');
         const et = ctx.geo.etirement;
         ctx.vfx.effet('poussiere', p.pos.x, p.pos.y * et, 0.9, 1.3);
         ctx.vfx.mention(p.pos.x, p.pos.y * et - ctx.geo.taille * 1.6, 'Anéantie', PALETTE.grenat);
@@ -599,6 +617,7 @@ export class FileAnimations {
         const x = p ? p.pos.x : ctx.geo.boite.largeur / 2;
         const y = p ? p.pos.y * et - ctx.geo.taille * 0.6 : ctx.geo.boite.hauteur / 2;
         ctx.vfx.aura(ecole, x, y, 0.8);
+        this.son('sort');
         if (degats > 0) {
           p?.jouer('impact');
           ctx.vfx.nombrePertes(x, y - ctx.geo.taille * 0.4, degats, pertes);
@@ -652,6 +671,10 @@ export class FileAnimations {
       index,
       duree: 1.35,
       debut: () => {
+        /* Les cloches pour le vainqueur, le glas pour le vaincu ; un combat
+           observé (camp local nul) entend les cloches, fin neutre. */
+        const campLocal = ctx.campLocal?.() ?? null;
+        this.son(campLocal !== null && campLocal !== camp ? 'defaite' : 'victoire');
         const et = ctx.geo.etirement;
         for (const p of ctx.piles.toutes) {
           if (p.estMorte) continue;

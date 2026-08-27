@@ -806,15 +806,75 @@
   pointer-events: none;
 }
 
+/* ─────────────────────────── Transitions d'écran ────────────────────────── */
+
+/*
+ * Chaque navigation démonte un écran et en monte un autre d'un coup (le
+ * routage d'App.tsx est un simple aiguillage de composants). Le nouvel écran
+ * entre donc en fondu depuis le granit du body — 220 ms, opacité seulement :
+ * jamais de `transform` ni de `filter` sur un conteneur qui porte le canevas
+ * WebGL, le compositing coûte trop cher sur téléphone. Le bandeau, commun à
+ * tous les écrans, reste volontairement immobile : c'est lui qui donne
+ * l'impression de continuité.
+ */
+.jeu-ecran,
+.jeu-panne {
+  animation: hmm-entree-voile var(--hmm-duree-lente) var(--hmm-courbe) both;
+}
+
+/*
+ * Le voile de chargement d'une scène Pixi. Opaque (même dégradé que
+ * `.jeu-scene`) pour couvrir l'éventuelle dernière image du canevas partagé
+ * pendant que la fabrique travaille ; il se lève en fondu quand la scène est
+ * prête — la première image est déjà peinte sous lui, il ne révèle jamais un
+ * canevas vide. `pointer-events: none` dès la levée : le voile ne doit pas
+ * voler les premiers clics de la scène.
+ */
+.jeu-scene__voile {
+  position: absolute;
+  inset: 0;
+  z-index: var(--hmm-z-voile);
+  display: grid;
+  background-image: linear-gradient(178deg, #232830 0%, #1a1f26 100%);
+  transition:
+    opacity var(--hmm-duree-lente) var(--hmm-courbe-sortie),
+    visibility 0s linear var(--hmm-duree-lente);
+}
+
+.jeu-scene__voile--leve {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Dans ce contexte absolu, le plein écran du chargement n'a plus de sens. */
+.jeu-scene__voile .jeu-chargement {
+  min-height: 100%;
+}
+
 /* ─────────────────────────── Mouvement réduit ───────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
   .ecran__vignette-bouton {
     transition: none;
   }
+
+  .jeu-ecran,
+  .jeu-panne,
+  .jeu-scene__voile {
+    animation: none;
+    transition: none;
+  }
 }
 
 :root[data-animations='reduites'] .ecran__vignette-bouton {
+  transition: none;
+}
+
+:root[data-animations='reduites'] .jeu-ecran,
+:root[data-animations='reduites'] .jeu-panne,
+:root[data-animations='reduites'] .jeu-scene__voile {
+  animation: none;
   transition: none;
 }
 

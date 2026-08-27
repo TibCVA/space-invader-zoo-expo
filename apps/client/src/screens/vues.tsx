@@ -29,6 +29,7 @@ import { ongletDe } from './cite-offres.js';
 import type { OngletCite } from './cite-offres.js';
 import type { Cible } from './cible.js';
 import { herosDisponibles, prochainHeros } from './heros-actions.js';
+import { demarrerTheme } from '../landing/audio-bridge.js';
 import type { MapView, TownView } from '../view-contract.js';
 import { Button, ConfirmBar } from '@auvergne/ui';
 
@@ -124,6 +125,12 @@ export interface EcranPartieProps {
 /** Carte d'aventure — `#/partie` et `#/demo/carte`. */
 export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactElement {
   const { game, world, localPlayer, demo } = state;
+
+  /* Le thème d'aventure accompagne la carte — il reprend aussi au retour
+     d'un combat ou d'une cité, chaque écran posant le sien au montage. */
+  useEffect(() => {
+    demarrerTheme('aventure');
+  }, []);
 
   /**
    * Ce qu'on regarde, distinct de ce avec quoi on agit.
@@ -480,6 +487,14 @@ export function EcranCite({ state, reducedMotion, uid, demoTown }: EcranCiteProp
    */
   const uidCible = cible?.uid ?? null;
   const factionCible = cible?.faction ?? null;
+
+  /* Chaque faction a son thème de cité — granit martial, ermitage recueilli. */
+  useEffect(() => {
+    if (factionCible) {
+      demarrerTheme(factionCible === 'ermitage' ? 'cite_ermitage' : 'cite_granit');
+    }
+  }, [factionCible]);
+
   const vueCiteRef = useRef<TownView | null>(null);
   useEffect(() => {
     if (cible) vueCiteRef.current?.setTown(cible);
@@ -619,6 +634,12 @@ export function EcranCite({ state, reducedMotion, uid, demoTown }: EcranCiteProp
 export function EcranCombat({ state, reducedMotion }: EcranPartieProps): ReactElement {
   const { game, world, localPlayer, demo } = state;
   const combat = game?.combat ?? null;
+
+  /* Les tambours du combat, le temps de l'affrontement ; la carte reprendra
+     son thème d'aventure à son remontage. */
+  useEffect(() => {
+    demarrerTheme('combat');
+  }, []);
 
   const fabrique = useCallback<FabriqueScene>(
     async ({ app, atlas, width, height }) => {

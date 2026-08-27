@@ -32,7 +32,20 @@ import { useEffect, useState, type ReactElement } from 'react';
 import type { GameState, PlayerId } from '@auvergne/engine';
 import { Button, ConfirmBar } from '@auvergne/ui';
 import { dispatch } from '../state/store.js';
+import { eveillerAudio, jouerEffet } from '../landing/audio-bridge.js';
 import { pluriel } from './format.js';
+
+/**
+ * Rendre la main, avec le bruit de la page du jour qui se tourne. Les trois
+ * chemins (bouton, barre d'espace, confirmation) passent par ici — et comme
+ * chacun est un geste utilisateur, on en profite pour réveiller le moteur
+ * audio d'un joueur arrivé en pleine partie sans passer par l'accueil.
+ */
+function rendreLaMain(): void {
+  eveillerAudio();
+  jouerEffet('page');
+  dispatch({ type: 'EndTurn' });
+}
 
 /** Ce que la commande de fin de tour doit montrer, et pourquoi. */
 export type EtatFinDeTour =
@@ -121,7 +134,7 @@ export function FinDeTour({ game, joueur }: FinDeTourProps): ReactElement | null
       }
       e.preventDefault();
       if (herosEnAttente > 0) setDemande(true);
-      else dispatch({ type: 'EndTurn' });
+      else rendreLaMain();
     };
     window.addEventListener('keydown', surTouche);
     return () => window.removeEventListener('keydown', surTouche);
@@ -155,7 +168,7 @@ export function FinDeTour({ game, joueur }: FinDeTourProps): ReactElement | null
           cancelLabel="Continuer à jouer"
           onConfirm={(): void => {
             setDemande(false);
-            dispatch({ type: 'EndTurn' });
+            rendreLaMain();
           }}
           onCancel={(): void => setDemande(false)}
         />
@@ -169,7 +182,7 @@ export function FinDeTour({ game, joueur }: FinDeTourProps): ReactElement | null
         variant="principal"
         onClick={(): void => {
           if (etat.herosEnAttente > 0) setDemande(true);
-          else dispatch({ type: 'EndTurn' });
+          else rendreLaMain();
         }}
       >
         Fin du tour

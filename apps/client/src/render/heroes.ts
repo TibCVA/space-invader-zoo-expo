@@ -18,6 +18,7 @@ import type { ArtAtlas } from '../art/index.js';
 import { LIGHT, PALETTE, assombrir, melanger } from '../art/palette.js';
 import { borne, xEcran, yEcran } from './commun.js';
 import type { Cadrage } from './commun.js';
+import { jouerEffet } from '../landing/audio-bridge.js';
 
 /**
  * Durée d'un pas de héros, en millisecondes.
@@ -519,13 +520,19 @@ export class JetonsHeros {
       return;
     }
     d.t += dtMs / d.msParCase;
+    let aFranchi = false;
     while (d.t >= 1 && d.index < d.points.length) {
       d.t -= 1;
       const p = d.points[d.index];
       jeton.col = p.col;
       jeton.row = p.row;
       d.index += 1;
+      aFranchi = true;
     }
+    /* Un pas sonore par case franchie — au plus UN par image : après un gel
+       d'onglet la boucle rattrape plusieurs cases d'un coup, et une rafale de
+       pas simultanés n'est que du bruit. */
+    if (aFranchi) jouerEffet('pas_terre');
     if (d.index >= d.points.length) {
       const fin = d.points[d.points.length - 1];
       jeton.col = fin.col;

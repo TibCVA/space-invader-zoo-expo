@@ -68,7 +68,7 @@ import { blob, degradeLineaire, degradeRadial, flat } from '../art/shading.js';
 import { ChampDeBataille, AMBIANCE_LABELS } from './field.js';
 import { CoucheGrille, Geometrie, cadrerPlateau, zonesDeMenace } from './hexgrid.js';
 import { CoucheUnites, campsDuCombat, vignettePile, type Camp } from './units.js';
-import { BarreInitiative } from './initiative.js';
+import { BarreInitiative, romain } from './initiative.js';
 import { CarteApercu, construireApercu, enrichirApercu, libelleEffet, type ApercuComplet } from './preview.js';
 import { POIGNEE_TACTILE, poserBoutonsActions, poserCarteAmarree } from './amarrage.js';
 import { brancherPincement, echelleBornee, gardePincement } from '../pincement.js';
@@ -412,6 +412,8 @@ class VueCombat implements BattleView {
   private readonly actionsCorps = new Container();
   private readonly poignee = new Graphics();
   private readonly aide = new Container();
+  /** bandeau d'annonce de round, posé au tiers haut du champ */
+  private readonly bandeau = new Container();
   /** bandeau d'information du mode portrait */
   private readonly infoBas = new Container();
   private readonly infoFond = new Graphics();
@@ -438,6 +440,10 @@ class VueCombat implements BattleView {
   private apercuImpose: AttackPreview | null = null;
   private ancreApercu = { x: 0, y: 0 };
   private menacesVisibles = false;
+  /** annonce de round en vol : depuis quand elle est à l'écran */
+  private annonce: { ms: number } | null = null;
+  /** dernier round annoncé — l'idempotence de l'annonce tient à ce nombre */
+  private dernierRoundAnnonce = 0;
   /** doigt posé sur le champ : origine, durée, plus grand écart parcouru */
   private maintien: { x: number; y: number; ms: number; ecart: number } | null = null;
   /** les menaces affichées le sont par un maintien du doigt, pas par `M` */
@@ -508,6 +514,10 @@ class VueCombat implements BattleView {
       this.infoBas,
       this.barreActions,
       this.aide,
+      /* Le bandeau passe au-dessus des panneaux d'information, mais SOUS le
+         grimoire et la carte d'aperçu : une annonce d'une seconde et demie ne
+         doit jamais couvrir ce sur quoi le joueur est en train de cliquer. */
+      this.bandeau,
       this.grimoire.container,
       this.masqueCarte,
       this.carte.container,
@@ -526,6 +536,7 @@ class VueCombat implements BattleView {
       onEtape: (i) => deps.onActionPlayed?.(i),
       onJournal: (e) => this.pousserJournal(e),
       onRepos: () => this.auRepos(),
+      campLocal: () => campDuJoueur(this.combat, this.deps.localPlayer),
     });
 
     this.actif = activeUnit(this.combat)?.uid ?? null;
@@ -669,6 +680,10 @@ class VueCombat implements BattleView {
     this.barre.container.position.set(0, 0);
 
     this.vfx.vider();
+    /* Le cartouche est peint aux coordonnées de l'ancienne bande : on le tue
+       plutôt que de le déplacer. Jamais de ré-annonce — `dernierRoundAnnonce`
+       n'est pas remis à zéro, et c'est lui seul qui décide. */
+    this.effacerBandeau();
     this.cleFiche = '';
     this.cleJournal = '';
     this.cleActions = '';
@@ -693,6 +708,7 @@ class VueCombat implements BattleView {
     this.carte.update(dt, this.ancreApercu);
     this.avancerMaintien(dt);
     this.avancerAdversaire(dt);
+    this.avancerBandeau(dt);
 
     /* secousse d'écran : elle porte le plateau, jamais l'interface */
     const s = this.vfx.secousse.decalage;
@@ -1479,6 +1495,12 @@ class VueCombat implements BattleView {
   }
 
   private pousserJournal(e: CombatLogEntry): void {
+    /* CHAQUE ligne de journal porte son round (`pushLog`) : la première d'un
+       round neuf est le signal, et `annoncerRound` fait le reste. On ne guette
+       pas la ligne « Round N. » de `beginRound` en particulier — la lire par
+       son `detail` marcherait aujourd'hui et se tairait le jour où cette
+       ligne changerait de forme. */
+    this.annoncerRound(e.round);
     this.journalLocal.push(e);
     if (this.journalLocal.length > 200) this.journalLocal.splice(0, this.journalLocal.length - 200);
     this.cleJournal = '';
@@ -1889,6 +1911,116 @@ class VueCombat implements BattleView {
    * Fait mûrir le maintien du doigt. Le seuil et la tolérance sont dans
    * `maintienMontreLesMenaces`, testée à part : ici on ne fait que compter.
    */
+  /* ═══════════════════════ L'annonce de round ════════════════════════════
+   *
+   * Le moteur ouvre chaque round par une entrée de journal `info` qui porte
+   * son numéro (`beginRound`, `combat/order.ts`) ; la file la rend au moment
+   * où l'animation du geste démarre, donc EN PHASE avec ce que l'écran
+   * montre. C'est le seul canal juste : `this.combat` est en avance sur le
+   * visuel pendant les animations, et keyer l'annonce dessus la ferait
+   * paraître pendant que les coups du round précédent se jouent encore.
+   *
+   * Le round I n'a pas d'entrée de journal (`openFirstRound` n'en émet pas) :
+   * il est annoncé à l'ouverture de la scène.
+   *
+   * UNE annonce par round, et pas une par activation de pile. Le camp qui a
+   * la main change à chaque pile qui joue — un bandeau à chaque fois serait
+   * un clignotement, pas une information. Le suffixe dit à qui est la main au
+   * moment où le round s'ouvre, et la barre d'actions le redit en continu.
+   */
+
+  /** Durées du bandeau, en millisecondes : montée, tenue, descente. */
+  private static readonly BANDEAU_MONTEE = 150;
+  private static readonly BANDEAU_TENUE = 900;
+  private static readonly BANDEAU_DESCENTE = 350;
+
+  /** Annonce un round, une fois pour toutes. */
+  private annoncerRound(round: number): void {
+    if (round <= 0 || round <= this.dernierRoundAnnonce) return;
+    this.dernierRoundAnnonce = round;
+    const aMoi = campDuJoueur(this.combat, this.deps.localPlayer);
+    const note =
+      this.deps.demo || aMoi === null
+        ? null
+        : this.adversaireDoitJouer
+          ? 'L’adversaire ouvre'
+          : 'À vous d’ouvrir';
+    this.peindreBandeau(`Round ${romain(round)}`, note);
+    this.annonce = { ms: 0 };
+    /* En mouvement réduit, pas de montée : le bandeau est là, franc, et se
+       coupe net à la fin de la tenue. Le texte, lui, reste dû au joueur. */
+    this.bandeau.alpha = this.deps.reducedMotion ? 1 : 0;
+  }
+
+  /** Peint le cartouche : granit grenaté, chiffre romain, note de main. */
+  private peindreBandeau(texte: string, note: string | null): void {
+    this.bandeau.removeChildren().forEach((c) => c.destroy({ children: true }));
+    const mesure = titre(texte, this.plan.compact ? 24 : 32, PALETTE.parchemin);
+    const mesureNote = note === null ? null : donneeClaire(note, this.plan.compact ? 12 : 14);
+    const w = Math.max(mesure.width, mesureNote?.width ?? 0) + (this.plan.compact ? 44 : 64);
+    const h = (this.plan.compact ? 52 : 66) + (note === null ? 0 : this.plan.compact ? 16 : 20);
+    const x = this.bandeChamp.x + (this.bandeChamp.w - w) / 2;
+    const y = this.bandeChamp.y + this.bandeChamp.h * 0.24;
+
+    const g = new Graphics();
+    plaqueGranit(g, this.deps.atlas.materials, x, y, w, h, {
+      teinte: melanger(PALETTE.granitAnthracite, PALETTE.grenat, 0.18),
+      graine: 53,
+      rayon: 2,
+    });
+    this.bandeau.addChild(g);
+
+    mesure.anchor.set(0.5, 0);
+    mesure.position.set(x + w / 2, y + (this.plan.compact ? 12 : 15));
+    mesure.style.dropShadow = {
+      color: LIGHT.rim,
+      alpha: 0.28,
+      angle: Math.PI / 2,
+      blur: 10,
+      distance: 0,
+    };
+    this.bandeau.addChild(mesure);
+
+    if (mesureNote) {
+      mesureNote.anchor.set(0.5, 1);
+      mesureNote.position.set(x + w / 2, y + h - (this.plan.compact ? 8 : 11));
+      this.bandeau.addChild(mesureNote);
+    }
+  }
+
+  /** Fait vivre puis mourir l'annonce. Le bandeau ne survit jamais seul. */
+  private avancerBandeau(dt: number): void {
+    const a = this.annonce;
+    if (!a) return;
+    a.ms += dt;
+    const { BANDEAU_MONTEE: montee, BANDEAU_TENUE: tenue, BANDEAU_DESCENTE: descente } = VueCombat;
+    if (this.deps.reducedMotion) {
+      if (a.ms >= montee + tenue) this.effacerBandeau();
+      return;
+    }
+    if (a.ms < montee) {
+      this.bandeau.alpha = a.ms / montee;
+      return;
+    }
+    if (a.ms < montee + tenue) {
+      this.bandeau.alpha = 1;
+      return;
+    }
+    const k = (a.ms - montee - tenue) / descente;
+    if (k >= 1) {
+      this.effacerBandeau();
+      return;
+    }
+    this.bandeau.alpha = 1 - k;
+  }
+
+  /** Retire le cartouche et libère ses textes (Pixi ne les nettoie pas seul). */
+  private effacerBandeau(): void {
+    this.annonce = null;
+    this.bandeau.alpha = 0;
+    this.bandeau.removeChildren().forEach((c) => c.destroy({ children: true }));
+  }
+
   private avancerMaintien(dt: number): void {
     const m = this.maintien;
     if (!m || this.menacesParMaintien) return;
@@ -2200,6 +2332,9 @@ class VueCombat implements BattleView {
    * une règle : les nombres restent ceux de `damageRange`.
    */
   ouvrirScene(): void {
+    /* Avant toute chose, et quoi qu'il arrive ensuite : le round d'ouverture
+       n'a pas d'entrée de journal, il n'a que cet appel pour se dire. */
+    this.annoncerRound(this.combat.round);
     const u = this.actif ? findUnit(this.combat, this.actif) : null;
     if (!u) return;
     const ennemis = livingUnits(this.combat, u.side === 0 ? 1 : 0);

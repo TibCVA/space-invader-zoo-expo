@@ -24,8 +24,15 @@ import {
 import type { ArtAtlas } from '../art/index.js';
 import type { Progression } from '../boot.js';
 import { Bandeau, EcranChargement, EcranPanne } from './shell.js';
+import { eveillerAudio } from '../landing/audio-bridge.js';
 import { consommerEvenements, viewStore } from '../state/store.js';
 import type { GameEvent } from '@auvergne/engine';
+
+/**
+ * Délai avant démontage du voile de chargement, un peu au-delà de la
+ * transition CSS (`--hmm-duree-lente`, 220 ms) pour qu'elle finisse à l'écran.
+ */
+export const DUREE_LEVEE_MS = 260;
 
 /**
  * Le strict minimum pour animer : ce que `GameView` promet en plus d'une scène.
@@ -120,8 +127,22 @@ export function ScenePixi(props: ScenePixiProps): ReactElement {
   });
   const [erreur, setErreur] = useState<unknown>(null);
   const [prete, setPrete] = useState(false);
+  /* Le voile de chargement reste monté un court instant après `prete` pour
+     se lever en fondu plutôt que de disparaître d'un coup. Le démontage passe
+     par un délai fixe, jamais par `transitionend` : sous mouvement réduit la
+     transition est coupée et l'événement ne viendrait pas. */
+  const [voile, setVoile] = useState(true);
 
   useEffect(() => observerProgression(setProgression), []);
+
+  useEffect(() => {
+    if (!prete) {
+      setVoile(true);
+      return;
+    }
+    const levee = window.setTimeout(() => setVoile(false), DUREE_LEVEE_MS);
+    return () => window.clearTimeout(levee);
+  }, [prete]);
 
   useEffect(() => {
     let vivant = true;
@@ -156,6 +177,11 @@ export function ScenePixi(props: ScenePixiProps): ReactElement {
         app.stage.removeChildren();
         app.renderer.resize(w, h);
         conteneur.appendChild(canvas);
+
+        /* Le premier appui sur la scène réveille le moteur audio : un joueur
+           qui recharge en pleine partie n'est jamais passé par un clic de
+           l'accueil, et les navigateurs n'ouvrent le son qu'après un geste. */
+        conteneur.addEventListener('pointerdown', eveillerAudio, { once: true, passive: true });
 
         /* Chronométré et compté : sur un appareil où la scène reste vide, c'est
            cette trace, relue par `#/diagnostic`, qui dira ce qui s'est passé. */
@@ -380,7 +406,14 @@ export function ScenePixi(props: ScenePixiProps): ReactElement {
       <div className="jeu-ecran">
         <div className="jeu-scene">
           <div className="jeu-scene__toile" ref={hote} />
-          {!prete ? <EcranChargement progression={progression} titre={titre} citation={titre.length} /> : null}
+          {voile ? (
+            <div
+              className={'jeu-scene__voile' + (prete ? ' jeu-scene__voile--leve' : '')}
+              aria-hidden={prete || undefined}
+            >
+              <EcranChargement progression={progression} titre={titre} citation={titre.length} />
+            </div>
+          ) : null}
           {prete && legende ? <div className="jeu-scene__legende">{legende}</div> : null}
           {prete ? children : null}
         </div>

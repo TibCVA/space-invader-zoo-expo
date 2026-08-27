@@ -113,6 +113,22 @@ export async function moteurAudio(): Promise<MoteurAudio | null> {
   return tentative;
 }
 
+/**
+ * Réveille le moteur au premier geste de jeu. À appeler depuis un gestionnaire
+ * d'appui : les navigateurs n'ouvrent le contexte audio qu'après un geste, et
+ * un joueur qui recharge en pleine partie n'est jamais passé par l'accueil.
+ * Idempotent — `init()` reprend aussi un contexte suspendu.
+ */
+export function eveillerAudio(): void {
+  void moteurAudio().then(async (moteur) => {
+    try {
+      await moteur?.init();
+    } catch {
+      /* Contexte refusé : silence, sans conséquence. */
+    }
+  });
+}
+
 /** Joue un effet ; ne lève jamais, n'attend jamais. */
 export function jouerEffet(key: CleEffet): void {
   void moteurAudio().then((moteur) => {
