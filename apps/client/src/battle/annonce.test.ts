@@ -71,22 +71,41 @@ describe('le round s’annonce, une fois et au bon instant', () => {
     expect(bloc).toContain('this.dernierRoundAnnonce = round');
   });
 
-  it('le redimensionnement tue le cartouche sans jamais le rejouer', () => {
+  it('le redimensionnement REPLACE le cartouche, il ne le tue pas', () => {
+    /*
+     * Le défaut trouvé à l'épreuve au clic : `resize` effaçait le bandeau, et
+     * l'hôte de scène redimensionne TOUJOURS juste après avoir construit la
+     * vue — l'annonce d'ouverture mourait dans la milliseconde, à chaque
+     * bataille, et n'était jamais rejouée puisque son round était retenu.
+     */
     const i = VUE.indexOf('resize(width: number, height: number): void {');
     expect(i).toBeGreaterThan(0);
     const bloc = VUE.slice(i, i + 2600);
-    expect(bloc).toContain('this.effacerBandeau()');
+    expect(bloc).toContain('this.replacerBandeau()');
+    expect(bloc).not.toContain('this.effacerBandeau()');
     /* Ni remise à zéro du compteur, ni ré-annonce : sinon chaque rotation de
        téléphone rejouerait le round en cours. */
     expect(bloc).not.toContain('dernierRoundAnnonce = 0');
     expect(bloc).not.toContain('annoncerRound');
+  });
+
+  it('replacer repeint l’annonce en vol et n’efface que s’il n’y en a plus', () => {
+    const i = VUE.indexOf('private replacerBandeau(): void {');
+    expect(i).toBeGreaterThan(0);
+    const bloc = VUE.slice(i, i + 220);
+    expect(bloc).toContain('if (!a) {');
+    expect(bloc).toContain('this.effacerBandeau()');
+    /* Le texte est retenu dans l'annonce : on le repeint tel quel, sans
+       relire le round (qui a pu avancer derrière les animations). */
+    expect(bloc).toContain('this.peindreBandeau(a.texte, a.note)');
+    expect(VUE).toContain('this.annonce = { ms: 0, texte, note }');
   });
 });
 
 describe('ce que le bandeau dit, et à qui', () => {
   it('le chiffre est romain, comme la chronique du combat', () => {
     expect(VUE).toContain("import { BarreInitiative, romain } from './initiative.js'");
-    expect(VUE).toMatch(/peindreBandeau\(`Round \$\{romain\(round\)\}`/);
+    expect(VUE).toMatch(/const texte = `Round \$\{romain\(round\)\}`/);
   });
 
   it('« à vous » ne s’affiche jamais quand le joueur n’a pas de camp', () => {

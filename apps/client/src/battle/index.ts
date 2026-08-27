@@ -440,8 +440,8 @@ class VueCombat implements BattleView {
   private apercuImpose: AttackPreview | null = null;
   private ancreApercu = { x: 0, y: 0 };
   private menacesVisibles = false;
-  /** annonce de round en vol : depuis quand elle est à l'écran */
-  private annonce: { ms: number } | null = null;
+  /** annonce de round en vol : son texte, et depuis quand elle est à l'écran */
+  private annonce: { ms: number; texte: string; note: string | null } | null = null;
   /** dernier round annoncé — l'idempotence de l'annonce tient à ce nombre */
   private dernierRoundAnnonce = 0;
   /** doigt posé sur le champ : origine, durée, plus grand écart parcouru */
@@ -680,10 +680,10 @@ class VueCombat implements BattleView {
     this.barre.container.position.set(0, 0);
 
     this.vfx.vider();
-    /* Le cartouche est peint aux coordonnées de l'ancienne bande : on le tue
-       plutôt que de le déplacer. Jamais de ré-annonce — `dernierRoundAnnonce`
-       n'est pas remis à zéro, et c'est lui seul qui décide. */
-    this.effacerBandeau();
+    /* Le cartouche est repeint à la nouvelle bande, sans repartir de zéro :
+       jamais de ré-annonce — `dernierRoundAnnonce` n'est pas remis à zéro, et
+       c'est lui seul qui décide. */
+    this.replacerBandeau();
     this.cleFiche = '';
     this.cleJournal = '';
     this.cleActions = '';
@@ -1945,11 +1945,32 @@ class VueCombat implements BattleView {
         : this.adversaireDoitJouer
           ? 'L’adversaire ouvre'
           : 'À vous d’ouvrir';
-    this.peindreBandeau(`Round ${romain(round)}`, note);
-    this.annonce = { ms: 0 };
+    const texte = `Round ${romain(round)}`;
+    this.annonce = { ms: 0, texte, note };
+    this.peindreBandeau(texte, note);
     /* En mouvement réduit, pas de montée : le bandeau est là, franc, et se
        coupe net à la fin de la tenue. Le texte, lui, reste dû au joueur. */
     this.bandeau.alpha = this.deps.reducedMotion ? 1 : 0;
+  }
+
+  /**
+   * Le champ a changé de taille : le cartouche SUIT, il ne meurt pas.
+   *
+   * Il est peint aux coordonnées de la bande du champ ; les laisser périmées
+   * le poserait de travers. Mais l'effacer serait pire, et l'a été : l'hôte
+   * de scène redimensionne TOUJOURS la vue juste après l'avoir construite
+   * (`ScenePixi` appelle `appliquer()`, puis son `ResizeObserver` refrappe),
+   * si bien que l'annonce d'ouverture était tuée dans la milliseconde, à
+   * chaque bataille — et jamais rejouée, puisque son round était déjà retenu.
+   * Trouvé à l'épreuve au clic, invisible aux gardes de source.
+   */
+  private replacerBandeau(): void {
+    const a = this.annonce;
+    if (!a) {
+      this.effacerBandeau();
+      return;
+    }
+    this.peindreBandeau(a.texte, a.note);
   }
 
   /** Peint le cartouche : granit grenaté, chiffre romain, note de main. */
@@ -1960,7 +1981,21 @@ class VueCombat implements BattleView {
     const w = Math.max(mesure.width, mesureNote?.width ?? 0) + (this.plan.compact ? 44 : 64);
     const h = (this.plan.compact ? 52 : 66) + (note === null ? 0 : this.plan.compact ? 16 : 20);
     const x = this.bandeChamp.x + (this.bandeChamp.w - w) / 2;
-    const y = this.bandeChamp.y + this.bandeChamp.h * 0.24;
+    /*
+     * EN HAUT DU CHAMP, et non au tiers.
+     *
+     * Le premier placement le posait à 24 % de la hauteur : mesuré à l'écran,
+     * c'est exactement là que s'ouvre la fiche d'aperçu d'assaut — la plus
+     * grande surface d'interface de la vue, et celle qui est ouverte par
+     * défaut à l'ouverture de la scène. On ne voyait plus du cartouche qu'un
+     * liseré grenat dépassant derrière elle.
+     *
+     * On ne le fait pas passer DEVANT : cette fiche porte les chiffres que le
+     * joueur est en train de lire. Le haut du champ, sous la barre
+     * d'initiative, est la seule bande que rien n'occupe dans les deux
+     * gabarits — paysage comme portrait.
+     */
+    const y = this.bandeChamp.y + Math.max(10, this.bandeChamp.h * 0.03);
 
     const g = new Graphics();
     plaqueGranit(g, this.deps.atlas.materials, x, y, w, h, {
