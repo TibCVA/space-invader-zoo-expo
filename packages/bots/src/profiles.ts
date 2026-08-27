@@ -200,9 +200,19 @@ const PRUDENT: BotProfile = {
     enemyClaim: 12000,
   },
   economy: {
-    lines: ['revenu', 'defense', 'demeure', 'mobilite', 'magie', 'amelioration', 'prestige'],
-    reserveEcus: 2200,
-    recruitShareBp: 5500,
+    /*
+     * MESURÉ sur la carte 3.0.0 (duel de vingt parties) : avec « revenu »
+     * en tête, 2200 écus de réserve et 55 % de solde aux recrues, le prudent
+     * mourait par CONQUÊTE en 14 à 25 jours avec une force de… zéro — pas un
+     * combat livré dans la moitié des parties. Une tortue qui thésaurise
+     * pendant qu'on marche sur sa capitale n'est pas prudente, elle est
+     * morte. Les demeures passent devant, la réserve descend à ce qu'exige
+     * une semaine de recrues, la solde monte : la prudence redevient une
+     * ARMÉE derrière des murs, pas un livre de comptes.
+     */
+    lines: ['demeure', 'defense', 'revenu', 'mobilite', 'amelioration', 'magie', 'prestige'],
+    reserveEcus: 900,
+    recruitShareBp: 7200,
     tightTier: 2,
     defenseTrigger: 27,
     upgradeFromWeek: 6,

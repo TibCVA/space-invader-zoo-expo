@@ -146,10 +146,12 @@ les grants, garnison en légende, flèches de cité (`cite-navigation.test.ts`).
 (5) Les 28 dessins peints de créatures branchés sur `atlas.creature`
 (`creatures-peintes.test.ts`).
 
-**Chantier ouvert par la carte 3.0.0** : recalibrer le profil `prudent` — sur
-la carte équitable, l'expert gagne 20/20 (contre 19 avant) ; la borne haute du
-duel est tombée au profit des planchers de vitalité (voir `duel.test.ts`), et
-le rééquilibrage du profil reste à faire.
+**Chantier prudent : RÉGLÉ le 27/08.** Le duel a montré la vraie cause :
+avec « revenu » en tête de filière, 2200 écus de réserve et 55 % de solde,
+le prudent mourait par conquête en 14-25 jours avec une force de ZÉRO — il
+thésaurisait pendant qu'on marchait sur sa capitale. Demeures en tête de
+filière, réserve 900, solde 72 % (`profiles.ts`) : expert 17/20, prudent
+3/20, parties de 13 à 158 jours — la tortue est redevenue un adversaire.
 
 ## 3. Les chantiers du dernier message du propriétaire
 
