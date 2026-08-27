@@ -28,6 +28,7 @@ import {
   ficheDeLaCite,
   ficheDuHeros,
   ficheDuLieu,
+  ficheDuTerrain,
   forceEnMots,
   sousTitreDe,
 } from './estimation.js';
@@ -72,6 +73,11 @@ export function ficheDe(
       const h = game.heroes[cible.uid];
       return h ? ficheDuHeros(game, h, regard) : null;
     }
+    case 'case':
+      /* Le clic droit de HMM3 sur l'herbe : le terrain se nomme, et dit ce
+         qu'il coûte à traverser. Neuf dixièmes de la carte n'avaient aucune
+         réponse à ce geste. */
+      return ficheDuTerrain(world, cible.at, regard);
     default:
       return null;
   }

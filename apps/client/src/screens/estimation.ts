@@ -36,7 +36,16 @@
  * difficulté et leurs libellés français.
  */
 
-import { armyPower, resourceLabel, skillRank } from '@auvergne/engine';
+import {
+  REGION_LABELS,
+  TERRAIN_LABELS,
+  armyPower,
+  regionAt,
+  resourceLabel,
+  skillRank,
+  terrainAt,
+  terrainCost,
+} from '@auvergne/engine';
 import type {
   ArmyStack,
   CreatureId,
@@ -47,6 +56,7 @@ import type {
   PlayerId,
   ResourceKey,
   TownState,
+  WorldMap,
 } from '@auvergne/engine';
 import { CREATURES, HEROES } from '@auvergne/content';
 import { OBJECT_KIND_LABELS } from '@auvergne/engine';
@@ -450,6 +460,82 @@ export function ficheDuLieu(etat: GameState, gabarit: MapObject, regard: Regard)
 /** Un lieu qu'on peut prendre et que personne ne garde mérite qu'on le dise. */
 function pavoisableSansGarde(objet: MapObject): boolean {
   return objet.kind === 'mine' || objet.kind === 'demeure' || objet.kind === 'sceau';
+}
+
+/* ── Terrain nu ─────────────────────────────────────────────────────────── */
+
+/**
+ * LA FICHE D'UNE CASE SANS RIEN DESSUS — le clic droit de HMM3.
+ *
+ * Dans HMM3, le clic droit sur l'herbe répond « Grass ». Ici il ne répondait
+ * rien : `ficheDe` rendait `null` pour une case nue, si bien que l'appui long
+ * — le geste d'information du doigt — n'avait aucun effet sur les neuf
+ * dixièmes de la carte. L'épreuve de bout en bout l'attendait déjà et
+ * échouait ; personne n'avait écrit ce qu'elle attendait.
+ *
+ * Ce que la fiche dit, et pourquoi : le NOM du terrain (on ne devine pas
+ * toujours une lande d'une prairie à l'œil, sous la pluie), sa RÉGION (les
+ * douze pays du Forez donnent le sens de l'orientation), et surtout son COÛT
+ * DE MARCHE — le renseignement qui décide d'un trajet, et que rien n'affichait
+ * nulle part. Une case infranchissable le dit en toutes lettres.
+ *
+ * Aucune règle n'est calculée : le coût vient de `terrainCost` du moteur,
+ * mesuré sur un pas droit depuis la case elle-même.
+ */
+export function ficheDuTerrain(world: WorldMap, at: MapCoord, regard: Regard): Fiche | null {
+  if (at.col < 0 || at.row < 0 || at.col >= world.cols || at.row >= world.rows) return null;
+  /*
+   * Sous le voile, la case ne dit RIEN. C'est l'équité du brouillard, la même
+   * règle que pour les armées : on n'apprend pas d'un carton ce qu'on n'a pas
+   * exploré. Le voile à 1 (déjà parcouru, plus surveillé) suffit — on se
+   * souvient d'un terrain qu'on a traversé.
+   */
+  if (!explorée(regard, at)) return null;
+  const terrain = terrainAt(world, at.col, at.row);
+  const nom = TERRAIN_LABELS[terrain];
+
+  const notes: string[] = [`Dans ${REGION_LABELS[regionAt(world, at.col, at.row)]}.`];
+  /* Le coût d'un pas DROIT pour entrer ici : on part de la case voisine de
+     gauche, ou de droite au bord. La diagonale coûte 41 % de plus, ce n'est
+     pas ce qu'on annonce — on annonce le tarif de base. */
+  const depuis = { col: at.col > 0 ? at.col - 1 : at.col + 1, row: at.row };
+  const cout = terrainCost(world, depuis, at, []);
+  if (cout >= Number.MAX_SAFE_INTEGER) {
+    notes.push('Infranchissable : aucune troupe n’y passe.');
+  } else {
+    notes.push(`Coûte ${nombre(cout)} points de marche pour y entrer.`);
+  }
+
+  return {
+    titre: capitale(nom),
+    nature: 'Terrain',
+    proprietaire: null,
+    neutre: true,
+    piles: [],
+    force: null,
+    difficulte: null,
+    juge: null,
+    notes,
+    at,
+  };
+}
+
+function capitale(s: string): string {
+  return s.length === 0 ? s : s[0].toUpperCase() + s.slice(1);
+}
+
+/**
+ * La case a-t-elle été explorée au moins une fois ?
+ *
+ * Sans voile connu (démonstration, revue d'art), tout est visible : la carte
+ * de démonstration n'a pas de joueur à protéger.
+ */
+function explorée(regard: Regard, at: MapCoord): boolean {
+  const fog = regard.fog;
+  if (!fog || regard.cols <= 0) return true;
+  const index = at.row * regard.cols + at.col;
+  if (index < 0 || index >= fog.length) return false;
+  return fog[index] >= 1;
 }
 
 /* ── Cités ──────────────────────────────────────────────────────────────── */

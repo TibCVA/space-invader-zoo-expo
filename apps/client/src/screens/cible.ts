@@ -13,9 +13,16 @@
  * ce qu'on regarde n'entre dans l'état du jeu ni dans son hachage.
  */
 
-import type { HeroUid, ObjectUid, TownUid } from '@auvergne/engine';
+import type { HeroUid, MapCoord, ObjectUid, TownUid } from '@auvergne/engine';
 
 export type Cible =
   | { readonly kind: 'objet'; readonly uid: ObjectUid }
   | { readonly kind: 'cite'; readonly uid: TownUid }
-  | { readonly kind: 'heros'; readonly uid: HeroUid };
+  | { readonly kind: 'heros'; readonly uid: HeroUid }
+  /**
+   * Une case nue. C'est le clic droit de HMM3 sur l'herbe : le terrain se
+   * nomme et dit ce qu'il coûte à traverser. Le geste existait — l'appui long
+   * appelait déjà `onInspect` avec cette forme — mais l'écran le jetait, et
+   * neuf dixièmes de la carte restaient sans réponse.
+   */
+  | { readonly kind: 'case'; readonly at: MapCoord };

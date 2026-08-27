@@ -247,6 +247,10 @@ export function EcranCarte({ state, reducedMotion }: EcranPartieProps): ReactEle
           if (c.kind === 'heros') setCible({ kind: 'heros', uid: c.uid });
           else if (c.kind === 'cite') setCible({ kind: 'cite', uid: c.uid });
           else if (c.kind === 'objet') setCible({ kind: 'objet', uid: c.object.uid });
+          /* Une case nue répond aussi : le nom du terrain et son coût de
+             marche. L'appui COURT, lui, continue de congédier la fiche
+             (`onPickCell`) — informer et agir restent deux gestes. */
+          else if (c.kind === 'case') setCible({ kind: 'case', at: c.at });
           else setCible(null);
         },
         onNotice: montrerVignette,
